@@ -1,4 +1,10 @@
 	</div><!-- close main-->
+	{if !isset($HideNavBar) || $HideNavBar == false}
+		</div><!-- close app-content -->
+	</div><!-- close app-shell -->
+	{else}
+		</div><!-- close app-content bare -->
+	{/if}
 	<div id="button-up" class="bg-primary rounded-circle text-white">
 		<i class="bi bi-chevron-double-up" aria-hidden="true"></i>
 	</div>
