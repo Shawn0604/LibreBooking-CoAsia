@@ -2,6 +2,7 @@
 
 require_once(ROOT_DIR . 'lib/Email/namespace.php');
 require_once(ROOT_DIR . 'Pages/Pages.php');
+require_once(ROOT_DIR . 'Domain/Values/VideoConferenceInfo.php');
 
 abstract class ReminderEmail extends EmailMessage
 {
@@ -47,6 +48,18 @@ abstract class ReminderEmail extends EmailMessage
             QueryStringKeys::REFERENCE_NUMBER,
             $this->reminder->ReferenceNumber()
         ));
+
+        $videoConferenceResources = [];
+        if (!empty($this->reminder->VideoUrl())) {
+            $videoConferenceResources[] = new VideoConferenceInfo(
+                $this->reminder->ResourceNames(),
+                $this->reminder->VideoUrl(),
+                $this->reminder->VideoMeetingId(),
+                $this->reminder->VideoPasscode()
+            );
+        }
+        $this->Set('VideoConferenceResources', $videoConferenceResources);
+
         return $this->FetchTemplate($this->GetTemplateName());
     }
 

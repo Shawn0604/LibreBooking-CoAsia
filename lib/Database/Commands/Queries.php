@@ -662,9 +662,25 @@ class Queries
 		`rs`.*,
 		`ri`.*,
 		`u`.`fname`, `u`.`lname`, `u`.`language`, `u`.`timezone`, `u`.`email`,
+		`rr`.`minutes_prior`,
 		(SELECT GROUP_CONCAT(`r`.`name`  SEPARATOR "!sep!")
 			FROM `reservation_resources`
-			INNER JOIN `resources` `r` on `reservation_resources`.`resource_id` = `r`.`resource_id` WHERE `reservation_resources`.`series_id` = `rs`.`series_id`) as `resource_names`
+			INNER JOIN `resources` `r` on `reservation_resources`.`resource_id` = `r`.`resource_id` WHERE `reservation_resources`.`series_id` = `rs`.`series_id`) as `resource_names`,
+		(SELECT `cav`.`attribute_value`
+			FROM `reservation_resources` `rrv`
+			INNER JOIN `custom_attribute_values` `cav` ON `cav`.`entity_id` = `rrv`.`resource_id` AND `cav`.`attribute_category` = 4
+			INNER JOIN `custom_attributes` `cattr` ON `cattr`.`custom_attribute_id` = `cav`.`custom_attribute_id` AND `cattr`.`display_label` = \'video_url\'
+			WHERE `rrv`.`series_id` = `rs`.`series_id` LIMIT 1) as `video_url`,
+		(SELECT `cav`.`attribute_value`
+			FROM `reservation_resources` `rrv`
+			INNER JOIN `custom_attribute_values` `cav` ON `cav`.`entity_id` = `rrv`.`resource_id` AND `cav`.`attribute_category` = 4
+			INNER JOIN `custom_attributes` `cattr` ON `cattr`.`custom_attribute_id` = `cav`.`custom_attribute_id` AND `cattr`.`display_label` = \'video_meeting_id\'
+			WHERE `rrv`.`series_id` = `rs`.`series_id` LIMIT 1) as `video_meeting_id`,
+		(SELECT `cav`.`attribute_value`
+			FROM `reservation_resources` `rrv`
+			INNER JOIN `custom_attribute_values` `cav` ON `cav`.`entity_id` = `rrv`.`resource_id` AND `cav`.`attribute_category` = 4
+			INNER JOIN `custom_attributes` `cattr` ON `cattr`.`custom_attribute_id` = `cav`.`custom_attribute_id` AND `cattr`.`display_label` = \'video_passcode\'
+			WHERE `rrv`.`series_id` = `rs`.`series_id` LIMIT 1) as `video_passcode`
 		FROM `reservation_instances` `ri`
 		INNER JOIN `reservation_series` `rs` ON `ri`.`series_id` = `rs`.`series_id`
 		INNER JOIN `reservation_reminders` `rr` on `ri`.`series_id` = `rr`.`series_id` INNER JOIN `reservation_users` `ru` on `ru`.`reservation_instance_id` = `ri`.`reservation_instance_id`

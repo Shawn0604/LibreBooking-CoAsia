@@ -16,6 +16,9 @@ class ReminderNotice
     private $timezone;
     private $reminder_minutes;
     private $language;
+    private $videoUrl;
+    private $videoMeetingId;
+    private $videoPasscode;
 
     public function Description()
     {
@@ -88,6 +91,30 @@ class ReminderNotice
     }
 
     /**
+     * @return string|null
+     */
+    public function VideoUrl()
+    {
+        return $this->videoUrl;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function VideoMeetingId()
+    {
+        return $this->videoMeetingId;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function VideoPasscode()
+    {
+        return $this->videoPasscode;
+    }
+
+    /**
      * @param int $seriesId
      * @param int $reservationId
      * @param string $referenceNumber
@@ -102,6 +129,9 @@ class ReminderNotice
      * @param string $timezone
      * @param int $reminder_minutes
      * @param string $language
+     * @param string|null $videoUrl
+     * @param string|null $videoMeetingId
+     * @param string|null $videoPasscode
      */
     public function __construct(
         $seriesId,
@@ -117,7 +147,10 @@ class ReminderNotice
         $lastName,
         $timezone,
         $reminder_minutes,
-        $language
+        $language,
+        $videoUrl = null,
+        $videoMeetingId = null,
+        $videoPasscode = null
     ) {
         $this->seriesId = $seriesId;
         $this->reservationId = $reservationId;
@@ -133,6 +166,9 @@ class ReminderNotice
         $this->timezone = $timezone;
         $this->reminder_minutes = $reminder_minutes;
         $this->language = $language;
+        $this->videoUrl = $videoUrl;
+        $this->videoMeetingId = $videoMeetingId;
+        $this->videoPasscode = $videoPasscode;
     }
 
     /**
@@ -155,6 +191,9 @@ class ReminderNotice
         $timezone = $row[ColumnNames::TIMEZONE_NAME];
         $reminder_minutes = $row[ColumnNames::REMINDER_MINUTES_PRIOR];
         $language = $row[ColumnNames::LANGUAGE_CODE];
+        $videoUrl = $row[ColumnNames::VIDEO_URL] ?? null;
+        $videoMeetingId = $row[ColumnNames::VIDEO_MEETING_ID] ?? null;
+        $videoPasscode = $row[ColumnNames::VIDEO_PASSCODE] ?? null;
 
         return new ReminderNotice(
             $seriesId,
@@ -170,7 +209,10 @@ class ReminderNotice
             $lastName,
             $timezone,
             $reminder_minutes,
-            $language
+            $language,
+            $videoUrl,
+            $videoMeetingId,
+            $videoPasscode
         );
     }
 }

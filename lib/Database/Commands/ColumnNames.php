@@ -324,6 +324,9 @@ class ColumnNames
     public const GROUP_NAME_ALIAS = 'group_name';
     public const RESOURCE_NAME_ALIAS = 'resource_name';
     public const RESOURCE_NAMES = 'resource_names';
+    public const VIDEO_URL = 'video_url';
+    public const VIDEO_MEETING_ID = 'video_meeting_id';
+    public const VIDEO_PASSCODE = 'video_passcode';
     public const SCHEDULE_NAME_ALIAS = 'schedule_name';
     public const PARTICIPANT_LIST = 'participant_list';
     public const INVITEE_LIST = 'invitee_list';

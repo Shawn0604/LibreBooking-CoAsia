@@ -44,7 +44,10 @@ class ReminderNoticeRow
         $lname = 'lname',
         $timezone = 'UTC',
         $reminder_minutes = 100,
-        $language = 'en_us'
+        $language = 'en_us',
+        $videoUrl = null,
+        $videoMeetingId = null,
+        $videoPasscode = null
     ) {
         if (empty($startDate)) {
             $startDate = Date::Now()->ToDatabase();
@@ -67,6 +70,9 @@ class ReminderNoticeRow
             ColumnNames::TIMEZONE_NAME => $timezone,
             ColumnNames::REMINDER_MINUTES_PRIOR => $reminder_minutes,
             ColumnNames::LANGUAGE_CODE => $language,
+            ColumnNames::VIDEO_URL => $videoUrl,
+            ColumnNames::VIDEO_MEETING_ID => $videoMeetingId,
+            ColumnNames::VIDEO_PASSCODE => $videoPasscode,
         ];
     }
 }
