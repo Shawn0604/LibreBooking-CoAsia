@@ -280,6 +280,39 @@ class ReservationEmailTemplateContextTest extends TestBase
         $this->assertEquals('America/Chicago', $repeatVariables['RepeatRanges'][0]->GetBegin()->Timezone());
     }
 
+    public function testVideoConferenceResourcesOnlyIncludesResourcesWithVideoUrl(): void
+    {
+        $owner = new FakeUser(10);
+        $primaryResource = new FakeBookableResource(100, 'Zoom TW');
+        $primaryResource->WithAttribute(new AttributeValue(31, 'https://zoom.us/j/123'));
+        $primaryResource->WithAttribute(new AttributeValue(32, '123 456 7890'));
+        $primaryResource->WithAttribute(new AttributeValue(33, 'pass123'));
+
+        $additionalResource = new FakeBookableResource(200, 'Taipei Room');
+
+        $series = new TestReservationSeries();
+        $series->WithOwnerId($owner->Id());
+        $series->WithResource($primaryResource);
+        $series->AddResource($additionalResource);
+
+        $attributeRepository = new FakeAttributeRepository();
+        $attributeRepository->_CustomAttributes = [
+            $this->createResourceAttribute(31, [], false, CustomAttributeTypes::SINGLE_LINE_TEXTBOX, 'video_url'),
+            $this->createResourceAttribute(32, [], false, CustomAttributeTypes::SINGLE_LINE_TEXTBOX, 'video_meeting_id'),
+            $this->createResourceAttribute(33, [], false, CustomAttributeTypes::SINGLE_LINE_TEXTBOX, 'video_passcode'),
+        ];
+
+        $context = new ReservationEmailTemplateContext($series, $owner, $primaryResource, $attributeRepository);
+
+        $videoResources = $context->VideoConferenceResources();
+
+        $this->assertCount(1, $videoResources);
+        $this->assertEquals('Zoom TW', $videoResources[0]->ResourceName);
+        $this->assertEquals('https://zoom.us/j/123', $videoResources[0]->Url);
+        $this->assertEquals('123 456 7890', $videoResources[0]->MeetingId);
+        $this->assertEquals('pass123', $videoResources[0]->Passcode);
+    }
+
     public function testCreatedByReturnsNullWhenBookedByMatchesOwner(): void
     {
         $owner = new FakeUser(10);

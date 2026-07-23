@@ -111,6 +111,44 @@ class ReservationEmailTemplateContext
         return $attributeValues;
     }
 
+    /**
+     * Resources whose video_url attribute is set, formatted for the "video conference" email/page section.
+     * Reuses Resources() so the RESOURCE-category attribute lookup only happens once per email.
+     *
+     * @return list<VideoConferenceInfo>
+     */
+    public function VideoConferenceResources(bool $includeAdminOnly = false): array
+    {
+        $videoResources = [];
+
+        foreach ($this->Resources($includeAdminOnly) as $resourceData) {
+            $url = null;
+            $meetingId = null;
+            $passcode = null;
+
+            /** @var LBAttribute $attribute */
+            foreach ($resourceData['attributes'] as $attribute) {
+                switch ($attribute->Label()) {
+                    case 'video_url':
+                        $url = $attribute->Value();
+                        break;
+                    case 'video_meeting_id':
+                        $meetingId = $attribute->Value();
+                        break;
+                    case 'video_passcode':
+                        $passcode = $attribute->Value();
+                        break;
+                }
+            }
+
+            if (!empty($url)) {
+                $videoResources[] = new VideoConferenceInfo($resourceData['name'], $url, $meetingId, $passcode);
+            }
+        }
+
+        return $videoResources;
+    }
+
     public function CreatedBy(): ?FullName
     {
         $bookedBy = $this->reservationSeries->BookedBy();

@@ -140,6 +140,9 @@ abstract class ReservationEmailMessage extends EmailMessage
         $attributeValues = $context->ReservationAttributes();
         $this->Set('Attributes', $attributeValues);
 
+        $videoConferenceResources = $context->VideoConferenceResources();
+        $this->Set('VideoConferenceResources', $videoConferenceResources);
+
         $createdBy = $context->CreatedBy();
         if ($createdBy != null) {
             $this->Set('CreatedBy', $createdBy);
@@ -158,7 +161,7 @@ abstract class ReservationEmailMessage extends EmailMessage
             }
         }
 
-        $this->PopulateIcsAttachment($currentInstance, $attributeValues);
+        $this->PopulateIcsAttachment($currentInstance, $attributeValues, $videoConferenceResources);
 
         $this->Set('AutoReleaseMinutes', $minimumAutoRelease);
         $this->Set('ReferenceNumber', $currentInstance->ReferenceNumber());
@@ -184,14 +187,23 @@ abstract class ReservationEmailMessage extends EmailMessage
     /**
      * @param Reservation $currentInstance
      * @param Attribute[] $attributeValues
+     * @param VideoConferenceInfo[] $videoConferenceResources
      */
-    protected function PopulateIcsAttachment($currentInstance, $attributeValues)
+    protected function PopulateIcsAttachment($currentInstance, $attributeValues, $videoConferenceResources = [])
     {
+        $locationName = $this->reservationSeries->Resource()->GetName();
+        foreach ($videoConferenceResources as $videoResource) {
+            if ($videoResource->ResourceName === $locationName) {
+                $locationName .= ' - ' . $videoResource->Url;
+                break;
+            }
+        }
+
         $rv = new ReservationItemView(
             $currentInstance->ReferenceNumber(),
             $currentInstance->StartDate()->ToUTC(),
             $currentInstance->EndDate()->ToUTC(),
-            $this->reservationSeries->Resource()->GetName(),
+            $locationName,
             $this->reservationSeries->Resource()->GetResourceId(),
             $currentInstance->ReservationId(),
             null,
