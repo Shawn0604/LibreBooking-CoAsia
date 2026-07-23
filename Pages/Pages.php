@@ -41,6 +41,7 @@ class Pages
     public const REGISTRATION = 'register.php';
     public const SCHEDULE = 'schedule.php';
     public const OVERVIEW = 'overview.php';
+    public const MY_MEETINGS = 'my-meetings.php';
     public const SEARCH_RESERVATIONS = 'search-reservations.php';
     public const VIEW_CALENDAR = 'view-calendar.php';
     public const VIEW_RESERVATION = 'view-reservation.php';

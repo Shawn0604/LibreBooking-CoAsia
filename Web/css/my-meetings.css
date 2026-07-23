@@ -1,0 +1,133 @@
+/* CoAsia "My Meetings" agenda list (Web/my-meetings.php) */
+
+#page-my-meetings {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 24px 60px;
+}
+
+#page-my-meetings .page-head {
+  padding: 24px 0 16px;
+}
+
+#page-my-meetings h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+}
+
+#page-my-meetings .meetings-section {
+  margin-bottom: 30px;
+}
+
+#page-my-meetings .meetings-section > h2,
+#page-my-meetings .meetings-section > summary {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa1b3;
+  margin: 0 2px 12px;
+}
+
+#page-my-meetings .past-section > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+#page-my-meetings .past-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+#page-my-meetings .day-group {
+  margin-bottom: 14px;
+}
+
+#page-my-meetings .day-group-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #4b5165;
+  margin: 0 2px 6px;
+}
+
+#page-my-meetings .day-group-items {
+  background: #fff;
+  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  box-shadow: var(--bs-box-shadow);
+  overflow: hidden;
+}
+
+#page-my-meetings .meeting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid #f1f2f6;
+}
+
+#page-my-meetings .meeting-row:last-child {
+  border-bottom: none;
+}
+
+#page-my-meetings .meeting-row:hover {
+  background: var(--bs-tertiary-bg, #f8f9fb);
+}
+
+#page-my-meetings .meeting-row::before {
+  content: '';
+  width: 4px;
+  align-self: stretch;
+  border-radius: 2px;
+  background: var(--dot-color, #5c6b84);
+  flex-shrink: 0;
+}
+
+#page-my-meetings .meeting-time {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6c7488;
+  width: 96px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+#page-my-meetings .meeting-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#page-my-meetings .meeting-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1c2333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#page-my-meetings .meeting-resource {
+  font-size: 11.5px;
+  color: #9aa1b3;
+}
+
+#page-my-meetings .meeting-pending {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #a5562f;
+  background: #fbeee0;
+  padding: 2px 9px;
+  border-radius: 100px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+#page-my-meetings .empty-note {
+  color: #9aa1b3;
+  font-size: 13px;
+  padding: 8px 2px;
+  margin: 0;
+}
