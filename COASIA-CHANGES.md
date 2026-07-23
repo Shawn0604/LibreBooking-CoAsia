@@ -194,11 +194,53 @@ LibreBooking 本身已經有現成的擴充機制，剛好就是 spec 講的「�
 
 ---
 
-## 7. 尚未處理的部分（spec 裡還沒動工的項目）
+## 7. Task 4 — UI 美化（Phase 2：跨資源週檢視總覽頁）
+
+新增一個獨立頁面 `Web/overview.php`（選單「時間表 → 總覽」），跟現有 `schedule.php` 完全分開、互不影響。畫面是「天為欄、時為列」的週檢視，一次顯示所有資源的預約，依資源分色，可用上方標籤篩選只看某個資源。
+
+### 為什麼是新頁面，不是改 schedule.php
+
+`schedule.php` 整條路徑（`SchedulePresenter`、`ReservationService`、`ScheduleService::GetLayout` 等）都寫死只吃「一個 schedule ID」，而 CoAsia 的 spec 是每個資源各自一個獨立 Schedule（12 個）。要在 `schedule.php` 原本的框架裡做到「一次看所有資源」，等於要重構好幾層現有程式碼，風險高。改成獨立新頁面之後：
+
+- 完全不用管「不同 schedule 的時段設定可能不一樣」這個複雜度（新頁面不使用 `IScheduleLayout` 那套時段版型系統，直接用固定的 09:00–18:00 業務時間畫格子）
+- 不會動到 `schedule.php` 既有的任何邏輯，原本的日/週/月檢視繼續給需要精細操作單一資源排程的情境使用（例如管理員調整某間會議室）
+- 大部分底層查詢/著色管線其實已經現成：`ReservationItemView::GetColor()`（`Domain/ReservationItemView.php`）本來就會吃資源設定的顏色，`Domain/Access/ReservationViewRepository::GetReservations()` 本來就支援不限定 schedule/resource 查詢——這兩塊直接重用，沒有另外寫
+
+### 新增的檔案
+
+| 檔案 | 做了什麼 |
+|---|---|
+| `Presenters/OverviewPresenter.php` **(新增)** | 查一週範圍內、**所有資源**的預約（`ReservationViewRepository::GetReservations()`，不限定 schedule/resource），依「星期幾＋09:00–18:00 業務時間」換算每筆預約色塊的位置百分比；資源顏色優先用後台設定的 `BookableResource::GetColor()`，沒設定的話用一組固定的備用色盤（跟 Task 4 mockup 的分類色一致） |
+| `Pages/OverviewPage.php` **(新增)** | 標準 `SecurePage` 頁面，處理 `?sd=` 週起始日參數、把 Presenter 算好的資料丟給樣板 |
+| `Web/overview.php` **(新增)** | 入口檔案 |
+| `tpl/Overview/overview.tpl` **(新增)** | 週檢視樣板：週導航（上一週/下一週/今天）、資源篩選標籤、7 天 × 09:00-18:00 格子、色塊 |
+| `Web/css/overview.css` **(新增)** | 這個頁面專屬的樣式（不影響其他頁面），沿用 Task 4 Phase 1 已經建立的 `--primary`/`--reservedMine`/`--bs-border-radius` 等變數 |
+| `Web/scripts/overview.js` **(新增)** | 資源標籤篩選（純前端顯示/隱藏，不用重新打 API） |
+| `Pages/Pages.php` | 新增 `OVERVIEW` 路由常數 |
+| `tpl/globalheader.tpl` | 選單「時間表」底下加一個「總覽」連結 |
+| `lang/en_us.php` / `lang/zh_tw.php` | 新增 `Overview`/`Weekend`/`Untitled`/`YourReservations` 翻譯字串 |
+
+### 點擊行為——重用既有流程，沒有另外寫訂位邏輯
+
+- 點色塊（既有預約）→ 導去現有的 `reservation.php?rn=...`（跟一直以來測試用的查看/編輯頁完全同一支）
+- 沒有另外做「快速新增」表單去呼叫 `ajax/reservation_save.php`——這樣要重新實作 `IReservationSavePage` 介面（將近 30 個方法），風險/工作量都不划算。目前這版**還沒有**「點空白格子直接新增」的功能，這是接下來可以做的加強項目
+
+### 驗證方式
+
+實際在瀏覽器測試：週範圍計算正確（含跨月份邊界）、所有既有測試資料的預約都正確依資源分色顯示、資源篩選標籤能正確篩選（14 筆篩到 2 筆，跟資料庫實際筆數吻合）、點色塊連結正確導到 `reservation.php?rn=...`、上一週/下一週導航網址正確、瀏覽器 console 跟 PHP log 都沒有錯誤。
+
+### 還沒做的（可以再加強）
+
+- 點空白格子直接帶資源/時間新增預約（目前要點進資源篩選或既有預約表單自己選）
+- 週檢視以外的「日檢視」「清單檢視」（目前只有週檢視這一種）
+- 後台目前沒有幫任何資源設定顏色（`BookableResource::SetColor()`），所以現在看到的顏色都是備用色盤，不是刻意指定的——需要的話可以去後台「管理資源」個別設定
+
+---
+
+## 8. 尚未處理的部分（spec 裡還沒動工的項目）
 
 | 項目 | 狀態 |
 |---|---|
-| **Task 4 Phase 2 — 週檢視多資源分色行事曆** | 目前只有視覺 mockup，尚未評估是否要做成真正功能 |
 | **Section 5.1 — 正式 Docker 部署（`docker-compose.yml`）** | 目前只有本機測試用的 `docker-compose.dev.yml`，spec 要求的正式版（用官方發布的 image、搭配 `.env`）還沒建立 |
 | **Section 5.2 — AD/LDAP 設定** | 需要真實的 IT 提供的 AD 服務帳密、Base DN 等，無法在這邊代為設定 |
 | **Section 5.3 — HTTPS（Let's Encrypt + Cloudflare DNS-01）** | 需要真實網域、正式主機、Cloudflare API Token |

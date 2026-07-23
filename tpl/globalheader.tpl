@@ -181,6 +181,9 @@
                                 <a href="#" class="nav-link link-primary dropdown-toggle" role="button"
                                     data-bs-toggle="dropdown">{translate key="Schedule"}</a>
                                 <ul class="dropdown-menu">
+                                    <li id="navOverview"><a class="dropdown-item"
+                                            href="{$Path}{Pages::OVERVIEW}">{translate key="Overview"}</a>
+                                    </li>
                                     <li id="navBookings"><a class="dropdown-item"
                                             href="{$Path}{Pages::SCHEDULE}">{translate key="Bookings"}</a>
                                     </li>

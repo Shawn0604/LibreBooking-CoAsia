@@ -927,6 +927,10 @@ class en_us extends Language
         $strings['ManageQuotas'] = 'Quotas';
         $strings['ManageBlackouts'] = 'Blackout Times';
         $strings['MyDashboard'] = 'My Dashboard';
+        $strings['Overview'] = 'Overview';
+        $strings['Weekend'] = 'Weekend';
+        $strings['Untitled'] = 'Untitled';
+        $strings['YourReservations'] = 'Your reservations';
         $strings['ServerSettings'] = 'Server Settings';
         $strings['Dashboard'] = 'Dashboard';
         $strings['Help'] = 'Help';

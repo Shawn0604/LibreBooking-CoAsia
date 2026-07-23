@@ -40,6 +40,7 @@ class Pages
     public const RESOURCE_QR_ROUTER = 'resource-qr-router.php';
     public const REGISTRATION = 'register.php';
     public const SCHEDULE = 'schedule.php';
+    public const OVERVIEW = 'overview.php';
     public const SEARCH_RESERVATIONS = 'search-reservations.php';
     public const VIEW_CALENDAR = 'view-calendar.php';
     public const VIEW_RESERVATION = 'view-reservation.php';

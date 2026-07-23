@@ -544,6 +544,10 @@ class zh_tw extends en_us
         $strings['ManageQuotas'] = '配額';
         $strings['ManageBlackouts'] = '管制時間';
         $strings['MyDashboard'] = '我的控制板';
+        $strings['Overview'] = '總覽';
+        $strings['Weekend'] = '週末';
+        $strings['Untitled'] = '(沒有標題)';
+        $strings['YourReservations'] = '我的預約';
         $strings['ServerSettings'] = '伺服器設置';
         $strings['Dashboard'] = '控制台';
         $strings['Help'] = '幫助';
