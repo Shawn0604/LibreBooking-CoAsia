@@ -1,0 +1,75 @@
+/*
+ * CoAsia visual theme — loaded last via config key `css.extension.file`.
+ * Does not modify librebooking.css; only overrides the CSS custom properties
+ * and a handful of selectors that file already exposes for theming.
+ */
+
+:root {
+  /* Bootstrap 5 design tokens — broad reach with minimal overrides */
+  --bs-border-radius: 0.6rem;
+  --bs-border-radius-sm: 0.45rem;
+  --bs-border-radius-lg: 0.85rem;
+  --bs-border-radius-xl: 1rem;
+  --bs-box-shadow: 0 1px 1px rgba(20, 30, 55, 0.04), 0 10px 28px -12px rgba(20, 30, 55, 0.18);
+  --bs-box-shadow-sm: 0 1px 2px rgba(20, 30, 55, 0.06);
+  --bs-body-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Hind, 'PMingLiU', '新細明體', sans-serif;
+
+  /* Schedule / reservation block colors (used by Web/css/schedule.css) */
+  --reserved: #1a3f73;
+  --reservedMine: #d3202a;
+  --reservedParticipating: #6a4fa8;
+  --reservedPending: #e7c98a;
+  --hiliteReservation: #2f8f52;
+  --label-text-on-dark: #ffffff;
+}
+
+/* `css.theme` only accepts a fixed whitelist of names (see ConfigKeys::CSS_THEME),
+   so this overrides the built-in 'default' theme's colors rather than adding a new one. */
+[data-bs-theme='default'] {
+  --primary: #1a3f73;
+  --primary-hover: #143059;
+  --primary-disabled: color-mix(in oklab, var(--primary) 40%, white);
+  --text-color-btn: #ffffff;
+}
+
+body {
+  font-family: var(--bs-body-font-family);
+  background-color: #f1f2f6;
+}
+
+/* Cards, panels and popups read softer with a touch more radius + a light shadow */
+.card,
+.dropdown-menu,
+.modal-content,
+.reservationResponseMessage,
+#reservation-created {
+  border-radius: var(--bs-border-radius-lg);
+  box-shadow: var(--bs-box-shadow);
+}
+
+.btn {
+  border-radius: var(--bs-border-radius);
+  font-weight: 600;
+}
+
+.form-control,
+.form-select {
+  border-radius: var(--bs-border-radius-sm);
+}
+
+/* Top navigation bar */
+.navbar,
+nav.navbar {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #e7e9ef;
+  box-shadow: none;
+}
+
+img.logo {
+  max-height: 42px;
+}
+
+/* Reservation blocks on the schedule grid get the same radius language */
+.reserved {
+  border-radius: 6px;
+}
