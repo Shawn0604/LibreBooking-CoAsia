@@ -1,0 +1,43 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: librebooking
+      MYSQL_USER: lb_user
+      MYSQL_PASSWORD: librebooking_dev_password
+      MYSQL_ROOT_PASSWORD: librebooking_root_password
+    ports:
+      - "3307:3306"
+    volumes:
+      - lb_dev_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-plibrebooking_root_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - lb_dev_vendor:/var/www/html/vendor
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  lb_dev_db_data:
+  lb_dev_vendor:
