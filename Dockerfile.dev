@@ -18,4 +18,13 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+# On Windows, the project is bind-mounted into the container (docker-compose.dev.yml
+# ".:/var/www/html"), and every filesystem call across that bind mount is slow.
+# opcache's default per-request timestamp check (one stat() per included file) on an
+# app that require_once's 300+ PHP files per request turns into multi-second page
+# loads. Disabling it removes that stat() cost entirely.
+# Trade-off: PHP source edits won't be picked up until opcache is cleared, e.g.
+# `docker compose -f docker-compose.dev.yml restart app`.
+RUN echo 'opcache.validate_timestamps=0' > /usr/local/etc/php/conf.d/zz-opcache-dev.ini
+
 WORKDIR /var/www/html

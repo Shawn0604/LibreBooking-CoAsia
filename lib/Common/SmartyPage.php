@@ -855,20 +855,36 @@ class SmartyPage extends Smarty
         flush();
     }
 
+    /**
+     * Cache-busting query value for a static asset. Uses the file's own mtime when it can
+     * be found on disk (so edits are picked up immediately in dev without a stale-cache
+     * chase), falling back to the app version for anything not resolvable locally (CDN-style
+     * paths, plugin-provided assets, etc).
+     *
+     * @param string $relativePath path under Web/, e.g. 'scripts/overview.js' or 'css/overview.css'
+     * @return string
+     */
+    private function AssetCacheBuster($relativePath)
+    {
+        $absolutePath = ROOT_DIR . 'Web/' . $relativePath;
+        $mtime = @filemtime($absolutePath);
+        return $mtime !== false ? (string) $mtime : Configuration::VERSION;
+    }
+
     public function IncludeJavascriptFile($params, $smarty)
     {
-        $versionNumber = Configuration::VERSION;
         $async = isset($params['async']) ? ' async' : '';
+        $versionNumber = $this->AssetCacheBuster("scripts/{$params['src']}");
         echo "<script type=\"text/javascript\" src=\"{$this->RootPath}scripts/{$params['src']}?v=$versionNumber\"{$async}></script>";
     }
 
     public function IncludeCssFile($params, $smarty)
     {
-        $versionNumber = Configuration::VERSION;
         $src = $params['src'];
         if (!BookedStringHelper::Contains($src, '/')) {
             $src = "css/{$src}";
         }
+        $versionNumber = $this->AssetCacheBuster($src);
         echo "<link rel='stylesheet' type='text/css' href='{$this->RootPath}{$src}?v=$versionNumber'/>";
     }
 
