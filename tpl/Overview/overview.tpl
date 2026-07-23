@@ -6,35 +6,61 @@
 
 <div class="shell" id="page-overview">
 
-    <div class="page-head">
-        <div>
-            <h1>{translate key="Overview"}</h1>
-        </div>
-        <div class="cal-toolbar">
-            <div class="range">
-                <span class="label">{formatdate date=$WeekStart format="n/j"} – {formatdate date=$WeekEnd format="n/j"}</span>
-                <div class="arrows">
-                    <a class="nav" href="{$ScriptUrl}/{Pages::OVERVIEW}?{QueryStringKeys::START_DATE}={$PreviousWeek}" aria-label="Previous week">‹</a>
-                    <a class="nav" href="{$ScriptUrl}/{Pages::OVERVIEW}?{QueryStringKeys::START_DATE}={$NextWeek}" aria-label="Next week">›</a>
-                </div>
-                <a class="today" href="{$ScriptUrl}/{Pages::OVERVIEW}">{translate key='Today'}</a>
+    <div class="cal-toolbar">
+        <h1>{translate key="Overview"}</h1>
+
+        <div class="toolbar-nav-group">
+            <a class="today-btn" href="{$ScriptUrl}/{Pages::OVERVIEW}">{translate key='Today'}</a>
+            <div class="arrows">
+                <a class="nav" href="{$ScriptUrl}/{Pages::OVERVIEW}?{QueryStringKeys::START_DATE}={$PreviousWeek}" aria-label="Previous week"><i class="bi bi-chevron-left"></i></a>
+                <a class="nav" href="{$ScriptUrl}/{Pages::OVERVIEW}?{QueryStringKeys::START_DATE}={$NextWeek}" aria-label="Next week"><i class="bi bi-chevron-right"></i></a>
             </div>
+            <span class="month-label">{formatdate date=$WeekStart format="Y年n月"}</span>
+        </div>
+
+        <div class="toolbar-actions">
+            <a class="toolbar-icon-btn" href="{$Path}{Pages::SEARCH_RESERVATIONS}" title="{translate key='SearchReservations'}">
+                <i class="bi bi-search"></i>
+            </a>
+            <a class="toolbar-icon-btn" href="{$Path}help.php?ht=about" title="{translate key='Help'}">
+                <i class="bi bi-question-circle"></i>
+            </a>
+            {if isset($CanViewAdmin) && $CanViewAdmin}
+                <a class="toolbar-icon-btn" href="{$Path}admin/manage_resources.php" title="{translate key='ManageResources'}">
+                    <i class="bi bi-gear"></i>
+                </a>
+            {/if}
+            <span class="view-label">{translate key='Overview'}</span>
         </div>
     </div>
 
-    <div class="chips" id="resourceChips">
-        <button class="chip all active" type="button" data-resource="all">{translate key='All'}</button>
-        {foreach from=$Resources item=resource}
-            <button class="chip" type="button" data-resource="{$resource->GetId()}">
-                <span class="dot" style="background:{$ResourceColors[$resource->GetId()].bg};"></span>{$resource->GetName()|escape}
-            </button>
-        {/foreach}
+    <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-hidden="true" aria-labelledby="quickCreateModalLabel">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <label for="qcTitle" class="visually-hidden" id="quickCreateModalLabel">{translate key='NewReservation'}</label>
+                    <input type="text" class="form-control form-control-lg border-0 shadow-none qc-title" id="qcTitle"
+                           placeholder="{translate key='NewReservation'}">
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{translate key='Cancel'}"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="qc-row"><i class="bi bi-clock"></i><span id="qcWhen"></span></div>
+                    <div class="qc-row"><i class="bi bi-geo-alt"></i><span id="qcResource"></span></div>
+                    <div id="qcError" class="alert alert-danger py-2 px-3 small d-none"></div>
+                </div>
+                <div class="modal-footer">
+                    <a href="#" id="qcMoreOptions" class="link-primary me-auto">{translate key='MoreOptions'}</a>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{translate key='Cancel'}</button>
+                    <button type="button" class="btn btn-primary" id="qcSave">{translate key='Create'}</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="week-card">
         <div class="week-scroll">
             <div class="week-grid">
-                <div class="corner">{$DayStartHour}:00–{$DayEndHour}:00</div>
+                <div class="corner">GMT{$WeekStart->Format('P')}</div>
                 {foreach from=$Days item=day name=dayLoop}
                     <div class="day-head{if $day.isToday} today{elseif $day.isWeekend} weekend{/if}">
                         <div class="dow">{weekdayLabel index=$smarty.foreach.dayLoop.index}</div>
@@ -49,14 +75,13 @@
                 </div>
 
                 {foreach from=$Days item=day name=dayCols}
-                    <div class="day-col{if $day.isToday} today{elseif $day.isWeekend} weekend{/if}">
-                        {if $day.isWeekend && $day.events|default:array()|count == 0}
-                            <div class="weekend-note">{translate key='Weekend'}</div>
-                        {/if}
+                    <div class="day-col{if $day.isToday} today{elseif $day.isWeekend} weekend{/if}"
+                         data-date="{$day.isoDate}" data-day-start="{$DayStartHour}" data-day-end="{$DayEndHour}">
+                        {if $day.isToday}<div class="now-line" id="nowLine"></div>{/if}
                         {foreach from=$day.events item=event}
-                            <a class="event{if $event.isMine} mine{/if}"
+                            <a class="event{if $event.isPast} past{/if}"
                                href="{$ScriptUrl}/{Pages::RESERVATION}?{QueryStringKeys::REFERENCE_NUMBER}={$event.referenceNumber}"
-                               style="top:{$event.top}%; height:{$event.height}%; background:{$event.bg}; color:{$event.fg};"
+                               style="top:{$event.top}%; height:{$event.height}%; background:{$event.bg}; border-left-color:{$event.accent};"
                                data-resource="{$event.resourceId}">
                                 <span class="tt">{if $event.title}{$event.title|escape}{else}{translate key='Untitled'}{/if}</span>
                                 <span class="rr">{$event.resourceName|escape}</span>
@@ -68,16 +93,30 @@
         </div>
     </div>
 
-    <div class="legend">
-        {foreach from=$Resources item=resource}
-            <span><i style="background:{$ResourceColors[$resource->GetId()].bg};"></i>{$resource->GetName()|escape}</span>
-        {/foreach}
-        <span><i class="mine-i"></i>{translate key='YourReservations'}</span>
-    </div>
-
 </div>
 
 {include file="javascript-includes.tpl"}
+<script type="text/javascript">
+    window.overviewOpts = {
+        reservationUrl: '{$ScriptUrl}/{Pages::RESERVATION}',
+        overviewUrl: '{$ScriptUrl}/{Pages::OVERVIEW}',
+        saveUrl: '{$ScriptUrl}/ajax/reservation_save.php',
+        csrfToken: '{$CSRFToken|escape:'javascript'}',
+        currentUserId: {$UserId},
+        weekStart: '{$WeekStart->Format('Y-m-d')}',
+        dayStartHour: {$DayStartHour},
+        dayEndHour: {$DayEndHour},
+        resourceNames: {
+            {foreach from=$PhysicalResources item=resource name=physicalNames}
+                "{$resource->GetId()}": "{$resource->GetName()|escape:'javascript'}"{if !$smarty.foreach.physicalNames.last},{/if}
+            {/foreach}
+            {if count($PhysicalResources) > 0 && count($VideoResources) > 0},{/if}
+            {foreach from=$VideoResources item=resource name=videoNames}
+                "{$resource->GetId()}": "{$resource->GetName()|escape:'javascript'}"{if !$smarty.foreach.videoNames.last},{/if}
+            {/foreach}
+        }
+    };
+</script>
 {jsfile src="overview.js"}
 
 {include file='globalfooter.tpl'}

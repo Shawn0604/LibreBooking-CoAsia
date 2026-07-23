@@ -1,119 +1,339 @@
-/* CoAsia multi-resource weekly overview (Web/overview.php) */
+/* CoAsia multi-resource weekly overview (Web/overview.php) — layout patterned after
+   Google Calendar (toolbar / mini month picker / checkbox calendar list / current-time
+   line), CoAsia's own navy+red brand colors used as accents only.
+
+   The sidebar-* / mini-cal-* / res-check-* / create-btn rules below style markup that
+   actually lives in tpl/globalheader.tpl's <aside id="appSidebar"> (Smarty {include}
+   shares the including template's variable scope, so OverviewPresenter's vars reach
+   into the shared sidebar there) — not inside #page-overview. This file is still the
+   right place for them since it's only ever loaded on this page. */
 
 #page-overview {
-  max-width: 1220px;
+  max-width: 1360px;
   margin: 0 auto;
   padding: 0 24px 60px;
 }
 
-#page-overview .page-head {
-  padding: 24px 0 12px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
+/* ---------- Quick-create modal (Google Calendar-style same-screen create) ---------- */
 
-#page-overview h1 {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0;
-}
-
-#page-overview .cal-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-#page-overview .range {
-  display: flex;
+#quickCreateModal .modal-header {
   align-items: center;
   gap: 10px;
 }
 
-#page-overview .range .label {
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+#quickCreateModal .qc-title {
+  font-size: 17px;
+  font-weight: 600;
+  padding-left: 0;
 }
 
-#page-overview .range .arrows {
+#quickCreateModal .qc-title:focus {
+  box-shadow: none;
+}
+
+#quickCreateModal .qc-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 13.5px;
+  color: #3c4043;
+}
+
+#quickCreateModal .qc-row i {
+  color: #6c7488;
+  width: 16px;
+  text-align: center;
+}
+
+/* ---------- Toolbar ---------- */
+
+#page-overview .cal-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 0 16px;
+  flex-wrap: wrap;
+}
+
+#page-overview h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+}
+
+#page-overview .toolbar-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #4b5165;
+  font-size: 16px;
+  text-decoration: none;
+}
+
+#page-overview .toolbar-icon-btn:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--primary);
+}
+
+#page-overview .toolbar-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+#page-overview .today-btn {
+  border: 1px solid var(--bs-border-color, #d6d9e3);
+  border-radius: 100px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5165;
+  text-decoration: none;
+}
+
+#page-overview .today-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+#page-overview .arrows {
   display: flex;
   gap: 2px;
 }
 
-#page-overview .range a.nav {
-  width: 26px;
-  height: 26px;
+#page-overview .arrows a.nav {
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  color: inherit;
+  color: #4b5165;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 15px;
 }
 
-#page-overview .range a.nav:hover {
-  color: var(--primary);
-}
-
-#page-overview .range a.today {
-  border-radius: 100px;
-  padding: 5px 13px;
-  font-size: 12.5px;
-  font-weight: 600;
+#page-overview .arrows a.nav:hover {
   background: var(--bs-tertiary-bg, #f1f2f6);
-  color: inherit;
-  text-decoration: none;
-}
-
-#page-overview .range a.today:hover {
   color: var(--primary);
 }
 
-#page-overview .chips {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-  margin-bottom: 16px;
-}
-
-#page-overview .chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  flex-shrink: 0;
-  border: 1px solid var(--bs-border-color, #d6d9e3);
-  background: #fff;
-  border-radius: 100px;
-  padding: 6px 13px 6px 10px;
-  font-size: 12.5px;
+#page-overview .month-label {
+  font-size: 17px;
   font-weight: 600;
-  color: #6c7488;
-  cursor: pointer;
+  color: #1c2333;
+  font-variant-numeric: tabular-nums;
 }
 
-#page-overview .chip .dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
+#page-overview .toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
 }
 
-#page-overview .chip.active {
-  border-color: var(--primary);
-  color: var(--primary);
+#page-overview .view-label {
+  border: 1px solid var(--bs-border-color, #d6d9e3);
+  border-radius: 100px;
+  padding: 6px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4b5165;
+  margin-left: 6px;
 }
 
-#page-overview .chip.all.active {
+/* ---------- Sidebar extras (rendered inside tpl/globalheader.tpl's <aside>) ---------- */
+
+.create-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 14px;
+  margin: 4px 0 16px;
+  border-radius: 100px;
   background: var(--primary);
   color: #fff;
-  border-color: var(--primary);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.create-btn:hover {
+  background: var(--primary-hover, var(--primary));
+  color: #fff;
+}
+
+.create-btn i {
+  font-size: 14px;
+}
+
+/* Mini month calendar */
+
+.mini-cal {
+  margin-bottom: 6px;
+}
+
+.mini-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 8px;
+}
+
+.mini-cal-label {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1c2333;
+}
+
+.mini-cal-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.mini-cal-nav button {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  color: #6c7488;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-cal-nav button:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--primary);
+}
+
+.mini-cal-weekdays,
+.mini-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.mini-cal-weekdays span {
+  text-align: center;
+  font-size: 10px;
+  color: #9aa1b3;
+  padding-bottom: 4px;
+}
+
+.mini-cal-grid button {
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  margin: 1px auto;
+  font-size: 11.5px;
+  color: #4b5165;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-cal-grid button:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+.mini-cal-grid button.outside-month {
+  color: #c7cbd6;
+}
+
+.mini-cal-grid button.today {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.mini-cal-grid button.in-week {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+.mini-cal-grid button.selected-today {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* Resource checklist */
+
+.sidebar-group-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa1b3;
+  padding: 14px 4px 4px;
+}
+
+.sidebar-group-label:first-of-type {
+  padding-top: 6px;
+}
+
+.res-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.res-check:hover {
+  background: var(--bs-tertiary-bg, #f5f6f9);
+}
+
+.res-check input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.res-check-box {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--check-color, #5c6b84);
+  position: relative;
+}
+
+.res-check input:not(:checked) + .res-check-box {
+  background: transparent;
+  border: 2px solid var(--check-color, #5c6b84);
+}
+
+.res-check input:checked + .res-check-box::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.res-check-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5165;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #page-overview .week-card {
@@ -122,6 +342,8 @@
   box-shadow: var(--bs-box-shadow);
   overflow: hidden;
 }
+
+/* ---------- Week grid ---------- */
 
 #page-overview .week-scroll {
   overflow-x: auto;
@@ -189,7 +411,7 @@
 }
 
 #page-overview .hours-col .hr {
-  height: 56px;
+  height: 32px;
   font-size: 10.5px;
   color: #9aa1b3;
   text-align: right;
@@ -201,13 +423,14 @@
 #page-overview .day-col {
   position: relative;
   border-left: 1px solid #e7e9ef;
-  height: 504px;
+  height: 768px;
+  cursor: pointer;
   background-image: repeating-linear-gradient(
     to bottom,
     transparent,
-    transparent 55px,
-    #e7e9ef 55px,
-    #e7e9ef 56px
+    transparent 31px,
+    #e7e9ef 31px,
+    #e7e9ef 32px
   );
 }
 
@@ -219,28 +442,46 @@
   background-color: #fbeef0;
 }
 
-#page-overview .weekend-note {
+#page-overview .now-line {
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: #9aa1b3;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px solid var(--reservedMine, #d3202a);
+  z-index: 2;
+  pointer-events: none;
+}
+
+#page-overview .now-line::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--reservedMine, #d3202a);
 }
 
 #page-overview .event {
   position: absolute;
   left: 3px;
   right: 3px;
-  border-radius: 7px;
-  padding: 4px 7px;
+  border-radius: 4px;
+  padding: 4px 7px 4px 8px;
   font-size: 10.5px;
   font-weight: 600;
   overflow: hidden;
   line-height: 1.3;
   text-decoration: none;
   display: block;
+  border-left: 3px solid #5c6b84;
+  color: #1c2333;
+  filter: brightness(1);
+}
+
+#page-overview .event:hover {
+  filter: brightness(0.96);
 }
 
 #page-overview .event .tt {
@@ -253,42 +494,14 @@
 #page-overview .event .rr {
   display: block;
   font-weight: 500;
-  opacity: 0.75;
+  color: #5f6368;
   font-size: 10px;
 }
 
-#page-overview .event.mine {
-  box-shadow: inset 3px 0 0 var(--reservedMine, #d3202a);
+#page-overview .event.past {
+  opacity: 0.55;
 }
 
 #page-overview .event.chip-hidden {
   display: none;
-}
-
-#page-overview .legend {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin: 16px 2px 0;
-  font-size: 11.5px;
-  color: #6c7488;
-}
-
-#page-overview .legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-#page-overview .legend i {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
-  display: inline-block;
-}
-
-#page-overview .legend i.mine-i {
-  background: transparent;
-  box-shadow: inset 3px 0 0 var(--reservedMine, #d3202a);
-  border: 1px solid #d6d9e3;
 }

@@ -548,6 +548,10 @@ class zh_tw extends en_us
         $strings['Weekend'] = '週末';
         $strings['Untitled'] = '(沒有標題)';
         $strings['YourReservations'] = '我的預約';
+        $strings['PhysicalRooms'] = '實體會議室';
+        $strings['VideoConferenceResources'] = '視訊會議';
+        $strings['MyMeetings'] = '我的會議';
+        $strings['NewReservation'] = '新增預約';
         $strings['ServerSettings'] = '伺服器設置';
         $strings['Dashboard'] = '控制台';
         $strings['Help'] = '幫助';

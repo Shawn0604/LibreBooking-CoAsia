@@ -18,7 +18,8 @@ class OverviewPage extends SecurePage implements IOverviewPage
         $this->presenter = new OverviewPresenter(
             $this,
             new ResourceRepository(),
-            new ReservationViewRepository()
+            new ReservationViewRepository(),
+            new AttributeRepository()
         );
     }
 
@@ -64,9 +65,10 @@ class OverviewPage extends SecurePage implements IOverviewPage
         $this->Set('NextWeek', $date->Format('Y-m-d'));
     }
 
-    public function SetResources($resources, $resourceColors)
+    public function SetResources($physicalResources, $videoResources, $resourceColors)
     {
-        $this->Set('Resources', $resources);
+        $this->Set('PhysicalResources', $physicalResources);
+        $this->Set('VideoResources', $videoResources);
         $this->Set('ResourceColors', $resourceColors);
     }
 

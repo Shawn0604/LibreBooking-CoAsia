@@ -931,6 +931,10 @@ class en_us extends Language
         $strings['Weekend'] = 'Weekend';
         $strings['Untitled'] = 'Untitled';
         $strings['YourReservations'] = 'Your reservations';
+        $strings['PhysicalRooms'] = 'Physical Rooms';
+        $strings['VideoConferenceResources'] = 'Video Conference';
+        $strings['MyMeetings'] = 'My Meetings';
+        $strings['NewReservation'] = 'New Reservation';
         $strings['ServerSettings'] = 'Server Settings';
         $strings['Dashboard'] = 'Dashboard';
         $strings['Help'] = 'Help';

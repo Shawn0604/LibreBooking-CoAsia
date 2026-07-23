@@ -5,13 +5,17 @@ require_once(ROOT_DIR . 'lib/Application/Schedule/namespace.php');
 
 class OverviewPresenter
 {
-    /** Business-hours window the week grid renders (matches the CoAsia mockup: 09:00–18:00). */
-    private const DAY_START_HOUR = 9;
-    private const DAY_END_HOUR = 18;
+    /** Full-day window the week grid renders. */
+    private const DAY_START_HOUR = 0;
+    private const DAY_END_HOUR = 24;
 
     private const FALLBACK_COLORS = [
         '#3e7bd1', '#1c9c8c', '#7a5cc4', '#c98a2e', '#3f9d5c', '#c1547a', '#5c6b84',
+        '#a5562f', '#3f7a8c', '#8c4fa0', '#5b8c2f', '#a03f6b',
     ];
+
+    /** Same custom attribute label Task 1-3 use to detect a Video Conference resource. */
+    private const ATTRIBUTE_VIDEO_URL = 'video_url';
 
     /**
      * @var IOverviewPage
@@ -28,14 +32,21 @@ class OverviewPresenter
      */
     private $reservationViewRepository;
 
+    /**
+     * @var IAttributeRepository
+     */
+    private $attributeRepository;
+
     public function __construct(
         IOverviewPage $page,
         IResourceRepository $resourceRepository,
-        IReservationViewRepository $reservationViewRepository
+        IReservationViewRepository $reservationViewRepository,
+        IAttributeRepository $attributeRepository
     ) {
         $this->page = $page;
         $this->resourceRepository = $resourceRepository;
         $this->reservationViewRepository = $reservationViewRepository;
+        $this->attributeRepository = $attributeRepository;
     }
 
     public function PageLoad(UserSession $userSession)
@@ -46,6 +57,7 @@ class OverviewPresenter
 
         $resources = $this->resourceRepository->GetResourceList();
         $resourceColors = $this->AssignColors($resources);
+        [$physicalResources, $videoResources] = $this->SplitByType($resources);
 
         // Not consolidated by reference number: a reservation spanning multiple resources
         // should render as one colored block per resource, matching the resource's own color.
@@ -59,13 +71,13 @@ class OverviewPresenter
             false
         );
 
-        $days = $this->BuildDays($weekStart, $timezone, $reservations, $resourceColors, $userSession);
+        $days = $this->BuildDays($weekStart, $timezone, $reservations, $resourceColors);
 
         $this->page->SetWeekStart($weekStart);
         $this->page->SetWeekEnd($weekStart->AddDays(6));
         $this->page->SetPreviousWeek($weekStart->AddDays(-7));
         $this->page->SetNextWeek($weekStart->AddDays(7));
-        $this->page->SetResources($resources, $resourceColors);
+        $this->page->SetResources($physicalResources, $videoResources, $resourceColors);
         $this->page->SetDays($days);
         $this->page->SetDayStartHour(self::DAY_START_HOUR);
         $this->page->SetDayEndHour(self::DAY_END_HOUR);
@@ -131,13 +143,14 @@ class OverviewPresenter
      * @param array $resourceColors
      * @return array
      */
-    private function BuildDays($weekStart, $timezone, $reservations, $resourceColors, UserSession $userSession)
+    private function BuildDays($weekStart, $timezone, $reservations, $resourceColors)
     {
         $days = [];
         for ($i = 0; $i < 7; $i++) {
             $date = $weekStart->AddDays($i);
             $days[] = [
                 'date' => $date,
+                'isoDate' => $date->Format('Y-m-d'),
                 'isToday' => $date->DateEquals(Date::Now()->ToTimezone($timezone)),
                 'isWeekend' => $i >= 5,
                 'events' => [],
@@ -145,6 +158,7 @@ class OverviewPresenter
         }
 
         $windowMinutes = (self::DAY_END_HOUR - self::DAY_START_HOUR) * 60;
+        $now = Date::Now();
 
         foreach ($reservations as $reservation) {
             $start = $reservation->StartDate->ToTimezone($timezone);
@@ -174,15 +188,103 @@ class OverviewPresenter
                 'resourceName' => $reservation->ResourceName,
                 'top' => round(($startMinutes / $windowMinutes) * 100, 2),
                 'height' => round((($endMinutes - $startMinutes) / $windowMinutes) * 100, 2),
-                'bg' => $colors['bg'],
-                'fg' => $colors['fg'],
+                'bg' => $this->PastelColor($colors['bg']),
+                'accent' => $colors['bg'],
                 'resourceId' => $reservation->ResourceId,
-                'isMine' => $reservation->UserId == $userSession->UserId,
+                'isPast' => $end->LessThanOrEqual($now),
                 'startLabel' => $start->Format('H:i'),
             ];
         }
 
         return $days;
+    }
+
+    /**
+     * Splits resources into physical rooms vs. Video Conference resources, using the
+     * same "video_url is non-empty" rule Task 1-3 use elsewhere (see
+     * Presenters/Reservation/ReservationSavePresenter.php::GetVideoConferenceResources()).
+     *
+     * @param BookableResource[] $resources
+     * @return array{0: BookableResource[], 1: BookableResource[]} [physicalResources, videoResources]
+     */
+    private function SplitByType($resources)
+    {
+        $videoResourceIds = $this->GetVideoResourceIds($resources);
+
+        $physical = [];
+        $video = [];
+        foreach ($resources as $resource) {
+            if (isset($videoResourceIds[$resource->GetId()])) {
+                $video[] = $resource;
+            } else {
+                $physical[] = $resource;
+            }
+        }
+
+        return [$physical, $video];
+    }
+
+    /**
+     * @param BookableResource[] $resources
+     * @return array<int, bool> resource ids that have a non-empty video_url attribute value
+     */
+    private function GetVideoResourceIds($resources)
+    {
+        $videoUrlAttributeId = null;
+        foreach ($this->attributeRepository->GetByCategory(CustomAttributeCategory::RESOURCE) as $attribute) {
+            if ($attribute->Label() === self::ATTRIBUTE_VIDEO_URL) {
+                $videoUrlAttributeId = $attribute->Id();
+                break;
+            }
+        }
+
+        if ($videoUrlAttributeId === null) {
+            return [];
+        }
+
+        $resourceIds = array_map(fn ($r) => $r->GetId(), $resources);
+        $values = $this->attributeRepository->GetEntityValues(CustomAttributeCategory::RESOURCE, $resourceIds);
+
+        $ids = [];
+        foreach ($values as $value) {
+            if ($value->AttributeId == $videoUrlAttributeId && !empty($value->Value)) {
+                $ids[$value->EntityId] = true;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Mixes a resource's full-saturation color toward white for a Google Calendar-style
+     * pastel event background, computed server-side rather than relying on the browser's
+     * CSS color-mix() support (inconsistent across browsers/versions).
+     *
+     * @param string $hex e.g. '#3e7bd1'
+     * @return string e.g. '#d5e2f5'
+     */
+    private function PastelColor($hex)
+    {
+        $hex = ltrim($hex, '#');
+        if (strlen($hex) === 3) {
+            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        }
+        if (strlen($hex) !== 6 || !ctype_xdigit($hex)) {
+            return '#eef0f4';
+        }
+
+        $whiteWeight = 0.82;
+        $mix = function ($channelHex) use ($whiteWeight) {
+            $value = hexdec($channelHex);
+            return (int) round($value * (1 - $whiteWeight) + 255 * $whiteWeight);
+        };
+
+        return sprintf(
+            '#%02x%02x%02x',
+            $mix(substr($hex, 0, 2)),
+            $mix(substr($hex, 2, 2)),
+            $mix(substr($hex, 4, 2))
+        );
     }
 
     /**
@@ -217,10 +319,11 @@ interface IOverviewPage
     public function SetNextWeek(Date $date);
 
     /**
-     * @param BookableResource[] $resources
+     * @param BookableResource[] $physicalResources
+     * @param BookableResource[] $videoResources
      * @param array $resourceColors
      */
-    public function SetResources($resources, $resourceColors);
+    public function SetResources($physicalResources, $videoResources, $resourceColors);
 
     public function SetDays(array $days);
 
