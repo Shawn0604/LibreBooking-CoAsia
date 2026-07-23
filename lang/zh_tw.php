@@ -283,6 +283,7 @@ class zh_tw extends en_us
         $strings['ChangeUser'] = '更改用戶';
         $strings['MoreResources'] = '更多的資源';
         $strings['ReservationLength'] = '預約長度';
+        $strings['MoreOptions'] = '更多選項';
         $strings['ParticipantList'] = '參與者名單';
         $strings['AddParticipants'] = '添加';
         $strings['InviteOthers'] = '邀請他人';

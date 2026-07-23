@@ -73,3 +73,23 @@ img.logo {
 .reserved {
   border-radius: 6px;
 }
+
+/* Reservation form: "More Options" collapsible section */
+details.moreOptions summary {
+  list-style: none;
+}
+details.moreOptions summary::-webkit-details-marker {
+  display: none;
+}
+details.moreOptions summary .bi-chevron-right {
+  transition: transform 0.15s ease;
+  display: inline-block;
+}
+@media (prefers-reduced-motion: reduce) {
+  details.moreOptions summary .bi-chevron-right {
+    transition: none;
+  }
+}
+details.moreOptions[open] summary .bi-chevron-right {
+  transform: rotate(90deg);
+}

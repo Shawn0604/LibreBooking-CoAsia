@@ -192,16 +192,9 @@
                         </div>
                         {/if}
                     </div>
-
-                    {if !$HideRecurrence}
-                    <div class="pt-2">{$HideRecurrence}
-                        {control type="RecurrenceControl" RepeatTerminationDate=$RepeatTerminationDate}
-                    </div>
-                    {/if}
-
                 </div>
 
-                <div class="reservationResources col-12 col-sm-6 py-2 border-bottom" id="reservation-resources">
+                <div class="reservationResources col-12 py-2 border-bottom" id="reservation-resources">
                     <div class="d-flex align-items-center gap-2">
                         <label class="fw-bold mb-0">{translate key="Resources"}</label>
                         {if $ShowAdditionalResources}
@@ -231,79 +224,7 @@
                     </div>
                 </div>
 
-                <div class="form-group col-12 col-sm-6 py-2 border-bottom">
-                    <div class="accessoriesDiv">
-                        {if $ShowReservationDetails && $AvailableAccessories|default:array()|count > 0}
-                        <div class="d-flex align-items-center gap-2">
-                            <label class="fw-bold mb-0" for="addAccessoriesPrompt">{translate key="Accessories"}</label>
-                            <a href="#" id="addAccessoriesPrompt" class="link-primary" data-bs-toggle="modal"
-                                data-bs-target="#dialogAddAccessories">{translate key='Add'} <span
-                                    class="bi bi-plus-square-fill"></span></a>
-                        </div>
-                        <div id="accessories"></div>
-                        {/if}
-                    </div>
-                </div>
-
-                <div class="form-group col-12 py-2 border-bottom">
-                    {if $ShowParticipation && $AllowParticipation && $ShowReservationDetails}
-                    {include file="Reservation/invitees.tpl"}
-                    {else}
-                    {include file="Reservation/private-participation.tpl"}
-                    {/if}
-                </div>
-
-
-                {if $RemindersEnabled}
-                <div class="reservationReminders border-bottom py-2">
-                    <label class="fw-bold mb-0">{translate key=SendReminder}</label>
-                    <div class="d-flex gap-5">
-                        <div id="reminderOptionsStart" class="d-flex align-items-center flex-wrap gap-1">
-                            <div class="form-check">
-                                <input type="checkbox" id="startReminderEnabled"
-                                    class="reminderEnabled form-check-input" {formname key=START_REMINDER_ENABLED}
-                                    aria-label="Enable Start Reminder Interval" />
-                            </div>
-                            <label for="startReminderTime" class="visually-hidden">Start Reminder Time</label>
-                            <label for="startReminderInterval" class="visually-hidden">Start Reminder Interval</label>
-                            <input type="number" min="0" max="999" size="3" maxlength="3" value="15"
-                                class="reminderTime form-control form-control-sm w-auto"
-                                {formname key=START_REMINDER_TIME} id="startReminderTime" />
-                            <select class="reminderInterval form-select form-select-sm w-auto"
-                                {formname key=START_REMINDER_INTERVAL} id="startReminderInterval">
-                                <option value="{ReservationReminderInterval::Minutes}">{translate key=minutes}
-                                </option>
-                                <option value="{ReservationReminderInterval::Hours}">{translate key=hours}</option>
-                                <option value="{ReservationReminderInterval::Days}">{translate key=days}</option>
-                            </select>
-
-                            <span class="reminderLabel">{translate key=ReminderBeforeStart}</span>
-                        </div>
-                        <div id="reminderOptionsEnd" class="d-flex align-items-center flex-wrap gap-1">
-                            <div class="form-check">
-                                <input type="checkbox" id="endReminderEnabled" class="reminderEnabled form-check-input"
-                                    {formname key=END_REMINDER_ENABLED} aria-label="Enable End Reminder Interval" />
-                            </div>
-                            <label for="endReminderTime" class="visually-hidden">End Reminder Time</label>
-                            <label for="endReminderInterval" class="visually-hidden">End Reminder Interval</label>
-                            <input type="number" min="0" max="999" size="3" maxlength="3" value="15"
-                                class="reminderTime form-control form-control-sm w-auto"
-                                {formname key=END_REMINDER_TIME} id="endReminderTime" />
-                            <select class="reminderInterval form-select form-select-sm w-auto"
-                                {formname key=END_REMINDER_INTERVAL} id="endReminderInterval">
-                                <option value="{ReservationReminderInterval::Minutes}">{translate key=minutes}
-                                </option>
-                                <option value="{ReservationReminderInterval::Hours}">{translate key=hours}</option>
-                                <option value="{ReservationReminderInterval::Days}">{translate key=days}</option>
-                            </select>
-                            <span class="reminderLabel">{translate key=ReminderBeforeEnd}</span>
-
-                        </div>
-                    </div>
-                </div>
-                {/if}
-
-                <div class="reservationDescription border-bottom py-2">
+                <div class="reservationDescription col-12 py-2 border-bottom">
                     <div class="form-group">
                         <label class="fw-bold mb-0" for="description">
                             {translate key="ReservationDescription"}{if $DescriptionRequired}<i
@@ -317,31 +238,117 @@
                 </div>
             </div>
 
-            <div id="custom-attributes-placeholder"></div>
+            <details class="moreOptions border-bottom py-2">
+                <summary class="fw-bold text-primary" style="cursor:pointer;list-style:none;">
+                    <i class="bi bi-chevron-right me-1"></i>{translate key="MoreOptions"}
+                </summary>
+                <div class="row gx-2 pt-2">
 
-            {if $UploadsEnabled}
-            <div class="border-bottom py-2">
-                <div class="reservationAttachments">
+                    {if !$HideRecurrence}
+                    <div class="col-12 py-2 border-bottom">{$HideRecurrence}
+                        {control type="RecurrenceControl" RepeatTerminationDate=$RepeatTerminationDate}
+                    </div>
+                    {/if}
 
-                    <label class="fw-bold mb-0">{translate key=AttachFile} <span
-                            class="note fst-italic">({$MaxUploadSize} MB {translate key=Maximum})</span>
-                    </label>
-
-                    <div id="reservationAttachments">
-                        <div class="attachment-item">
-                            <label class="fw-bold" for="reservationUploadFile">Reservation Upload File</label>
-                            <input type="file" {formname key=RESERVATION_FILE multi=true} id="reservationUploadFile"
-                                class="form-control form-control-sm w-auto" />
-                            <a class="add-attachment link-primary" href="#">{translate key=Add}<i
-                                    class="bi bi-plus-square-fill ms-1"></i></a>
-                            <a class="remove-attachment link-primary" href="#"><span
-                                    class="visually-hidden">{translate key=Delete}</span><i
-                                    class="bi bi-dash-square-fill"></i></a>
+                    <div class="form-group col-12 col-sm-6 py-2 border-bottom">
+                        <div class="accessoriesDiv">
+                            {if $ShowReservationDetails && $AvailableAccessories|default:array()|count > 0}
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="fw-bold mb-0" for="addAccessoriesPrompt">{translate key="Accessories"}</label>
+                                <a href="#" id="addAccessoriesPrompt" class="link-primary" data-bs-toggle="modal"
+                                    data-bs-target="#dialogAddAccessories">{translate key='Add'} <span
+                                        class="bi bi-plus-square-fill"></span></a>
+                            </div>
+                            <div id="accessories"></div>
+                            {/if}
                         </div>
                     </div>
+
+                    <div class="form-group col-12 col-sm-6 py-2 border-bottom">
+                        {if $ShowParticipation && $AllowParticipation && $ShowReservationDetails}
+                        {include file="Reservation/invitees.tpl"}
+                        {else}
+                        {include file="Reservation/private-participation.tpl"}
+                        {/if}
+                    </div>
+
+                    {if $RemindersEnabled}
+                    <div class="reservationReminders col-12 border-bottom py-2">
+                        <label class="fw-bold mb-0">{translate key=SendReminder}</label>
+                        <div class="d-flex gap-5">
+                            <div id="reminderOptionsStart" class="d-flex align-items-center flex-wrap gap-1">
+                                <div class="form-check">
+                                    <input type="checkbox" id="startReminderEnabled"
+                                        class="reminderEnabled form-check-input" {formname key=START_REMINDER_ENABLED}
+                                        aria-label="Enable Start Reminder Interval" />
+                                </div>
+                                <label for="startReminderTime" class="visually-hidden">Start Reminder Time</label>
+                                <label for="startReminderInterval" class="visually-hidden">Start Reminder Interval</label>
+                                <input type="number" min="0" max="999" size="3" maxlength="3" value="15"
+                                    class="reminderTime form-control form-control-sm w-auto"
+                                    {formname key=START_REMINDER_TIME} id="startReminderTime" />
+                                <select class="reminderInterval form-select form-select-sm w-auto"
+                                    {formname key=START_REMINDER_INTERVAL} id="startReminderInterval">
+                                    <option value="{ReservationReminderInterval::Minutes}">{translate key=minutes}
+                                    </option>
+                                    <option value="{ReservationReminderInterval::Hours}">{translate key=hours}</option>
+                                    <option value="{ReservationReminderInterval::Days}">{translate key=days}</option>
+                                </select>
+
+                                <span class="reminderLabel">{translate key=ReminderBeforeStart}</span>
+                            </div>
+                            <div id="reminderOptionsEnd" class="d-flex align-items-center flex-wrap gap-1">
+                                <div class="form-check">
+                                    <input type="checkbox" id="endReminderEnabled" class="reminderEnabled form-check-input"
+                                        {formname key=END_REMINDER_ENABLED} aria-label="Enable End Reminder Interval" />
+                                </div>
+                                <label for="endReminderTime" class="visually-hidden">End Reminder Time</label>
+                                <label for="endReminderInterval" class="visually-hidden">End Reminder Interval</label>
+                                <input type="number" min="0" max="999" size="3" maxlength="3" value="15"
+                                    class="reminderTime form-control form-control-sm w-auto"
+                                    {formname key=END_REMINDER_TIME} id="endReminderTime" />
+                                <select class="reminderInterval form-select form-select-sm w-auto"
+                                    {formname key=END_REMINDER_INTERVAL} id="endReminderInterval">
+                                    <option value="{ReservationReminderInterval::Minutes}">{translate key=minutes}
+                                    </option>
+                                    <option value="{ReservationReminderInterval::Hours}">{translate key=hours}</option>
+                                    <option value="{ReservationReminderInterval::Days}">{translate key=days}</option>
+                                </select>
+                                <span class="reminderLabel">{translate key=ReminderBeforeEnd}</span>
+
+                            </div>
+                        </div>
+                    </div>
+                    {/if}
+
+                    {if $UploadsEnabled}
+                    <div class="col-12 py-2">
+                        <div class="reservationAttachments">
+
+                            <label class="fw-bold mb-0">{translate key=AttachFile} <span
+                                    class="note fst-italic">({$MaxUploadSize} MB {translate key=Maximum})</span>
+                            </label>
+
+                            <div id="reservationAttachments">
+                                <div class="attachment-item">
+                                    <label class="fw-bold" for="reservationUploadFile">Reservation Upload File</label>
+                                    <input type="file" {formname key=RESERVATION_FILE multi=true} id="reservationUploadFile"
+                                        class="form-control form-control-sm w-auto" />
+                                    <a class="add-attachment link-primary" href="#">{translate key=Add}<i
+                                            class="bi bi-plus-square-fill ms-1"></i></a>
+                                    <a class="remove-attachment link-primary" href="#"><span
+                                            class="visually-hidden">{translate key=Delete}</span><i
+                                            class="bi bi-dash-square-fill"></i></a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {/if}
+
                 </div>
-            </div>
-            {/if}
+            </details>
+
+            <div id="custom-attributes-placeholder"></div>
 
             {if $Terms != null}
             <div class="py-2" id="termsAndConditions">
