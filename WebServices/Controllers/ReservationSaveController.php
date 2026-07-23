@@ -583,6 +583,11 @@ class ReservationRequestResponseFacade implements IReservationSavePage
         $this->_createdRequiresApproval = $requiresApproval;
     }
 
+    public function SetVideoConferenceResources($videoConferenceResources)
+    {
+        // no-op
+    }
+
 
     public function GetAccessories()
     {

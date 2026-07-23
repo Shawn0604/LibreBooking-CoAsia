@@ -17,6 +17,10 @@ interface IReservationSavePresenter
 
 class ReservationSavePresenter implements IReservationSavePresenter
 {
+    private const ATTRIBUTE_VIDEO_URL = 'video_url';
+    private const ATTRIBUTE_VIDEO_MEETING_ID = 'video_meeting_id';
+    private const ATTRIBUTE_VIDEO_PASSCODE = 'video_passcode';
+
     /**
      * @var IReservationSavePage
      */
@@ -46,13 +50,19 @@ class ReservationSavePresenter implements IReservationSavePresenter
      */
     private $scheduleRepository;
 
+    /**
+     * @var IAttributeRepository
+     */
+    private $attributeRepository;
+
     public function __construct(
         IReservationSavePage $page,
         IReservationPersistenceService $persistenceService,
         IReservationHandler $handler,
         IResourceRepository $resourceRepository,
         IScheduleRepository $scheduleRepository,
-        UserSession $userSession
+        UserSession $userSession,
+        IAttributeRepository $attributeRepository
     ) {
         $this->page = $page;
         $this->persistenceService = $persistenceService;
@@ -60,6 +70,7 @@ class ReservationSavePresenter implements IReservationSavePresenter
         $this->resourceRepository = $resourceRepository;
         $this->scheduleRepository = $scheduleRepository;
         $this->userSession = $userSession;
+        $this->attributeRepository = $attributeRepository;
     }
 
     public function BuildReservation()
@@ -150,7 +161,61 @@ class ReservationSavePresenter implements IReservationSavePresenter
         if ($successfullySaved) {
             $this->page->SetRequiresApproval($reservationSeries->RequiresApproval());
             $this->page->SetReferenceNumber($reservationSeries->CurrentInstance()->ReferenceNumber());
+            $this->page->SetVideoConferenceResources($this->GetVideoConferenceResources($reservationSeries->AllResources()));
         }
+    }
+
+    /**
+     * @param BookableResource[] $resources
+     * @return VideoConferenceInfo[]
+     */
+    private function GetVideoConferenceResources($resources)
+    {
+        $attributeIds = $this->GetVideoAttributeIds();
+        $videoResources = [];
+
+        if (!isset($attributeIds[self::ATTRIBUTE_VIDEO_URL])) {
+            return $videoResources;
+        }
+
+        foreach ($resources as $resource) {
+            $url = $resource->GetAttributeValue($attributeIds[self::ATTRIBUTE_VIDEO_URL]);
+            if (empty($url)) {
+                continue;
+            }
+
+            $meetingId = isset($attributeIds[self::ATTRIBUTE_VIDEO_MEETING_ID])
+                ? $resource->GetAttributeValue($attributeIds[self::ATTRIBUTE_VIDEO_MEETING_ID])
+                : null;
+            $passcode = isset($attributeIds[self::ATTRIBUTE_VIDEO_PASSCODE])
+                ? $resource->GetAttributeValue($attributeIds[self::ATTRIBUTE_VIDEO_PASSCODE])
+                : null;
+
+            $videoResources[] = new VideoConferenceInfo($resource->GetName(), $url, $meetingId, $passcode);
+        }
+
+        return $videoResources;
+    }
+
+    /**
+     * Maps the video-related Custom Attribute labels to their attribute IDs.
+     * Attribute IDs are assigned by the admin at creation time and are not fixed,
+     * so they must be resolved by label on every call (cached by AttributeRepository).
+     *
+     * @return array|int[]
+     */
+    private function GetVideoAttributeIds()
+    {
+        $videoLabels = [self::ATTRIBUTE_VIDEO_URL, self::ATTRIBUTE_VIDEO_MEETING_ID, self::ATTRIBUTE_VIDEO_PASSCODE];
+        $ids = [];
+
+        foreach ($this->attributeRepository->GetByCategory(CustomAttributeCategory::RESOURCE) as $attribute) {
+            if (in_array($attribute->Label(), $videoLabels, true)) {
+                $ids[$attribute->Label()] = $attribute->Id();
+            }
+        }
+
+        return $ids;
     }
 
     /**

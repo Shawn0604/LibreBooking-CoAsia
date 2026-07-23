@@ -72,6 +72,11 @@ interface IReservationSavePage extends IReservationSaveResultsView, IRepeatOptio
     public function SetRequiresApproval($requiresApproval);
 
     /**
+     * @param VideoConferenceInfo[] $videoConferenceResources
+     */
+    public function SetVideoConferenceResources($videoConferenceResources);
+
+    /**
      * @return AccessoryFormElement[]|array
      */
     public function GetAccessories();
@@ -191,6 +196,11 @@ class ReservationSavePage extends SecurePage implements IReservationSavePage
     public function SetRequiresApproval($requiresApproval)
     {
         $this->Set('RequiresApproval', $requiresApproval);
+    }
+
+    public function SetVideoConferenceResources($videoConferenceResources)
+    {
+        $this->Set('VideoConferenceResources', $videoConferenceResources);
     }
 
     public function SetErrors($errors)

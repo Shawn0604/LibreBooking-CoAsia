@@ -34,6 +34,8 @@ class ReservationSavePresenterTest extends TestBase
 
     private IResourceRepository&\PHPUnit\Framework\MockObject\MockObject $resourceRepository;
 
+    private IAttributeRepository&\PHPUnit\Framework\MockObject\MockObject $attributeRepository;
+
     /**
      * @var FakeScheduleRepository
      */
@@ -51,6 +53,8 @@ class ReservationSavePresenterTest extends TestBase
         $this->persistenceService = $this->createMock('IReservationPersistenceService');
         $this->handler = $this->createMock('IReservationHandler');
         $this->resourceRepository = $this->createMock('IResourceRepository');
+        $this->attributeRepository = $this->createMock('IAttributeRepository');
+        $this->attributeRepository->method('GetByCategory')->willReturn([]);
         $this->scheduleRepository = new FakeScheduleRepository();
 
         $this->presenter = new ReservationSavePresenter(
@@ -59,7 +63,8 @@ class ReservationSavePresenterTest extends TestBase
             $this->handler,
             $this->resourceRepository,
             $this->scheduleRepository,
-            $this->fakeUser
+            $this->fakeUser,
+            $this->attributeRepository
         );
     }
 

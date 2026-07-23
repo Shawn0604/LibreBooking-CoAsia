@@ -58,6 +58,7 @@ class ReservationPresenterFactory implements IReservationPresenterFactory
         $persistenceFactory = new ReservationPersistenceFactory();
         $resourceRepository = new ResourceRepository();
         $scheduleRepository = new ScheduleRepository();
+        $attributeRepository = new AttributeRepository();
         $reservationAction = ReservationAction::Create;
         $persistenceService = $persistenceFactory->Create($reservationAction);
         $handler = ReservationHandler::Create(
@@ -66,7 +67,7 @@ class ReservationPresenterFactory implements IReservationPresenterFactory
             $userSession
         );
 
-        return new ReservationSavePresenter($savePage, $persistenceService, $handler, $resourceRepository, $scheduleRepository, $userSession);
+        return new ReservationSavePresenter($savePage, $persistenceService, $handler, $resourceRepository, $scheduleRepository, $userSession, $attributeRepository);
     }
 
     public function Update(IReservationUpdatePage $updatePage, UserSession $userSession)

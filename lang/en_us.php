@@ -280,6 +280,10 @@ class en_us extends Language
         $strings['ReservationRemoved'] = 'Your reservation was removed';
         $strings['ReservationRequiresApproval'] = 'One or more of the resources reserved require approval before usage.  This reservation will be pending until it is approved.';
         $strings['YourReferenceNumber'] = 'Your reference number is %s';
+        $strings['VideoConferenceInfo'] = 'Video Conference';
+        $strings['VideoLink'] = 'Link';
+        $strings['MeetingId'] = 'Meeting ID';
+        $strings['Passcode'] = 'Passcode';
         $strings['ChangeUser'] = 'Change User';
         $strings['MoreResources'] = 'More Resources';
         $strings['ReservationLength'] = 'Reservation Length';

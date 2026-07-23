@@ -275,6 +275,10 @@ class zh_tw extends en_us
         $strings['ReservationUpdated'] = '您的預約已成功更新！';
         $strings['ReservationRemoved'] = '您的預約已刪除';
         $strings['YourReferenceNumber'] = '您的參考數字是 %s';
+        $strings['VideoConferenceInfo'] = '視訊連結';
+        $strings['VideoLink'] = '連結';
+        $strings['MeetingId'] = '會議 ID';
+        $strings['Passcode'] = '密碼';
         $strings['UpdatingReservation'] = '更新預約';
         $strings['ChangeUser'] = '更改用戶';
         $strings['MoreResources'] = '更多的資源';

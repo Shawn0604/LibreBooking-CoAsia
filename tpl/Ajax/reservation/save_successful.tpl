@@ -27,6 +27,21 @@
 		{/foreach}
 	</div>
 
+	{if $VideoConferenceResources}
+		{foreach from=$VideoConferenceResources item=video}
+			<div class="video-conference-info" style="margin: 0.5em 0;">
+				<div class="fw-bold"><i class="bi bi-camera-video-fill"></i> {translate key=VideoConferenceInfo}</div>
+				<div>{translate key=VideoLink}：<a href="{$video->Url}" target="_blank" rel="noopener">{$video->Url}</a></div>
+				{if $video->MeetingId}
+					<div>{translate key=MeetingId}：{$video->MeetingId}</div>
+				{/if}
+				{if $video->Passcode}
+					<div>{translate key=Passcode}：{$video->Passcode}</div>
+				{/if}
+			</div>
+		{/foreach}
+	{/if}
+
 	{if $RequiresApproval}
 		<div id="approval-message" class="fst-italic">{translate key=ReservationRequiresApproval}</div>
 	{/if}

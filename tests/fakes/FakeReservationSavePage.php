@@ -44,6 +44,7 @@ class FakeReservationSavePage implements IReservationSavePage
     public $invitedGuests = [];
     public $canJoinWaitlist = false;
     public $repeatCustomDates = [];
+    public $videoConferenceResources = [];
 
     public function __construct()
     {
@@ -218,6 +219,14 @@ class FakeReservationSavePage implements IReservationSavePage
     public function SetRequiresApproval($requiresApproval)
     {
         $this->requiresApproval = $requiresApproval;
+    }
+
+    /**
+     * @param VideoConferenceInfo[] $videoConferenceResources
+     */
+    public function SetVideoConferenceResources($videoConferenceResources)
+    {
+        $this->videoConferenceResources = $videoConferenceResources;
     }
 
     /**
