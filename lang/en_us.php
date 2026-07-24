@@ -255,6 +255,17 @@ class en_us extends Language
         $strings['FirstTimeUser?'] = 'First Time User?';
         $strings['CreateAnAccount'] = 'Create an Account';
         $strings['ViewSchedule'] = 'View Schedule';
+        $strings['ViewDetails'] = 'View Details';
+        $strings['LineNotifications'] = 'LINE Notifications';
+        $strings['LineLinkInstructions'] = 'Add the official account as a friend, then send this code to finish linking:';
+        $strings['LineAddFriend'] = 'Add Official Account';
+        $strings['LineLinked'] = 'LINE notifications linked';
+        $strings['LineUnlink'] = 'Unlink';
+        $strings['LineLinkCodeNotFound'] = 'Could not find that code. Please double-check it, or go back to the settings page to generate a new one.';
+        $strings['LineLinkSuccess'] = 'Linked! You will now receive reservation reminders here.';
+        $strings['LineReservationCreatedMessage'] = "Reservation confirmed: %s\nLocation: %s\nTime: %s - %s";
+        $strings['LineReminderStartMessage'] = "Reminder: \"%s\" is about to start\nLocation: %s";
+        $strings['LineReminderEndMessage'] = "Reminder: \"%s\" is about to end\nLocation: %s";
         $strings['ForgotMyPassword'] = 'I Forgot My Password';
         $strings['YouWillBeEmailedANewPassword'] = 'You will be emailed a new randomly generated password';
         $strings['Close'] = 'Close';

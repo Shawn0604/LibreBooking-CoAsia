@@ -5,6 +5,8 @@ class UserPreferences
     public const RESERVATION_COLOR = 'ReservationColor';
     public const REPORT_COLUMNS = 'ReportColumns';
     public const CALENDAR_FILTER = 'CalendarFilter';
+    public const LINE_USER_ID = 'LineUserId';
+    public const LINE_LINK_CODE = 'LineLinkCode';
 
     private $preferences = [];
     private $changed = [];

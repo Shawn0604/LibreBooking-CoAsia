@@ -945,6 +945,8 @@ class Queries
 
     public const GET_USER_PREFERENCES = 'SELECT `name`, `value` FROM `user_preferences` WHERE `user_id` = @userid';
 
+    public const FIND_USER_ID_BY_PREFERENCE = 'SELECT `user_id` FROM `user_preferences` WHERE `name` = @name AND `value` = @value LIMIT 1';
+
     public const GET_USER_ROLES =
         'SELECT
 			`user_id`, `user_level`

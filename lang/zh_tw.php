@@ -251,6 +251,17 @@ class zh_tw extends en_us
         $strings['FirstTimeUser?'] = '您是首次來訪用戶?';
         $strings['CreateAnAccount'] = '建立一個帳號';
         $strings['ViewSchedule'] = '查看時間表';
+        $strings['ViewDetails'] = '查看詳情';
+        $strings['LineNotifications'] = 'LINE 通知';
+        $strings['LineLinkInstructions'] = '加官方帳號好友後，傳送這組代碼完成綁定：';
+        $strings['LineAddFriend'] = '加官方帳號好友';
+        $strings['LineLinked'] = 'LINE 通知已綁定';
+        $strings['LineUnlink'] = '解除綁定';
+        $strings['LineLinkCodeNotFound'] = '找不到這組代碼，請確認代碼是否正確，或回設定頁重新產生。';
+        $strings['LineLinkSuccess'] = '綁定成功！之後會在這裡收到會議室預約提醒。';
+        $strings['LineReservationCreatedMessage'] = "預約成功：%s\n地點：%s\n時間：%s - %s";
+        $strings['LineReminderStartMessage'] = "提醒：「%s」即將開始\n地點：%s";
+        $strings['LineReminderEndMessage'] = "提醒：「%s」即將結束\n地點：%s";
         $strings['ForgotMyPassword'] = '忘記密碼';
         $strings['YouWillBeEmailedANewPassword'] = '您將會收到一份系統自動生成的密碼';
         $strings['Close'] = '關閉';

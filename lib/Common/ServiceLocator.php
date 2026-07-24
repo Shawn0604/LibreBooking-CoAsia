@@ -23,6 +23,11 @@ class ServiceLocator
     private static $_emailService = null;
 
     /**
+     * @var ILineService
+     */
+    private static $_lineService = null;
+
+    /**
      * @var \Booked\IFileSystem
      */
     private static $_fileSystem = null;
@@ -98,6 +103,29 @@ class ServiceLocator
     public static function SetEmailService(IEmailService $emailService)
     {
         self::$_emailService = $emailService;
+    }
+
+    /**
+     * @static
+     * @return ILineService
+     */
+    public static function GetLineService()
+    {
+        require_once(ROOT_DIR . 'lib/Line/namespace.php');
+
+        if (self::$_lineService == null) {
+            if (Configuration::Instance()->GetKey(ConfigKeys::LINE_ENABLED, new BooleanConverter())) {
+                self::$_lineService = new LineService();
+            } else {
+                self::$_lineService = new NullLineService();
+            }
+        }
+        return self::$_lineService;
+    }
+
+    public static function SetLineService(ILineService $lineService)
+    {
+        self::$_lineService = $lineService;
     }
 
     /**

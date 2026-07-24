@@ -27,6 +27,13 @@ interface IUserRepository extends IUserViewRepository
     public function LoadByUsername($userName);
 
     /**
+     * @param string $name
+     * @param string $value
+     * @return User
+     */
+    public function LoadByPreference($name, $value);
+
+    /**
      * @param User $user
      * @return void
      */
@@ -394,6 +401,25 @@ class UserRepository implements IUserRepository, IAccountActivationRepository
     {
         $command = new LoginCommand(strtolower($userName));
         return $this->Load($command);
+    }
+
+    /**
+     * @param string $name
+     * @param string $value
+     * @return User
+     */
+    public function LoadByPreference($name, $value)
+    {
+        $command = new FindUserIdByPreferenceCommand($name, $value);
+        $reader = ServiceLocator::GetDatabase()->Query($command);
+
+        if ($row = $reader->GetRow()) {
+            $reader->Free();
+            return $this->LoadById($row[ColumnNames::USER_ID]);
+        }
+
+        $reader->Free();
+        return new NullUser();
     }
 
     /**

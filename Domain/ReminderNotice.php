@@ -4,6 +4,7 @@ class ReminderNotice
 {
     private $seriesId;
     private $reservationId;
+    private $userId;
     private $referenceNumber;
     private $startDate;
     private $endDate;
@@ -58,6 +59,11 @@ class ReminderNotice
     public function ReservationId()
     {
         return $this->reservationId;
+    }
+
+    public function UserId()
+    {
+        return $this->userId;
     }
 
     public function ResourceNames()
@@ -117,6 +123,7 @@ class ReminderNotice
     /**
      * @param int $seriesId
      * @param int $reservationId
+     * @param int $userId
      * @param string $referenceNumber
      * @param Date $startDate
      * @param Date $endDate
@@ -136,6 +143,7 @@ class ReminderNotice
     public function __construct(
         $seriesId,
         $reservationId,
+        $userId,
         $referenceNumber,
         Date $startDate,
         Date $endDate,
@@ -154,6 +162,7 @@ class ReminderNotice
     ) {
         $this->seriesId = $seriesId;
         $this->reservationId = $reservationId;
+        $this->userId = $userId;
         $this->referenceNumber = $referenceNumber;
         $this->startDate = $startDate;
         $this->endDate = $endDate;
@@ -179,6 +188,7 @@ class ReminderNotice
     {
         $seriesId = $row[ColumnNames::SERIES_ID];
         $reservationId = $row[ColumnNames::RESERVATION_INSTANCE_ID];
+        $userId = $row[ColumnNames::USER_ID];
         $referenceNumber = $row[ColumnNames::REFERENCE_NUMBER];
         $startDate = Date::FromDatabase($row[ColumnNames::RESERVATION_START]);
         $endDate = Date::FromDatabase($row[ColumnNames::RESERVATION_END]);
@@ -198,6 +208,7 @@ class ReminderNotice
         return new ReminderNotice(
             $seriesId,
             $reservationId,
+            $userId,
             $referenceNumber,
             $startDate,
             $endDate,

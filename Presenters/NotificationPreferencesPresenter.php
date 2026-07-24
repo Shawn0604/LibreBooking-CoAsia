@@ -41,6 +41,45 @@ class NotificationPreferencesPresenter
         $this->page->SetDeleted($user->WantsEventEmail(new ReservationDeletedEvent()));
         $this->page->SetSeriesEnding($user->WantsEventEmail(new ReservationSeriesEndingEvent()));
         $this->page->SetParticipantChanged($user->WantsEventEmail(new ParticipationChangedEvent()));
+
+        $this->LoadLinePreferences($user);
+    }
+
+    private function LoadLinePreferences(User $user)
+    {
+        $lineEnabled = Configuration::Instance()->GetKey(ConfigKeys::LINE_ENABLED, new BooleanConverter());
+        $this->page->SetLineEnabled($lineEnabled);
+
+        if (!$lineEnabled) {
+            return;
+        }
+
+        $userChanged = false;
+
+        if ($this->page->IsPostBack() && $this->page->GetUnlinkLine()) {
+            $user->ChangePreference(UserPreferences::LINE_USER_ID, '');
+            $userChanged = true;
+        }
+
+        $isLinked = !empty($user->GetPreferences()->Get(UserPreferences::LINE_USER_ID));
+        $this->page->SetLineLinked($isLinked);
+
+        if (!$isLinked) {
+            $code = $user->GetPreferences()->Get(UserPreferences::LINE_LINK_CODE);
+            if (empty($code)) {
+                $code = (string)random_int(100000, 999999);
+                $user->ChangePreference(UserPreferences::LINE_LINK_CODE, $code);
+                $userChanged = true;
+            }
+            $this->page->SetLineLinkCode($code);
+
+            $officialAccountId = Configuration::Instance()->GetKey(ConfigKeys::LINE_OFFICIAL_ACCOUNT_ID);
+            $this->page->SetLineFriendUrl('https://line.me/R/ti/p/' . rawurlencode($officialAccountId));
+        }
+
+        if ($userChanged) {
+            $this->userRepository->Update($user);
+        }
     }
 
     private function UpdateProfile(User $user)

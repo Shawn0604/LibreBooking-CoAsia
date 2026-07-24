@@ -99,6 +99,28 @@
 							{translate key='Update'}
 						</button>
 					</div>
+
+					{if $LineEnabled}
+						<div id="line-notification-box" class="mt-4 pt-3 border-top">
+							<h2 class="fs-5">{translate key=LineNotifications}</h2>
+							{if $LineLinked}
+								<div class="text-success mb-2">
+									<i class="bi bi-check-circle-fill"></i> {translate key=LineLinked}
+								</div>
+								<button type="submit" class="btn btn-outline-secondary btn-sm" name="lineUnlink" value="1">
+									{translate key=LineUnlink}
+								</button>
+							{else}
+								<p>{translate key=LineLinkInstructions}</p>
+								<div class="d-flex align-items-center gap-3 flex-wrap">
+									<span class="fs-3 fw-bold font-monospace">{$LineLinkCode}</span>
+									<a class="btn btn-success btn-sm" href="{$LineFriendUrl}" target="_blank" rel="noopener">
+										{translate key=LineAddFriend}
+									</a>
+								</div>
+							{/if}
+						</div>
+					{/if}
 				</div>
 			</form>
 

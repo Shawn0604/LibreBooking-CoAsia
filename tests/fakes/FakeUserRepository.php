@@ -79,6 +79,21 @@ class FakeUserRepository implements IUserRepository
     }
 
     /**
+     * @var User|null
+     */
+    public $_UserByPreference = null;
+
+    /**
+     * @param string $name
+     * @param string $value
+     * @return User
+     */
+    public function LoadByPreference($name, $value)
+    {
+        return $this->_UserByPreference ?? new NullUser();
+    }
+
+    /**
      * @param User $user
      * @return void
      */

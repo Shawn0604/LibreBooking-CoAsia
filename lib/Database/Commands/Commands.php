@@ -2523,6 +2523,17 @@ class GetUserPreferenceCommand extends SqlCommand
     }
 }
 
+class FindUserIdByPreferenceCommand extends SqlCommand
+{
+    public function __construct($name, $value)
+    {
+        parent::__construct(Queries::FIND_USER_ID_BY_PREFERENCE);
+
+        $this->AddParameter(new Parameter(ParameterNames::NAME, $name));
+        $this->AddParameter(new Parameter(ParameterNames::VALUE, $value));
+    }
+}
+
 class GetUserPreferencesCommand extends SqlCommand
 {
     public function __construct($userId)

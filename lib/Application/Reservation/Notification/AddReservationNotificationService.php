@@ -1,6 +1,7 @@
 <?php
 
 require_once(ROOT_DIR . 'lib/Application/Reservation/Notification/IReservationNotificationService.php');
+require_once(ROOT_DIR . 'lib/Application/Reservation/Notification/OwnerLineNotification.php');
 
 class AddReservationNotificationService extends ReservationNotificationService
 {
@@ -13,6 +14,7 @@ class AddReservationNotificationService extends ReservationNotificationService
         $notifications[] = new ParticipantAddedEmailNotification($userRepo, $attributeRepo);
         $notifications[] = new InviteeAddedEmailNotification($userRepo, $attributeRepo);
         $notifications[] = new GuestAddedEmailNotification($userRepo, $attributeRepo);
+        $notifications[] = new OwnerLineCreatedNotification($userRepo);
 
         parent::__construct($notifications);
     }

@@ -79,6 +79,31 @@ interface INotificationPreferencesPage extends IPage
      * @param bool $enabled
      */
     public function SetParticipationEnabled($enabled);
+
+    /**
+     * @param bool $enabled
+     */
+    public function SetLineEnabled($enabled);
+
+    /**
+     * @param bool $isLinked
+     */
+    public function SetLineLinked($isLinked);
+
+    /**
+     * @param string $code
+     */
+    public function SetLineLinkCode($code);
+
+    /**
+     * @param string $url
+     */
+    public function SetLineFriendUrl($url);
+
+    /**
+     * @return bool
+     */
+    public function GetUnlinkLine();
 }
 
 class NotificationPreferencesPage extends SecurePage implements INotificationPreferencesPage
@@ -173,5 +198,30 @@ class NotificationPreferencesPage extends SecurePage implements INotificationPre
     public function SetParticipationEnabled($enabled)
     {
         $this->Set('ParticipationEnabled', $enabled);
+    }
+
+    public function SetLineEnabled($enabled)
+    {
+        $this->Set('LineEnabled', $enabled);
+    }
+
+    public function SetLineLinked($isLinked)
+    {
+        $this->Set('LineLinked', $isLinked);
+    }
+
+    public function SetLineLinkCode($code)
+    {
+        $this->Set('LineLinkCode', $code);
+    }
+
+    public function SetLineFriendUrl($url)
+    {
+        $this->Set('LineFriendUrl', $url);
+    }
+
+    public function GetUnlinkLine()
+    {
+        return (bool)$this->GetForm('lineUnlink');
     }
 }

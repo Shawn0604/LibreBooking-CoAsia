@@ -434,6 +434,48 @@ class ConfigKeys extends AbstractConfigKeys
         'section' => 'email'
     ];
 
+    // LINE Messaging API
+    public const LINE_ENABLED = [
+        'key' => 'line.enabled',
+        'type' => 'boolean',
+        'default' => false,
+        'label' => 'Enable LINE Notifications',
+        'description' => 'Enable or disable LINE push notifications for reservation reminders/confirmations',
+        'section' => 'line'
+    ];
+
+    public const LINE_CHANNEL_SECRET = [
+        'key' => 'line.channel.secret',
+        'type' => 'string',
+        'default' => '',
+        'label' => 'LINE Channel Secret',
+        'description' => 'Channel secret for the LINE Messaging API channel, used to verify webhook signatures',
+        'config_file_comment' => 'LINE Messaging API channel secret',
+        'section' => 'line',
+        'is_private' => true
+    ];
+
+    public const LINE_CHANNEL_ACCESS_TOKEN = [
+        'key' => 'line.channel.access.token',
+        'type' => 'string',
+        'default' => '',
+        'label' => 'LINE Channel Access Token',
+        'description' => 'Long-lived channel access token for the LINE Messaging API channel',
+        'config_file_comment' => 'LINE Messaging API channel access token',
+        'section' => 'line',
+        'is_private' => true
+    ];
+
+    public const LINE_OFFICIAL_ACCOUNT_ID = [
+        'key' => 'line.official.account.id',
+        'type' => 'string',
+        'default' => '',
+        'label' => 'LINE Official Account Basic ID',
+        'description' => 'The @-prefixed Basic ID of the LINE Official Account, used to build the friend-add link shown to users',
+        'config_file_comment' => 'LINE Official Account Basic ID, e.g. @883belmh',
+        'section' => 'line'
+    ];
+
     // Logging
     public const LOGGING_FOLDER = [
         'key' => 'logging.folder',
