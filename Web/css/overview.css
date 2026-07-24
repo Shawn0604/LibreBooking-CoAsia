@@ -1,6 +1,9 @@
-/* CoAsia multi-resource weekly overview (Web/overview.php) — layout patterned after
-   Google Calendar (toolbar / mini month picker / checkbox calendar list / current-time
-   line), CoAsia's own navy+red brand colors used as accents only.
+/* CoAsia multi-resource weekly overview (Web/overview.php).
+   Google Calendar Web (Material 3) is the sole design reference for this page's
+   layout, spacing, typography and component sizing — not just its color palette.
+   Shared sizing tokens (--gcal-border, --gcal-today-bg, --gcal-today-accent,
+   --gcal-icon-size, --gcal-control-height) live in coasia-theme.css so the sidebar
+   and this page's calendar read as one system.
 
    The sidebar-* / mini-cal-* / res-check-* / create-btn rules below style markup that
    actually lives in tpl/globalheader.tpl's <aside id="appSidebar"> (Smarty {include}
@@ -9,6 +12,7 @@
    right place for them since it's only ever loaded on this page. */
 
 #page-overview {
+  position: relative;
   max-width: 1360px;
   margin: 0 auto;
   padding: 0 24px 60px;
@@ -16,64 +20,270 @@
 
 /* ---------- Quick-create modal (Google Calendar-style same-screen create) ---------- */
 
-#quickCreateModal .modal-header {
-  align-items: center;
-  gap: 10px;
+#quickCreateModal .modal-content {
+  padding: 8px 8px 4px;
+}
+
+#quickCreateModal .qc-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  width: var(--gcal-control-height);
+  height: var(--gcal-control-height);
+  border-radius: 50%;
+  opacity: 0.65;
+}
+
+#quickCreateModal .qc-close:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  opacity: 1;
+}
+
+#quickCreateModal .modal-body {
+  padding: 16px 24px 8px;
 }
 
 #quickCreateModal .qc-title {
-  font-size: 17px;
-  font-weight: 600;
-  padding-left: 0;
+  display: block;
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid var(--primary);
+  outline: none;
+  padding: 4px 40px 8px 0;
+  margin-bottom: 12px;
+  font-size: 20px;
+  font-weight: 400;
+  color: #1c2333;
+  background: transparent;
 }
 
-#quickCreateModal .qc-title:focus {
-  box-shadow: none;
+#quickCreateModal .qc-title::placeholder {
+  color: #9aa1b3;
+  font-weight: 400;
 }
 
 #quickCreateModal .qc-row {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 6px 0;
-  font-size: 13.5px;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 10px 0;
+  font-size: 14px;
   color: #3c4043;
+}
+
+#quickCreateModal .qc-row-top {
+  align-items: flex-start;
 }
 
 #quickCreateModal .qc-row i {
   color: #6c7488;
-  width: 16px;
+  width: var(--gcal-icon-size);
+  font-size: var(--gcal-icon-size);
   text-align: center;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-/* ---------- Toolbar ---------- */
+#quickCreateModal .qc-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#quickCreateModal .qc-row-sub {
+  font-size: 12px;
+  color: #6c7488;
+  margin-top: 2px;
+}
+
+#quickCreateModal .qc-time-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#quickCreateModal .qc-time-dash {
+  color: #6c7488;
+}
+
+#quickCreateModal .qc-time-picker,
+#quickCreateModal .qc-resource-picker {
+  position: relative;
+  display: inline-block;
+}
+
+#quickCreateModal .qc-time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: var(--bs-border-radius-sm);
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  padding: 4px 8px 4px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #3c4043;
+}
+
+#quickCreateModal .qc-time-pill::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #6c7488;
+  flex-shrink: 0;
+}
+
+#quickCreateModal .qc-time-pill:hover,
+#quickCreateModal .qc-time-pill[aria-expanded="true"] {
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+#quickCreateModal .qc-time-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  max-height: 240px;
+  overflow-y: auto;
+  min-width: 180px;
+  background: #fff;
+  border-radius: var(--bs-border-radius-sm);
+  box-shadow: var(--bs-box-shadow);
+  padding: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top left;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+
+#quickCreateModal .qc-time-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #quickCreateModal .qc-time-dropdown {
+    transition: none;
+  }
+}
+
+#quickCreateModal .qc-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: #3c4043;
+  border-radius: var(--bs-border-radius-sm);
+  white-space: nowrap;
+  transition: background-color 0.1s ease;
+}
+
+#quickCreateModal .qc-option:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+#quickCreateModal .qc-option.selected {
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+#quickCreateModal .qc-resource-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+#quickCreateModal .qc-resource-tab {
+  border: 1px solid var(--bs-border-color, #d6d9e3);
+  border-radius: 100px;
+  background: transparent;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #6c7488;
+}
+
+#quickCreateModal .qc-resource-tab.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 8%, white);
+}
+
+#quickCreateModal .qc-description {
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 0;
+  font-size: 14px;
+  font-family: inherit;
+  color: #3c4043;
+  background: transparent;
+}
+
+#quickCreateModal .qc-description::placeholder {
+  color: #9aa1b3;
+}
+
+#quickCreateModal .modal-footer {
+  border-top: none;
+  padding: 12px 24px 16px;
+}
+
+/* ---------- Header (64px, fixed — same band the sidebar brand row occupies) ---------- */
 
 #page-overview .cal-toolbar {
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 20px 0 16px;
-  flex-wrap: wrap;
+  gap: 16px;
+  height: 64px;
+  box-sizing: border-box;
+  padding: 0 0 0 4px;
+  border-bottom: 1px solid var(--gcal-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
 }
 
 #page-overview h1 {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 500;
+  color: #3c4043;
   margin: 0;
+  white-space: nowrap;
 }
 
 #page-overview .toolbar-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: var(--gcal-control-height);
+  height: var(--gcal-control-height);
   border-radius: 50%;
   border: none;
   background: transparent;
   color: #4b5165;
-  font-size: 16px;
   text-decoration: none;
+  flex-shrink: 0;
+}
+
+#page-overview .toolbar-icon-btn i {
+  font-size: var(--gcal-icon-size);
 }
 
 #page-overview .toolbar-icon-btn:hover {
@@ -84,15 +294,19 @@
 #page-overview .toolbar-nav-group {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 #page-overview .today-btn {
+  display: inline-flex;
+  align-items: center;
+  height: var(--gcal-control-height);
+  box-sizing: border-box;
   border: 1px solid var(--bs-border-color, #d6d9e3);
   border-radius: 100px;
-  padding: 6px 16px;
+  padding: 0 18px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: #4b5165;
   text-decoration: none;
 }
@@ -102,21 +316,31 @@
   border-color: var(--primary);
 }
 
+#page-overview .today-btn.disabled {
+  color: #c7cbd6;
+  border-color: #e7e9ef;
+  cursor: default;
+  pointer-events: none;
+}
+
 #page-overview .arrows {
   display: flex;
   gap: 2px;
 }
 
 #page-overview .arrows a.nav {
-  width: 32px;
-  height: 32px;
+  width: var(--gcal-control-height);
+  height: var(--gcal-control-height);
   border-radius: 50%;
   color: #4b5165;
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 15px;
+}
+
+#page-overview .arrows a.nav i {
+  font-size: var(--gcal-icon-size);
 }
 
 #page-overview .arrows a.nav:hover {
@@ -126,8 +350,8 @@
 
 #page-overview .month-label {
   font-size: 17px;
-  font-weight: 600;
-  color: #1c2333;
+  font-weight: 500;
+  color: #3c4043;
   font-variant-numeric: tabular-nums;
 }
 
@@ -138,33 +362,59 @@
   margin-left: auto;
 }
 
-#page-overview .view-label {
+#page-overview .cal-category-tabs {
+  display: inline-flex;
+  align-items: center;
+  height: var(--gcal-control-height);
+  box-sizing: border-box;
   border: 1px solid var(--bs-border-color, #d6d9e3);
   border-radius: 100px;
-  padding: 6px 16px;
+  padding: 3px;
+  gap: 2px;
+  margin-left: 8px;
+}
+
+#page-overview .cal-category-tab {
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--gcal-control-height) - 6px);
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  border-radius: 100px;
+  padding: 0 14px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   color: #4b5165;
-  margin-left: 6px;
+  white-space: nowrap;
+}
+
+#page-overview .cal-category-tab:hover {
+  color: var(--primary);
+}
+
+#page-overview .cal-category-tab.active {
+  background: var(--primary);
+  color: #fff;
 }
 
 /* ---------- Sidebar extras (rendered inside tpl/globalheader.tpl's <aside>) ---------- */
+/* Section rhythm: 24px between each block below, 12px between items within one. */
 
 .create-btn {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
   box-sizing: border-box;
-  padding: 11px 14px;
-  margin: 4px 0 16px;
+  height: var(--gcal-control-height);
+  padding: 0 16px;
   border-radius: 100px;
   background: var(--primary);
   color: #fff;
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 500;
   text-decoration: none;
-  box-shadow: var(--bs-box-shadow-sm);
 }
 
 .create-btn:hover {
@@ -173,13 +423,13 @@
 }
 
 .create-btn i {
-  font-size: 14px;
+  font-size: var(--gcal-icon-size);
 }
 
 /* Mini month calendar */
 
 .mini-cal {
-  margin-bottom: 6px;
+  margin-top: 24px;
 }
 
 .mini-cal-head {
@@ -191,7 +441,7 @@
 
 .mini-cal-label {
   font-size: 12.5px;
-  font-weight: 700;
+  font-weight: 500;
   color: #1c2333;
 }
 
@@ -201,8 +451,8 @@
 }
 
 .mini-cal-nav button {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: transparent;
   border-radius: 50%;
@@ -239,6 +489,7 @@
   height: 26px;
   margin: 1px auto;
   font-size: 11.5px;
+  font-weight: 400;
   color: #4b5165;
   font-variant-numeric: tabular-nums;
 }
@@ -252,8 +503,8 @@
 }
 
 .mini-cal-grid button.today {
-  color: var(--primary);
-  font-weight: 700;
+  color: var(--gcal-today-accent);
+  font-weight: 500;
 }
 
 .mini-cal-grid button.in-week {
@@ -261,37 +512,34 @@
 }
 
 .mini-cal-grid button.selected-today {
-  background: var(--primary);
+  background: var(--gcal-today-accent);
   color: #fff;
-  font-weight: 700;
+  font-weight: 500;
 }
 
-/* Resource checklist */
+/* Resource checklist — Google Calendar's own "other calendars" checklist pattern:
+   a collapsible group header (reuses .sidebar-group-toggle) above a list of compact,
+   colored-checkbox rows. */
 
-.sidebar-group-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #9aa1b3;
-  padding: 14px 4px 4px;
-}
-
-.sidebar-group-label:first-of-type {
-  padding-top: 6px;
+#resourceSidebar {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
 }
 
 .res-check {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 4px;
+  gap: 12px;
+  min-height: 28px;
+  padding: 0 10px;
+  box-sizing: border-box;
   cursor: pointer;
-  border-radius: 8px;
+  border-radius: var(--bs-border-radius-sm);
 }
 
 .res-check:hover {
-  background: var(--bs-tertiary-bg, #f5f6f9);
+  background: var(--bs-tertiary-bg, #f1f2f6);
 }
 
 .res-check input {
@@ -302,10 +550,10 @@
 }
 
 .res-check-box {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: 2px;
   background: var(--check-color, #5c6b84);
   position: relative;
 }
@@ -320,89 +568,105 @@
   position: absolute;
   left: 5px;
   top: 2px;
-  width: 4px;
-  height: 8px;
+  width: 5px;
+  height: 9px;
   border: solid #fff;
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
 
 .res-check-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: #4b5165;
+  font-size: 14px;
+  font-weight: 400;
+  color: #3c4043;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* Deliberately no border-radius/box-shadow/overflow:hidden "card" treatment here — real
+   Google Calendar's grid is a flat rectangle, not an elevated card. That flatness also
+   matters functionally: `overflow: hidden` (or `.week-scroll`'s old `overflow-x: auto`,
+   which the spec forces into a 2-axis scroll container the moment overflow-y is left as
+   its visible default) becomes the nearest scrolling ancestor for any sticky descendant,
+   which silently breaks the day-head/corner row's position:sticky against the real page
+   scroll. Keeping both wrappers overflow:visible is what lets that stickiness work. */
 #page-overview .week-card {
   background: #fff;
-  border-radius: var(--bs-border-radius-lg, 0.85rem);
-  box-shadow: var(--bs-box-shadow);
-  overflow: hidden;
 }
 
 /* ---------- Week grid ---------- */
 
-#page-overview .week-scroll {
-  overflow-x: auto;
-}
-
 #page-overview .week-grid {
+  position: relative;
   display: grid;
   grid-template-columns: 54px repeat(7, minmax(120px, 1fr));
   min-width: 880px;
 }
 
 #page-overview .corner {
-  border-bottom: 1px solid #e7e9ef;
-  padding: 12px 8px;
+  height: 56px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--gcal-border);
+  padding: 0 8px 6px;
   font-size: 10.5px;
   color: #9aa1b3;
-  font-weight: 600;
+  font-weight: 500;
   display: flex;
   align-items: flex-end;
+  position: sticky;
+  top: 64px;
+  z-index: 10;
+  background: #fff;
 }
 
 #page-overview .day-head {
-  text-align: center;
-  padding: 12px 6px;
-  border-bottom: 1px solid #e7e9ef;
-  border-left: 1px solid #e7e9ef;
+  height: 56px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 4px;
+  border-bottom: 1px solid var(--gcal-border);
+  border-left: 1px solid var(--gcal-border);
+  position: sticky;
+  top: 64px;
+  z-index: 10;
+  background: #fff;
 }
 
 #page-overview .day-head .dow {
   font-size: 11px;
   color: #9aa1b3;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.03em;
 }
 
 #page-overview .day-head .num {
   font-size: 16px;
-  font-weight: 700;
+  font-weight: 500;
   margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
 
 #page-overview .day-head.today {
-  background: #fbeef0;
+  background: var(--gcal-today-bg);
 }
 
 #page-overview .day-head.today .num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: var(--reservedMine, #d3202a);
+  background: var(--gcal-today-accent);
   color: #fff;
 }
 
 #page-overview .day-head.weekend {
-  background: #f5f6f9;
+  background: #f8f9fa;
 }
 
 #page-overview .hours-col {
@@ -422,24 +686,24 @@
 
 #page-overview .day-col {
   position: relative;
-  border-left: 1px solid #e7e9ef;
+  border-left: 1px solid var(--gcal-border);
   height: 768px;
   cursor: pointer;
   background-image: repeating-linear-gradient(
     to bottom,
     transparent,
     transparent 31px,
-    #e7e9ef 31px,
-    #e7e9ef 32px
+    var(--gcal-border) 31px,
+    var(--gcal-border) 32px
   );
 }
 
 #page-overview .day-col.weekend {
-  background-color: #f5f6f9;
+  background-color: #f8f9fa;
 }
 
 #page-overview .day-col.today {
-  background-color: #fbeef0;
+  background-color: var(--gcal-today-bg);
 }
 
 #page-overview .now-line {
@@ -468,16 +732,16 @@
   left: 3px;
   right: 3px;
   border-radius: 4px;
-  padding: 4px 7px 4px 8px;
-  font-size: 10.5px;
-  font-weight: 600;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 500;
   overflow: hidden;
   line-height: 1.3;
   text-decoration: none;
   display: block;
   border-left: 3px solid #5c6b84;
   color: #1c2333;
-  filter: brightness(1);
+  box-shadow: none;
 }
 
 #page-overview .event:hover {
@@ -493,9 +757,12 @@
 
 #page-overview .event .rr {
   display: block;
-  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
   color: #5f6368;
-  font-size: 10px;
+  font-size: 10.5px;
 }
 
 #page-overview .event.past {
@@ -504,4 +771,92 @@
 
 #page-overview .event.chip-hidden {
   display: none;
+}
+
+/* ---------- Slot preview (hover ghost + drag-select) ---------- */
+
+.slot-preview {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--primary) 16%, white);
+  border: 1px dashed var(--primary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.slot-preview .slot-preview-label {
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--primary);
+  white-space: nowrap;
+}
+
+/* ---------- Event quick-view popover ---------- */
+
+.event-popover {
+  position: absolute;
+  z-index: 30;
+  width: 280px;
+  background: #fff;
+  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  box-shadow: var(--bs-box-shadow);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+
+.event-popover.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-popover {
+    transition: none;
+  }
+}
+
+.event-popover .ep-color-bar {
+  height: 6px;
+}
+
+.event-popover .ep-body {
+  padding: 16px 18px 10px;
+}
+
+.event-popover .ep-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1c2333;
+  margin-bottom: 10px;
+}
+
+.event-popover .ep-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: #3c4043;
+}
+
+.event-popover .ep-row i {
+  color: #6c7488;
+  width: var(--gcal-icon-size);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.event-popover .ep-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 18px 16px;
 }

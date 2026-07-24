@@ -9,9 +9,12 @@ class OverviewPresenter
     private const DAY_START_HOUR = 0;
     private const DAY_END_HOUR = 24;
 
+    /** Google Calendar's own 11 event colors (Tomato through Graphite) — used as the
+     * fallback palette so resources without an admin-configured color still land on a
+     * real Material swatch instead of an arbitrary hue. */
     private const FALLBACK_COLORS = [
-        '#3e7bd1', '#1c9c8c', '#7a5cc4', '#c98a2e', '#3f9d5c', '#c1547a', '#5c6b84',
-        '#a5562f', '#3f7a8c', '#8c4fa0', '#5b8c2f', '#a03f6b',
+        '#d50000', '#e67c73', '#f4511e', '#f6bf26', '#33b679', '#0b8043',
+        '#039be5', '#3f51b5', '#7986cb', '#8e24aa', '#616161',
     ];
 
     /** Same custom attribute label Task 1-3 use to detect a Video Conference resource. */
@@ -72,11 +75,13 @@ class OverviewPresenter
         );
 
         $days = $this->BuildDays($weekStart, $timezone, $reservations, $resourceColors);
+        $currentWeekStart = $this->GetWeekStart($timezone, true);
 
         $this->page->SetWeekStart($weekStart);
         $this->page->SetWeekEnd($weekStart->AddDays(6));
         $this->page->SetPreviousWeek($weekStart->AddDays(-7));
         $this->page->SetNextWeek($weekStart->AddDays(7));
+        $this->page->SetIsCurrentWeek($weekStart->DateEquals($currentWeekStart));
         $this->page->SetResources($physicalResources, $videoResources, $resourceColors);
         $this->page->SetDays($days);
         $this->page->SetDayStartHour(self::DAY_START_HOUR);
@@ -98,11 +103,13 @@ class OverviewPresenter
 
     /**
      * @param string $timezone
+     * @param bool $ignoreRequested pass true to always compute *this instant's* week,
+     *        regardless of the requested ?sd= — used to tell "今天" apart from other weeks.
      * @return Date Monday of the requested (or current) week, at midnight.
      */
-    private function GetWeekStart($timezone)
+    private function GetWeekStart($timezone, $ignoreRequested = false)
     {
-        $requested = $this->page->GetRequestedWeekStart();
+        $requested = $ignoreRequested ? null : $this->page->GetRequestedWeekStart();
         $reference = $requested !== null ? $requested : Date::Now()->ToTimezone($timezone);
 
         $weekday = $reference->Weekday();
@@ -193,6 +200,7 @@ class OverviewPresenter
                 'resourceId' => $reservation->ResourceId,
                 'isPast' => $end->LessThanOrEqual($now),
                 'startLabel' => $start->Format('H:i'),
+                'endLabel' => $end->Format('H:i'),
             ];
         }
 
@@ -317,6 +325,11 @@ interface IOverviewPage
     public function SetPreviousWeek(Date $date);
 
     public function SetNextWeek(Date $date);
+
+    /**
+     * @param bool $isCurrentWeek
+     */
+    public function SetIsCurrentWeek($isCurrentWeek);
 
     /**
      * @param BookableResource[] $physicalResources

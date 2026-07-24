@@ -65,6 +65,11 @@ class OverviewPage extends SecurePage implements IOverviewPage
         $this->Set('NextWeek', $date->Format('Y-m-d'));
     }
 
+    public function SetIsCurrentWeek($isCurrentWeek)
+    {
+        $this->Set('IsCurrentWeek', $isCurrentWeek);
+    }
+
     public function SetResources($physicalResources, $videoResources, $resourceColors)
     {
         $this->Set('PhysicalResources', $physicalResources);

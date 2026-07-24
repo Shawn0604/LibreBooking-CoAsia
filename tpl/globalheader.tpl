@@ -160,9 +160,9 @@
                             <i class="bi bi-plus-lg"></i>{translate key='NewReservation'}
                         </a>
 
-                        {* Calendar-specific sidebar extras — only present when the current page (Overview) has
-                           set these vars. Smarty {include} shares the including template's variable scope, so
-                           this works without any page-specific plumbing in Page.php. *}
+                        {* Mini month calendar — only present when the current page (Overview) has set
+                           these vars. Smarty {include} shares the including template's variable scope,
+                           so this works without any page-specific plumbing in Page.php. *}
                         {if isset($PhysicalResources) || isset($VideoResources)}
                             <div class="mini-cal" id="miniCal">
                                 <div class="mini-cal-head">
@@ -182,25 +182,41 @@
 
                             <div id="resourceSidebar">
                                 {if count($PhysicalResources) > 0}
-                                    <div class="sidebar-group-label">{translate key='PhysicalRooms'}</div>
-                                    {foreach from=$PhysicalResources item=resource}
-                                        <label class="res-check">
-                                            <input type="checkbox" checked data-resource="{$resource->GetId()}">
-                                            <span class="res-check-box" style="--check-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                            <span class="res-check-name">{$resource->GetName()|escape}</span>
-                                        </label>
-                                    {/foreach}
+                                    <div class="sidebar-group" id="navResGroupPhysical">
+                                        <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#resGroupPhysicalList" aria-expanded="true">
+                                            <i class="bi bi-door-open"></i>{translate key='PhysicalRooms'}
+                                            <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
+                                        </button>
+                                        <div class="collapse show sidebar-submenu" id="resGroupPhysicalList">
+                                            {foreach from=$PhysicalResources item=resource}
+                                                <label class="res-check">
+                                                    <input type="checkbox" checked data-resource="{$resource->GetId()}">
+                                                    <span class="res-check-box" style="--check-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                                    <span class="res-check-name">{$resource->GetName()|escape}</span>
+                                                </label>
+                                            {/foreach}
+                                        </div>
+                                    </div>
                                 {/if}
 
                                 {if count($VideoResources) > 0}
-                                    <div class="sidebar-group-label">{translate key='VideoConferenceResources'}</div>
-                                    {foreach from=$VideoResources item=resource}
-                                        <label class="res-check">
-                                            <input type="checkbox" checked data-resource="{$resource->GetId()}">
-                                            <span class="res-check-box" style="--check-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                            <span class="res-check-name">{$resource->GetName()|escape}</span>
-                                        </label>
-                                    {/foreach}
+                                    <div class="sidebar-group" id="navResGroupVideo">
+                                        <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
+                                            data-bs-target="#resGroupVideoList" aria-expanded="true">
+                                            <i class="bi bi-camera-video"></i>{translate key='VideoConferenceResources'}
+                                            <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
+                                        </button>
+                                        <div class="collapse show sidebar-submenu" id="resGroupVideoList">
+                                            {foreach from=$VideoResources item=resource}
+                                                <label class="res-check">
+                                                    <input type="checkbox" checked data-resource="{$resource->GetId()}">
+                                                    <span class="res-check-box" style="--check-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                                    <span class="res-check-name">{$resource->GetName()|escape}</span>
+                                                </label>
+                                            {/foreach}
+                                        </div>
+                                    </div>
                                 {/if}
                             </div>
 
@@ -233,13 +249,15 @@
                         </div>
                         {/if}
 
-                        {* CoAsia: day-to-day nav trimmed to just these two — everything else in the old
-                           "Schedule" group is hidden below but still there (`{if false}`) if it's needed later. *}
-                        <a class="sidebar-link" id="navOverview" href="{$Path}{Pages::OVERVIEW}">
-                            <i class="bi bi-grid-1x2-fill"></i>{translate key="Overview"}
-                        </a>
+                        {* CoAsia: day-to-day nav trimmed to just this one link — Overview itself is reached
+                           via the logo and the mini calendar above, so a redundant "總覽" link isn't needed.
+                           Everything else in the old "Schedule" group is hidden below but still there
+                           (`{if false}`) if it's needed later. *}
                         <a class="sidebar-link" id="navMyMeetings" href="{$Path}{Pages::MY_MEETINGS}">
                             <i class="bi bi-calendar-check"></i>{translate key="MyMeetings"}
+                        </a>
+                        <a class="sidebar-link" id="navNotification" href="{$Path}{Pages::NOTIFICATION_PREFERENCES}">
+                            <i class="bi bi-bell"></i>{translate key="NotificationPreferences"}
                         </a>
 
                         {if false}
@@ -282,18 +300,29 @@
                                 </button>
                                 <div class="collapse sidebar-submenu" id="sidebarAppMgmt">
                                     <a id="navManageReservations" class="sidebar-sublink" href="{$Path}admin/manage_reservations.php">{translate key="ManageReservations"}</a>
-                                    <a id="navManageBlackouts" class="sidebar-sublink" href="{$Path}admin/manage_blackouts.php">{translate key="ManageBlackouts"}</a>
-                                    <a id="navManageQuotas" class="sidebar-sublink" href="{$Path}admin/manage_quotas.php">{translate key="ManageQuotas"}</a>
                                     <a id="navManageSchedules" class="sidebar-sublink" href="{$Path}admin/manage_schedules.php">{translate key="ManageSchedules"}</a>
                                     <a id="navManageResources" class="sidebar-sublink" href="{$Path}admin/manage_resources.php">{translate key="ManageResources"}</a>
-                                    <a id="navManageAccessories" class="sidebar-sublink" href="{$Path}admin/manage_accessories.php">{translate key="ManageAccessories"}</a>
                                     <a id="navManageUsers" class="sidebar-sublink" href="{$Path}admin/manage_users.php">{translate key="ManageUsers"}</a>
-                                    <a id="navManageGroups" class="sidebar-sublink" href="{$Path}admin/manage_groups.php">{translate key="ManageGroups"}</a>
-                                    <a id="navManageAnnouncements" class="sidebar-sublink" href="{$Path}admin/manage_announcements.php">{translate key="ManageAnnouncements"}</a>
-                                    {if isset($PaymentsEnabled) && $PaymentsEnabled}
-                                        <a id="navManagePayments" class="sidebar-sublink" href="{$Path}admin/manage_payments.php">{translate key="ManagePayments"}</a>
-                                    {/if}
                                     <a id="navManageAttributes" class="sidebar-sublink" href="{$Path}admin/manage_attributes.php">{translate key="CustomAttributes"}</a>
+                                    <a id="navManageGroups" class="sidebar-sublink" href="{$Path}admin/manage_groups.php">{translate key="ManageGroups"}</a>
+
+                                    {* CoAsia: hidden — checked the dev DB and none of these are actually in use:
+                                       blackouts/quotas have zero rows, the 3 "accessories" are LibreBooking's own
+                                       unattached demo placeholders, and announcements have zero rows (doubly moot
+                                       now that Dashboard isn't the landing page). "groups" (ManageGroups, above)
+                                       moved out of this block — it's now the real permission-group mechanism
+                                       behind the "全體員工" default/everyone group + any future department-restricted
+                                       resource groups. Remove `{if false}` to restore if CoAsia starts using one
+                                       of these too. *}
+                                    {if false}
+                                        <a id="navManageBlackouts" class="sidebar-sublink" href="{$Path}admin/manage_blackouts.php">{translate key="ManageBlackouts"}</a>
+                                        <a id="navManageQuotas" class="sidebar-sublink" href="{$Path}admin/manage_quotas.php">{translate key="ManageQuotas"}</a>
+                                        <a id="navManageAccessories" class="sidebar-sublink" href="{$Path}admin/manage_accessories.php">{translate key="ManageAccessories"}</a>
+                                        <a id="navManageAnnouncements" class="sidebar-sublink" href="{$Path}admin/manage_announcements.php">{translate key="ManageAnnouncements"}</a>
+                                        {if isset($PaymentsEnabled) && $PaymentsEnabled}
+                                            <a id="navManagePayments" class="sidebar-sublink" href="{$Path}admin/manage_payments.php">{translate key="ManagePayments"}</a>
+                                        {/if}
+                                    {/if}
                                 </div>
                             </div>
                         {/if}

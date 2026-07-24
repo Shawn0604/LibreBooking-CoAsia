@@ -12,7 +12,15 @@
   --bs-border-radius-xl: 1rem;
   --bs-box-shadow: 0 1px 1px rgba(20, 30, 55, 0.04), 0 10px 28px -12px rgba(20, 30, 55, 0.18);
   --bs-box-shadow-sm: 0 1px 2px rgba(20, 30, 55, 0.06);
-  --bs-body-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Hind, 'PMingLiU', '新細明體', sans-serif;
+  --bs-body-font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Hind, 'PMingLiU', '新細明體', sans-serif;
+
+  /* Google Calendar Web (Material 3) reference tokens — used by the sidebar and the
+     Overview page's calendar grid so both read as one system, not per-element tweaks. */
+  --gcal-border: #eceff1;
+  --gcal-today-bg: rgba(52, 168, 83, 0.08);
+  --gcal-today-accent: #34a853;
+  --gcal-icon-size: 20px;
+  --gcal-control-height: 40px;
 
   /* Schedule / reservation block colors (used by Web/css/schedule.css) */
   --reserved: #1a3f73;
@@ -30,6 +38,15 @@
   --primary-hover: #143059;
   --primary-disabled: color-mix(in oklab, var(--primary) 40%, white);
   --text-color-btn: #ffffff;
+}
+
+/* Reserve the page's own vertical scrollbar gutter unconditionally — otherwise every
+   layout change that flips the document between "tall enough to scroll" and "not yet"
+   (e.g. the calendar's own scroll-position math running before/after paint) shifts the
+   whole page horizontally by the scrollbar's width, which reads as every sticky element
+   (toolbar, day-head row, sidebar) jumping a few pixels between states. */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -70,8 +87,8 @@ img.logo {
 
 .app-sidebar {
   flex-shrink: 0;
-  width: 260px;
-  min-height: 100vh;
+  width: 240px;
+  height: 100vh;
   position: sticky;
   top: 0;
   background: #fff;
@@ -79,7 +96,30 @@ img.logo {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-  border-right: 1px solid #e7e9ef;
+  /* Reserve the scrollbar's width up front so expanding a collapsible group (which can
+     push content past 100vh and trigger the scrollbar) doesn't narrow the sidebar's
+     usable width compared to the collapsed state. */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  border-right: 1px solid var(--gcal-border);
+}
+
+.app-sidebar:hover {
+  scrollbar-color: #c7cbd6 transparent;
+}
+
+.app-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app-sidebar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.app-sidebar:hover::-webkit-scrollbar-thumb {
+  background: #c7cbd6;
 }
 
 .app-content {
@@ -87,20 +127,25 @@ img.logo {
   min-width: 0;
 }
 
+/* Brand row is the sidebar's slice of the same 64px header band the page-level
+   toolbar uses (see #page-overview .cal-toolbar) — same height, same border. */
 .sidebar-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 16px;
+  height: 64px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--gcal-border);
 }
 
 .sidebar-brand img.logo {
-  max-height: 32px;
+  max-height: 28px;
 }
 
 .sidebar-brand-company {
   color: #1c2333;
-  font-weight: 700;
+  font-weight: 500;
   font-size: 14px;
   text-decoration: none;
 }
@@ -113,16 +158,14 @@ img.logo {
 .sidebar-user {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 16px 14px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid #e7e9ef;
+  gap: 12px;
+  padding: 24px 16px 0;
 }
 
 .sidebar-user-avatar {
   flex-shrink: 0;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -130,12 +173,12 @@ img.logo {
   background: var(--reservedMine, #d3202a);
   color: #fff;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 500;
 }
 
 .sidebar-user-name {
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   color: #1c2333;
   white-space: nowrap;
   overflow: hidden;
@@ -146,13 +189,17 @@ img.logo {
   display: none;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 36px;
-  margin: 0 16px 10px;
+  width: var(--gcal-control-height);
+  height: var(--gcal-control-height);
+  margin: 12px 16px 0;
   border: none;
-  border-radius: var(--bs-border-radius-sm);
+  border-radius: 50%;
   background: var(--bs-tertiary-bg, #f1f2f6);
   color: #4b5165;
+}
+
+.sidebar-toggler i {
+  font-size: var(--gcal-icon-size);
 }
 
 /* ID-anchored to out-specificity Bootstrap's `.collapse:not(.show) { display: none }` —
@@ -167,32 +214,34 @@ img.logo {
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 6px 12px;
+  gap: 12px;
+  padding: 24px 12px 0;
 }
 
 .sidebar-footer {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 10px 10px 16px;
-  border-top: 1px solid #e7e9ef;
+  gap: 12px;
+  padding: 24px 12px 24px;
+  border-top: 1px solid var(--gcal-border);
 }
 
 .sidebar-link,
 .sidebar-group-toggle {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
-  padding: 10px 12px;
+  min-height: var(--gcal-control-height);
+  padding: 0 12px;
+  box-sizing: border-box;
   border: none;
   background: transparent;
   border-radius: var(--bs-border-radius, 0.6rem);
   color: #3c4043;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0.01em;
   text-decoration: none;
   text-align: left;
@@ -201,8 +250,8 @@ img.logo {
 
 .sidebar-link i:first-child,
 .sidebar-group-toggle i:first-child {
-  font-size: 16px;
-  width: 20px;
+  font-size: var(--gcal-icon-size);
+  width: var(--gcal-icon-size);
   text-align: center;
   flex-shrink: 0;
   color: #6c7488;
@@ -250,17 +299,21 @@ img.logo {
 .sidebar-submenu {
   display: flex;
   flex-direction: column;
-  padding-left: 29px;
-  margin: 2px 0 4px;
+  gap: 4px;
+  padding-left: 20px;
+  margin-top: 4px;
 }
 
 .sidebar-sublink {
-  display: block;
-  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 10px;
+  box-sizing: border-box;
   border-radius: var(--bs-border-radius-sm);
   color: #6c7488;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
   text-decoration: none;
 }
 
@@ -278,7 +331,7 @@ img.logo {
 
   .app-sidebar {
     width: 100%;
-    min-height: 0;
+    height: auto;
     position: static;
   }
 

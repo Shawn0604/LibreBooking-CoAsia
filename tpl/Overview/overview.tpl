@@ -10,7 +10,11 @@
         <h1>{translate key="Overview"}</h1>
 
         <div class="toolbar-nav-group">
-            <a class="today-btn" href="{$ScriptUrl}/{Pages::OVERVIEW}">{translate key='Today'}</a>
+            {if $IsCurrentWeek}
+                <span class="today-btn disabled" aria-disabled="true">{translate key='Today'}</span>
+            {else}
+                <a class="today-btn" href="{$ScriptUrl}/{Pages::OVERVIEW}">{translate key='Today'}</a>
+            {/if}
             <div class="arrows">
                 <a class="nav" href="{$ScriptUrl}/{Pages::OVERVIEW}?{QueryStringKeys::START_DATE}={$PreviousWeek}" aria-label="Previous week"><i class="bi bi-chevron-left"></i></a>
                 <a class="nav" href="{$ScriptUrl}/{Pages::OVERVIEW}?{QueryStringKeys::START_DATE}={$NextWeek}" aria-label="Next week"><i class="bi bi-chevron-right"></i></a>
@@ -30,30 +34,78 @@
                     <i class="bi bi-gear"></i>
                 </a>
             {/if}
-            <span class="view-label">{translate key='Overview'}</span>
+            <div class="cal-category-tabs" id="calCategoryTabs">
+                <button type="button" class="cal-category-tab active" data-category="physical">{translate key='PhysicalRooms'}</button>
+                <button type="button" class="cal-category-tab" data-category="video">{translate key='VideoConferenceResources'}</button>
+            </div>
         </div>
     </div>
 
     <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-hidden="true" aria-labelledby="quickCreateModalLabel">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-header">
-                    <label for="qcTitle" class="visually-hidden" id="quickCreateModalLabel">{translate key='NewReservation'}</label>
-                    <input type="text" class="form-control form-control-lg border-0 shadow-none qc-title" id="qcTitle"
-                           placeholder="{translate key='NewReservation'}">
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{translate key='Cancel'}"></button>
-                </div>
+                <button type="button" class="btn-close qc-close" data-bs-dismiss="modal" aria-label="{translate key='Cancel'}"></button>
                 <div class="modal-body">
-                    <div class="qc-row"><i class="bi bi-clock"></i><span id="qcWhen"></span></div>
-                    <div class="qc-row"><i class="bi bi-geo-alt"></i><span id="qcResource"></span></div>
+                    <label for="qcTitle" class="visually-hidden" id="quickCreateModalLabel">{translate key='NewReservation'}</label>
+                    <input type="text" class="qc-title" id="qcTitle" placeholder="{translate key='NewReservation'}" autocomplete="off">
+
+                    <div class="qc-row">
+                        <i class="bi bi-clock"></i>
+                        <div class="qc-row-text">
+                            <div class="qc-time-edit">
+                                <span id="qcDateLabel"></span>
+                                <div class="qc-time-picker" id="qcStartPicker">
+                                    <button type="button" class="qc-time-pill" id="qcStartPill" aria-haspopup="listbox" aria-expanded="false"></button>
+                                    <div class="qc-time-dropdown" id="qcStartDropdown" role="listbox"></div>
+                                </div>
+                                <span class="qc-time-dash">–</span>
+                                <div class="qc-time-picker" id="qcEndPicker">
+                                    <button type="button" class="qc-time-pill" id="qcEndPill" aria-haspopup="listbox" aria-expanded="false"></button>
+                                    <div class="qc-time-dropdown" id="qcEndDropdown" role="listbox"></div>
+                                </div>
+                            </div>
+                            <span class="qc-row-sub">{translate key='DoesNotRepeat'}</span>
+                        </div>
+                    </div>
+                    <div class="qc-row">
+                        <i class="bi bi-geo-alt"></i>
+                        <div class="qc-row-text">
+                            <div class="qc-resource-tabs" id="qcResourceTabs">
+                                <button type="button" class="qc-resource-tab active" data-category="physical">{translate key='PhysicalRooms'}</button>
+                                <button type="button" class="qc-resource-tab" data-category="video">{translate key='VideoConferenceResources'}</button>
+                            </div>
+                            <div class="qc-resource-picker" id="qcResourcePicker">
+                                <button type="button" class="qc-time-pill" id="qcResourcePill" aria-haspopup="listbox" aria-expanded="false"></button>
+                                <div class="qc-time-dropdown" id="qcResourceDropdown" role="listbox"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="qc-row qc-row-top">
+                        <i class="bi bi-text-left"></i>
+                        <div class="qc-row-text">
+                            <textarea id="qcDescription" class="qc-description" rows="2" placeholder="{translate key='Description'}"></textarea>
+                        </div>
+                    </div>
+
                     <div id="qcError" class="alert alert-danger py-2 px-3 small d-none"></div>
                 </div>
                 <div class="modal-footer">
                     <a href="#" id="qcMoreOptions" class="link-primary me-auto">{translate key='MoreOptions'}</a>
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">{translate key='Cancel'}</button>
                     <button type="button" class="btn btn-primary" id="qcSave">{translate key='Create'}</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="event-popover d-none" id="eventPopover">
+        <div class="ep-color-bar" id="epColorBar"></div>
+        <div class="ep-body">
+            <div class="ep-title" id="epTitle"></div>
+            <div class="ep-row"><i class="bi bi-clock"></i><span id="epTime"></span></div>
+            <div class="ep-row"><i class="bi bi-geo-alt"></i><span id="epResource"></span></div>
+        </div>
+        <div class="ep-footer">
+            <a href="#" id="epViewLink" class="btn btn-sm btn-primary">{translate key='ViewDetails'}</a>
         </div>
     </div>
 
@@ -82,9 +134,12 @@
                             <a class="event{if $event.isPast} past{/if}"
                                href="{$ScriptUrl}/{Pages::RESERVATION}?{QueryStringKeys::REFERENCE_NUMBER}={$event.referenceNumber}"
                                style="top:{$event.top}%; height:{$event.height}%; background:{$event.bg}; border-left-color:{$event.accent};"
-                               data-resource="{$event.resourceId}">
+                               data-resource="{$event.resourceId}"
+                               data-title="{if $event.title}{$event.title|escape}{else}{translate key='Untitled'}{/if}"
+                               data-resource-name="{$event.resourceName|escape}"
+                               data-time-range="{$event.startLabel} – {$event.endLabel}">
                                 <span class="tt">{if $event.title}{$event.title|escape}{else}{translate key='Untitled'}{/if}</span>
-                                <span class="rr">{$event.resourceName|escape}</span>
+                                <span class="rr">{$event.startLabel} – {$event.endLabel} · {$event.resourceName|escape}</span>
                             </a>
                         {/foreach}
                     </div>
@@ -114,6 +169,18 @@
             {foreach from=$VideoResources item=resource name=videoNames}
                 "{$resource->GetId()}": "{$resource->GetName()|escape:'javascript'}"{if !$smarty.foreach.videoNames.last},{/if}
             {/foreach}
+        },
+        resourceGroups: {
+            physical: [
+                {foreach from=$PhysicalResources item=resource name=physicalIds}
+                    {ldelim}id: "{$resource->GetId()}", name: "{$resource->GetName()|escape:'javascript'}"{rdelim}{if !$smarty.foreach.physicalIds.last},{/if}
+                {/foreach}
+            ],
+            video: [
+                {foreach from=$VideoResources item=resource name=videoIds}
+                    {ldelim}id: "{$resource->GetId()}", name: "{$resource->GetName()|escape:'javascript'}"{rdelim}{if !$smarty.foreach.videoIds.last},{/if}
+                {/foreach}
+            ]
         }
     };
 </script>
