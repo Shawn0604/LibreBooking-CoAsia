@@ -75,6 +75,16 @@ INSERT INTO resources (resource_id, name, schedule_id, autoassign, requires_appr
   (11, 'Google Meet1', 11, 1, 0, 1, 1),
   (12, 'Google Meet2', 12, 1, 0, 1, 1);
 
+-- 4b) Grant every current user Full booking permission on every resource. Without this,
+--     only whichever resources happened to already have a user_resource_permissions row
+--     (historically just the first two demo resources) are bookable by non-admin users —
+--     PermissionValidationRule rejects everything else with "NoResourcePermission", even
+--     though admins never notice since CanBookResource() short-circuits true for them.
+INSERT IGNORE INTO user_resource_permissions (user_id, resource_id, permission_id, permission_type)
+SELECT u.user_id, r.resource_id, 1, 0
+FROM users u
+CROSS JOIN resources r;
+
 -- 5) Resource groups matching the admin checklist in the spec.
 INSERT INTO resource_groups (resource_group_id, resource_group_name, parent_id) VALUES
   (1, '台北會議室', NULL),
