@@ -357,3 +357,144 @@ CoAsia 提出的新需求：除了 email，也想用 LINE 官方帳號推播「�
 - 為了避免萬一 AD 設定有誤就整個鎖死既有登入，把 `database.auth.when.ldap.user.not.found` 設為 `true`（LDAP 驗證失敗時，回退用本機資料庫密碼登入）
 - **卡住的地方**：網路連線本身沒問題（DNS 解析、port 389/636 都連得到），但用一般 LDAP simple bind（PHP `ldap_bind()`，也是 LibreBooking 這個外掛實際使用的方式）驗證帳密一直是 `Invalid credentials`（LDAP code 49），即使帳密格式已確認正確（用 PowerShell 的 `System.DirectoryServices.DirectoryEntry` 驗證同一組帳密可以成功）。推測是網域的「LDAP 伺服器簽章要求」政策擋掉了未加密的 simple bind，改測 LDAPS（port 636）發現 TLS 交握直接被中斷（伺服器收到 ClientHello 後無回應就斷線），研判 636 這個 port 雖然開著防火牆通，但網域控制站上可能從未實際綁定/設定 LDAPS 憑證。這部分需要網管進一步確認 DC 上的 LDAPS 憑證設定與 LDAP 簽章原則，暫停在這裡，尚未接通
 - 在此之前系統一律使用本機帳號密碼登入，不受影響；`plugins.authentication` 目前仍是空字串（未啟用）
+
+---
+
+## 15. 總覽頁精修：格線/表頭對齊、事件排版、Google Calendar 風格重疊事件並排
+
+在 Task 4 把總覽頁重建成 Google Calendar 風格之後，使用者逐項回饋了 7 個具體的視覺瑕疵，全部只改 `Presenters/OverviewPresenter.php`、`tpl/Overview/overview.tpl`、`Web/css/overview.css`、`Web/css/coasia-theme.css`、`lang/zh_tw.php` 這幾支既有檔案，沒有新增檔案。
+
+| # | 問題 | 修法 |
+|---|---|---|
+| 1 | 側邊欄跟日曆格線之間的間距不對，且不能縮窄側邊欄本身 | `Web/css/overview.css` 的 `#page-overview` padding 由 `0 24px` 改成 `0 20px 60px 16px`（左側留少一點，因為側邊欄自己已經有邊框，滿 24px 會多一截灰底）；`.week-grid` 第一欄（時間軸）由 `54px` 收窄到 `48px` |
+| 2 | 跨月/跨年的週標題只會顯示單一月份，看不出這週橫跨兩個月 | `tpl/Overview/overview.tpl` 的 `.month-label` 改成三段判斷：`$WeekStart` 跟 `$WeekEnd` 同月份 → `Y年n月`；同年不同月 → `Y年n月－n月`；跨年 → `Y年n月－Y年n月` |
+| 3 | 「今天」那一欄的日期用圓形徽章、其他欄是純文字，兩種高度不一樣，導致星期文字（一二三四五六日）沒有對齊 | `.day-head .num` 改成固定 `height:40px` 的 flex 置中容器（不管是不是今天都佔一樣高度），`.day-head` 整體高度維持原本的 56px 不變 |
+| 4 | 每個事件不管長度都硬塞「標題＋時間＋資源名稱」三行字，30 分鐘的短會議會被文字撐爆 | 用 CSS Container Query（`container-type:size` 掛在 `.event` 本身，讓 `.rr`／`.tt` 這些子元素可以查詢**自己所在事件卡片的實際高度**）：`@container eventCard (min-height: 32px)` 以上才顯示時間副標，資源名稱移到 hover 才出現的 popover，不再固定佔一行 |
+| 5 | 沒標題的預約顯示「(沒有標題)」，用語生硬 | `lang/zh_tw.php` 的 `Untitled` 字串改成「未命名預約」 |
+| 6 | 事件卡片視覺太陽春 | `.event` 的 padding 由 `2px 6px` 調整為 `3px 8px`、圓角 4px、加上 `:hover`（brightness 0.96）跟 `:focus-visible`（outline）狀態；`OverviewPresenter::PastelColor()` 的 `whiteWeight` 由 `0.82` 降到 `0.70`，讓底色跟側邊欄勾選框的顏色飽和度更接近 |
+| 7 | 格線缺乏層次（垂直/水平粗細一樣）、現在時間線的圓點太大 | `coasia-theme.css` 新增 `--gcal-border-strong` token，套用在 `.day-head`／`.day-col` 的 `border-left`（垂直分隔線），水平的小時格線維持原本較淺的 `--gcal-border`；`.now-line::before` 的圓點直徑由 8px 縮到 6px |
+
+### Google Calendar 風格重疊事件並排
+
+修完上面 7 項後，使用者發現「同一時段有兩筆以上預約時會直接互相覆蓋」（因為當時每個 `.event` 都用同一組寫死的 `left:3px; right:3px`），要求做成跟 Google Calendar 一樣的並排顯示。
+
+- **演算法**（`Presenters/OverviewPresenter.php` 新增 `AssignEventColumns()`／`FinalizeEventCluster()`／`EventColumnStyle()`）：對每天的事件先依 `(開始時間, 結束時間)` 排序（**故意不依賴資料庫回傳順序**），用貪婪演算法幫每筆事件找「最早騰出來的欄位」（`columnEndTimes[i] <= 事件開始時間` 才算空出來）；同時用一個 `clusterMaxEnd` 追蹤「目前這串連續重疊的事件最晚到幾點」，一旦下一筆事件的開始時間 `>=` 這個值，就代表前面那串重疊已經結束（形成一個 cluster），把這個 cluster 裡所有事件一起結算成最終的欄數
+- **邊界規則**：11:00 結束跟 11:00 開始算「相鄰但不重疊」，不會被硬拆欄——用 `>=` 而不是 `>` 比較開始/結束時間來判斷
+- **輸出**：每筆事件算出 `left`／`width` 兩個 CSS 字串（巢狀 `calc()`，例如 `calc(3px + 1 * (((100% - 8px) / 2) + 2px))`），完全在 PHP 端算好，`tpl/Overview/overview.tpl` 只是把這兩個值原樣輸出到 `style` 屬性，前端 JS 不用做任何版面運算；`.event` 的 CSS `left:3px;right:3px` 只留著當作萬一 inline style 漏掉時的保底，正常情況下一定被 inline style 蓋過去
+- **測試**：新增 `tests/Presenters/OverviewPresenterTest.php`，用 Reflection 直接呼叫 private 的 `AssignEventColumns()`，涵蓋「單一事件佔滿整欄」「相鄰但不重疊」「完全重疊拆兩欄」「部分重疊拆兩欄」「三個事件串成一條鏈共用兩欄」「輸入順序打亂結果不變（用 `"開始-結束"` 當事件 id，而不是陣列 index，才能正確驗證這件事）」「不同的重疊群組互不影響」共 7 個案例
+
+---
+
+## 16. FullCalendar 週視圖：從唯讀評估原型，到升級為主要行事曆
+
+### 16.1 起因與評估範圍
+
+使用者想知道：剛做完的「重疊事件並排」這類本來就是行事曆函式庫該做的事，如果換成免費、MIT 授權的 [FullCalendar](https://fullcalendar.io) Standard 版本，能不能省掉這些手刻邏輯。要求先做一個**完全獨立、唯讀**的原型頁評估，明確不能動到 `overview.php` 那條路徑的任何檔案，也先不 commit。
+
+**關鍵發現**：`Web/assets/vendor/fullcalendar/6.1.20/` 這個路徑在專案裡**早就存在**（`index.global.min.js` 284KB + `locales-all.global.min.js` 25KB + `metadata.json` 標明 `"license":"MIT"`）。掃過 bundle 內容確認有 `timeGridWeek`／`dayGridMonth`，**沒有** `schedulerLicenseKey`／`resourceTimeGrid`／`resourceTimeline` 這些 Premium 專屬字串——即免費 Standard 版，不需要另外安裝任何套件、不用 CDN，直接照專案既有的 `{vendor_js src="..."}` 慣例引用。
+
+原型建置的新增檔案（全部獨立、完全不動 `overview.php` 相關的任何一支）：
+
+| 檔案 | 用途 |
+|---|---|
+| `Web/overview_fullcalendar.php`（158 bytes） | 入口，比照 `Web/overview.php` 的極簡 bootstrap 寫法 |
+| `Pages/OverviewFullCalendarPage.php`（1.4KB） | `SecurePage`，負責側欄用的資源清單/顏色 |
+| `Presenters/OverviewFullCalendarPresenter.php`（6.6KB） | 側欄資料 Presenter（複製一小段 `OverviewPresenter::SplitByType()`／`AssignColors()`，因為原本是 private method 沒辦法直接重用又不能改動那支檔案） |
+| `tpl/Overview/overview_fullcalendar.tpl`（8.2KB） | 樣板，`{include file='globalheader.tpl'}` 沿用共用側邊欄 |
+| `Web/css/overview_fullcalendar.css`（25KB） | 本頁專用樣式 |
+| `Web/scripts/overview_fullcalendar.js`（33KB） | FullCalendar 初始化與所有互動邏輯 |
+| `Web/ajax/overview_fullcalendar_events.php`（177 bytes） | JSON 事件來源入口 |
+| `Pages/Ajax/OverviewFullCalendarEventsPage.php`（1.5KB） | 解析 FullCalendar 帶的 `start`/`end` 參數 |
+| `Presenters/OverviewFullCalendarEventsPresenter.php`（7.6KB） | 組出 FullCalendar Event Object，含權限過濾／隱私過濾 |
+| `tests/Presenters/OverviewFullCalendarEventsPresenterTest.php`（7.3KB，6 案例） | 權限過濾、admin 略過檢查、隱私標題替換、空標題預設值、事件欄位完整性（確認不含 `top`/`height`/`left`/`width`，證明版面完全交給 FullCalendar 自己算） |
+
+原型第一版驗收：PHPUnit 全數通過、未登入請求正確 302 導回登入頁（跟 `overview.php` 行為一致）、`git status` 確認除了上面這批全新檔案外，既有的 5 個修改檔案（Section 15 那批）內容完全沒被動到。
+
+順手做對一件現有系統沒做的事：**`OverviewFullCalendarEventsPresenter` 會呼叫 `lib/Application/Reservation/PrivacyFilter.php` 的 `CanViewDetails()`，尊重 `privacy.hide.reservation.details` 設定**（沒權限看細節的人，標題會換成「忙碌」）。現有的 `overview.php`／`OverviewPresenter::BuildDays()` 從來沒做這個檢查，是既有系統的一個隱私缺口——這次刻意沒去動 `overview.php` 修它（不在這次授權範圍內），但新原型有正確做對。
+
+### 16.2 從「評估原型」升級為「主要行事曆」
+
+使用者實際比較過後決定：**以後都以 `overview_fullcalendar.php` 為主**。改動 `Pages/Pages.php` 這張「頁面 ID 對應表」：
+
+```php
+public const OVERVIEW_FULLCALENDAR = 'overview_fullcalendar.php';  // 新增常數
+public const DEFAULT_LOGIN = 'overview_fullcalendar.php';           // 原本是 overview.php
+private static $_pages = [
+    1 => ['url' => Pages::OVERVIEW_FULLCALENDAR, 'name' => 'Overview'],  // 原本是 Pages::OVERVIEW
+    ...
+];
+```
+
+因為 `Pages::UrlFromId(1)` 這個查表函式同時被三個地方呼叫（`Pages/Page.php` 的 `$HomeUrl`／側邊欄 Logo 連結、`Presenters/Authentication/LoginRedirector.php` 的登入後導向、`Pages/Page.php::SanitizeRedirectUrl()` 的導向失敗回退頁），只改這一張表就讓「點 Logo」「登入後」「導向驗證失敗回退」三個入口同時生效，不用逐一去改各自的呼叫點。
+
+`Pages::OVERVIEW`（純字串常數 `'overview.php'`）本身沒有改，`overview.tpl` 內部自己的上一週/下一週連結都是直接引用這個常數，維持指向自己，所以 `overview.php` 這條路徑依然完整可以獨立運作，只是不再是預設入口。
+
+### 16.3 真正的功能性 bug（不是快取，是程式邏輯錯誤）
+
+這次過程中兩度出現「會議資訊完全消失」的回報，兩次的根因都不是快取，是真的程式碼寫錯：
+
+**Bug A：`require_once` 少帶一個依賴，每次請求都 fatal error**
+
+`Presenters/OverviewFullCalendarEventsPresenter.php` 一開始只 `require_once('lib/Application/Reservation/PrivacyFilter.php')`，但 `PrivacyFilter::CanViewDetails()` 內部依賴同目錄下的 `ReservationDetailsFilter` 類別，而這支類別沒有被單獨載入——正確作法是 `require_once` 整個 `lib/Application/Reservation/namespace.php`（這個 namespace 檔案會把 `PrivacyFilter.php` 跟 `ReservationDetailsFilter.php` 一起載入）。缺這一行的後果是**每一次真實 HTTP 請求都會 fatal error**（`Class "ReservationDetailsFilter" not found`），被框架的例外處理機制吃掉、前端只看到空白的行事曆。用單元測試完全測不出來，因為 `tests/fakes/FakePrivacyFilter.php` 是假物件，不會真的去呼叫這個依賴鏈。
+
+診斷方式：寫一支唯讀診斷腳本，透過 `docker compose exec app php -r "..."` 直接呼叫 `OverviewFullCalendarEventsPresenter::GetEvents()`（繞過 HTTP／session，直接對真實資料庫跑），才看到完整的例外堆疊。
+
+**Bug B：呼叫了語意完全不對的權限檢查方法**
+
+側欄資源清單跟事件過濾都呼叫了 `PermissionService::CanViewResource()`，方法名稱聽起來像是「這個使用者能不能看這個資源」，但實際實作是 `$this->_store->GetViewOnlyResources($user->UserId)`——只檢查一組叫「view-only」的**小眾**權限清單，跟一般使用者透過群組拿到的「完整/可預約」權限（`GetAllResources()`）是完全不同的兩組資料。結果是：admin 帳號因為有 `IsAdmin` 短路直接跳過檢查，完全沒事；但一個透過「全體員工」群組（見 Section 12）拿到全部 12 個資源完整權限的一般帳號（測試帳號 `shawn`，`user_id=3`），呼叫 `CanViewResource()` 對這 12 個資源全部回傳 `false`——側邊欄資源清單、行事曆事件全部因此被濾成空的。
+
+用真實帳號直接驗證：
+
+```
+CanViewResource(shawn, 每個資源)   → 12 個全部 false
+CanAccessResource(shawn, 每個資源) → 12 個全部 true   ← 應該用這個
+```
+
+修法：`OverviewFullCalendarPresenter.php`、`OverviewFullCalendarEventsPresenter.php` 兩處都改成呼叫 `CanAccessResource()`。順手把 `tests/fakes/FakePermissionService.php` 也修正——原本的單元測試設定的是 `_CanViewResource`（一個假物件屬性），但因為生產程式碼已經改成呼叫 `CanAccessResource()`，舊測試其實是在驗證一個不會被呼叫到的方法，等於沒在測任何東西。新增 `_CanAccessResource` 屬性（沿用跟 `_CanViewResource` 一樣「可傳陣列依 resource id 對應、也可傳單一布林值」的方便寫法，`null` 時退回原本既有測試依賴的循序 `ReturnValues` 行為，不影響其他測試檔案），把 `tests/Presenters/OverviewFullCalendarEventsPresenterTest.php` 的 6 個案例全部改用新屬性，重新驗證仍然全過。
+
+### 16.4 快取地雷：兩層快取都要清，只重啟容器不夠
+
+這個專案疊了兩層快取，只清一層不會生效：
+
+1. **PHP opcache**（`validate_timestamps=0`，Section 9 為了效能關掉的）：改完 PHP 檔案後，網頁請求（Apache/php-fpm）不會自動偵測到變動，但**CLI 執行不受影響**（`docker compose exec app php -r "..."` 每次都是全新行程，不共用 opcache）——這造成過程中好幾次「CLI 診斷腳本測試通過，但使用者在瀏覽器上還是看到舊行為」的誤判，因為忘記在確認 CLI 測試通過後，再對著**網頁请求**重啟一次容器（`docker compose restart app`）才會生效。
+2. **Smarty 樣板編譯快取**（`tpl_c/` 目錄）：改完 `.tpl` 檔案後，如果 Smarty 的 `compile_check` 沒開（跟 `cache.templates` 設定連動），會繼續用舊版編譯結果，不會自動比對原始檔案的修改時間重新編譯。有一次新增的工具列元素（今天按鈕、分類切換 tab）完全沒有出現在畫面上，肉眼看起來像「改動沒生效」，實際上是 `tpl_c/` 底下留著一份修改前的編譯檔案（`ls -la` 確認時間戳記比最新一次編輯還早）。修法：`rm -f tpl_c/*overview_fullcalendar*` 清掉對應的編譯快取。
+
+之後每一輪改完 PHP／`.tpl` 相關檔案，固定流程是：清 `tpl_c/` 對應快取 → `docker compose restart app` → 重新用診斷腳本 / PHPUnit 驗證，這個順序缺一步都可能讓下一次回報看起來像是「修了但沒生效」。
+
+### 16.5 視覺精修過程中的具體 bug 與修法
+
+| 問題 | 根因 | 修法 |
+|---|---|---|
+| 主日曆圓角外框看起來不連續，好像疊了兩層邊框 | FullCalendar 自己的樣式表在最外層的 `.fc-scrollgrid` 上又畫了一層方角的 `border:1px solid var(--fc-border-color)`，跟外層 `.fc-frame` 自己的 16px 圓角框重疊，方角在圓角轉角處露出來 | `#fullcalendarRoot .fc-scrollgrid { border:0; }`，讓 `.fc-frame` 的外框是唯一一層邊框 |
+| 表頭跟下方日期欄的分隔線沒有對齊 | 同一個 `.fc-scrollgrid` 雙層邊框問題連帶造成的視覺錯位 | 同上 |
+| 工具列文字/按鈕/圖示沒有垂直對齊 | Bootstrap Icons 字型本身的內部度量（ascent/descent）不一定精準置中在文字行高上；`<h1>` 裡的徽章 `<span>` 用 inline 排版，行高會被撐大 | 幫工具列所有可互動元素統一 `line-height:1`；`<h1>` 本身改成 `display:flex; align-items:center`，讓徽章跟文字用 flex 對齊而不是依賴字型行高 |
+| Logo 跟「總覽」標題文字沒有對齊 | `#main` 有 Bootstrap 的 `my-3`（16px 上邊距），但共用側邊欄的品牌列是貼齊視窗最上緣、沒有這個邊距，兩排的起始高度差了 16px | `#page-overview-fc` 加 `margin-top:-16px` 把這 16px 抵消掉，讓工具列（64px）也貼齊 y=0，兩排都用同一個 `--gcal-control-height` 高度 flex 置中，內容自然對齊 |
+| 月視圖裡，今天以前的每一個日期整格被塗成很重的灰色，過去的日期也是 | 開了 `selectable:true` 之後，FullCalendar 會把過去日期標記為不可拖曳選取，這個狀態預設有一層灰底樣式。**中間繞了一大圈**：一開始以為是 `.fc-day-disabled` 這個 class（FullCalendar 文件／原始碼字面上看起來像是這個），改了三輪都沒用；最後直接把頁面用真實資料在瀏覽器裡跑起來，用 `getComputedStyle()` 對著真正變灰的元素查，才發現正確的 class 其實是 **`.fc-day-past`**，`.fc-day-disabled` 在這個情境下根本從未被套用過 | `#fullcalendarRoot .fc-day-past { background:transparent !important; }`；週末的淺灰底色規則（`.fc-day-sat`/`.fc-day-sun`）維持在後面、也加 `!important`，讓「過去的週末」還是顯示週末底色而不是被這條規則蓋成全透明 |
+| 月視圖事件跟週/日視圖的顏色風格差很多（月視圖是純文字加一個小圓點，週/日視圖是有底色的色塊） | FullCalendar 月視圖對「有時間」的事件預設用 `eventDisplay:'auto'`，只顯示一個小圓點+文字，不會把 `backgroundColor`/`borderColor` 畫成色塊 | 加 `eventDisplay:'block'` 選項，強制三個視圖都用同一套色塊渲染；`eventContent` 統一輸出同一組 `.evc`/`.tt`/`.rr` 結構（月視圖省略時間那一行，因為格子太矮放不下），確保顏色跟 CSS class 完全共用同一套規則 |
+| 月視圖日期數字顯示「27日」而不是單純的「27」，且沒有置中，字體大小也跟週視圖不一致 | FullCalendar 用 zh-tw 語系內建的日期格式化，會自動加「日」字尾；預設排版靠右對齊 | 新增 `dayCellContent` callback，自己回傳 `arg.date.getUTCDate()` 純數字（不透過語系格式化）；`.fc-daygrid-day-top` 改成 `justify-content:center`，字體大小/字重/tabular-nums 比照週視圖表頭的 `.num` 規則 |
+| 月視圖標題顯示「2026年6月－8月」這種跨三個月的怪異範圍 | `datesSet` callback 原本用 `info.start`/`info.end`（月視圖為了湊滿 6×7 的方格，畫面上實際渲染的日期範圍會往前後月份延伸），拿這個範圍去算跨月標題，被延伸出去的天數誤判成「這個月橫跨好幾個月」 | 月視圖改用 `info.view.currentStart`/`info.view.currentEnd`（FullCalendar 提供的「邏輯月份範圍」，不含補滿格線用的延伸天數）；週/日視圖維持用實際渲染範圍不變（一週橫跨兩個月時，本來就應該顯示兩個月） |
+| 事件很多的日期，月視圖那一列會被撐得很高，跟其他列高度不一致；且捲軸一直顯示著 | 一開始用 `overflow-y:auto` 讓超出的事件在格子內捲動，但捲軸持續可見 | `.fc-daygrid-day-events` 設固定 `max-height:132px`；預設 `overflow-y:hidden`（超出的先收起來，不能捲），`:hover` 時才切成 `overflow-y:auto`，滑鼠移過去才會出現可捲動的捲軸 |
+| 日/週視圖右上角有一組奇怪的、疊在一起的小小上下箭頭 | FullCalendar 為了讓表頭那排（不需要捲動）跟下方時間格（真的需要捲動）維持同樣寬度，故意把表頭的捲動容器也設成 `overflow-y:scroll`（即使沒有任何內容要捲）——這種「有捲軸軌道但沒有內容可捲」的情況，Windows 上的 Chrome/Edge 會把捲軸畫成只剩頭尾兩顆箭頭按鈕疊在一起，中間沒有滑塊 | `#fullcalendarRoot .fc-scroller::-webkit-scrollbar-button { display:none; }`，只隱藏箭頭按鈕本體，捲軸滑塊跟滑鼠滾輪/觸控板捲動都不受影響 |
+
+### 16.6 新增預約功能搬遷（比照 `overview.php` 的互動水準）
+
+原型第一版是唯讀的（Phase 1 明確排除拖曳建立、彈窗等互動），使用者決定升級為主要行事曆後，要求把 `overview.php` 那一整套「同畫面建立預約」體驗完整搬過來：
+
+- **拖曳選取時段**：改用 FullCalendar 原生 `selectable:true` + `select` callback，不是重新刻一套滑鼠座標運算——FullCalendar 自己的 `.fc-highlight` 提供拖曳視覺回饋，`slotDuration`（30 分鐘）本身就會自動吸附刻度，不需要另外算。月視圖的 `select` 選到的是整天而非時段，預設用 09:00–09:30 開表單，時間可以在表單裡再調整
+- **同畫面小表單**：`#quickCreateModal` 整個 HTML／CSS 從 `overview.tpl`／`overview.css` 複製過來（因為那兩支檔案不能動，只能複製而不是共用），JS 邏輯（`TimeDropdown` 下拉元件、`openQuickCreate()`、`refreshTimeUI()`、`refreshResourceUI()`）幾乎逐行搬過來，只把 `window.overviewOpts` 換成這支檔案自己的 `window.overviewFullCalendarOpts`。存檔一樣打 `ajax/reservation_save.php`，欄位名稱／CSRF token 完全比照原本的做法
+- **跟 `overview.php` 不同的地方**：存檔成功後不整頁重新整理（`overview.php` 原本用 `window.location.reload()`），改叫 `calendar.refetchEvents()` 局部刷新——因為這個頁面本來就有一支獨立的 JSON 事件來源可以重打，沒必要做全頁重整這種比較重的操作
+- **點擊既有預約**：原本 `eventClick` 是直接整頁跳轉去 `reservation.php`，改成跳出 `#eventPopover` 小卡片（標題／時間／資源 + 查看詳情連結），比照 `overview.php` 的既有互動，一樣只攔截單純的左鍵點擊（放過 Ctrl/Cmd/Shift 等修飾鍵點擊，讓瀏覽器原生的「開新分頁」等行為不受影響）
+- **側邊欄「+新增預約」按鈕**：點了會用目前分類（實體/視訊）下第一個勾選的資源，開啟同一個小表單，預設時段是下一個整點/半點
+
+### 16.7 分類切換 + 視圖切換
+
+- **實體會議室／視訊會議室分類 tab**：比照 `overview.php` 的 `.cal-category-tabs` 行為——切換分類同時決定側邊欄顯示哪一組資源清單、以及行事曆只顯示該分類資源的事件。資料來源是 `window.overviewFullCalendarOpts.resourceGroups`，樣板端輸出的 JSON 結構跟 `overview.tpl` 的 `window.overviewOpts.resourceGroups` 完全一致
+- **日／週／月視圖切換**：`overview.php` 完全沒有這個功能，這次是新增的。工具列加了三個切換鈕，呼叫 FullCalendar 原生的 `calendar.changeView('timeGridDay' / 'timeGridWeek' / 'dayGridMonth')`
+
+### 16.8 尚未完成／後續建議
+
+- 月視圖目前不支援拖曳跨天新增預約（月視圖選到的是整天，套用時段表單語意上怪怪的，先留給之後有需要再做）
+- 沒有 hover 預覽格子（`overview.php` 有一個「滑鼠移到空白格子上顯示範圍預覽」的效果，這次沒有搬）
+- 沒有做同畫面即時預覽下一步的日/週視圖切換動畫或載入態
+- `overview.php` 本身仍然完整保留、可獨立訪問，尚未決定是否/何時要整支移除
+- 產出這份文件當下，`Web/img/logo.png`（2020 年上游遺留、從未被 git 追蹤的舊 placeholder 圖檔）仍原封不動留在檔案系統上，跟這次改動無關，沒有一併處理

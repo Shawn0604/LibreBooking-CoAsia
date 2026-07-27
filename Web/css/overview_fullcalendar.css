@@ -1,0 +1,978 @@
+/* Prototype-only styles for Web/overview_fullcalendar.php — evaluating FullCalendar
+   Standard against the hand-rolled grid in Web/css/overview.css (untouched by this file).
+   Scoped entirely under #page-overview-fc so there's zero chance of bleeding into the
+   real overview.php, even if both ever loaded on the same page by accident. */
+
+#page-overview-fc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* #main's standard Bootstrap `my-3` gives every page a 16px top margin, but the sidebar's
+     own brand row starts flush at y:0 with no such offset — so this page's 64px .cal-toolbar
+     started 16px lower than the sidebar logo, and the "總覽" heading centered inside it
+     didn't line up with the logo. Canceling just the top 16px here makes both rows start at
+     the same y and both being flex-centered vertically (same var(--gcal-control-height)
+     logic) lines up "總覽" with the logo directly, not just the row boundaries. */
+  height: calc(100vh - 16px);
+  max-width: 1360px;
+  margin: -16px auto 0;
+  padding: 0 20px 16px 16px;
+  box-sizing: border-box;
+}
+
+/* ---------- Toolbar — same 64px sticky band and markup/classes as
+   Web/css/overview.css's #page-overview .cal-toolbar (rules duplicated here rather than
+   shared, since this file must stay fully independent of overview.css). Navigation is
+   driven by the FullCalendar API (Web/scripts/overview_fullcalendar.js) instead of
+   full-page links, but reuses the exact same visual language. ---------- */
+
+#page-overview-fc .cal-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 64px;
+  box-sizing: border-box;
+  padding: 0 0 0 4px;
+  border-bottom: 1px solid var(--gcal-border, #eceff1);
+}
+
+#page-overview-fc h1 {
+  display: flex;
+  align-items: center;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+  color: #3c4043;
+  margin: 0;
+  white-space: nowrap;
+}
+
+#page-overview-fc .fc-proto-badge {
+  margin-left: 10px;
+  padding: 2px 10px;
+  border-radius: 100px;
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: #6c7488;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+#page-overview-fc .toolbar-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Icon fonts (Bootstrap Icons) have their own internal vertical metrics that don't always
+   sit centered on the surrounding text's line box — pin every toolbar icon/label to
+   line-height:1 so flex's align-items:center is centering a predictable box, not one whose
+   height varies with a glyph's own ascent/descent. */
+#page-overview-fc .today-btn,
+#page-overview-fc .arrows a.nav,
+#page-overview-fc .cal-category-tab,
+#page-overview-fc .cal-view-tab {
+  line-height: 1;
+}
+
+#page-overview-fc .arrows a.nav i {
+  line-height: 1;
+}
+
+#page-overview-fc .today-btn {
+  display: inline-flex;
+  align-items: center;
+  height: var(--gcal-control-height, 40px);
+  box-sizing: border-box;
+  border: 1px solid var(--bs-border-color, #d6d9e3);
+  border-radius: 100px;
+  padding: 0 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5165;
+  text-decoration: none;
+}
+
+#page-overview-fc .today-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+#page-overview-fc .today-btn.disabled {
+  color: #c7cbd6;
+  border-color: #e7e9ef;
+  cursor: default;
+  pointer-events: none;
+}
+
+#page-overview-fc .arrows {
+  display: flex;
+  gap: 2px;
+}
+
+#page-overview-fc .arrows a.nav {
+  width: var(--gcal-control-height, 40px);
+  height: var(--gcal-control-height, 40px);
+  border-radius: 50%;
+  color: #4b5165;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#page-overview-fc .arrows a.nav i {
+  font-size: var(--gcal-icon-size, 20px);
+}
+
+#page-overview-fc .arrows a.nav:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--primary);
+}
+
+#page-overview-fc .month-label {
+  font-size: 17px;
+  font-weight: 500;
+  color: #3c4043;
+  font-variant-numeric: tabular-nums;
+  line-height: var(--gcal-control-height, 40px);
+}
+
+#page-overview-fc .toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+#page-overview-fc .cal-category-tabs,
+#page-overview-fc .cal-view-tabs {
+  display: inline-flex;
+  align-items: center;
+  height: var(--gcal-control-height, 40px);
+  box-sizing: border-box;
+  border: 1px solid var(--bs-border-color, #d6d9e3);
+  border-radius: 100px;
+  padding: 3px;
+  gap: 2px;
+}
+
+#page-overview-fc .cal-category-tab,
+#page-overview-fc .cal-view-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(var(--gcal-control-height, 40px) - 6px);
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  border-radius: 100px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5165;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+#page-overview-fc .cal-category-tab:hover,
+#page-overview-fc .cal-view-tab:hover {
+  color: var(--primary);
+}
+
+#page-overview-fc .cal-category-tab.active,
+#page-overview-fc .cal-view-tab.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+/* The rounded outer frame the acceptance criteria asks for. `overflow: hidden` is safe
+   here (unlike the real overview.css, which explicitly avoids it) because FullCalendar's
+   own sticky header is implemented against ITS OWN internal scroll container, not the
+   page's — it doesn't rely on this element's overflow behavior the way the hand-rolled
+   grid's position:sticky did. */
+#page-overview-fc .fc-frame {
+  flex: 1;
+  min-height: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--gcal-border, #eceff1);
+  background: #fff;
+}
+
+#page-overview-fc #fullcalendarRoot {
+  height: 100%;
+}
+
+/* ---------- FullCalendar chrome ---------- */
+/* headerToolbar is disabled (Web/scripts/overview_fullcalendar.js sets
+   `headerToolbar: false` and drives calendar.prev()/next()/today() from the custom
+   .cal-toolbar above instead), so nothing here needs to touch .fc-toolbar/.fc-button —
+   those never render. Selectors below use the #fullcalendarRoot ID (rather than just
+   `.fc`/`#page-overview-fc .fc`) wherever they override a rule FullCalendar's own
+   dynamically-injected stylesheet also sets, so this file wins on specificity regardless
+   of which <style> tag lands in the document first. */
+
+#page-overview-fc .fc {
+  font-family: var(--bs-body-font-family);
+  height: 100%;
+}
+
+#fullcalendarRoot {
+  --fc-border-color: var(--gcal-border, #eceff1);
+  --fc-page-bg-color: #fff;
+  --fc-today-bg-color: var(--gcal-today-bg, rgba(52, 168, 83, 0.08));
+  --fc-neutral-bg-color: transparent;
+}
+
+/* Confirmed live in a real browser (not just read from source) via getComputedStyle on the
+   actual rendered page: every past date carries class .fc-day-past — NOT .fc-day-disabled
+   (that class is never applied here at all; FullCalendar only uses it when a date falls
+   outside an explicit validRange, which this page doesn't set) — with a solid
+   rgb(189,189,189) background painting the entire cell. Past reservations still need to
+   display clearly, so this page doesn't need a visual "past" treatment on the cell itself. */
+#fullcalendarRoot .fc-day-past,
+#fullcalendarRoot .fc-day-disabled,
+#fullcalendarRoot .fc-day-disabled .fc-daygrid-day-frame,
+#fullcalendarRoot .fc-daygrid-day.fc-day-disabled {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+/* businessHours-style overlay FullCalendar can layer on top of a day cell — this page
+   never sets a `businessHours` option, so there's nothing legitimate for it to shade; if
+   it's still rendering for some other built-in reason, drop it rather than leave a
+   mystery tint no rule in this file accounts for. */
+#fullcalendarRoot .fc-non-business {
+  display: none !important;
+}
+
+/* FullCalendar's own stylesheet puts a square-cornered `border: 1px solid
+   var(--fc-border-color)` directly on .fc-scrollgrid (fullcalendar's outermost table) —
+   that's a SECOND border sitting just inside .fc-frame's own rounded 16px border above,
+   and it's what was making the corner read as two overlapping edges instead of one
+   continuous curve. .fc-frame already draws the single outer border, so this one is
+   redundant everywhere and actively wrong at the corners; drop it. */
+#fullcalendarRoot .fc-scrollgrid {
+  border: 0;
+}
+
+/* ---------- Day header row (dow + day-number), built via dayHeaderContent in
+   overview_fullcalendar.js — same two-line layout as #page-overview .day-head. ---------- */
+
+#fullcalendarRoot .fc-col-header-cell {
+  border-left-color: var(--gcal-border-strong, #dde1e6);
+  vertical-align: middle;
+  padding: 6px 0 8px;
+}
+
+#fullcalendarRoot .fc-col-header-cell-cushion {
+  width: 100%;
+  padding: 0;
+  text-decoration: none;
+}
+
+#fullcalendarRoot .dow {
+  display: block;
+  font-size: 11px;
+  color: #9aa1b3;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+#fullcalendarRoot .num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  width: 40px;
+  margin: 2px auto 0;
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #3c4043;
+}
+
+#fullcalendarRoot .fc-day-today .num {
+  background: var(--gcal-today-accent, #34a853);
+  color: #fff;
+}
+
+/* ---------- Grid lines: vertical day separators read a touch darker than the
+   horizontal hour lines, matching #page-overview .day-col's border hierarchy. ---------- */
+
+#fullcalendarRoot .fc-timegrid-col.fc-day {
+  border-left-color: var(--gcal-border-strong, #dde1e6);
+}
+
+#fullcalendarRoot .fc-day-sat,
+#fullcalendarRoot .fc-day-sun {
+  background-color: #f8f9fa !important;
+}
+
+#fullcalendarRoot .fc-day-today {
+  background-color: var(--gcal-today-bg, rgba(52, 168, 83, 0.08)) !important;
+}
+
+#fullcalendarRoot .fc-timegrid-slot-label-cushion {
+  font-size: 10.5px;
+  color: #70757a;
+  font-variant-numeric: tabular-nums;
+}
+
+#fullcalendarRoot .fc-timegrid-axis {
+  border-left-color: var(--gcal-border-strong, #dde1e6);
+}
+
+/* Windows Chrome/Edge render classic step-arrow buttons at the ends of a native scrollbar
+   track — visible as a small up/down pair at the top of week/day view's time-grid scroller.
+   Keep the scrollbar itself (still needed to reach hours outside the initial scroll
+   position) but drop those buttons; scrolling by drag/wheel/trackpad still works fine
+   without them. */
+#fullcalendarRoot .fc-scroller::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+/* ---------- Now-indicator: a 2px line + a small dot instead of FullCalendar's default
+   border-triangle arrow, matching #page-overview .now-line/.now-line::before. ---------- */
+
+#fullcalendarRoot .fc-timegrid-now-indicator-line {
+  border-top: 2px solid var(--reservedMine, #d3202a);
+}
+
+#fullcalendarRoot .fc-timegrid-now-indicator-arrow {
+  border: none;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--reservedMine, #d3202a);
+}
+
+/* ---------- Events: left-accent color bar + adaptive title/time content, same visual
+   language and same >=32px-tall container-query threshold as #page-overview .event. ---------- */
+
+#fullcalendarRoot .fc-timegrid-event {
+  border-style: solid;
+  border-width: 0 0 0 3px;
+  border-radius: 4px;
+  padding: 3px 8px;
+  box-shadow: none;
+  overflow: hidden;
+  transition: filter 0.1s ease;
+  /* Lets .rr below query the event's OWN rendered height to decide whether there's
+     room to show the time range — same self-referential pattern as overview.css. */
+  container-type: size;
+  container-name: eventCard;
+}
+
+#fullcalendarRoot .fc-timegrid-event:hover {
+  filter: brightness(0.96);
+}
+
+#fullcalendarRoot .fc-timegrid-event:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  filter: brightness(0.96);
+}
+
+#fullcalendarRoot .fc-timegrid-event .evc {
+  height: 100%;
+  line-height: 1.3;
+}
+
+#fullcalendarRoot .fc-timegrid-event .tt {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#fullcalendarRoot .fc-timegrid-event .rr {
+  display: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  color: #5f6368;
+  font-size: 10.5px;
+}
+
+/* ~60min slot or taller at the current grid scale (matches overview.css's threshold). */
+@container eventCard (min-height: 32px) {
+  #fullcalendarRoot .fc-timegrid-event .rr {
+    display: block;
+  }
+}
+
+/* ---------- Month view events: same color language as week/day view's .fc-timegrid-event
+   (pastel background, solid left accent, dark text) instead of FullCalendar's default
+   plain dot — eventDisplay:'block' (overview_fullcalendar.js) is what makes the background/
+   border colors actually render as a filled chip here instead of a bare dot. ---------- */
+
+#fullcalendarRoot .fc-daygrid-event {
+  border-style: solid;
+  border-width: 0 0 0 3px;
+  border-radius: 4px;
+  margin: 1px 2px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+#fullcalendarRoot .fc-daygrid-event .tt {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Individual already-ended events dim slightly (matches #page-overview .event.past in
+   overview.css) — set via eventClassNames in overview_fullcalendar.js per-event, not per
+   day, since a past day can still have upcoming events on it. */
+#fullcalendarRoot .fc-event.fc-event-past {
+  opacity: 0.55;
+}
+
+/* ---------- Month view: today's date number gets the same green circle badge as the
+   mini-calendar/week-view day header (.num .fc-day-today rule above) — FullCalendar's own
+   day-of-month number here (.fc-daygrid-day-number) is a completely separate element from
+   the week/day view's header row this file already styled, so it needs its own rule. ---------- */
+
+/* dayCellContent (overview_fullcalendar.js) already replaces FullCalendar's own locale-
+   formatted day number (which appended "日", e.g. "27日") with a bare number matching
+   week/day view's .num — this just needs to be centered and typographically identical:
+   16px/500/tabular-nums, same as #fullcalendarRoot .num above. */
+#fullcalendarRoot .fc-daygrid-day-top {
+  display: flex;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+#fullcalendarRoot .fc-daygrid-day-number {
+  font-size: 16px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #3c4043;
+  padding: 2px;
+  text-decoration: none;
+}
+
+#fullcalendarRoot .fc-day-today .fc-daygrid-day-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--gcal-today-accent, #34a853);
+  color: #fff;
+}
+
+/* Cap how tall a single day cell can grow before its own event list scrolls internally,
+   instead of the whole week row stretching to fit a busy day — keeps every column the same
+   width/height across a row (a row that grows unevenly is what made columns look
+   inconsistent). The scrollbar itself only appears on hover — overflow stays clipped
+   (not scrollable) until the cursor is actually over that day, instead of a
+   permanently-visible scrollbar/arrows on every busy day. */
+#fullcalendarRoot .fc-daygrid-day-events {
+  max-height: 132px;
+  overflow-y: hidden;
+}
+
+#fullcalendarRoot .fc-daygrid-day-frame:hover .fc-daygrid-day-events {
+  overflow-y: auto;
+}
+
+/* ---------- Sidebar extras (rendered inside tpl/globalheader.tpl's <aside>) ----------
+   This markup (.create-btn, .mini-cal, #resourceSidebar/.res-check) is emitted by the
+   SHARED globalheader.tpl whenever $PhysicalResources/$VideoResources are set — which
+   OverviewFullCalendarPresenter does too, just like OverviewPresenter — so it renders
+   identically on this page. But its styling lives only in Web/css/overview.css (deliberately,
+   per that file's own header comment, on the assumption it's "only ever loaded on this
+   page" — an assumption this prototype breaks). Since overview.css is one of the files this
+   prototype must not modify, these rules are duplicated verbatim here rather than shared.
+   The two files never load on the same page at once, so there's no conflict either way. */
+
+.create-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  height: var(--gcal-control-height);
+  padding: 0 16px;
+  border-radius: 100px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.create-btn:hover {
+  background: var(--primary-hover, var(--primary));
+  color: #fff;
+}
+
+.create-btn i {
+  font-size: var(--gcal-icon-size);
+}
+
+.mini-cal {
+  margin-top: 24px;
+}
+
+.mini-cal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 8px;
+}
+
+.mini-cal-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #1c2333;
+}
+
+.mini-cal-nav {
+  display: flex;
+  gap: 2px;
+}
+
+.mini-cal-nav button {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  color: #6c7488;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-cal-nav button:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--primary);
+}
+
+.mini-cal-weekdays,
+.mini-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.mini-cal-weekdays span {
+  text-align: center;
+  font-size: 10px;
+  color: #9aa1b3;
+  padding-bottom: 4px;
+}
+
+.mini-cal-grid button {
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  margin: 1px auto;
+  font-size: 11.5px;
+  font-weight: 400;
+  color: #4b5165;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini-cal-grid button:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+.mini-cal-grid button.outside-month {
+  color: #c7cbd6;
+}
+
+.mini-cal-grid button.today {
+  color: var(--gcal-today-accent);
+  font-weight: 500;
+}
+
+.mini-cal-grid button.in-week {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+.mini-cal-grid button.selected-today {
+  background: var(--gcal-today-accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+#resourceSidebar {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.res-check {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 28px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  cursor: pointer;
+  border-radius: var(--bs-border-radius-sm);
+}
+
+.res-check:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+.res-check input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.res-check-box {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: var(--check-color, #5c6b84);
+  position: relative;
+}
+
+.res-check input:not(:checked) + .res-check-box {
+  background: transparent;
+  border: 2px solid var(--check-color, #5c6b84);
+}
+
+.res-check input:checked + .res-check-box::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.res-check-name {
+  font-size: 14px;
+  font-weight: 400;
+  color: #3c4043;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Quick-create modal + event popover (same booking UX as overview.php) ----------
+   Copied verbatim from Web/css/overview.css, which is off-limits to edit for this
+   prototype — these rules aren't #page-overview-scoped there either, so they apply as-is. */
+
+#quickCreateModal .modal-content {
+  padding: 8px 8px 4px;
+}
+
+#quickCreateModal .qc-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  width: var(--gcal-control-height);
+  height: var(--gcal-control-height);
+  border-radius: 50%;
+  opacity: 0.65;
+}
+
+#quickCreateModal .qc-close:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  opacity: 1;
+}
+
+#quickCreateModal .modal-body {
+  padding: 16px 24px 8px;
+}
+
+#quickCreateModal .qc-title {
+  display: block;
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid var(--primary);
+  outline: none;
+  padding: 4px 40px 8px 0;
+  margin-bottom: 12px;
+  font-size: 20px;
+  font-weight: 400;
+  color: #1c2333;
+  background: transparent;
+}
+
+#quickCreateModal .qc-title::placeholder {
+  color: #9aa1b3;
+  font-weight: 400;
+}
+
+#quickCreateModal .qc-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 10px 0;
+  font-size: 14px;
+  color: #3c4043;
+}
+
+#quickCreateModal .qc-row-top {
+  align-items: flex-start;
+}
+
+#quickCreateModal .qc-row i {
+  color: #6c7488;
+  width: var(--gcal-icon-size);
+  font-size: var(--gcal-icon-size);
+  text-align: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+#quickCreateModal .qc-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+#quickCreateModal .qc-row-sub {
+  font-size: 12px;
+  color: #6c7488;
+  margin-top: 2px;
+}
+
+#quickCreateModal .qc-time-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#quickCreateModal .qc-time-dash {
+  color: #6c7488;
+}
+
+#quickCreateModal .qc-time-picker,
+#quickCreateModal .qc-resource-picker {
+  position: relative;
+  display: inline-block;
+}
+
+#quickCreateModal .qc-time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  border-radius: var(--bs-border-radius-sm);
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  padding: 4px 8px 4px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #3c4043;
+}
+
+#quickCreateModal .qc-time-pill::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #6c7488;
+  flex-shrink: 0;
+}
+
+#quickCreateModal .qc-time-pill:hover,
+#quickCreateModal .qc-time-pill[aria-expanded="true"] {
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+#quickCreateModal .qc-time-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  max-height: 240px;
+  overflow-y: auto;
+  min-width: 180px;
+  background: #fff;
+  border-radius: var(--bs-border-radius-sm);
+  box-shadow: var(--bs-box-shadow);
+  padding: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top left;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+
+#quickCreateModal .qc-time-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #quickCreateModal .qc-time-dropdown {
+    transition: none;
+  }
+}
+
+#quickCreateModal .qc-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 8px 12px;
+  font-size: 13.5px;
+  color: #3c4043;
+  border-radius: var(--bs-border-radius-sm);
+  white-space: nowrap;
+  transition: background-color 0.1s ease;
+}
+
+#quickCreateModal .qc-option:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+#quickCreateModal .qc-option.selected {
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+#quickCreateModal .qc-resource-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+#quickCreateModal .qc-resource-tab {
+  border: 1px solid var(--bs-border-color, #d6d9e3);
+  border-radius: 100px;
+  background: transparent;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #6c7488;
+}
+
+#quickCreateModal .qc-resource-tab.active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: color-mix(in oklab, var(--primary) 8%, white);
+}
+
+#quickCreateModal .qc-description {
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 0;
+  font-size: 14px;
+  font-family: inherit;
+  color: #3c4043;
+  background: transparent;
+}
+
+#quickCreateModal .qc-description::placeholder {
+  color: #9aa1b3;
+}
+
+#quickCreateModal .modal-footer {
+  border-top: none;
+  padding: 12px 24px 16px;
+}
+
+/* ---------- Event quick-view popover ---------- */
+
+.event-popover {
+  position: absolute;
+  z-index: 30;
+  width: 280px;
+  background: #fff;
+  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  box-shadow: var(--bs-box-shadow);
+  overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+
+.event-popover.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-popover {
+    transition: none;
+  }
+}
+
+.event-popover .ep-color-bar {
+  height: 6px;
+}
+
+.event-popover .ep-body {
+  padding: 16px 18px 10px;
+}
+
+.event-popover .ep-title {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1c2333;
+  margin-bottom: 10px;
+}
+
+.event-popover .ep-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: #3c4043;
+}
+
+.event-popover .ep-row i {
+  color: #6c7488;
+  width: var(--gcal-icon-size);
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.event-popover .ep-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 18px 16px;
+}
+
+/* FullCalendar's native drag-select highlight (.fc-highlight) already provides the
+   "dragging out a range" visual feedback that overview.css's hand-rolled .slot-preview
+   gave the manual mousedown/mousemove implementation — no custom preview element needed
+   here since selectable:true + the select() callback do the same job through FullCalendar
+   itself (Web/scripts/overview_fullcalendar.js). */

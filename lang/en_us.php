@@ -72,6 +72,7 @@ class en_us extends Language
         $strings['UserNameRequired'] = 'User name is required.';
         $strings['CaptchaMustMatch'] = 'Captcha is required.';
         $strings['Today'] = 'Today';
+        $strings['Day'] = 'Day';
         $strings['Week'] = 'Week';
         $strings['Month'] = 'Month';
         $strings['BackToCalendar'] = 'Back to calendar';

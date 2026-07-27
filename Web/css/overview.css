@@ -15,7 +15,9 @@
   position: relative;
   max-width: 1360px;
   margin: 0 auto;
-  padding: 0 24px 60px;
+  /* Tighter left padding than right — the sidebar already has its own border, so a full
+     24px gutter after it just reads as extra gray page background before the grid starts. */
+  padding: 0 20px 60px 16px;
 }
 
 /* ---------- Quick-create modal (Google Calendar-style same-screen create) ---------- */
@@ -600,15 +602,15 @@
 #page-overview .week-grid {
   position: relative;
   display: grid;
-  grid-template-columns: 54px repeat(7, minmax(120px, 1fr));
-  min-width: 880px;
+  grid-template-columns: 48px repeat(7, minmax(120px, 1fr));
+  min-width: 874px;
 }
 
 #page-overview .corner {
   height: 56px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--gcal-border);
-  padding: 0 8px 6px;
+  padding: 0 6px 6px 2px;
   font-size: 10.5px;
   color: #9aa1b3;
   font-weight: 500;
@@ -629,7 +631,7 @@
   justify-content: center;
   padding-top: 4px;
   border-bottom: 1px solid var(--gcal-border);
-  border-left: 1px solid var(--gcal-border);
+  border-left: 1px solid var(--gcal-border-strong);
   position: sticky;
   top: 64px;
   z-index: 10;
@@ -641,12 +643,21 @@
   color: #9aa1b3;
   font-weight: 500;
   letter-spacing: 0.03em;
+  line-height: 1;
 }
 
+/* Fixed-height box (not just font-size) so .num occupies the same vertical space whether
+   it's plain text or the "today" circle badge — otherwise the circle's taller box shifts
+   the whole flex column's centering and .dow ends up sitting a couple pixels higher on
+   today's column than the other six. */
 #page-overview .day-head .num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  margin-top: 2px;
   font-size: 16px;
   font-weight: 500;
-  margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -655,11 +666,7 @@
 }
 
 #page-overview .day-head.today .num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 40px;
-  height: 40px;
   border-radius: 50%;
   background: var(--gcal-today-accent);
   color: #fff;
@@ -677,16 +684,16 @@
 #page-overview .hours-col .hr {
   height: 32px;
   font-size: 10.5px;
-  color: #9aa1b3;
+  color: #70757a;
   text-align: right;
-  padding-right: 8px;
+  padding-right: 6px;
   transform: translateY(-6px);
   font-variant-numeric: tabular-nums;
 }
 
 #page-overview .day-col {
   position: relative;
-  border-left: 1px solid var(--gcal-border);
+  border-left: 1px solid var(--gcal-border-strong);
   height: 768px;
   cursor: pointer;
   background-image: repeating-linear-gradient(
@@ -719,20 +726,28 @@
 #page-overview .now-line::before {
   content: '';
   position: absolute;
-  left: -4px;
-  top: -4px;
-  width: 8px;
-  height: 8px;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--reservedMine, #d3202a);
 }
 
 #page-overview .event {
   position: absolute;
+  /* left/width come from the inline style (OverviewPresenter::AssignEventColumns() —
+     overlapping events sit in side-by-side columns instead of stacking). This 3px is
+     only a fallback for the unexpected case that style attribute is ever missing. */
   left: 3px;
   right: 3px;
+  /* Lets .rr below query the event's OWN resolved height (not its parent's) to decide
+     whether there's room to show the time range — a 30/60min slot gets title-only, a
+     longer one gets title + time. */
+  container-type: size;
+  container-name: eventCard;
   border-radius: 4px;
-  padding: 2px 6px;
+  padding: 3px 8px;
   font-size: 12px;
   font-weight: 500;
   overflow: hidden;
@@ -742,9 +757,16 @@
   border-left: 3px solid #5c6b84;
   color: #1c2333;
   box-shadow: none;
+  transition: filter 0.1s ease;
 }
 
 #page-overview .event:hover {
+  filter: brightness(0.96);
+}
+
+#page-overview .event:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
   filter: brightness(0.96);
 }
 
@@ -756,13 +778,20 @@
 }
 
 #page-overview .event .rr {
-  display: block;
+  display: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
   color: #5f6368;
   font-size: 10.5px;
+}
+
+/* ~60min slot or taller at the current grid scale (24h window / 768px column). */
+@container eventCard (min-height: 32px) {
+  #page-overview .event .rr {
+    display: block;
+  }
 }
 
 #page-overview .event.past {

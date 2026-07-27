@@ -80,6 +80,7 @@ class zh_tw extends en_us
         $strings['UserNameRequired'] = '用戶名是必需的.';
         $strings['CaptchaMustMatch'] = '請您完全按照密碼圖片上顯示的內容輸入字元.';
         $strings['Today'] = '今天';
+        $strings['Day'] = '日';
         $strings['Week'] = '週';
         $strings['Month'] = '月';
         $strings['BackToCalendar'] = '回到日曆';
@@ -557,7 +558,7 @@ class zh_tw extends en_us
         $strings['MyDashboard'] = '我的控制板';
         $strings['Overview'] = '總覽';
         $strings['Weekend'] = '週末';
-        $strings['Untitled'] = '(沒有標題)';
+        $strings['Untitled'] = '未命名預約';
         $strings['YourReservations'] = '我的預約';
         $strings['PhysicalRooms'] = '實體會議室';
         $strings['VideoConferenceResources'] = '視訊會議';

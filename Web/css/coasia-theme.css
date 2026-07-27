@@ -17,6 +17,10 @@
   /* Google Calendar Web (Material 3) reference tokens — used by the sidebar and the
      Overview page's calendar grid so both read as one system, not per-element tweaks. */
   --gcal-border: #eceff1;
+  /* Slightly darker than --gcal-border — used only for the grid's vertical day
+     separators, so columns read a touch more distinctly than the lighter horizontal
+     hour lines (Google's own week view has this same subtle hierarchy). */
+  --gcal-border-strong: #dde1e6;
   --gcal-today-bg: rgba(52, 168, 83, 0.08);
   --gcal-today-accent: #34a853;
   --gcal-icon-size: 20px;

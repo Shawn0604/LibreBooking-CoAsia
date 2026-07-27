@@ -201,10 +201,138 @@ class OverviewPresenter
                 'isPast' => $end->LessThanOrEqual($now),
                 'startLabel' => $start->Format('H:i'),
                 'endLabel' => $end->Format('H:i'),
+                // Only used by AssignEventColumns() below — stripped before the view sees it.
+                'startMinutes' => $startMinutes,
+                'endMinutes' => $endMinutes,
             ];
         }
 
+        foreach ($days as &$day) {
+            $day['events'] = $this->AssignEventColumns($day['events']);
+        }
+        unset($day);
+
         return $days;
+    }
+
+    /** Horizontal gap between side-by-side columns, in pixels. */
+    private const EVENT_COLUMN_GAP_PX = 2;
+
+    /** Fixed inset from the day column's left/right edge, in pixels (matches the old
+     * static `left: 3px; right: 3px;` every event used before overlap layout existed). */
+    private const EVENT_OUTER_INSET_PX = 3;
+
+    /**
+     * Lays out one day's events Google Calendar-style: events that overlap in time sit
+     * in side-by-side columns instead of stacking on top of each other. Events that only
+     * touch (one ends exactly when the other starts) are NOT considered overlapping and
+     * each keep the full width.
+     *
+     * Two passes over the events (sorted by start time, so the result never depends on
+     * the order reservations came back from the DB in):
+     *  1. Sweep left-to-right assigning each event the first free column (a column is
+     *     "free" once its last event's end time is <= this event's start time), while
+     *     tracking the running max end-time of the current overlap cluster. Once an
+     *     event starts at or after that running max, the cluster is closed out and a
+     *     fresh one begins.
+     *  2. Every event in a cluster shares that cluster's total column count, which is
+     *     what actually determines each event's width — an event's own column index
+     *     only determines its position among that shared width.
+     *
+     * @param array $events
+     * @return array Same events, sorted by start time, with 'left'/'width' CSS values
+     *               added and the temporary 'startMinutes'/'endMinutes' keys removed.
+     */
+    private function AssignEventColumns($events)
+    {
+        if (count($events) <= 1) {
+            foreach ($events as &$event) {
+                $event['left'] = self::EVENT_OUTER_INSET_PX . 'px';
+                $event['width'] = 'calc(100% - ' . (self::EVENT_OUTER_INSET_PX * 2) . 'px)';
+                unset($event['startMinutes'], $event['endMinutes']);
+            }
+            unset($event);
+            return $events;
+        }
+
+        usort($events, function ($a, $b) {
+            if ($a['startMinutes'] !== $b['startMinutes']) {
+                return $a['startMinutes'] <=> $b['startMinutes'];
+            }
+            return $a['endMinutes'] <=> $b['endMinutes'];
+        });
+
+        $columnEndTimes = [];
+        $clusterStartIndex = 0;
+        $clusterMaxEnd = null;
+
+        $count = count($events);
+        for ($i = 0; $i < $count; $i++) {
+            if ($clusterMaxEnd !== null && $events[$i]['startMinutes'] >= $clusterMaxEnd) {
+                $this->FinalizeEventCluster($events, $clusterStartIndex, $i, count($columnEndTimes));
+                $columnEndTimes = [];
+                $clusterStartIndex = $i;
+                $clusterMaxEnd = null;
+            }
+
+            $assignedColumn = null;
+            foreach ($columnEndTimes as $columnIndex => $endTime) {
+                if ($endTime <= $events[$i]['startMinutes']) {
+                    $assignedColumn = $columnIndex;
+                    break;
+                }
+            }
+            if ($assignedColumn === null) {
+                $assignedColumn = count($columnEndTimes);
+            }
+
+            $columnEndTimes[$assignedColumn] = $events[$i]['endMinutes'];
+            $events[$i]['columnIndex'] = $assignedColumn;
+            $clusterMaxEnd = $clusterMaxEnd === null
+                ? $events[$i]['endMinutes']
+                : max($clusterMaxEnd, $events[$i]['endMinutes']);
+        }
+        $this->FinalizeEventCluster($events, $clusterStartIndex, $count, count($columnEndTimes));
+
+        foreach ($events as &$event) {
+            [$event['left'], $event['width']] = $this->EventColumnStyle($event['columnIndex'], $event['columnCount']);
+            unset($event['startMinutes'], $event['endMinutes'], $event['columnIndex'], $event['columnCount']);
+        }
+        unset($event);
+
+        return $events;
+    }
+
+    /** Stamps 'columnCount' onto every event in $events[$startIndex, $endIndexExclusive). */
+    private function FinalizeEventCluster(&$events, $startIndex, $endIndexExclusive, $columnCount)
+    {
+        for ($i = $startIndex; $i < $endIndexExclusive; $i++) {
+            $events[$i]['columnCount'] = $columnCount;
+        }
+    }
+
+    /**
+     * @param int $columnIndex 0-based column this event sits in
+     * @param int $columnCount total columns its overlap cluster needs
+     * @return string[] [left, width] CSS values (nested calc(), gap-aware)
+     */
+    private function EventColumnStyle($columnIndex, $columnCount)
+    {
+        $inset = self::EVENT_OUTER_INSET_PX;
+        $gap = self::EVENT_COLUMN_GAP_PX;
+
+        if ($columnCount <= 1) {
+            return [$inset . 'px', 'calc(100% - ' . ($inset * 2) . 'px)'];
+        }
+
+        $totalGaps = ($columnCount - 1) * $gap;
+        $columnWidthExpr = '((100% - ' . ($inset * 2 + $totalGaps) . 'px) / ' . $columnCount . ')';
+
+        $left = $columnIndex === 0
+            ? $inset . 'px'
+            : 'calc(' . $inset . 'px + ' . $columnIndex . ' * (' . $columnWidthExpr . ' + ' . $gap . 'px))';
+
+        return [$left, 'calc(' . $columnWidthExpr . ')'];
     }
 
     /**
@@ -281,7 +409,7 @@ class OverviewPresenter
             return '#eef0f4';
         }
 
-        $whiteWeight = 0.82;
+        $whiteWeight = 0.70;
         $mix = function ($channelHex) use ($whiteWeight) {
             $value = hexdec($channelHex);
             return (int) round($value * (1 - $whiteWeight) + 255 * $whiteWeight);

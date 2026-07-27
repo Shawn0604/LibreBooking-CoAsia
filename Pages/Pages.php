@@ -16,7 +16,7 @@ class Pages
     public const CREDITS = 'credits.php';
     public const DASHBOARD = 'dashboard.php';
     public const DISPLAY_RESOURCE = 'resource-display.php';
-    public const DEFAULT_LOGIN = 'overview.php';
+    public const DEFAULT_LOGIN = 'overview_fullcalendar.php';
     public const GUEST_INVITATION_RESPONSES = 'guest-participation.php';
     public const FORGOT_PASSWORD = 'forgot.php';
     public const GUEST_RESERVATION = 'guest-reservation.php';
@@ -41,6 +41,7 @@ class Pages
     public const REGISTRATION = 'register.php';
     public const SCHEDULE = 'schedule.php';
     public const OVERVIEW = 'overview.php';
+    public const OVERVIEW_FULLCALENDAR = 'overview_fullcalendar.php';
     public const MY_MEETINGS = 'my-meetings.php';
     public const SEARCH_RESERVATIONS = 'search-reservations.php';
     public const VIEW_CALENDAR = 'view-calendar.php';
@@ -48,7 +49,7 @@ class Pages
     public const VIEW_SCHEDULE = 'view-schedule.php';
 
     private static $_pages = [
-        1 => ['url' => Pages::OVERVIEW, 'name' => 'Overview'],
+        1 => ['url' => Pages::OVERVIEW_FULLCALENDAR, 'name' => 'Overview'],
         2 => ['url' => Pages::SCHEDULE, 'name' => 'Schedule'],
         3 => ['url' => Pages::MY_CALENDAR, 'name' => 'MyCalendar'],
         4 => ['url' => Pages::CALENDAR, 'name' => 'ResourceCalendar'],

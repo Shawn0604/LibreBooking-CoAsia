@@ -19,7 +19,7 @@
                 <a class="nav" href="{$ScriptUrl}/{Pages::OVERVIEW}?{QueryStringKeys::START_DATE}={$PreviousWeek}" aria-label="Previous week"><i class="bi bi-chevron-left"></i></a>
                 <a class="nav" href="{$ScriptUrl}/{Pages::OVERVIEW}?{QueryStringKeys::START_DATE}={$NextWeek}" aria-label="Next week"><i class="bi bi-chevron-right"></i></a>
             </div>
-            <span class="month-label">{formatdate date=$WeekStart format="Y年n月"}</span>
+            <span class="month-label">{if $WeekStart->Format('Y-m') == $WeekEnd->Format('Y-m')}{formatdate date=$WeekStart format="Y年n月"}{elseif $WeekStart->Format('Y') == $WeekEnd->Format('Y')}{formatdate date=$WeekStart format="Y年n月"}－{formatdate date=$WeekEnd format="n月"}{else}{formatdate date=$WeekStart format="Y年n月"}－{formatdate date=$WeekEnd format="Y年n月"}{/if}</span>
         </div>
 
         <div class="toolbar-actions">
@@ -133,13 +133,13 @@
                         {foreach from=$day.events item=event}
                             <a class="event{if $event.isPast} past{/if}"
                                href="{$ScriptUrl}/{Pages::RESERVATION}?{QueryStringKeys::REFERENCE_NUMBER}={$event.referenceNumber}"
-                               style="top:{$event.top}%; height:{$event.height}%; background:{$event.bg}; border-left-color:{$event.accent};"
+                               style="top:{$event.top}%; height:{$event.height}%; left:{$event.left}; width:{$event.width}; background:{$event.bg}; border-left-color:{$event.accent};"
                                data-resource="{$event.resourceId}"
                                data-title="{if $event.title}{$event.title|escape}{else}{translate key='Untitled'}{/if}"
                                data-resource-name="{$event.resourceName|escape}"
                                data-time-range="{$event.startLabel} – {$event.endLabel}">
                                 <span class="tt">{if $event.title}{$event.title|escape}{else}{translate key='Untitled'}{/if}</span>
-                                <span class="rr">{$event.startLabel} – {$event.endLabel} · {$event.resourceName|escape}</span>
+                                <span class="rr">{$event.startLabel} – {$event.endLabel}</span>
                             </a>
                         {/foreach}
                     </div>

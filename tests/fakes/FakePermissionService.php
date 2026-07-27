@@ -27,6 +27,11 @@ class FakePermissionService implements IPermissionService
      * @var bool|bool[]
      */
     public $_CanViewResource = false;
+    /**
+     * @var bool|bool[]|null null means "not overridden" — falls back to the sequential
+     * ReturnValues behavior existing tests already depend on.
+     */
+    public $_CanAccessResource = null;
 
     /**
      * @param $returnValues array|bool[]
@@ -40,6 +45,13 @@ class FakePermissionService implements IPermissionService
     {
         $this->Resources[] = $resource;
         $this->User = $user;
+
+        if ($this->_CanAccessResource !== null) {
+            if (is_array($this->_CanAccessResource)) {
+                return $this->_CanAccessResource[$resource->GetResourceId()];
+            }
+            return $this->_CanAccessResource;
+        }
 
         return $this->ReturnValues[$this->_invocationCount++];
     }
