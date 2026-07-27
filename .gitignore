@@ -28,8 +28,10 @@
 # Customization Files
 /Web/custom-favicon.png
 /Web/img/custom-logo.png
-# This fork is CoAsia-specific, so its actual brand logo should ship with the repo.
+# This fork is CoAsia-specific, so its actual brand logo/favicon should ship with the repo.
 !/Web/img/custom-logo.png
+!/Web/custom-favicon.png
+!/Web/custom-favicon.ico
 lang/*/*-custom.tpl
 
 # Upload Directories
