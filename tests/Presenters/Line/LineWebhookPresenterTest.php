@@ -57,6 +57,46 @@ class LineWebhookPresenterTest extends TestBase
         $this->assertEquals('LineLinkSuccess', $this->lineService->_Replied[0]['text']);
     }
 
+    public function testRelinkingSameLineIdentityUnlinksThePreviousAccount()
+    {
+        // Same physical LINE identity ('Uabc') was already bound to user 7 (e.g. testing a
+        // different account earlier); now user 42's link code arrives from that same
+        // identity. User 7 should be unlinked so it doesn't keep a stale, silently-broken
+        // binding, and user 42 should end up linked.
+        $newOwner = new FakeUser(42);
+        $previousOwner = new FakeUser(7);
+        $previousOwner->ChangePreference(UserPreferences::LINE_USER_ID, 'Uabc');
+
+        $this->userRepository->_UserByPreferenceMap['LineLinkCode:123456'] = $newOwner;
+        $this->userRepository->_UserByPreferenceMap['LineUserId:Uabc'] = $previousOwner;
+        $this->userRepository->_UserById[42] = $newOwner;
+
+        $this->presenter->HandleEvents([$this->TextMessageEvent('123456', 'Uabc')]);
+
+        $this->assertEquals('', $previousOwner->GetPreferences()->Get(UserPreferences::LINE_USER_ID));
+        $this->assertEquals('Uabc', $newOwner->GetPreferences()->Get(UserPreferences::LINE_USER_ID));
+        $this->assertContains($previousOwner, $this->userRepository->_UpdatedUsers);
+        $this->assertContains($newOwner, $this->userRepository->_UpdatedUsers);
+
+        $this->assertCount(1, $this->lineService->_Replied);
+        $this->assertEquals('LineLinkSuccess', $this->lineService->_Replied[0]['text']);
+    }
+
+    public function testRelinkingSameAccountDoesNotTriggerUnlink()
+    {
+        // If the "previous owner" found for this LineUserId turns out to be the SAME user
+        // that's linking now (re-sending their own code), nothing extra should happen.
+        $user = new FakeUser(42);
+        $this->userRepository->_UserByPreferenceMap['LineLinkCode:123456'] = $user;
+        $this->userRepository->_UserByPreferenceMap['LineUserId:Uabc'] = $user;
+        $this->userRepository->_UserById[42] = $user;
+
+        $this->presenter->HandleEvents([$this->TextMessageEvent('123456', 'Uabc')]);
+
+        $this->assertEquals('Uabc', $user->GetPreferences()->Get(UserPreferences::LINE_USER_ID));
+        $this->assertCount(1, $this->userRepository->_UpdatedUsers);
+    }
+
     public function testCodeNotFoundRepliesWithError()
     {
         $this->userRepository->_UserByPreference = null;

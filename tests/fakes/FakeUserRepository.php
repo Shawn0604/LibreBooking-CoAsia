@@ -84,14 +84,32 @@ class FakeUserRepository implements IUserRepository
     public $_UserByPreference = null;
 
     /**
+     * Optional precise (name, value) -> User map, keyed as "$name:$value" — checked before
+     * falling back to $_UserByPreference, for tests that need LoadByPreference() to return
+     * different users depending on which preference/value was actually queried (e.g.
+     * distinguishing a LINE_LINK_CODE lookup from a LINE_USER_ID lookup in the same test).
+     * @var array<string, User>
+     */
+    public $_UserByPreferenceMap = [];
+
+    /**
      * @param string $name
      * @param string $value
      * @return User
      */
     public function LoadByPreference($name, $value)
     {
+        $key = "$name:$value";
+        if (array_key_exists($key, $this->_UserByPreferenceMap)) {
+            return $this->_UserByPreferenceMap[$key];
+        }
         return $this->_UserByPreference ?? new NullUser();
     }
+
+    /**
+     * @var User[]
+     */
+    public $_UpdatedUsers = [];
 
     /**
      * @param User $user
@@ -100,6 +118,7 @@ class FakeUserRepository implements IUserRepository
     public function Update(User $user)
     {
         $this->_UpdatedUser = $user;
+        $this->_UpdatedUsers[] = $user;
     }
 
     /**

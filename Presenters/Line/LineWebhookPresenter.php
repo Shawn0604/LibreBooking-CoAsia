@@ -55,6 +55,18 @@ class LineWebhookPresenter
             return;
         }
 
+        // One LINE identity is only meaningfully bound to one system account at a time —
+        // testing multiple accounts from the same phone (or genuinely re-linking after
+        // switching accounts) would otherwise leave a stale link on whichever account had
+        // it before, with no way to tell from that account's own settings page that it
+        // silently stopped receiving pushes. Last link wins: unlink the previous owner first.
+        $existingOwner = $this->userRepository->LoadByPreference(UserPreferences::LINE_USER_ID, $lineUserId);
+        if ($existingOwner->Id() !== null && $existingOwner->Id() !== $user->Id()) {
+            $existingOwner->ChangePreference(UserPreferences::LINE_USER_ID, '');
+            $this->userRepository->Update($existingOwner);
+            Log::Debug('LINE webhook: unlinked user %s from LineUserId=%s before relinking to user %s', $existingOwner->Id(), $lineUserId, $user->Id());
+        }
+
         $user->ChangePreference(UserPreferences::LINE_USER_ID, $lineUserId);
         $user->ChangePreference(UserPreferences::LINE_LINK_CODE, '');
         $this->userRepository->Update($user);

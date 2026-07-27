@@ -524,3 +524,28 @@ CanAccessResource(shawn, 每個資源) → 12 個全部 true   ← 應該用這�
 - **表頭多一條沒用的捲軸**：FullCalendar 為了讓不會捲動的日期表頭跟真正會捲動的時間格欄寬保持一致，刻意在表頭也放了一個 `overflow-y:scroll` 的捲動容器，Windows 上會多畫出一條視覺上多餘的捲軸。只隱藏這個容器的捲軸視覺（`scrollbar-width:none` + `::-webkit-scrollbar{display:none}`），保留它原本的 `overflow-y:scroll` 行為不動，避免破壞 FullCalendar 自己用來對齊欄寬的機制——實測表頭跟下方日期欄的左右邊界座標完全一致，沒有跑版。
 - **迷你月曆「本週」標示改成連續色塊**：原本每天都是各自獨立的圓形，改成整週中間幾天用小圓角矩形相連（`border-radius:4px`），只有週一（`:nth-child(7n+1)`）、週日（`:nth-child(7n)`）保留圓角收尾，視覺上讀起來像一條連續的淡色長條而不是 7 個分開的點。若週一剛好是今天，會維持今天原本的實心圓形徽章（渲染邏輯裡 `today` 跟 `in-week` 是互斥的 class，不會衝突）。
 - **現在時間線的圓點位置**：這項來回修了三次才對：第一次只加 `margin-left:3px`，太小，量出來圓點其實整個落在時間欄範圍裡面（偏差 33px，不是切到邊緣的誤差）；第二次改成量出來的 `margin-left:39px`，結果圓點的直接父層容器（`.fc-timegrid-now-indicator-container`，寬度精準對齊時間欄、且 `overflow:hidden`）把移出範圍的圓點直接裁掉，整個消失不見；第三次改用容器右邊界定位（`right:-3px; left:auto;`，圓點半徑 3px），因為那個容器的右邊界本來就精準對齊時間欄／日期欄的分界線（紅線的起點也是同一條界線），不管時間欄實際寬度是多少都會自動對齊，不再是猜出來的固定像素值。連帶把容器的 `overflow:hidden` 改成 `visible`，避免圓點的視覺半徑超出容器邊界被裁切。
+
+---
+
+## 19. LINE 綁定：修正真正卡住的原因 + 一支手機測多帳號會產生殭屍綁定的 bug
+
+### 之前一直測不成功的真正原因
+
+Section 13 當時懷疑是 LINE 官方帳號後台的「聊天模式」設定攔截了訊息、沒有轉發到 webhook，一直沒有解開。這次回頭排查，發現**根本不是那個設定的問題**：本機測試用的 Cloudflare Quick Tunnel（`cloudflared tunnel --url http://localhost:8080`）網址早就失效了——這種免費、匿名的通道每次重新啟動都會換一個全新的隨機網址，只要開著的終端機被關掉或電腦重開機/睡眠過，舊網址就會直接 DNS 解析失敗。用 `curl` 直接測就能確認（回應是「無法解析主機」，不是逾時或拒絕連線）。
+
+換一個新的 tunnel 網址、更新回 LINE 官方帳號後台的 Webhook 設定並重新驗證後：
+- Docker 的存取紀錄直接看到 `POST /Web/line-webhook.php` 從 `LineBotWebhook/2.0` 這個 user agent 進來，回應 200
+- 資料庫確認 `LineUserId` 欄位真的被寫入了 LINE 使用者 ID、`LineLinkCode` 也正確被清空
+- 實際建一筆預約，也確認收到 LINE 推播通知
+
+這是這個功能第一次真正端對端驗證成功。
+
+**给未來的提醒**：Cloudflare Quick Tunnel 只適合臨時測試，正式環境需要一個固定、不會斷線的網址（見 `COASIA-GOLIVE-CHECKLIST.md`），不能繼續依賴這種免帳號的臨時通道。
+
+### 順手修掉的 bug：一支手機測多個帳號會產生殭屍綁定
+
+在實際測試「換帳號重新綁定」的過程中發現：`Presenters/Line/LineWebhookPresenter.php` 原本只會把收到的綁定碼對應到「哪個帳號」，然後把那個帳號的 `LineUserId` 設成傳訊息的人——但完全沒檢查「這個 LINE 身份是不是已經綁在別的系統帳號上」。如果同一支手機（同一個 LINE 身份）先綁了帳號 A、後來又綁了帳號 B，帳號 A 會留下一個看起來還綁著、但那個 LINE 身份早就跑去帳號 B 了的殭屍狀態——帳號 A 的畫面上完全看不出來，通知只會靜靜地收不到。
+
+**修法**：綁定新帳號之前，先用 `LoadByPreference(LINE_USER_ID, $lineUserId)` 查一次這個 LINE 身份目前是不是已經綁在別的帳號上，如果是，就先把舊帳號的 `LineUserId` 清空，再綁到新帳號——後綁的算數，不會再留下殭屍綁定。
+
+新增了 2 個測試案例（`tests/Presenters/Line/LineWebhookPresenterTest.php`）：換帳號綁定會正確解除舊的、同一帳號重複綁定不會誤觸發解綁。同時把 `tests/fakes/FakeUserRepository.php` 的 `LoadByPreference()` 加強成可以依 `(name, value)` 精確配對回傳不同的假使用者（原本只能回傳同一個，測不出「兩次查詢要回傳不同結果」這種情境），並把 `Update()` 改成同時記錄所有被更新過的使用者（`_UpdatedUsers[]`），不再只留最後一次。全部測試（1677，含新增的）全過。
