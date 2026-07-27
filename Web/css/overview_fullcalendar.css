@@ -338,6 +338,22 @@
   width: 0;
 }
 
+/* FullCalendar keeps a second, separate scroller on the (non-scrolling) day-header row
+   purely so its width stays in sync with the real time-grid body scroller below — it forces
+   overflow-y:scroll there even though the header itself never has anything to scroll. That
+   reads as a second, redundant scrollbar next to the real one. Hiding just the scrollbar's
+   own visuals (not the overflow/scroll behavior itself, which FullCalendar's width-sync
+   logic still depends on) removes the visual clutter without breaking that alignment. */
+#fullcalendarRoot .fc-scrollgrid-section-header .fc-scroller {
+  scrollbar-width: none;
+}
+
+#fullcalendarRoot .fc-scrollgrid-section-header .fc-scroller::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 /* ---------- Now-indicator: a 2px line + a small dot instead of FullCalendar's default
    border-triangle arrow, matching #page-overview .now-line/.now-line::before. ---------- */
 
@@ -345,11 +361,29 @@
   border-top: 2px solid var(--reservedMine, #d3202a);
 }
 
+/* The arrow's direct parent (.fc-timegrid-now-indicator-container) is a narrow box sized to
+   exactly match the axis column's width, with overflow:hidden — shifting the arrow via
+   margin-left past that box's own right edge got it clipped invisible rather than moved
+   (confirmed live: container right edge and arrow's shifted position, once past it, silently
+   disappeared). Letting this one container not clip is what actually lets the shift show. */
+#fullcalendarRoot .fc-timegrid-now-indicator-container {
+  overflow: visible;
+}
+
+/* .fc-timegrid-now-indicator-container (the arrow's direct parent, immediately above) is
+   deliberately sized/positioned to match the axis column exactly, i.e. its own right edge
+   IS the axis/day-grid boundary — the same boundary the red line starts from. Anchoring off
+   right (not left + a guessed margin-left px value, which only happened to work for this
+   axis's current width/font/locale) keeps the dot's center pinned exactly on that boundary
+   regardless of how wide the axis column ends up being. */
 #fullcalendarRoot .fc-timegrid-now-indicator-arrow {
+  left: auto;
+  right: -3px;
   border: none;
   width: 6px;
   height: 6px;
   margin-top: -3px;
+  margin-left: 0;
   border-radius: 50%;
   background: var(--reservedMine, #d3202a);
 }
@@ -605,8 +639,21 @@
   font-weight: 500;
 }
 
+/* A full 50% border-radius on every in-week day reads as 7 separate dots sitting close
+   together, especially where the week crosses a month boundary (mixed normal/outside-month
+   text color makes the row look busier). Flattening the radius so only the Monday/Sunday
+   ends stay rounded turns it into one continuous bar instead. */
 .mini-cal-grid button.in-week {
   background: var(--bs-tertiary-bg, #f1f2f6);
+  border-radius: 4px;
+}
+
+.mini-cal-grid button.in-week:nth-child(7n + 1) {
+  border-radius: 13px 4px 4px 13px;
+}
+
+.mini-cal-grid button.in-week:nth-child(7n) {
+  border-radius: 4px 13px 13px 4px;
 }
 
 .mini-cal-grid button.selected-today {
