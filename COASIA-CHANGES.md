@@ -498,3 +498,21 @@ CanAccessResource(shawn, 每個資源) → 12 個全部 true   ← 應該用這�
 - 沒有做同畫面即時預覽下一步的日/週視圖切換動畫或載入態
 - `overview.php` 本身仍然完整保留、可獨立訪問，尚未決定是否/何時要整支移除
 - 產出這份文件當下，`Web/img/logo.png`（2020 年上游遺留、從未被 git 追蹤的舊 placeholder 圖檔）仍原封不動留在檔案系統上，跟這次改動無關，沒有一併處理
+
+---
+
+## 17. 側邊欄品牌列（Logo）在資源清單較長時會被壓扁
+
+上線後回報：側邊欄 Logo 有時候會變小，且看起來每個頁面不太一致。追查過程繞了幾輪彎路（一度以為是圖片本身的 `max-height` 設定問題、一度以為是瀏覽器快取、一度以為是縮放比例），最後由使用者自己用 DevTools 量出關鍵數字才定位到真正原因：`.sidebar-brand`（Logo 所在的品牌列）在正常頁面高度是 `64px`，但在側邊欄資源清單較長的頁面（例如 FullCalendar 總覽頁，清單有 12 個資源 + 迷你月曆）會被壓縮到只剩 `28.73px`。
+
+**根因**：`.app-sidebar` 是一個縱向（`flex-direction:column`）、固定 `height:100vh` 的 flex 容器，原本設定 `overflow-y:auto` 讓自己整個捲動；`.sidebar-brand` 沒有明確設定 `flex-shrink:0`，預設值是 `1`（允許縮小）。當側邊欄裡的導覽/資源清單內容總高度超過 `100vh` 時，瀏覽器的 flex 排版演算法會先嘗試「縮小」有 `flex-shrink` 的項目來塞進固定高度，而不是直接讓內容溢出捲動——結果就是品牌列被當成犧牲品縮小，資源越多的頁面縮得越嚴重。
+
+**修法**（`Web/css/coasia-theme.css`）：
+- `.sidebar-brand` 改成 `flex: 0 0 64px; min-height: 64px;`，明確禁止縮小
+- 導覽區域 `#librebooking-navigation.sidebar-nav-collapse` 改成 `flex: 1 1 auto; min-height: 0; overflow-y: auto;`，讓「需要捲動」這件事改由這個區塊自己承擔，而不是拖累整個側邊欄
+- `.app-sidebar` 本身的 `overflow-y:auto` 改成 `overflow:hidden`（它自己不再需要捲動），原本掛在它身上的自訂捲軸樣式（隱藏軌道、hover 才出現滑塊）比照搬到 `#librebooking-navigation.sidebar-nav-collapse` 上，捲動責任轉移到哪裡，捲軸的視覺效果就要跟到哪裡
+- 手機版斷點（`max-width:991.98px`，側邊欄改 `height:auto` 整頁捲動）不受影響，因為那個情境下容器沒有固定高度，不會觸發這個壓縮行為
+
+**驗證**：刻意把瀏覽器視窗壓到 `1920×700`、側邊欄塞滿全部 12 個資源重現問題（修正前 `.sidebar-brand` 量到 28.73px），修正後同樣條件下量測：導覽區 `scrollHeight`（982px）大於 `clientHeight`（636px），證實內容確實超出、正確觸發內部捲動；`.sidebar-brand` 全程維持 `64px`、Logo 維持 `28px`，不再受影響。
+
+**順手一併修掉的相關小問題**：Logo 圖片本身（`<img class="logo">`）先前只設定 `max-height:28px`，沒有固定 `width`／`flex-shrink:0`，在同一個排版壓力下也可能被連帶壓扁；改成明確的 `height:28px; width:auto; flex-shrink:0;`，跟外層連結 `<a>` 一起排除在縮放範圍外。

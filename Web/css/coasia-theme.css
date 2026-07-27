@@ -99,31 +99,13 @@ img.logo {
   color: #3c4043;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  /* Reserve the scrollbar's width up front so expanding a collapsible group (which can
-     push content past 100vh and trigger the scrollbar) doesn't narrow the sidebar's
-     usable width compared to the collapsed state. */
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  /* This container itself must never scroll or shrink its children to fit — that's what
+     was letting .sidebar-brand get compressed. #librebooking-navigation.sidebar-nav-collapse
+     below is the one flexible child that scrolls internally when the nav/mini-cal/resource
+     list content is taller than the viewport; everything else here (.sidebar-brand) is
+     pinned at a fixed size. */
+  overflow: hidden;
   border-right: 1px solid var(--gcal-border);
-}
-
-.app-sidebar:hover {
-  scrollbar-color: #c7cbd6 transparent;
-}
-
-.app-sidebar::-webkit-scrollbar {
-  width: 8px;
-}
-
-.app-sidebar::-webkit-scrollbar-thumb {
-  background: transparent;
-  border-radius: 4px;
-}
-
-.app-sidebar:hover::-webkit-scrollbar-thumb {
-  background: #c7cbd6;
 }
 
 .app-content {
@@ -132,19 +114,41 @@ img.logo {
 }
 
 /* Brand row is the sidebar's slice of the same 64px header band the page-level
-   toolbar uses (see #page-overview .cal-toolbar) — same height, same border. */
+   toolbar uses (see #page-overview .cal-toolbar) — same height, same border.
+   .app-sidebar is a column flexbox; without an explicit flex-basis/flex-shrink:0 here,
+   this row's default flex-shrink:1 let the flex algorithm compress it below 64px (down to
+   ~28.7px, observed) whenever the sidebar's total content (nav links + mini-cal + resource
+   checklist) was taller than the 100vh sidebar — worse on pages with more resources/links.
+   flex:0 0 64px pins this row's size unconditionally; the scrolling to accommodate tall
+   content now happens in #librebooking-navigation.sidebar-nav-collapse below instead. */
 .sidebar-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 0 0 64px;
   height: 64px;
+  min-height: 64px;
   padding: 0 16px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--gcal-border);
 }
 
+/* The logo link is a flex item of .sidebar-brand — without flex-shrink:0 it's allowed to
+   shrink below its content size whenever the row is tight on space (e.g. a longer company
+   name, or the sidebar briefly narrower during layout), which is what was making the logo
+   render smaller on some pages/loads than others. Pinning both the link and the image
+   themselves (not just max-height, an actual height) makes the size unconditional. */
+.sidebar-brand a:first-child {
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
 .sidebar-brand img.logo {
-  max-height: 28px;
+  height: 28px;
+  width: auto;
+  max-height: none;
+  flex-shrink: 0;
+  display: block;
 }
 
 .sidebar-brand-company {
@@ -212,7 +216,35 @@ img.logo {
 #librebooking-navigation.sidebar-nav-collapse {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 auto;
+  /* Without min-height:0, a flex child defaults to min-height:auto (its content's natural
+     height), which would let it keep growing instead of actually clipping/scrolling —
+     min-height:0 is what allows overflow-y:auto below to take effect at all. */
+  min-height: 0;
+  overflow-y: auto;
+  /* Reserve the scrollbar's width up front so expanding a collapsible group (which can
+     push content past the available height and trigger the scrollbar) doesn't narrow this
+     region's usable width compared to the collapsed state. */
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+#librebooking-navigation.sidebar-nav-collapse:hover {
+  scrollbar-color: #c7cbd6 transparent;
+}
+
+#librebooking-navigation.sidebar-nav-collapse::-webkit-scrollbar {
+  width: 8px;
+}
+
+#librebooking-navigation.sidebar-nav-collapse::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+
+#librebooking-navigation.sidebar-nav-collapse:hover::-webkit-scrollbar-thumb {
+  background: #c7cbd6;
 }
 
 .sidebar-nav {
