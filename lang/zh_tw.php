@@ -563,6 +563,11 @@ class zh_tw extends en_us
         $strings['PhysicalRooms'] = '實體會議室';
         $strings['VideoConferenceResources'] = '視訊會議';
         $strings['MyMeetings'] = '我的會議';
+        $strings['ReservationScopeAll'] = '全體';
+        $strings['ReservationScopeMine'] = '只看我的';
+        $strings['ConfirmDeleteReservation'] = '確定要刪除這筆預約嗎？';
+        $strings['DeleteRecurringScopePrompt'] = '要刪除哪些預約？';
+        $strings['DeleteNotifiesParticipants'] = '刪除後，參與者會收到取消通知。';
         $strings['NewReservation'] = '新增預約';
         $strings['ServerSettings'] = '伺服器設置';
         $strings['Dashboard'] = '控制台';

@@ -946,6 +946,11 @@ class en_us extends Language
         $strings['PhysicalRooms'] = 'Physical Rooms';
         $strings['VideoConferenceResources'] = 'Video Conference';
         $strings['MyMeetings'] = 'My Meetings';
+        $strings['ReservationScopeAll'] = 'All';
+        $strings['ReservationScopeMine'] = 'Mine Only';
+        $strings['ConfirmDeleteReservation'] = 'Are you sure you want to delete this reservation?';
+        $strings['DeleteRecurringScopePrompt'] = 'Which reservations do you want to delete?';
+        $strings['DeleteNotifiesParticipants'] = 'Participants will receive a cancellation notice.';
         $strings['NewReservation'] = 'New Reservation';
         $strings['ServerSettings'] = 'Server Settings';
         $strings['Dashboard'] = 'Dashboard';

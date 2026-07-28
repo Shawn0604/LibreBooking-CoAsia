@@ -49,65 +49,116 @@ class OverviewFullCalendarEventsPresenter
      */
     private $privacyFilter;
 
+    /**
+     * @var IReservationAuthorization
+     */
+    private $reservationAuthorization;
+
     public function __construct(
         IResourceRepository $resourceRepository,
         IReservationViewRepository $reservationViewRepository,
         IPermissionServiceFactory $permissionServiceFactory,
-        IPrivacyFilter $privacyFilter
+        IPrivacyFilter $privacyFilter,
+        IReservationAuthorization $reservationAuthorization
     ) {
         $this->resourceRepository = $resourceRepository;
         $this->reservationViewRepository = $reservationViewRepository;
         $this->permissionServiceFactory = $permissionServiceFactory;
         $this->privacyFilter = $privacyFilter;
+        $this->reservationAuthorization = $reservationAuthorization;
     }
 
     /**
      * @param Date $start
      * @param Date $end
      * @param UserSession $userSession
+     * @param bool $mineOnly When true, ignores resource selection entirely and returns only
+     *   reservations this user is involved in (any role — owner/participant/invitee), same
+     *   query MyMeetingsPresenter uses. Resource-viewability filtering is skipped too: it's
+     *   the user's own reservation, so it should still show even if their access to that
+     *   resource changed since booking.
      * @return array FullCalendar Event Object[]
      */
-    public function GetEvents(Date $start, Date $end, UserSession $userSession)
+    public function GetEvents(Date $start, Date $end, UserSession $userSession, $mineOnly = false)
     {
         $allResources = $this->resourceRepository->GetResourceList();
-        $viewableResources = $this->FilterViewableResources($allResources, $userSession);
-        $resourceColors = $this->AssignColors($viewableResources);
 
-        $viewableResourceIds = [];
-        foreach ($viewableResources as $resource) {
-            $viewableResourceIds[$resource->GetId()] = true;
+        if ($mineOnly) {
+            $viewableResourceIds = null;
+            $resourceColors = $this->AssignColors($allResources);
+            $reservations = $this->reservationViewRepository->GetReservations(
+                $start,
+                $end,
+                $userSession->UserId,
+                ReservationUserLevel::ALL,
+                null,
+                null,
+                false
+            );
+        } else {
+            $viewableResources = $this->FilterViewableResources($allResources, $userSession);
+            $resourceColors = $this->AssignColors($viewableResources);
+
+            $viewableResourceIds = [];
+            foreach ($viewableResources as $resource) {
+                $viewableResourceIds[$resource->GetId()] = true;
+            }
+
+            $reservations = $this->reservationViewRepository->GetReservations(
+                $start,
+                $end,
+                null,
+                null,
+                null,
+                null,
+                false
+            );
         }
-
-        $reservations = $this->reservationViewRepository->GetReservations(
-            $start,
-            $end,
-            null,
-            null,
-            null,
-            null,
-            false
-        );
 
         $timezone = $userSession->Timezone;
         $scriptUrl = Configuration::Instance()->GetScriptUrl();
         $events = [];
+        // Memoized per reference number — GetEvents() gets one ReservationItemView row per
+        // resource (consolidateByReferenceNumber=false), so a multi-resource reservation
+        // would otherwise re-fetch the same ReservationView from the DB once per resource row.
+        $reservationViewsByReferenceNumber = [];
 
         foreach ($reservations as $reservation) {
             // Only resources this user is actually allowed to view make it into the feed
-            // at all — not just filtered client-side.
-            if (!isset($viewableResourceIds[$reservation->ResourceId])) {
+            // at all — not just filtered client-side. Skipped entirely in $mineOnly mode
+            // ($viewableResourceIds === null), see the doc comment above.
+            if ($viewableResourceIds !== null && !isset($viewableResourceIds[$reservation->ResourceId])) {
                 continue;
             }
 
             $canViewDetails = $this->privacyFilter->CanViewDetails($userSession, $reservation, $reservation->UserId);
             if ($canViewDetails) {
                 $title = !empty($reservation->Title) ? $reservation->Title : '未命名預約';
+                $ownerName = (string)$reservation->GetUserName();
             } else {
                 // Same privacy rule Domain/Access-level consumers already respect
                 // (lib/Application/Reservation/PrivacyFilter.php) — never leak the real
-                // title to someone who isn't the owner/admin/authorized viewer.
+                // title to someone who isn't the owner/admin/authorized viewer. Owner name
+                // is withheld the same way — seeing WHO booked a slot you can't see the
+                // purpose of is still a privacy leak.
                 $title = '忙碌';
+                $ownerName = '';
             }
+
+            // Real authorization check (ReservationAuthorization::CanEdit(), the same service
+            // Presenters/Reservation/ReservationPage.php's edit form uses) — not a guessed
+            // "ownerId === currentUserId" shortcut, which would miss admin/resource-admin
+            // edit rights and would wrongly grant edit to someone who is merely a
+            // participant/invitee (relevant for $mineOnly, which includes those roles).
+            // Also gated on $canViewDetails: someone who can't even see the real title must
+            // never get an edit/delete affordance either.
+            $referenceNumber = $reservation->ReferenceNumber;
+            if (!array_key_exists($referenceNumber, $reservationViewsByReferenceNumber)) {
+                $reservationViewsByReferenceNumber[$referenceNumber] =
+                    $this->reservationViewRepository->GetReservationForEditing($referenceNumber);
+            }
+            $canEdit = $canViewDetails
+                && $this->reservationAuthorization->CanEdit($reservationViewsByReferenceNumber[$referenceNumber], $userSession);
 
             $colors = $resourceColors[$reservation->ResourceId] ?? ['bg' => '#5c6b84'];
 
@@ -121,8 +172,13 @@ class OverviewFullCalendarEventsPresenter
                 'borderColor' => $colors['bg'],
                 'textColor' => '#1c2333',
                 'extendedProps' => [
+                    'referenceNumber' => $reservation->ReferenceNumber,
                     'resourceId' => (string)$reservation->ResourceId,
                     'resourceName' => $reservation->ResourceName,
+                    'ownerName' => $ownerName,
+                    'canEdit' => $canEdit,
+                    'canDelete' => $canEdit,
+                    'isRecurring' => (bool)$reservation->IsRecurring,
                 ],
             ];
         }

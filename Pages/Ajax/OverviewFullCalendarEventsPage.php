@@ -4,6 +4,7 @@ require_once(ROOT_DIR . 'Pages/SecurePage.php');
 require_once(ROOT_DIR . 'Presenters/OverviewFullCalendarEventsPresenter.php');
 require_once(ROOT_DIR . 'Domain/Access/namespace.php');
 require_once(ROOT_DIR . 'lib/Application/Authorization/namespace.php');
+require_once(ROOT_DIR . 'lib/Application/Reservation/namespace.php');
 
 /**
  * Prototype-only JSON feed backing Web/overview_fullcalendar.php's FullCalendar instance.
@@ -23,17 +24,19 @@ class OverviewFullCalendarEventsPage extends SecurePage
 
         $start = Date::Parse($this->GetQuerystring('start'), $userSession->Timezone);
         $end = Date::Parse($this->GetQuerystring('end'), $userSession->Timezone);
+        $mineOnly = $this->GetQuerystring('mine') === '1';
 
         $presenter = new OverviewFullCalendarEventsPresenter(
             new ResourceRepository(),
             new ReservationViewRepository(),
             new PermissionServiceFactory(),
-            new PrivacyFilter()
+            new PrivacyFilter(),
+            new ReservationAuthorization(AuthorizationServiceFactory::GetAuthorizationService())
         );
 
         $events = [];
         if (!($start instanceof NullDate) && !($end instanceof NullDate)) {
-            $events = $presenter->GetEvents($start, $end, $userSession);
+            $events = $presenter->GetEvents($start, $end, $userSession, $mineOnly);
         }
 
         header('Content-Type: application/json; charset=utf-8');

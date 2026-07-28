@@ -29,6 +29,39 @@ $(function () {
         return isVideo ? 'video' : 'physical';
     }
 
+    // ---- Resource checklist is single-select here (per category): users expect "click a
+    // room, see only that room's bookings", not the multi-resource color-overlay this
+    // checkbox markup was originally built for. The markup/CSS (globalheader.tpl,
+    // "checked" on every box) is shared with overview.php, which still wants real
+    // multi-select — so exclusivity is enforced purely in JS on this page, without
+    // touching the shared template. ----
+    function $resourceCheckboxesIn(category) {
+        return $('#resourceSidebar input[type="checkbox"][data-resource]').filter(function () {
+            return categoryOf($(this).data('resource')) === category;
+        });
+    }
+
+    function selectSingleResource($checkbox) {
+        var category = categoryOf($checkbox.data('resource'));
+        $resourceCheckboxesIn(category).each(function () {
+            this.checked = (this === $checkbox.get(0));
+        });
+    }
+
+    function initSingleSelectResources() {
+        ['physical', 'video'].forEach(function (category) {
+            var $inCategory = $resourceCheckboxesIn(category);
+            if (!$inCategory.length) {
+                return;
+            }
+            var $toSelect = $inCategory.filter(':checked').first();
+            if (!$toSelect.length) {
+                $toSelect = $inCategory.first();
+            }
+            selectSingleResource($toSelect);
+        });
+    }
+
     function setCalCategory(category) {
         activeCalCategory = category;
         $('#fcCategoryTabs .cal-category-tab').each(function () {
@@ -45,6 +78,31 @@ $(function () {
         var category = $(this).data('category');
         if (category !== activeCalCategory) {
             setCalCategory(category);
+        }
+    });
+
+    // ---- Reservation scope (全體／只看我的) — a SEPARATE dimension from resource type.
+    // Independent of activeCalCategory: switching scope must not touch the resource
+    // category, the sidebar's selected resource, the calendar's current date/view, or its
+    // scroll position — it only changes whether the fetched events are further narrowed to
+    // this user's own reservations (see the events() callback below, and
+    // OverviewFullCalendarEventsPresenter::GetEvents()'s $mineOnly branch on the server).
+    var mineOnly = false;
+
+    function setReservationScope(scope) {
+        mineOnly = (scope === 'mine');
+        $('#fcScopeTabs .cal-category-tab').each(function () {
+            $(this).toggleClass('active', $(this).data('scope') === scope);
+        });
+        if (typeof calendar !== 'undefined') {
+            calendar.refetchEvents();
+        }
+    }
+
+    $('#fcScopeTabs .cal-category-tab').on('click', function () {
+        var scope = $(this).data('scope');
+        if ((scope === 'mine') !== mineOnly) {
+            setReservationScope(scope);
         }
     });
 
@@ -494,6 +552,110 @@ $(function () {
         }
     });
 
+    // Explicit close button — clicking outside still works (handler above), but a card
+    // with edit/delete actions on it needs its own unambiguous "I'm done" control too.
+    $('#epCloseBtn').on('click', function (e) {
+        e.preventDefault();
+        closeEventPopover();
+    });
+
+    // ---- Delete confirmation — reuses the existing ajax/reservation_delete.php pipeline
+    // (Presenters/Reservation/ReservationDeletePresenter.php, SeriesUpdateScope) rather than
+    // a new endpoint/format. Edit reuses the existing full reservation.php form entirely
+    // (info.event.url); only delete needs a request built from here, since there's no form
+    // on this page to submit. ----
+    var $deleteModalEl = $('#deleteReservationModal');
+    var deleteReservationModal = $deleteModalEl.length && window.bootstrap ? new bootstrap.Modal($deleteModalEl[0]) : null;
+    var pendingDelete = null; // { referenceNumber, isRecurring }
+    var deleteInFlight = false;
+
+    function setDeleteInFlight(inFlight) {
+        deleteInFlight = inFlight;
+        $('#epDeleteConfirmBtn').prop('disabled', inFlight);
+        $('.del-btn-spinner').toggleClass('d-none', !inFlight);
+        $('#epDeleteConfirmLabel').toggleClass('d-none', inFlight);
+    }
+
+    function submitDelete() {
+        if (!pendingDelete || deleteInFlight) {
+            return;
+        }
+        // Single reservations never show the scope radios (checked value defaults to
+        // 'full' either way) — a series-of-one being deleted "in full" is just that one
+        // reservation, same default the classic edit.tpl form ships with.
+        var scope = pendingDelete.isRecurring
+            ? ($('input[name="epDeleteScope"]:checked').val() || 'full')
+            : 'full';
+
+        setDeleteInFlight(true);
+
+        var body = new URLSearchParams();
+        body.set('CSRF_TOKEN', opts.csrfToken);
+        body.set('referenceNumber', pendingDelete.referenceNumber);
+        body.set('seriesUpdateScope', scope);
+        body.set('DELETE_REASON', $('#epDeleteReason').val());
+
+        $('#epDeleteError').addClass('d-none').empty();
+
+        fetch(opts.deleteUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+            credentials: 'same-origin',
+        })
+            .then(function (res) { return res.json().catch(function () { return {}; }); })
+            .then(function (json) {
+                // Pages/Ajax/ReservationDeletePage.php's JSON sibling (ReservationDeleteJsonPage,
+                // selected by ?{QueryStringKeys::RESPONSE_TYPE}=json i.e. ?rs=json) returns
+                // {"deleted":"1"} on success, or {"response":{"deleted":""},"errors":[...]} on
+                // failure (Pages/Page.php::SetJson()) — both shapes are handled here rather than
+                // assuming just one, so a real backend error message reaches the user instead of a
+                // generic "something went wrong".
+                var deleted = json && (json.deleted === '1' || (json.response && json.response.deleted === '1'));
+                if (deleted) {
+                    if (deleteReservationModal) {
+                        deleteReservationModal.hide();
+                    }
+                    closeEventPopover();
+                    pendingDelete = null;
+                    calendar.refetchEvents();
+                    return;
+                }
+                var errors = (json && json.errors) || [];
+                $('#epDeleteError').removeClass('d-none').html(
+                    errors.length ? errors.join('<br>') : 'Delete failed.'
+                );
+            })
+            .catch(function () {
+                $('#epDeleteError').removeClass('d-none').text('Network error — please try again.');
+            })
+            .finally(function () {
+                setDeleteInFlight(false);
+            });
+    }
+
+    $('#epDeleteConfirmBtn').on('click', submitDelete);
+
+    $('#epDeleteBtn').on('click', function () {
+        var referenceNumber = $(this).data('reference-number');
+        if (!referenceNumber) {
+            return;
+        }
+        var isRecurring = !!$(this).data('is-recurring');
+        pendingDelete = { referenceNumber: referenceNumber, isRecurring: isRecurring };
+
+        $('#epDeleteReason').val('');
+        $('#epDeleteError').addClass('d-none').empty();
+        $('#epDeleteRecurringBody').toggleClass('d-none', !isRecurring);
+        $('input[name="epDeleteScope"][value="full"]').prop('checked', true);
+        setDeleteInFlight(false);
+
+        closeEventPopover();
+        if (deleteReservationModal) {
+            deleteReservationModal.show();
+        }
+    });
+
     var calendar = new FullCalendar.Calendar(rootEl, {
         // Free/Standard plugins only — no resourceTimeGrid/resourceTimeline/Scheduler.
         initialView: 'timeGridWeek',
@@ -507,6 +669,7 @@ $(function () {
         headerToolbar: false,
         nowIndicator: true,
         scrollTime: '08:00:00',
+        scrollTimeReset: false,
         slotDuration: '00:30:00',
         slotLabelFormat: { hour: '2-digit', minute: '2-digit', hour12: false, meridiem: false },
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false, meridiem: false },
@@ -647,11 +810,25 @@ $(function () {
                     + ' – ' + formatTimeLabel(eventEnd.getUTCHours() * 60 + eventEnd.getUTCMinutes())
                 : '';
 
+            var extendedProps = info.event.extendedProps || {};
+            var canEdit = !!extendedProps.canEdit;
+            var canDelete = !!extendedProps.canDelete;
+
             $('#epColorBar').css('background', info.event.borderColor || info.event.backgroundColor);
             $('#epTitle').text(info.event.title);
             $('#epTime').text(timeRangeText);
-            $('#epResource').text((info.event.extendedProps && info.event.extendedProps.resourceName) || '');
+            $('#epResource').text(extendedProps.resourceName || '');
+            $('#epOwnerRow').toggleClass('d-none', !extendedProps.ownerName);
+            $('#epOwner').text(extendedProps.ownerName || '');
             $('#epViewLink').attr('href', info.event.url || '#');
+            // Other people's reservations only ever get "查看詳情" — edit/delete are gated on
+            // the server-computed canEdit/canDelete (ReservationAuthorization::CanEdit(), see
+            // OverviewFullCalendarEventsPresenter::GetEvents()), never assumed client-side.
+            $('#epEditLink').attr('href', info.event.url || '#').toggleClass('d-none', !canEdit);
+            $('#epDeleteBtn')
+                .toggleClass('d-none', !canDelete)
+                .data('reference-number', extendedProps.referenceNumber || null)
+                .data('is-recurring', !!extendedProps.isRecurring);
 
             var $container = $('#page-overview-fc');
             var containerOffset = $container.offset();
@@ -666,9 +843,16 @@ $(function () {
             }).addClass('show');
         },
         events: function (fetchInfo, successCallback, failureCallback) {
+            // Scope (mine/all) and resource type (physical/video) are independent filters —
+            // both apply together, not one-or-the-other. mine=1 narrows the server-side
+            // query to this user's own reservations (any role — see
+            // OverviewFullCalendarEventsPresenter::GetEvents()'s $mineOnly branch); the
+            // category + checked-resource filter below still applies on top of that, same
+            // as when scope is "all".
             var url = opts.eventsUrl
                 + '?start=' + encodeURIComponent(fetchInfo.startStr)
-                + '&end=' + encodeURIComponent(fetchInfo.endStr);
+                + '&end=' + encodeURIComponent(fetchInfo.endStr)
+                + (mineOnly ? '&mine=1' : '');
 
             fetch(url, { credentials: 'same-origin' })
                 .then(function (response) {
@@ -691,6 +875,7 @@ $(function () {
         },
     });
 
+    initSingleSelectResources();
     calendar.render();
 
     // FullCalendar measures its container once at render() time; if that happened before
@@ -704,9 +889,16 @@ $(function () {
 
     setCalCategory(activeCalCategory);
 
-    // Same resource checklist already in the shared sidebar (tpl/globalheader.tpl) —
-    // re-filter by re-running the events function above rather than hiding DOM nodes.
+    // Same resource checklist already in the shared sidebar (tpl/globalheader.tpl), but
+    // single-select here (see initSingleSelectResources above): checking a box exclusively
+    // selects it within its category; unchecking the only selected box is a no-op (a
+    // category always has exactly one resource selected).
     $('#resourceSidebar input[type="checkbox"][data-resource]').on('change', function () {
+        if (this.checked) {
+            selectSingleResource($(this));
+        } else {
+            this.checked = true;
+        }
         calendar.refetchEvents();
     });
 

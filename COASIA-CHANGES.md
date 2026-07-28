@@ -549,3 +549,60 @@ Section 13 當時懷疑是 LINE 官方帳號後台的「聊天模式」設定攔
 **修法**：綁定新帳號之前，先用 `LoadByPreference(LINE_USER_ID, $lineUserId)` 查一次這個 LINE 身份目前是不是已經綁在別的帳號上，如果是，就先把舊帳號的 `LineUserId` 清空，再綁到新帳號——後綁的算數，不會再留下殭屍綁定。
 
 新增了 2 個測試案例（`tests/Presenters/Line/LineWebhookPresenterTest.php`）：換帳號綁定會正確解除舊的、同一帳號重複綁定不會誤觸發解綁。同時把 `tests/fakes/FakeUserRepository.php` 的 `LoadByPreference()` 加強成可以依 `(name, value)` 精確配對回傳不同的假使用者（原本只能回傳同一個，測不出「兩次查詢要回傳不同結果」這種情境），並把 `Update()` 改成同時記錄所有被更新過的使用者（`_UpdatedUsers[]`），不再只留最後一次。全部測試（1677，含新增的）全過。
+
+---
+
+## 20. 側邊欄單選會議室、「只看我的」預約範圍、事件卡片開始支援編輯／刪除
+
+這次是使用者實際以「一般員工」角度操作系統後，一連串回饋累積出來的一批修改，最後收斂成一次比較大的介面升級。
+
+### 20.1 側邊欄會議室清單從多選改成單選
+
+使用者開會後回饋：畫面目前是「全部會議室打勾、疊在同一週檢視上、用顏色區分」的 Google Calendar 風格，但實際使用情境是「點哪一間會議室，就只顯示那一間」。改法：
+
+- `Web/scripts/overview_fullcalendar.js` 新增 `initSingleSelectResources()`／`selectSingleResource()`，讓側邊欄 checkbox 在**同一個資源分類（實體／視訊）內**維持「永遠剛好一個被勾選」——勾其中一個會自動取消其他個，想取消唯一勾選的那個會被擋下來（永遠留一個）。底層 `<input type="checkbox">` 完全沒動，因為這個標記／樣式跟 `overview.php` 共用（那邊仍然要維持真正的多選疊圖），所以排他邏輯只在這個頁面自己的 JS 裡處理，沒有動共用樣板。
+- 視覺上原本是「方塊 checkbox + 打勾符號」，改成「固定顯示的圓形色點（純粹當顏色圖例）+ 選中列反白、文字變粗體主色」，跟側邊欄其他導覽項目「目前選中」的視覺語言（`.sidebar-sublink.active`）一致，不再是另外發明一套勾選符號。
+
+### 20.2 兩個真實回歸 bug（都是使用者自己抓出根因的）
+
+- **點擊靠下方的會議室（例如高爾夫球室），側邊欄整個跑版、行事曆時間軸重設到 00:00**：真正根因是 `.res-check input` 用 `position:absolute` 但 `width:0; height:0`，導致這個可以取得焦點的隱藏 checkbox 縮成一個 0 大小的點；瀏覽器為了讓取得焦點的元素進入可視範圍，會捲動 `.app-sidebar`，看起來就像側欄上方的 Logo/Admin/新增預約整組消失。修法：`.res-check` 補上 `position:relative`，`.res-check input` 改成 `inset:0; width:100%; height:100%`，讓隱藏的 input 覆蓋整列而不是縮成一個點。同時 FullCalendar 選項補上 `scrollTimeReset:false`（原本 `refetchEvents()` 會把時間軸捲動位置重設回預設的 08:00 附近，`scrollTimeReset:false` 讓它保留使用者原本捲到的位置）。
+- **選中會議室後名字變粗體，長名字的會議室（「高爾夫球室 Golf Room」）會把側欄整個撐寬**：`.res-check-name` 有 `overflow:hidden` + `text-overflow:ellipsis`，但沒有 `min-width:0`——flex 子元素預設的 `min-width:auto` 會用文字完整展開的寬度當底線，導致 ellipsis 從來沒真的生效過；平常字重 400 時剛好卡在邊界勉強擠得下，選中後變粗體字（500）才真的撐爆。補上 `min-width:0` 後恢復正常截斷。
+
+### 20.3 新增「我的會議」→ 後來拆成兩個獨立維度：預約範圍 × 資源類型
+
+一開始的做法是把「我的會議」當成第三個分類分頁，跟「實體會議室／視訊會議」放在同一組互斥按鈕裡；使用者馬上指出這是錯的：**資源類型跟預約範圍是兩個不同維度，不該擠在同一組分頁**。改成兩組完全獨立的控制（外加原本就有的檢視方式 日／週／月），三組在工具列上用比較大的間距（8px→20px）隔開，讓使用者一眼看出是三個維度：
+
+```
+預約範圍：[全體｜只看我的]
+資源類型：[實體會議室｜視訊會議]
+檢視方式：[日｜週｜月]
+```
+
+JS 狀態對應拆成 `activeCalCategory`（只會是 `'physical'`/`'video'`）跟獨立的 `var mineOnly = false;`，兩者互不影響——切換「只看我的」不會動到目前選的資源分類、勾選的會議室、日期、檢視方式或捲動位置。抓事件時 `mine=1` 只決定要不要加這個查詢參數，資源分類＋勾選會議室的過濾**永遠都套用**，不會因為切到「只看我的」就整個繞過。
+
+後端：`OverviewFullCalendarEventsPresenter::GetEvents()` 新增 `$mineOnly` 參數，開啟時改用跟既有「我的會議」獨立頁面（`MyMeetingsPresenter`）完全相同的查詢方式——`GetReservations(..., $userSession->UserId, ReservationUserLevel::ALL, ...)`。追進 SQL 層（`lib/Database/Commands/Queries.php` 的 `GET_RESERVATION_LIST`）確認 `ReservationUserLevel::ALL`（值 0）真的會讓「我建立的＋我是participant＋我是invitee」都撈到，不是只有建立人——「只看我的」這個標籤名稱是準確的。同時 `$mineOnly` 模式刻意跳過資源可視權限過濾，因為是自己的預約，就算之後對該資源的權限被收回也該看得到。
+
+### 20.4 事件卡片點不開的 bug
+
+使用者發現：`overview_fullcalendar.php` 頁面完全無法點開已存在的預約。透過 Console 逐步排查（`document.getElementById('eventPopover').outerHTML` 前後對照）確認 `eventClick` 有正常執行、資料也完全正確、`show` class 也確實被加上去了——問題出在 `tpl/Overview/overview_fullcalendar.tpl` 裡 `#eventPopover` 一開始就帶有 Bootstrap 的 `d-none`（`display:none !important`），JS 只負責加 `show`，從未移除 `d-none`，`.event-popover.show` 的 `opacity/visibility` 規則完全無法覆蓋過 `!important` 的 `display:none`。修法：直接移除模板上多餘的 `d-none`，讓 `.event-popover` 自己的 `opacity:0; visibility:hidden` 初始狀態接手。
+
+### 20.5 事件卡片支援編輯／刪除（Stage 1）
+
+使用者指出：新版行事曆完全沒有修改／刪除既有預約的路徑，只有新增能用。查證後確認：底層能力（`ReservationAuthorization::CanEdit()`、`Web/ajax/reservation_delete.php` 等）都還在、也還能正常運作，缺的是新版 UI 完全沒接上去。
+
+- **後端**：`OverviewFullCalendarEventsPresenter::GetEvents()` 新增 `IReservationAuthorization` 依賴，透過既有 `ReservationAuthorization::CanEdit()`（不是猜 `ownerId === currentUserId`）計算每筆事件的 `canEdit`/`canDelete`；每個 reference number 記憶化呼叫一次 `GetReservationForEditing()`，避免同一預約橫跨多資源時重複查詢。關鍵防護：`canEdit = canViewDetails && CanEdit(...)`——就算授權服務判定可編輯，只要隱私規則不讓你看到真實標題（例如只看得到「忙碌」），編輯／刪除一律不給；同一邏輯也套用在新增的 `ownerName` 欄位上（看得到「是誰訂的」但看不到訂了什麼，一樣算洩漏）。
+- **前端**：事件卡片 popover 依 `canEdit`/`canDelete` 顯示或隱藏編輯／刪除；刪除走新增的確認 modal，單次預約簡單確認、重複預約要選範圍（僅這一次／這一次及之後／整個系列，對應既有 `SeriesUpdateScope`），送出打既有 `ajax/reservation_delete.php`。
+- **踩到的坑**：一開始刪除送到 `?response_type=json`，實際上這個系統判斷要不要回傳乾淨 JSON 靠的常數是 `QueryStringKeys::RESPONSE_TYPE`，真實值是 `'rs'`——參數名稱猜錯，導致後端悄悄 fallback 成 HTML 片段回應，刪除本身在資料庫層是成功的，但前端解析失敗顯示假的「Delete failed.」，使用者因此重試好幾次、對已刪除的預約再次刪除還觸發了一個 500 錯誤（`ApplyChangesTo() on null`）。改成 `?{QueryStringKeys::RESPONSE_TYPE}=json` 後正常。同時補上刪除送出中防止重複點擊。
+- 新增 6 個 PHPUnit 測試（`canEdit` 反映真實授權而非 owner 判斷、privacy 優先於授權、`isRecurring`／`ownerName` 正確性、「只看我的」不會讓 participant/invitee 拿到編輯權），另外補上一個被遺漏在 `tests/fakes/namespace.php` 裡從未真正接上的 `FakeReservationAuthorization`。
+
+### 20.6 事件卡片與刪除對話框視覺改版（Google Calendar / Material 3 風格）
+
+Stage 1 做完後使用者指出：編輯/刪除的視覺跟主行事曆的 Google Calendar 風格不一致——popover 底部塞了三個文字按鈕看起來像傳統後台，刪除對話框是標準 Bootstrap header/footer + 三顆紅色按鈕。改版：
+
+- **事件卡片**：右上角改成三個 36×36px 圓形 icon button（編輯／刪除／關閉），預設透明背景、hover 淡灰圓底，刪除只有 hover 才轉紅（平時中性灰色）；「查看詳情」改成卡片底部的純文字連結（帶箭頭圖示），不再是主要按鈕；新增「預約人」列。
+- **刪除對話框**：拿掉 Bootstrap 標準 `.modal-header`/`.modal-footer`/`.btn-outline-danger`，改成置中垃圾桶圖示＋標題＋「刪除後參與者會收到取消通知」提示文字；重複預約的範圍選擇從三顆並排紅色按鈕改成 radio list，整個對話框只留一顆實心紅色按鈕（確認鍵）；送出中顯示 spinner 並停用按鈕。
+- 在 `#page-overview-fc` 新增一組共用 design token（`--surface`/`--surface-muted`/`--border`/`--text-primary`/`--text-secondary`/`--danger`/`--dialog-radius`/`--control-radius`/`--icon-button-size`），`--primary` 等既有全站變數則直接沿用 `coasia-theme.css` 的定義，沒有另外定義一份數值不同、會造成分裂的顏色。
+
+### 尚未完成：同頁快速編輯（Stage 2）
+
+使用者要求編輯也要能不離開行事曆頁面、用跟快速新增同一顆 modal（`mode=create`/`mode=edit`）完成基本欄位修改，進階內容（重複規則、參與者、提醒等）交給「更多選項」連去舊表單。這部分還沒做——先查證了資料庫，確認目前真的有預約在用參與者（2 筆）、提醒（4 筆）、自訂欄位（`Test Number`/`Test String`，各 21 筆）這幾個「快速編輯 UI 不會露出、但絕對不能被清空」的欄位，附件/訪客邀請/配件則整個系統停用或完全沒有資源掛勾，可以放心跳過。下一步要先做一個「讀取完整預約資料」的後端端點，把這些沒露出的欄位原封不動地帶回去，再接上共用 modal，避免快速編輯把使用者既有的參與者/提醒/自訂欄位資料洗掉。

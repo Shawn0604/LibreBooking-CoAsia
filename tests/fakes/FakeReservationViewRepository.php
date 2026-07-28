@@ -40,6 +40,10 @@ class FakeReservationViewRepository implements IReservationViewRepository
      */
     public $_LastResourceIds;
 
+    public $_LastUserIds;
+
+    public $_LastUserLevel;
+
     /**
      * @var array<int, ReservationItemView|array<ReservationItemView>>
      */
@@ -80,6 +84,8 @@ class FakeReservationViewRepository implements IReservationViewRepository
     ) {
         $this->_LastScheduleIds = $scheduleIds;
         $this->_LastResourceIds = $resourceIds;
+        $this->_LastUserIds = $userIds;
+        $this->_LastUserLevel = $userLevel;
         $this->_LastRange = new DateRange($startDate, $endDate);
 
         if (!empty($this->_ReservationsIteration)) {

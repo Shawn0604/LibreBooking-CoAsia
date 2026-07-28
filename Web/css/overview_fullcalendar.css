@@ -4,6 +4,21 @@
    real overview.php, even if both ever loaded on the same page by accident. */
 
 #page-overview-fc {
+  /* Shared design tokens for this page's own components (event popover, delete dialog,
+     quick-create/quick-edit modal) — new tokens only where no global one already exists.
+     --primary/--bs-tertiary-bg/--bs-border-radius-sm etc. are coasia-theme.css's own
+     global tokens and are reused as-is everywhere below rather than duplicated here, so
+     these components never drift from the rest of the app's palette. */
+  --surface: #fff;
+  --surface-muted: #f6f7fb;
+  --border: #e4e7ee;
+  --text-primary: #1c2333;
+  --text-secondary: #6c7488;
+  --danger: #c5221f;
+  --dialog-radius: 16px;
+  --control-radius: 10px;
+  --icon-button-size: 36px;
+
   position: relative;
   display: flex;
   flex-direction: column;
@@ -142,10 +157,14 @@
 #page-overview-fc .toolbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  /* Wider than a single pill-group's own internal gap (2px, below) so the three
+     independent dimensions — scope / resource type / view — read as separate controls,
+     not one long row of buttons. */
+  gap: 20px;
   margin-left: auto;
 }
 
+#page-overview-fc .cal-scope-tabs,
 #page-overview-fc .cal-category-tabs,
 #page-overview-fc .cal-view-tabs {
   display: inline-flex;
@@ -668,11 +687,20 @@
   flex-direction: column;
 }
 
+/* Single-select list row (see Web/scripts/overview_fullcalendar.js's
+   initSingleSelectResources()/selectSingleResource()) — the underlying <input
+   type="checkbox"> is still what the JS toggles (kept as-is since the markup is shared
+   with overview.php's real multi-select checklist via globalheader.tpl), but visually
+   this now reads as "pick one from a list", not "toggle several on/off": the colour
+   swatch is a constant per-resource legend rather than a checkbox, and the selected row
+   is shown via a highlighted background + accent-coloured label, matching how
+   .sidebar-sublink.active already marks the active nav item (coasia-theme.css). */
 .res-check {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 28px;
+  min-height: 32px;
   padding: 0 10px;
   box-sizing: border-box;
   cursor: pointer;
@@ -683,37 +711,30 @@
   background: var(--bs-tertiary-bg, #f1f2f6);
 }
 
+.res-check:has(input:checked) {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+/* inset:0 + width/height:100% (not width/height:0) so the hidden input still covers
+   the full row instead of collapsing to a 0x0 point — a 0-size focusable element made
+   the browser auto-scroll .app-sidebar to bring it into view on click (position:absolute
+   with no positioned ancestor previously let it escape .res-check entirely). */
 .res-check input {
   position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   opacity: 0;
-  width: 0;
-  height: 0;
+  cursor: pointer;
 }
 
 .res-check-box {
-  width: 18px;
-  height: 18px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
-  border-radius: 2px;
+  border-radius: 50%;
   background: var(--check-color, #5c6b84);
-  position: relative;
-}
-
-.res-check input:not(:checked) + .res-check-box {
-  background: transparent;
-  border: 2px solid var(--check-color, #5c6b84);
-}
-
-.res-check input:checked + .res-check-box::after {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 2px;
-  width: 5px;
-  height: 9px;
-  border: solid #fff;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
 }
 
 .res-check-name {
@@ -723,6 +744,16 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Flex items default to min-width:auto, which keeps the *unwrapped* text width as a
+     floor and defeats text-overflow:ellipsis. min-width:0 lets it actually shrink/
+     truncate instead of forcing the row (and sidebar) wider than its fixed width. */
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.res-check:has(input:checked) .res-check-name {
+  color: var(--primary);
+  font-weight: 500;
 }
 
 /* ---------- Quick-create modal + event popover (same booking UX as overview.php) ----------
@@ -958,9 +989,9 @@
 .event-popover {
   position: absolute;
   z-index: 30;
-  width: 280px;
-  background: #fff;
-  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  width: 300px;
+  background: var(--surface);
+  border-radius: var(--dialog-radius);
   box-shadow: var(--bs-box-shadow);
   overflow: hidden;
   opacity: 0;
@@ -985,14 +1016,51 @@
   height: 6px;
 }
 
+/* Icon-only action row — never text buttons, matching Google Calendar's own event card
+   (edit/delete/close as 36px circular icon buttons, transparent until hover). */
+.event-popover .ep-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 6px 6px 0;
+}
+
+.event-popover .ep-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.event-popover .ep-icon-btn:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--text-primary);
+}
+
+/* Delete stays neutral gray at rest — only turns red (var(--danger)) on hover, so the
+   card isn't shouting "danger" every time it's opened. */
+.event-popover .ep-icon-btn-danger:hover {
+  background: #fbe9e7;
+  color: var(--danger);
+}
+
 .event-popover .ep-body {
-  padding: 16px 18px 10px;
+  padding: 4px 18px 10px;
 }
 
 .event-popover .ep-title {
   font-size: 15px;
   font-weight: 500;
-  color: #1c2333;
+  color: var(--text-primary);
   margin-bottom: 10px;
 }
 
@@ -1002,11 +1070,11 @@
   gap: 12px;
   padding: 4px 0;
   font-size: 13px;
-  color: #3c4043;
+  color: var(--text-primary);
 }
 
 .event-popover .ep-row i {
-  color: #6c7488;
+  color: var(--text-secondary);
   width: var(--gcal-icon-size);
   text-align: center;
   flex-shrink: 0;
@@ -1015,7 +1083,214 @@
 .event-popover .ep-footer {
   display: flex;
   justify-content: flex-end;
-  padding: 10px 18px 16px;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
+
+/* "查看詳情" is a plain text link here, not a button — this card's only affirmative
+   action is edit/delete (icon buttons above); viewing details is secondary. */
+.event-popover .ep-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.event-popover .ep-link-btn:hover {
+  text-decoration: underline;
+}
+
+.event-popover .ep-link-btn i {
+  font-size: 11px;
+}
+
+/* ---------- Delete confirmation dialog — custom surface, not Bootstrap defaults.
+   Bootstrap (data-bs-toggle/dismiss, the Modal() JS instance) only drives show/hide here;
+   every visible rule below is page-scoped so nothing depends on .modal-header/.modal-footer/
+   .btn-outline-danger/.btn-group. ---------- */
+
+#deleteReservationModal .modal-dialog {
+  max-width: 440px;
+}
+
+.del-dialog {
+  position: relative;
+  border: none;
+  border-radius: var(--dialog-radius);
+  box-shadow: var(--bs-box-shadow-lg, 0 1rem 3rem rgba(0, 0, 0, 0.175));
+  overflow: hidden;
+}
+
+.del-close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.del-close-btn:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--text-primary);
+}
+
+.del-body {
+  padding: 32px 28px 8px;
+  text-align: center;
+}
+
+.del-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #fbe9e7;
+  color: var(--danger);
+  font-size: 20px;
+}
+
+.del-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.del-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+}
+
+.del-scope {
+  text-align: left;
+  background: var(--surface-muted);
+  border-radius: var(--control-radius);
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.del-scope-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.del-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.del-reason {
+  text-align: left;
+  margin-bottom: 4px;
+}
+
+.del-reason label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.del-reason textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  resize: vertical;
+}
+
+.del-reason textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.del-error {
+  text-align: left;
+  font-size: 12px;
+  color: var(--danger);
+  background: #fbe9e7;
+  border-radius: var(--control-radius);
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+
+.del-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 28px 28px;
+}
+
+.del-btn-text {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: 100px;
+  cursor: pointer;
+}
+
+.del-btn-text:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--text-primary);
+}
+
+/* The dialog's one and only solid/filled button. */
+.del-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: var(--danger);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 18px;
+  border-radius: 100px;
+  cursor: pointer;
+}
+
+.del-btn-danger:hover {
+  background: #a91b18;
+}
+
+.del-btn-danger:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.del-btn-spinner {
+  width: 14px;
+  height: 14px;
 }
 
 /* FullCalendar's native drag-select highlight (.fc-highlight) already provides the

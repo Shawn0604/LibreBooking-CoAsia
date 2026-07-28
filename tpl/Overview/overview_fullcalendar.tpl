@@ -19,6 +19,15 @@
         </div>
 
         <div class="toolbar-actions">
+            {* Three independent dimensions — reservation scope (mine/all), resource type
+               (physical/video), and view (day/week/month) are NOT the same axis and must
+               not share one mutually-exclusive tab group. Each toggles its own state in
+               overview_fullcalendar.js (mineOnly / activeCalCategory / FullCalendar's view)
+               without touching the other two. *}
+            <div class="cal-scope-tabs" id="fcScopeTabs">
+                <button type="button" class="cal-category-tab active" data-scope="all">{translate key='ReservationScopeAll'}</button>
+                <button type="button" class="cal-category-tab" data-scope="mine">{translate key='ReservationScopeMine'}</button>
+            </div>
             <div class="cal-category-tabs" id="fcCategoryTabs">
                 <button type="button" class="cal-category-tab active" data-category="physical">{translate key='PhysicalRooms'}</button>
                 <button type="button" class="cal-category-tab" data-category="video">{translate key='VideoConferenceResources'}</button>
@@ -91,15 +100,84 @@
         </div>
     </div>
 
-    <div class="event-popover d-none" id="eventPopover">
+    {* Google Calendar-style event card: a thin colour strip, an icon-only action row
+       (edit/delete/close — never text buttons), body rows, and "查看詳情" as a plain text
+       link (not a primary button) at the bottom. Edit/delete are hidden per-event via
+       canEdit/canDelete (server-computed, ReservationAuthorization::CanEdit()) — someone
+       who can only view gets the close button and the details link, nothing else. *}
+    <div class="event-popover" id="eventPopover">
         <div class="ep-color-bar" id="epColorBar"></div>
+        <div class="ep-toolbar">
+            <a href="#" id="epEditLink" class="ep-icon-btn d-none" title="{translate key='Edit'}" aria-label="{translate key='Edit'}">
+                <i class="bi bi-pencil"></i>
+            </a>
+            <button type="button" id="epDeleteBtn" class="ep-icon-btn ep-icon-btn-danger d-none" title="{translate key='Delete'}" aria-label="{translate key='Delete'}">
+                <i class="bi bi-trash"></i>
+            </button>
+            <button type="button" id="epCloseBtn" class="ep-icon-btn" title="{translate key='Cancel'}" aria-label="{translate key='Cancel'}">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
         <div class="ep-body">
             <div class="ep-title" id="epTitle"></div>
             <div class="ep-row"><i class="bi bi-clock"></i><span id="epTime"></span></div>
             <div class="ep-row"><i class="bi bi-geo-alt"></i><span id="epResource"></span></div>
+            <div class="ep-row d-none" id="epOwnerRow"><i class="bi bi-person"></i><span id="epOwner"></span></div>
         </div>
         <div class="ep-footer">
-            <a href="#" id="epViewLink" class="btn btn-sm btn-primary">{translate key='ViewDetails'}</a>
+            <a href="#" id="epViewLink" class="ep-link-btn">{translate key='ViewDetails'} <i class="bi bi-arrow-right"></i></a>
+        </div>
+    </div>
+
+    {* Delete confirmation — reuses the existing delete pipeline (Web/ajax/reservation_delete.php,
+       Presenters/Reservation/ReservationDeletePresenter.php, SeriesUpdateScope) rather than a new
+       endpoint. Non-recurring reservations get a plain confirm; recurring ones pick a scope via
+       radio list (ThisInstance/FutureInstances/FullSeries) instead of three separate action
+       buttons — this dialog has exactly one affirmative action ("delete"), never three. No
+       Bootstrap .modal-header/.modal-footer/.btn-outline-danger — Bootstrap only drives the
+       show/hide behavior here; every visible surface is del-* (overview_fullcalendar.css). *}
+    <div class="modal fade" id="deleteReservationModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content del-dialog">
+                <button type="button" class="del-close-btn" data-bs-dismiss="modal" aria-label="{translate key='Cancel'}">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <div class="del-body">
+                    <div class="del-icon"><i class="bi bi-trash"></i></div>
+                    <div class="del-title">{translate key='ConfirmDeleteReservation'}</div>
+                    <div class="del-subtitle">{translate key='DeleteNotifiesParticipants'}</div>
+
+                    <div id="epDeleteRecurringBody" class="del-scope d-none">
+                        <div class="del-scope-label">{translate key='DeleteRecurringScopePrompt'}</div>
+                        <label class="del-radio">
+                            <input type="radio" name="epDeleteScope" value="this">
+                            <span>{translate key='ThisInstance'}</span>
+                        </label>
+                        <label class="del-radio">
+                            <input type="radio" name="epDeleteScope" value="future">
+                            <span>{translate key='FutureInstances'}</span>
+                        </label>
+                        <label class="del-radio">
+                            <input type="radio" name="epDeleteScope" value="full" checked>
+                            <span>{translate key='AllInstances'}</span>
+                        </label>
+                    </div>
+
+                    <div class="del-reason">
+                        <label for="epDeleteReason">{translate key='Reason'} ({translate key='Optional'})</label>
+                        <textarea id="epDeleteReason" rows="2"></textarea>
+                    </div>
+
+                    <div id="epDeleteError" class="del-error d-none"></div>
+                </div>
+                <div class="del-footer">
+                    <button type="button" class="del-btn-text" data-bs-dismiss="modal">{translate key='Cancel'}</button>
+                    <button type="button" class="del-btn-danger" id="epDeleteConfirmBtn">
+                        <span class="spinner-border spinner-border-sm del-btn-spinner d-none" aria-hidden="true"></span>
+                        <span id="epDeleteConfirmLabel">{translate key='Delete'}</span>
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -113,6 +191,10 @@
         reservationUrl: '{$ScriptUrl}/{Pages::RESERVATION}',
         eventsUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_events.php',
         saveUrl: '{$ScriptUrl}/ajax/reservation_save.php',
+        {* QueryStringKeys::RESPONSE_TYPE is 'rs', not 'response_type' — that's what actually
+           routes DeleteReservationPageFactory to ReservationDeleteJsonPage (clean JSON) instead
+           of the default HTML-fragment ReservationDeletePage. *}
+        deleteUrl: '{$ScriptUrl}/ajax/reservation_delete.php?{QueryStringKeys::RESPONSE_TYPE}=json',
         csrfToken: '{$CSRFToken|escape:'javascript'}',
         currentUserId: {$UserId},
         timezone: '{$Timezone|escape:'javascript'}',
