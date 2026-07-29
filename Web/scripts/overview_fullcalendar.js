@@ -559,6 +559,20 @@ $(function () {
         closeEventPopover();
     });
 
+    // Edit opens the reservation Drawer in place — never navigates to reservation.php for
+    // the normal flow (openReservationDrawer is defined further down; safe to reference here
+    // since this handler only runs on a later click, same pattern setCalCategory() already
+    // uses for the `calendar` variable it references before its own declaration).
+    $('#epEditLink').on('click', function (e) {
+        e.preventDefault();
+        var referenceNumber = $(this).data('reference-number');
+        if (!referenceNumber) {
+            return;
+        }
+        closeEventPopover();
+        openReservationDrawer({ mode: 'edit', referenceNumber: referenceNumber });
+    });
+
     // ---- Delete confirmation — reuses the existing ajax/reservation_delete.php pipeline
     // (Presenters/Reservation/ReservationDeletePresenter.php, SeriesUpdateScope) rather than
     // a new endpoint/format. Edit reuses the existing full reservation.php form entirely
@@ -594,6 +608,9 @@ $(function () {
         body.set('referenceNumber', pendingDelete.referenceNumber);
         body.set('seriesUpdateScope', scope);
         body.set('DELETE_REASON', $('#epDeleteReason').val());
+        if (pendingDelete.version != null) {
+            body.set('expectedVersion', pendingDelete.version);
+        }
 
         $('#epDeleteError').addClass('d-none').empty();
 
@@ -622,6 +639,13 @@ $(function () {
                     return;
                 }
                 var errors = (json && json.errors) || [];
+                var code = json && json.response && json.response.code;
+                if (code === 'reservation_changed') {
+                    // Someone else already changed (or deleted) this reservation — refresh the
+                    // calendar so stale event data doesn't linger, and say why nothing happened
+                    // rather than silently failing or retrying the same stale delete.
+                    calendar.refetchEvents();
+                }
                 $('#epDeleteError').removeClass('d-none').html(
                     errors.length ? errors.join('<br>') : 'Delete failed.'
                 );
@@ -654,6 +678,505 @@ $(function () {
         if (deleteReservationModal) {
             deleteReservationModal.show();
         }
+    });
+
+    // ---- Reservation Drawer — the one full editor shared by "更多選項" (create) and the
+    // event card's pencil icon (edit). Replaces navigating to reservation.php for the normal
+    // flow; that page stays reachable directly (bookmarks/admin) but nothing in this UI
+    // routes a regular user through it anymore.
+    //
+    // Edit-mode saves hit a DEDICATED endpoint (ajax/overview_fullcalendar_reservation_update.php
+    // / OverviewFullCalendarReservationUpdatePresenter), not ajax/reservation_update.php. That
+    // classic endpoint rebuilds the whole reservation from submitted form fields — anything
+    // omitted (participants, invitees, guests, accessories, attributes, reminders, repeat
+    // rule) reads as "clear it" — so echoing loaded data back through the browser to survive
+    // a basic edit was a real data-loss risk (stale/incomplete/tampered payload). The
+    // dedicated endpoint instead loads the existing series server-side and touches ONLY
+    // title/description/start/end/resource, leaving everything else exactly as persisted.
+    var $drawerEl = $('#reservationDrawer');
+    var reservationDrawer = $drawerEl.length && window.bootstrap ? new bootstrap.Modal($drawerEl[0]) : null;
+    var drawerState = null; // { mode: 'create'|'edit', referenceNumber, echo, saved }
+    var drawerDirty = false;
+
+    function buildTimeSelectOptions($select) {
+        $select.empty();
+        for (var m = 0; m < 24 * 60; m += 30) {
+            var value = minutesToHHMMSS(m);
+            $select.append($('<option>').val(value).text(formatTimeLabel(m)));
+        }
+    }
+
+    // A reservation's real time (e.g. 09:15) may not land on this UI's 30-minute grid.
+    // .val('09:15:00') on a <select> with no matching <option> silently leaves nothing
+    // selected — the field would look right but submit empty. Inject the exact value as its
+    // own option first so it's always selectable and never gets rounded off.
+    function ensureTimeOption($select, value) {
+        if (value && !$select.find('option[value="' + value + '"]').length) {
+            var minutes = parseInt(value.slice(0, 2), 10) * 60 + parseInt(value.slice(3, 5), 10);
+            $select.append($('<option>').val(value).text(formatTimeLabel(minutes)));
+        }
+        $select.val(value);
+    }
+
+    function populateDrawerResourceOptions(category, selectedResourceId) {
+        var groups = opts.resourceGroups || { physical: [], video: [] };
+        var list = groups[category] || [];
+        var $select = $('#rdResource').empty();
+        list.forEach(function (r) {
+            $select.append($('<option>').val(String(r.id)).text(r.name));
+        });
+        if (selectedResourceId != null) {
+            $select.val(String(selectedResourceId));
+        } else if (list.length) {
+            $select.val(String(list[0].id));
+        }
+    }
+
+    function setDrawerCategory(category, selectedResourceId) {
+        $('#rdCategoryTabs .rd-category-tab').each(function () {
+            $(this).toggleClass('active', $(this).data('category') === category);
+        });
+        populateDrawerResourceOptions(category, selectedResourceId);
+    }
+
+    $('#rdCategoryTabs .rd-category-tab').on('click', function () {
+        var category = $(this).data('category');
+        if (!$(this).hasClass('active')) {
+            setDrawerCategory(category, null);
+            drawerDirty = true;
+        }
+    });
+
+    ['#rdTitle', '#rdDescription', '#rdStartDate', '#rdStartTime', '#rdEndDate', '#rdEndTime', '#rdResource'].forEach(function (sel) {
+        $(sel).on('input change', function () { drawerDirty = true; });
+    });
+
+    function resetDrawerUI() {
+        $('#rdTitle').val('').prop('disabled', false);
+        $('#rdDescription').val('').prop('disabled', false);
+        $('#rdStartDate, #rdEndDate').prop('disabled', false);
+        $('#rdStartTime, #rdEndTime, #rdResource').prop('disabled', false);
+        $('#rdCategoryTabs .rd-category-tab').prop('disabled', false);
+        $('#rdRecurringSummary, #rdParticipantsSummary, #rdRemindersSummary').addClass('d-none');
+        $('#rdLoadError').addClass('d-none').empty();
+        $('#rdSaveError').addClass('d-none').empty();
+        $('#rdTimeError').addClass('d-none').empty();
+        $('#rdSkeleton').addClass('d-none');
+        $('#rdForm').removeClass('d-none');
+        $('#rdSaveBtn').removeClass('d-none').prop('disabled', false);
+        $('.rd-save-spinner').addClass('d-none');
+        $('#rdDeleteBtn, #rdDeleteFooterBtn').addClass('d-none');
+        drawerDirty = false;
+    }
+
+    function reminderIntervalLabel(interval) {
+        var key = { minutes: 'minutes', hours: 'hours', days: 'days' }[interval];
+        return key ? (opts.translations && opts.translations[key]) || interval : interval;
+    }
+
+    function repeatSummaryText(repeat) {
+        var labels = { daily: '每天', weekly: '每週', monthly: '每月', yearly: '每年', custom: '自訂' };
+        return labels[repeat.type] || repeat.type;
+    }
+
+    function populateDrawerFromData(data) {
+        var canEdit = !!data.canEdit;
+
+        $('#rdTitle').val(data.title || '').prop('disabled', !canEdit);
+        $('#rdDescription').val(data.description || '').prop('disabled', !canEdit);
+        $('#rdStartDate').val(data.startDate).prop('disabled', !canEdit);
+        $('#rdEndDate').val(data.endDate).prop('disabled', !canEdit);
+        $('#rdStartTime, #rdEndTime').prop('disabled', !canEdit);
+        buildTimeSelectOptions($('#rdStartTime'));
+        buildTimeSelectOptions($('#rdEndTime'));
+        ensureTimeOption($('#rdStartTime'), data.startTime);
+        ensureTimeOption($('#rdEndTime'), data.endTime);
+        $('#rdResource').prop('disabled', !canEdit);
+        $('#rdCategoryTabs .rd-category-tab').prop('disabled', !canEdit);
+        setDrawerCategory(categoryOf(data.resourceId), data.resourceId);
+
+        if (data.isRecurring) {
+            $('#rdRecurringSummary').removeClass('d-none');
+            $('#rdRecurringSummaryText').text(repeatSummaryText(data.repeat) + '重複');
+        }
+
+        var peopleCount = (data.participants || []).length + (data.invitees || []).length;
+        if (peopleCount > 0) {
+            $('#rdParticipantsSummary').removeClass('d-none');
+            $('#rdParticipantsSummaryText').text(peopleCount + ' 位參與者（更多選項可管理）');
+        }
+
+        var reminderParts = [];
+        if (data.reminders.start.enabled) {
+            reminderParts.push('開始前 ' + data.reminders.start.value + ' ' + reminderIntervalLabel(data.reminders.start.interval));
+        }
+        if (data.reminders.end.enabled) {
+            reminderParts.push('結束前 ' + data.reminders.end.value + ' ' + reminderIntervalLabel(data.reminders.end.interval));
+        }
+        if (reminderParts.length) {
+            $('#rdRemindersSummary').removeClass('d-none');
+            $('#rdRemindersSummaryText').text(reminderParts.join('、'));
+        }
+
+        $('#rdDeleteBtn').toggleClass('d-none', !data.canDelete);
+        $('#rdDeleteFooterBtn').toggleClass('d-none', !data.canDelete);
+        $('#rdSaveBtn').toggleClass('d-none', !canEdit);
+    }
+
+    // One UUID per logical "create a reservation" attempt — kept for the lifetime of that
+    // attempt (including any HTTP retries a double-click or network hiccup causes) and only
+    // replaced when a genuinely new attempt starts (the Drawer opens fresh in create mode).
+    // Lets the server (IdempotencyService, reservation_requests table) recognize a resend of
+    // the same attempt and return the original reservation instead of creating a second one.
+    function generateRequestId() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = (Math.random() * 16) | 0;
+            var v = c === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+        });
+    }
+
+    function openReservationDrawer(options) {
+        options = options || {};
+        var mode = options.mode || 'create';
+        resetDrawerUI();
+        drawerState = {
+            mode: mode,
+            referenceNumber: options.referenceNumber || null,
+            echo: null,
+            saved: false,
+            requestId: mode === 'create' ? generateRequestId() : null,
+        };
+
+        $('#rdHeaderTitle').text(mode === 'edit' ? opts.translations.editReservation : opts.translations.newReservation);
+        $('#rdSaveLabel').text(mode === 'edit' ? opts.translations.update : opts.translations.create);
+
+        if (reservationDrawer) {
+            reservationDrawer.show();
+        }
+
+        if (mode === 'create') {
+            var draft = options.draft || {};
+            buildTimeSelectOptions($('#rdStartTime'));
+            buildTimeSelectOptions($('#rdEndTime'));
+            ensureTimeOption($('#rdStartTime'), draft.beginTime);
+            ensureTimeOption($('#rdEndTime'), draft.endTime);
+            $('#rdTitle').val(draft.title || '');
+            $('#rdDescription').val(draft.description || '');
+            $('#rdStartDate').val(draft.date || '');
+            $('#rdEndDate').val(draft.date || '');
+            setDrawerCategory(draft.resourceId ? categoryOf(draft.resourceId) : activeResourceCategory, draft.resourceId);
+            drawerDirty = false;
+            return;
+        }
+
+        // Edit mode — never trust the calendar's own lightweight event fields for anything
+        // beyond what to show while loading; the real data always comes from the server.
+        $('#rdForm').addClass('d-none');
+        $('#rdSkeleton').removeClass('d-none');
+
+        fetch(opts.reservationDataUrl + '?' + new URLSearchParams({ rn: options.referenceNumber }).toString(), {
+            credentials: 'same-origin',
+        })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                $('#rdSkeleton').addClass('d-none');
+                if (!data || !data.found || !data.canView) {
+                    $('#rdLoadError').removeClass('d-none').text(opts.translations.loadReservationFailed);
+                    return;
+                }
+                $('#rdForm').removeClass('d-none');
+                drawerState.echo = data;
+                populateDrawerFromData(data);
+                drawerDirty = false;
+            })
+            .catch(function () {
+                $('#rdSkeleton').addClass('d-none');
+                $('#rdLoadError').removeClass('d-none').text(opts.translations.networkErrorRetry);
+            });
+    }
+
+    // Leaving with unsaved edits (backdrop click, ESC, close/cancel buttons — all funnel
+    // through Bootstrap's hide()) prompts once rather than silently discarding input.
+    $drawerEl.on('hide.bs.modal', function (e) {
+        if (drawerDirty && !(drawerState && drawerState.saved)) {
+            if (!window.confirm(opts.translations.unsavedChangesPrompt)) {
+                e.preventDefault();
+            }
+        }
+    });
+    $drawerEl.on('hidden.bs.modal', function () {
+        drawerDirty = false;
+    });
+
+    $('#rdCloseBtn').on('click', function () {
+        if (reservationDrawer) {
+            reservationDrawer.hide();
+        }
+    });
+
+    function openDrawerDeleteConfirm() {
+        if (!drawerState || !drawerState.referenceNumber) {
+            return;
+        }
+        var isRecurring = !!(drawerState.echo && drawerState.echo.isRecurring);
+        // version: only available when the Drawer itself loaded the reservation (has echo);
+        // the event-popover's direct delete button below has no loaded version to offer, so
+        // that path falls back to whatever version gets loaded fresh at delete time server-side
+        // (still race-safe against a concurrent writer, just not stale-edit-safe).
+        var version = drawerState.echo && drawerState.echo.version != null ? drawerState.echo.version : null;
+        pendingDelete = { referenceNumber: drawerState.referenceNumber, isRecurring: isRecurring, version: version };
+
+        $('#epDeleteReason').val('');
+        $('#epDeleteError').addClass('d-none').empty();
+        $('#epDeleteRecurringBody').toggleClass('d-none', !isRecurring);
+        $('input[name="epDeleteScope"][value="full"]').prop('checked', true);
+        setDeleteInFlight(false);
+
+        if (reservationDrawer) {
+            reservationDrawer.hide();
+        }
+        if (deleteReservationModal) {
+            deleteReservationModal.show();
+        }
+    }
+
+    $('#rdDeleteBtn, #rdDeleteFooterBtn').on('click', openDrawerDeleteConfirm);
+
+    // ---- Save. Create still goes through the existing ajax/reservation_save.php (a brand
+    // new reservation has no prior participants/reminders/etc to lose). Edit goes through
+    // the dedicated basic-fields-only endpoint described above, NOT ajax/reservation_update.php
+    // — see the Drawer's opening comment for why. Neither path reimplements validation,
+    // conflict checking, permissions, or notifications. ----
+
+    function drawerStartEndValues() {
+        return {
+            startDate: $('#rdStartDate').val(),
+            startTime: $('#rdStartTime').val(),
+            endDate: $('#rdEndDate').val(),
+            endTime: $('#rdEndTime').val(),
+        };
+    }
+
+    function validateDrawerTimes() {
+        var v = drawerStartEndValues();
+        $('#rdTimeError').addClass('d-none').empty();
+        if (!v.startDate || !v.startTime || !v.endDate || !v.endTime) {
+            return true; // let the backend's own required-field validation handle blanks
+        }
+        // Plain string comparison works here since both are zero-padded ISO-ish
+        // (YYYY-MM-DD / HH:MM:SS) — correctly orders across day boundaries too.
+        var start = v.startDate + ' ' + v.startTime;
+        var end = v.endDate + ' ' + v.endTime;
+        if (end <= start) {
+            $('#rdTimeError').removeClass('d-none').text(opts.translations.endBeforeStart);
+            return false;
+        }
+        return true;
+    }
+
+    function buildCreateBody() {
+        var v = drawerStartEndValues();
+        var body = new URLSearchParams();
+        body.set('CSRF_TOKEN', opts.csrfToken);
+        body.set('userId', opts.currentUserId);
+        body.set('resourceId', $('#rdResource').val());
+        body.set('reservationTitle', $('#rdTitle').val());
+        body.set('reservationDescription', $('#rdDescription').val());
+        body.set('beginDate', v.startDate);
+        body.set('beginPeriod', v.startTime);
+        body.set('endDate', v.endDate);
+        body.set('endPeriod', v.endTime);
+        body.set('repeatOptions', 'none');
+        if (drawerState.requestId) {
+            body.set('requestId', drawerState.requestId);
+        }
+        return body;
+    }
+
+    function buildEditBody(scope) {
+        var v = drawerStartEndValues();
+        var body = new URLSearchParams();
+        body.set('CSRF_TOKEN', opts.csrfToken);
+        body.set('referenceNumber', drawerState.referenceNumber);
+        body.set('seriesUpdateScope', scope || 'full');
+        body.set('resourceId', $('#rdResource').val());
+        body.set('reservationTitle', $('#rdTitle').val());
+        body.set('reservationDescription', $('#rdDescription').val());
+        body.set('beginDate', v.startDate);
+        body.set('beginPeriod', v.startTime);
+        body.set('endDate', v.endDate);
+        body.set('endPeriod', v.endTime);
+        // The version this Drawer loaded the reservation at (OverviewFullCalendarReservationPresenter's
+        // 'version' field) — round-tripped so the server can detect someone else having changed
+        // it in between (Domain/Access/ReservationRepository.php's WHERE version=? check), not
+        // just a request racing with THIS one.
+        if (drawerState.echo && drawerState.echo.version != null) {
+            body.set('expectedVersion', drawerState.echo.version);
+        }
+        return body;
+    }
+
+    function setDrawerSaving(saving) {
+        $('#rdSaveBtn').prop('disabled', saving);
+        $('.rd-save-spinner').toggleClass('d-none', !saving);
+    }
+
+    function submitReservationCreate() {
+        setDrawerSaving(true);
+        $('#rdSaveError').addClass('d-none').empty();
+
+        fetch(opts.saveUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: buildCreateBody().toString(),
+            credentials: 'same-origin',
+        })
+            .then(function (res) { return res.text(); })
+            .then(function (html) {
+                var $result = $('<div></div>').html(html);
+                if ($result.find('#reservation-created').length) {
+                    drawerState.saved = true;
+                    drawerDirty = false;
+                    if (reservationDrawer) {
+                        reservationDrawer.hide();
+                    }
+                    calendar.refetchEvents();
+                    return;
+                }
+                var $failed = $result.find('#reservation-failed');
+                var messages = $failed.find('.error > div').map(function () {
+                    return $(this).text().trim();
+                }).get().filter(Boolean);
+                $('#rdSaveError').removeClass('d-none').html(
+                    messages.length ? messages.join('<br>') : $failed.text().trim() || 'Save failed.'
+                );
+            })
+            .catch(function () {
+                $('#rdSaveError').removeClass('d-none').text(opts.translations.networkErrorRetry);
+            })
+            .finally(function () {
+                setDrawerSaving(false);
+            });
+    }
+
+    function submitReservationEdit(scope) {
+        setDrawerSaving(true);
+        $('#rdSaveError').addClass('d-none').empty();
+
+        fetch(opts.reservationUpdateUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: buildEditBody(scope).toString(),
+            credentials: 'same-origin',
+        })
+            .then(function (res) { return res.json().catch(function () { return {}; }); })
+            .then(function (json) {
+                if (json && json.success) {
+                    drawerState.saved = true;
+                    drawerDirty = false;
+                    if (reservationDrawer) {
+                        reservationDrawer.hide();
+                    }
+                    calendar.refetchEvents();
+                    return;
+                }
+                if (json && json.code === 'reservation_changed') {
+                    showDrawerVersionConflict(json.message);
+                    return;
+                }
+                if (json && json.code === 'resource_conflict') {
+                    // Someone else just booked the resource/time this Drawer was trying to
+                    // save into — refresh the calendar so it's visible, but keep the Drawer
+                    // open with the user's input intact rather than closing or discarding it.
+                    calendar.refetchEvents();
+                }
+                var errors = (json && json.errors) || [];
+                $('#rdSaveError').removeClass('d-none').html(
+                    errors.length ? errors.join('<br>') : 'Save failed.'
+                );
+            })
+            .catch(function () {
+                $('#rdSaveError').removeClass('d-none').text(opts.translations.networkErrorRetry);
+            })
+            .finally(function () {
+                setDrawerSaving(false);
+            });
+    }
+
+    // Someone else changed this reservation since the Drawer loaded it (409 reservation_changed
+    // — see Domain/Access/ReservationRepository.php's version check). Never silently overwrite
+    // their change or silently discard the user's own in-progress edit: show both options and
+    // let the user pick. "重新載入" re-fetches the current server data into the Drawer (discarding
+    // local edits); doing nothing leaves the form as-is so the user can copy their text elsewhere
+    // before deciding, but resubmitting will keep failing the same way until they reload.
+    function showDrawerVersionConflict(message) {
+        var $error = $('#rdSaveError').removeClass('d-none').empty();
+        $('<div></div>').text(message || opts.translations.reservationChanged).appendTo($error);
+        $('<button type="button" class="btn btn-sm btn-warning mt-2"></button>')
+            .text(opts.translations.reloadLatest)
+            .on('click', function () {
+                if (!drawerState || !drawerState.referenceNumber) {
+                    return;
+                }
+                openReservationDrawer({ mode: 'edit', referenceNumber: drawerState.referenceNumber });
+            })
+            .appendTo($error);
+    }
+
+    function submitReservationSave(scope) {
+        if (drawerState.mode === 'edit') {
+            submitReservationEdit(scope);
+        } else {
+            submitReservationCreate();
+        }
+    }
+
+    var $updateScopeModalEl = $('#reservationUpdateScopeModal');
+    var reservationUpdateScopeModal = $updateScopeModalEl.length && window.bootstrap ? new bootstrap.Modal($updateScopeModalEl[0]) : null;
+
+    $('#rdSaveBtn').on('click', function () {
+        if (!validateDrawerTimes()) {
+            return;
+        }
+        var isEditingRecurring = drawerState.mode === 'edit' && drawerState.echo && drawerState.echo.isRecurring;
+        if (isEditingRecurring) {
+            $('input[name="rdUpdateScope"][value="full"]').prop('checked', true);
+            if (reservationUpdateScopeModal) {
+                reservationUpdateScopeModal.show();
+            }
+            return;
+        }
+        submitReservationSave('full');
+    });
+
+    $('#rdUpdateScopeConfirmBtn').on('click', function () {
+        var scope = $('input[name="rdUpdateScope"]:checked').val() || 'full';
+        if (reservationUpdateScopeModal) {
+            reservationUpdateScopeModal.hide();
+        }
+        submitReservationSave(scope);
+    });
+
+    // "更多選項" no longer navigates away — it opens the same Drawer in create mode,
+    // carrying over whatever the user already typed into the quick-create popup.
+    $('#qcMoreOptions').on('click', function (e) {
+        e.preventDefault();
+        var draft = {
+            title: $('#qcTitle').val(),
+            description: $('#qcDescription').val(),
+            date: pending ? pending.date : '',
+            beginTime: pending ? minutesToHHMMSS(pending.beginMinutes) : '',
+            endTime: pending ? minutesToHHMMSS(pending.endMinutes) : '',
+            resourceId: pending ? pending.resourceId : null,
+        };
+        if (quickCreateModal) {
+            quickCreateModal.hide();
+        }
+        openReservationDrawer({ mode: 'create', draft: draft });
     });
 
     var calendar = new FullCalendar.Calendar(rootEl, {
@@ -824,7 +1347,10 @@ $(function () {
             // Other people's reservations only ever get "查看詳情" — edit/delete are gated on
             // the server-computed canEdit/canDelete (ReservationAuthorization::CanEdit(), see
             // OverviewFullCalendarEventsPresenter::GetEvents()), never assumed client-side.
-            $('#epEditLink').attr('href', info.event.url || '#').toggleClass('d-none', !canEdit);
+            $('#epEditLink')
+                .attr('href', info.event.url || '#')
+                .toggleClass('d-none', !canEdit)
+                .data('reference-number', extendedProps.referenceNumber || null);
             $('#epDeleteBtn')
                 .toggleClass('d-none', !canDelete)
                 .data('reference-number', extendedProps.referenceNumber || null)

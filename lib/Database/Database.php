@@ -82,4 +82,38 @@ class Database
 
         return $insertedId;
     }
+
+    /**
+     * @return int rows affected by the most recent Execute() — used for optimistic-locking
+     *   UPDATE ... WHERE version = ? checks (0 affected = someone else changed it first).
+     */
+    public function GetAffectedRows()
+    {
+        return $this->Connection->GetAffectedRows();
+    }
+
+    /**
+     * Starts a transaction. Unlike Query()/Execute()/ExecuteInsert(), this deliberately does
+     * NOT pair with an immediate Disconnect() — the whole point is to keep one DB session
+     * open across everything that runs until Commit()/Rollback().
+     */
+    public function BeginTransaction()
+    {
+        $this->Connection->BeginTransaction();
+    }
+
+    public function Commit()
+    {
+        $this->Connection->Commit();
+    }
+
+    public function Rollback()
+    {
+        $this->Connection->Rollback();
+    }
+
+    public function InTransaction()
+    {
+        return $this->Connection->InTransaction();
+    }
 }

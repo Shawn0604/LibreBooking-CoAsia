@@ -1131,13 +1131,14 @@ class DeleteScheduleCommand extends SqlCommand
 
 class DeleteSeriesCommand extends SqlCommand
 {
-    public function __construct($seriesId, Date $dateModified, $lastActionBy)
+    public function __construct($seriesId, Date $dateModified, $lastActionBy, $expectedVersion)
     {
         parent::__construct(Queries::DELETE_SERIES);
         $this->AddParameter(new Parameter(ParameterNames::SERIES_ID, $seriesId));
         $this->AddParameter(new Parameter(ParameterNames::DATE_MODIFIED, $dateModified->ToDatabase()));
         $this->AddParameter(new Parameter(ParameterNames::STATUS_ID, ReservationStatus::Deleted));
         $this->AddParameter(new Parameter(ParameterNames::LAST_ACTION_BY, $lastActionBy));
+        $this->AddParameter(new Parameter(ParameterNames::EXPECTED_VERSION, $expectedVersion));
     }
 }
 
@@ -2733,7 +2734,8 @@ class UpdateReservationSeriesCommand extends SqlCommand
         $statusId,
         $ownerId,
         $allowParticipation,
-        $lastActionBy
+        $lastActionBy,
+        $expectedVersion
     ) {
         parent::__construct(Queries::UPDATE_RESERVATION_SERIES);
 
@@ -2747,6 +2749,7 @@ class UpdateReservationSeriesCommand extends SqlCommand
         $this->AddParameter(new Parameter(ParameterNames::USER_ID, $ownerId));
         $this->AddParameter(new Parameter(ParameterNames::ALLOW_PARTICIPATION, (int)$allowParticipation));
         $this->AddParameter(new Parameter(ParameterNames::LAST_ACTION_BY, $lastActionBy));
+        $this->AddParameter(new Parameter(ParameterNames::EXPECTED_VERSION, $expectedVersion));
     }
 }
 

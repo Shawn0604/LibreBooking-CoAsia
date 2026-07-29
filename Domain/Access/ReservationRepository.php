@@ -2,6 +2,26 @@
 
 require_once(ROOT_DIR . 'Domain/namespace.php');
 
+/**
+ * Thrown when an UPDATE/soft-delete against `reservation_series` affects 0 rows because the
+ * `version` column no longer matches what the caller expected — someone else changed (or
+ * deleted) this series since it was loaded. Callers should surface this distinctly from a
+ * generic failure (HTTP 409 / reservation_changed), not silently overwrite.
+ */
+class ReservationVersionConflictException extends Exception
+{
+    /**
+     * @var int
+     */
+    public $SeriesId;
+
+    public function __construct($seriesId)
+    {
+        parent::__construct("Reservation series $seriesId was changed or deleted since it was loaded (version conflict)");
+        $this->SeriesId = $seriesId;
+    }
+}
+
 class ReservationRepository implements IReservationRepository
 {
     public function LoadById($reservationId)
@@ -95,10 +115,20 @@ class ReservationRepository implements IReservationRepository
                 $reservationSeries->StatusId(),
                 $reservationSeries->UserId(),
                 $reservationSeries->GetAllowParticipation(),
-                $reservationSeries->BookedBy()->UserId
+                $reservationSeries->BookedBy()->UserId,
+                $reservationSeries->ExpectedVersion()
             );
 
             $database->Execute($updateSeries);
+
+            // Optimistic-locking check: 0 affected rows means the WHERE version=? clause
+            // didn't match anything, i.e. someone else changed (or deleted) this series since
+            // it was loaded. This check happens inside the same resource lock/transaction as
+            // the rest of the write (see ReservationHandler), so it is race-proof against a
+            // concurrent writer touching the same series.
+            if ($database->GetAffectedRows() === 0) {
+                throw new ReservationVersionConflictException($reservationSeries->SeriesId());
+            }
 
             foreach ($reservationSeries->AddedAttachments() as $attachment) {
                 $this->AddReservationAttachment($attachment);
@@ -294,6 +324,9 @@ class ReservationRepository implements IReservationRepository
             $series->WithOwner($row[ColumnNames::RESERVATION_OWNER]);
             $series->WithStatus($row[ColumnNames::RESERVATION_STATUS]);
             $series->AllowParticipation($row[ColumnNames::RESERVATION_ALLOW_PARTICIPATION]);
+            if (array_key_exists(ColumnNames::RESERVATION_VERSION, $row)) {
+                $series->WithVersion($row[ColumnNames::RESERVATION_VERSION]);
+            }
 
             $startDate = Date::FromDatabase($row[ColumnNames::RESERVATION_START]);
             $endDate = Date::FromDatabase($row[ColumnNames::RESERVATION_END]);
@@ -724,7 +757,17 @@ class DeleteSeriesEventCommand extends EventCommand
     public function Execute(Database $database)
     {
         $deletedBy = $this->series->BookedBy();
-        $database->Execute(new DeleteSeriesCommand($this->series->SeriesId(), Date::Now(), !empty($deletedBy) ? $deletedBy->UserId : null));
+        $database->Execute(new DeleteSeriesCommand(
+            $this->series->SeriesId(),
+            Date::Now(),
+            !empty($deletedBy) ? $deletedBy->UserId : null,
+            $this->series->ExpectedVersion()
+        ));
+
+        // Same optimistic-locking check as the update path (see ReservationRepository::Update()).
+        if ($database->GetAffectedRows() === 0) {
+            throw new ReservationVersionConflictException($this->series->SeriesId());
+        }
     }
 }
 

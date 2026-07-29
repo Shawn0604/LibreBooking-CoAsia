@@ -569,6 +569,17 @@ class zh_tw extends en_us
         $strings['DeleteRecurringScopePrompt'] = '要刪除哪些預約？';
         $strings['DeleteNotifiesParticipants'] = '刪除後，參與者會收到取消通知。';
         $strings['NewReservation'] = '新增預約';
+        $strings['EditReservation'] = '編輯預約';
+        $strings['ParticipantsSummary'] = '%s 位參與者（更多選項可管理）';
+        $strings['RemindersSummary'] = '已設定提醒（更多選項可調整）';
+        $strings['RecurringSummary'] = '重複預約（更多選項可調整規則）';
+        $strings['LoadReservationFailed'] = '無法載入這筆預約。';
+        $strings['NetworkErrorRetry'] = '網路錯誤，請再試一次。';
+        $strings['UnsavedChangesPrompt'] = '尚未儲存的變更會遺失，確定要離開嗎？';
+        $strings['ApplyUpdateTo'] = '要把這次修改套用到哪些預約？';
+        $strings['EndDateBeforeStartDate'] = '結束時間必須晚於開始時間。';
+        $strings['ReservationChanged'] = '這筆預約已被其他人修改，請重新載入後再試。';
+        $strings['ReloadLatest'] = '重新載入最新內容';
         $strings['ServerSettings'] = '伺服器設置';
         $strings['Dashboard'] = '控制台';
         $strings['Help'] = '幫助';

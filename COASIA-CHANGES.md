@@ -606,3 +606,108 @@ Stage 1 做完後使用者指出：編輯/刪除的視覺跟主行事曆的 Goog
 ### 尚未完成：同頁快速編輯（Stage 2）
 
 使用者要求編輯也要能不離開行事曆頁面、用跟快速新增同一顆 modal（`mode=create`/`mode=edit`）完成基本欄位修改，進階內容（重複規則、參與者、提醒等）交給「更多選項」連去舊表單。這部分還沒做——先查證了資料庫，確認目前真的有預約在用參與者（2 筆）、提醒（4 筆）、自訂欄位（`Test Number`/`Test String`，各 21 筆）這幾個「快速編輯 UI 不會露出、但絕對不能被清空」的欄位，附件/訪客邀請/配件則整個系統停用或完全沒有資源掛勾，可以放心跳過。下一步要先做一個「讀取完整預約資料」的後端端點，把這些沒露出的欄位原封不動地帶回去，再接上共用 modal，避免快速編輯把使用者既有的參與者/提醒/自訂欄位資料洗掉。
+
+## 21. 預約 Drawer（取代「更多選項」跳轉舊表單）+ 資料安全稽核
+
+使用者明確表示不接受「更多選項」跳到舊版 `reservation.php` 作為新增/編輯的正式流程，要求做一個完整的 Drawer（側邊面板），涵蓋新增、編輯、刪除。這一輪只做 Phase 1-3：Drawer 外殼與開關、基本欄位新增/編輯、刪除與重複預約範圍整合。
+
+- **新端點（只處理「基本欄位」，刻意不是整個表單的 JSON 版本）**：`Presenters/OverviewFullCalendarReservationPresenter.php`（讀取，`Web/ajax/overview_fullcalendar_reservation.php`）與 `Presenters/OverviewFullCalendarReservationUpdatePresenter.php`（更新基本欄位，`Web/ajax/overview_fullcalendar_reservation_update.php`）。更新端點刻意不是 `Pages/Ajax/ReservationUpdatePage.php` 的簡化版——舊表單邏輯是「整份表單重新提交，沒帶到的欄位視同清空」，Drawer 目前只露出標題/說明/時間/資源，若走舊表單邏輯會把參與者、提醒、自訂欄位等使用者看不到也沒填的欄位直接洗掉。改法：後端先讀出完整既有預約（`IUpdateReservationPersistenceService::LoadByReferenceNumber()`），只呼叫 `Update()`（標題/說明/資源，owner 保持不變）與 `UpdateDuration()`，其餘欄位的 mutator 完全不呼叫，資料原封不動留著。
+- 新增走既有 `ajax/reservation_save.php`（新預約沒有「既有資料會被洗掉」的風險），刪除走既有 `ajax/reservation_delete.php`，都重用同一套後端驗證/通知/授權，沒有另外做一套。
+
+### 21.1 使用者主動抓到的 P0 資料安全漏洞：編輯會悄悄把 owner 換成操作者
+
+使用者以審查者角度重新檢視 Drawer，直接讀 `Domain/ExistingReservationSeries.php::Update()` 原始碼後指出：`Update()` 的第一個參數會變成序列的新 `UserId()`，若跟目前不同就觸發 `OwnerChangedEvent`。原本的實作把「目前登入使用者」傳進這個參數——代表任何有編輯權限的人（例如管理員）修改別人的預約，都會把該預約的擁有者悄悄換成自己。
+
+修法：新增的更新端點一律傳 `$existingSeries->UserId()`（讀出來的、真正的原 owner），不是操作者的 session id；伺服器端獨立重新檢查 `IReservationAuthorization::CanEdit()`，不信任前端算好的 `canEdit` 旗標。此修法連同一輪的完整 round-trip 測試（含真實 DB 建立→編輯→讀回→刪除→確認真的消失）已完成並驗證。
+
+## 22. P0：預約資料庫併發安全（resource lock + optimistic version locking + idempotency）
+
+使用者指定範圍：這一輪只做「多人同時操作同一筆/同一資源預約時的資料庫併發安全」，不做其他 UI 或進階功能，並且明確要求——**在真實雙 connection 測試、version locking、idempotency 全部完成以前，不能宣稱系統已經避免重複預約與互相覆蓋**。以下是全部完成後的驗收報告，格式依使用者指定的 8 項整理。
+
+### 22.0 起點稽核（實作前）
+
+直接讀 `Domain/Access/ReservationRepository.php`、`lib/Database/Database.php`、`lib/Database/MySQL/MySqlConnection.php` 確認：這個專案原本**完全没有**任何 transaction／row lock 機制——`Database::Query()`/`Execute()`/`ExecuteInsert()` 每一次呼叫都各自獨立 `Connect()`→執行→`Disconnect()`，代表就算硬寫兩個 SQL 呼叫也不可能落在同一個 DB session/transaction 裡。MySQL isolation level 是預設的 REPEATABLE-READ，資料庫層也沒有能防止重複預約的 unique constraint。CSV 匯入路徑（`ReservationImportCsv.php` → `UnsafeAdd()`）完全繞過驗證，不只是併發不安全，是連單一請求的衝突檢查都沒有。
+
+### 22.1 交易（transaction）起訖點
+
+`ResourceLockService::LockResources()`（`lib/Application/Reservation/Concurrency/ResourceLockService.php`）呼叫 `Database::BeginTransaction()` 開始交易，接著在同一個交易內對要用到的 `resources` 資料列下 `SELECT ... FOR UPDATE` 鎖；交易在 `ReservationHandler::Handle()`（`lib/Application/Reservation/ReservationHandler.php`）裡結束——驗證通過且成功寫入後呼叫 `Commit()`，驗證沒過或發生例外一律 `Rollback()`。中間的「重新驗證＋寫入」（`IReservationValidationService::Validate()` 與 `IReservationPersistenceService::Persist()`）都在鎖與交易還開著的時候執行，不是鎖完就放掉。
+
+底層關鍵修法：`MySqlConnection::Disconnect()` 原本每次都會真的 `mysqli_close()`，在交易期間會讓鎖跟交易一起消失。改成：交易期間（`_inTransaction=true`）`Disconnect()` 直接 no-op，讓連線活到 `Commit()`/`Rollback()` 主動呼叫真正的中斷連線為止——這樣 `Database::Query()`/`Execute()` 原本「每次呼叫都各自連線/斷線」的既有寫法完全不用改，交易期間會自動變成同一個 session。
+
+### 22.2 Resource lock SQL 與涉及檔案
+
+- SQL：`SELECT resource_id FROM resources WHERE resource_id IN (@resourceid) ORDER BY resource_id FOR UPDATE`（`LockResourcesCommand`）。資源 id 一律先 int 轉型、去重、**由小到大排序**再鎖，讓任兩個請求不管前端送來的資源順序為何，都用同一個順序取鎖，避免鎖順序不同造成的死鎖。
+- 檔案：`lib/Application/Reservation/Concurrency/ResourceLockService.php`（`IResourceLockService`/`ResourceLockService`）、`lib/Application/Reservation/ReservationHandler.php`（唯一呼叫點，`GetResourceIdsToLock()` 會把「更新時被移除的資源」也一併納入鎖定範圍——釋出資源跟佔用資源一樣可能讓第三方的衝突請求被放行或擋下）。
+
+### 22.3 已受保護的寫入入口
+
+全部經過同一個 `ReservationHandler::Handle()`（唯一寫入通道，沒有另外開後門）：
+
+- 一般新增／編輯／刪除（`Pages/Ajax/ReservationSavePage.php`／`ReservationUpdatePage.php`／`ReservationDeletePage.php`）
+- Drawer 新增／編輯／刪除（新增與刪除重用上面同一批端點；編輯走 `OverviewFullCalendarReservationUpdatePresenter`）
+- 後台管理（`Pages/Admin/ManageReservationsPage.php` 走同一批 Presenter）
+- Web Service API（`WebServices/Controllers/ReservationSaveController.php` 一樣透過 `ReservationHandler::Create()`）
+- Check-in／核准（`ReservationCheckinPresenter`／`ReservationApprovalPresenter`，都經過同一個 handler）
+- 一般批量／重複預約（`RepeatOptions` 產生多筆 instance，仍是同一個 `ReservationSeries`/`Handle()`，沒有另一條路徑）
+
+### 22.4 尚未受保護（或保護程度較低）的入口，及原因
+
+- **CSV 匯入（`lib/Application/Admin/ReservationImportCsv.php` → `UnsafeAdd()`）**：這次**沒有**改動。現況仍是完全繞過驗證與鎖定，是既有行為，不是這輪引入的退化，但也還沒有照使用者的要求把它改成「預設關閉、需要明確 opt-in ＋ UI 警示 ＋ 稽核紀錄」的例外路徑。這是本輪最大的已知缺口，建議下一輪優先處理。
+- **拖曳改期（drag-to-reschedule）**：目前 FullCalendar 檢視是唯讀的（沒有拖曳寫入 UI），這次沒有新增這個功能，自然也没有對應的寫入端點需要保護。
+- **黑名單時段（blackout）建立/編輯**：這次沒有把 `ManageBlackoutsService`／`BlackoutRepository` 接上 `ResourceLockService`，還是走原本路徑，沒有 resource lock 保護。
+- **Version optimistic locking 的覆蓋範圍**：`reservation_series.version` 的檢查已經是共用層（`ReservationRepository::Update()`/`DeleteSeriesEventCommand::Execute()`），**任何**呼叫這兩個方法的路徑都會拿到「至少同一個 request 內」的版本檢查（防止同一次寫入之間被別人插隊）；但**跨 session 的「使用者編輯前是否已經過期」偵測**（載入表單後過一段時間才送出，這段時間被別人改過）只有 Drawer 的更新/刪除端點有把客戶端送回來的 `expectedVersion` 接上去（見 22.5），舊版 `reservation.php` 表單／後台管理／Web Service 目前都沒有在畫面上帶著 version 走一整個編輯流程，所以這幾條路徑仍然只有「同一次請求內」等級的保護，不是完整的跨 session 保護。
+- **Idempotency（P0-C）目前只接在「新增」路徑**：完全比照使用者需求範圍（「使用者雙擊或網路重送時只能建立一筆預約」），更新／刪除沒有走 idempotency key（用 optimistic version locking 處理，性質不同）。Web Service API 的新增請求 schema 目前沒有 `requestId` 欄位，所以 API 呼叫的新增也還沒接上 idempotency 保護（`ReservationRequestResponseFacade::GetRequestId()` 目前固定回傳 `null`）。
+
+### 22.5 Optimistic version locking：SQL 與流程
+
+- Schema：`reservation_series` 新增 `version INT UNSIGNED NOT NULL DEFAULT 0`（`database_schema/upgrades/4.1/schema.sql`，已手動套用到 dev DB 並以 `DESCRIBE` 驗證）。
+- 更新：`UPDATE reservation_series SET ..., version = version + 1 WHERE series_id = ? AND version = @expectedVersion`。刪除（軟刪除）：`UPDATE reservation_series SET status_id = @statusid, ..., version = version + 1 WHERE series_id = ? AND version = @expectedVersion`。
+- `Database::GetAffectedRows()` 在 `UpdateReservationSeriesCommand`/`DeleteSeriesCommand` 執行後檢查，0 筆代表版本不符，拋出新增的 `ReservationVersionConflictException`（`Domain/Access/ReservationRepository.php`），順著 `ReservationHandler::Handle()` 既有的 `catch (Throwable) { Rollback(); throw; }` 一路往上丟。
+- **修過一個真的會炸的 bug**：`MySqlConnection::GetAffectedRows()` 原本是「即時查 `mysqli_affected_rows()`」，但 idempotency 的 claim/reclaim（22.6）刻意不在 resource lock 的交易內執行，`Database::Execute()` 執行完會真的斷線，斷線後才呼叫 `GetAffectedRows()` 等於在已關閉的連線上呼叫 mysqli 函式，會是未捕捉的 `TypeError`。改成：`MySqlConnection::Execute()` 執行完當下就把 `mysqli_affected_rows()` 的結果存起來，`GetAffectedRows()` 改成回傳快取值——不管呼叫方有沒有在交易內都正確。這個修法連同既有 P0-B 版本檢查一起用真實 DB 重新驗證過，行為不變。
+- 讀取端點：`OverviewFullCalendarReservationPresenter::GetReservationData()` 新增 `version` 欄位（來源：`ReservationView::Version`，由 `ReservationViewRepository::GetReservationForEditing()` 填入）。Drawer 更新／刪除都會把載入時拿到的 `version` 原封不動送回（`overview_fullcalendar.js` 的 `buildEditBody()`／`openDrawerDeleteConfirm()`），伺服器用 `ExistingReservationSeries::SetExpectedVersion()` 蓋掉「這次請求剛好重新載入到的版本」，確保比對的是「使用者上次看到的版本」而不是「這次請求自己剛讀到的版本」（後者永遠會通過檢查，等於沒檢查）。
+- 錯誤形狀：HTTP 409 + `{"success":false,"code":"reservation_changed","message":"這筆預約已被其他人修改，請重新載入後再試。"}`（更新走 `Pages/Ajax/OverviewFullCalendarReservationUpdatePage.php`，刪除走 `Pages/Ajax/ReservationDeletePage.php`／`ReservationDeleteJsonPage`）。Drawer 前端（`overview_fullcalendar.js` 的 `showDrawerVersionConflict()`）遇到這個 code 會顯示訊息＋一顆「重新載入最新內容」按鈕，不會自動覆蓋、也不會自動丟棄使用者輸入。
+- `resource_conflict`（一般資源時段衝突，非版本衝突）目前只在 Drawer 的更新端點接上（`SetCanBeRetried(true)` → `code: 'resource_conflict'` + HTTP 409），前端收到會 `calendar.refetchEvents()` 但保留使用者輸入、不關閉 Drawer；新增流程（`ajax/reservation_save.php`）回傳的是 HTML 片段而非 JSON，這次沒有改動它的回應格式，所以新增路徑還沒有這個明確的 code，僅有既有的通用錯誤訊息。
+
+### 22.6 Idempotency：schema 與流程
+
+- Schema（同一個 4.1 migration）：`reservation_requests(request_id VARCHAR(36), user_id MEDIUMINT UNSIGNED, status VARCHAR(16), reference_number VARCHAR(50) NULL, date_created DATETIME, last_modified DATETIME, PRIMARY KEY(request_id, user_id))`。
+- 服務：`lib/Application/Reservation/Concurrency/IdempotencyService.php`。`TryClaim($requestId, $userId)` 三種結果：`Claimed()`（可以繼續建立）、`AlreadySucceeded($referenceNumber)`（直接回放原本的 reference number，不再建立）、`InProgress()`（另一個相同 id 的請求正在處理中）。沒有搶到的一方靠 `(request_id, user_id)` 的 PRIMARY KEY 唯一性擋下，不是用應用層的鎖。停在 `processing` 超過 60 秒視為請求端已經死掉，允許被重新認領（避免永久卡死）；`failed` 狀態允許立即重新認領（允許重試）。
+- 刻意**不**跟 resource lock 共用同一個交易——idempotency 是以 `(request_id, user_id)` 為鍵，不是以資源為鍵，claim/finalize 各自是獨立、會立即提交的短交易，這樣「已經 claim 到」這件事會馬上對其他請求可見，不用等整個預約交易 commit 才看得到。
+- 前端：`overview_fullcalendar.js` 在 Drawer 開成 `mode=create` 時產生一個 UUID（`generateRequestId()`，`crypto.randomUUID()` 有支援就用，沒有就用內建 fallback），存在 `drawerState.requestId`，同一次新增嘗試（含重送）都帶著同一個值，直到成功或使用者重新開一次 Drawer 才會換新的。
+- 錯誤代碼：`request_in_progress`（`ReservationRequestInProgressException`，`ReservationSavePage::PageLoad()` 內轉成 HTTP 409 + 訊息「另一個相同的預約請求正在處理中，請稍後再試。」）。`duplicate_request` 這個代碼目前沒有實際用到——因為設計上「重複請求」不會回錯誤，而是直接回放原本成功的結果（`success:true` + 原本的 reference number），這比回一個「重複」錯誤更貼近使用者實際想要的行為（雙擊應該表現得像只點了一次，而不是跳出一個「你重複了」的錯誤要使用者自己判斷該怎麼辦）。
+
+### 22.7 真實雙（含 5 號情境三個）MySQL connection 測試結果
+
+PHPUnit 全程都是用 `FakeDatabase`（單一 PHP process），結構上就不可能驗證真正的兩條連線／真正的 row lock／真正的 transaction isolation。因此另外寫了一組**不算在 PHPUnit 裡**的測試工具：`tests/concurrency/`（`worker.php` 是可重複使用的 CLI worker，每次執行都是一個全新的 PHP process、各自獨立連線資料庫；`run_concurrency_tests.php` 是協調端，用 `proc_open()` 同時起兩個以上的 worker，用「都回報 READY 才一起發 go」的 barrier 確保真的重疊，其中一邊會在拿到鎖之後刻意 `usleep()` 撐開重疊時間，逼真實的 InnoDB row lock 真的被兩條連線同時碰到，而不是靠作業系統排程運氣）。
+
+實際執行結果（對真實 dev DB，事後已清除所有測試資料）：
+
+```
+Using resources: Google Meet1 (id 11), Google Meet2 (id 12)
+
+PASS - Scenario 1: same-slot concurrent create, only one succeeds
+PASS - Scenario 2: partial overlap concurrent create, only one succeeds
+PASS - Scenario 3: adjacent non-overlapping slots, both succeed
+PASS - Scenario 4: same slot, different resources, both succeed
+PASS - Scenario 5: reverse-order multi-resource lock, no deadlock, only one succeeds (elapsed=3.49s)
+PASS - Scenario 6: create-vs-update race for same slot, only one succeeds
+PASS - Scenario 7: concurrent updates with same loaded version, second gets version conflict
+PASS - Scenario 8: double-submit same idempotency key never creates two reservations
+PASS - Scenario 9: exception mid-transaction leaves no partial data and releases the lock
+
+==== SUMMARY: 9 passed, 0 failed ====
+```
+
+九項情境（含使用者指定的全部 9 種）全數通過，包含：同時段同資源只有一邊成功、部分重疊只有一邊成功、相鄰不重疊兩邊都成功、不同資源同時段兩邊都成功、反向資源鎖定順序不死鎖且只有一邊成功、新增與更新搶同一個時段只有一邊成功、兩個更新載入同一個版本第二個拿到 `ReservationVersionConflictException`、同一個 idempotency key 雙重送出資料庫最終只有一筆、交易中途拋例外不留半套資料且鎖會釋放（緊接著的下一次請求正常成功）。重跑指令：`docker compose -f docker-compose.dev.yml exec app php tests/concurrency/run_concurrency_tests.php`。
+
+### 22.8 已知限制
+
+- CSV 匯入（`UnsafeAdd()`）仍未改成 opt-in／稽核／警示，是目前最大的缺口（見 22.4）。
+- Version optimistic locking 的「跨 session 過期偵測」只接在 Drawer；舊版表單／後台管理／Web Service 的更新只有「同一次請求」等級的版本保護。
+- Idempotency 只接在新增路徑，且只接在 Drawer／`ajax/reservation_save.php`，Web Service API 新增尚未串上（schema 沒有 `requestId` 欄位）。
+- `resource_conflict` 明確錯誤代碼只接在 Drawer 更新端點；Drawer 新增與其他既有端點仍是舊有的通用錯誤訊息（沒有 code 區分）。
+- 拖曳改期尚未存在（UI 唯讀），黑名單建立/編輯尚未接上 resource lock。
+- `tests/concurrency/` 的 9 項情境測試不是自動化 CI 的一部分（需要真實 DB、且會建立/刪除真實資料列），是手動驗證工具，之後若要放進 CI 需要額外評估（獨立測試資料庫、避免污染 dev 資料）。
+- 60 秒的「processing 視為卡死」門檻與 idempotency 的 3 次重試上限都是經驗值，沒有經過正式的壓力測試調校。
+
+以上 8 項完成後，現在可以確認：在本輪已列出的保護範圍內（22.3），系統不會因為併發請求而重複預約或互相悄悄覆蓋；22.4／22.8 列出的範圍則仍是已知、明確標示的缺口，尚未受到本輪保護。

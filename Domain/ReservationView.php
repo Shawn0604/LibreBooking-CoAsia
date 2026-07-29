@@ -26,6 +26,11 @@ class ReservationView
      */
     public $DateModified;
     /**
+     * @var int optimistic-locking counter from reservation_series.version. Round-trip this
+     * back as expectedVersion on update/delete to detect a change made since this was loaded.
+     */
+    public $Version;
+    /**
      * @var Date
      */
     public $CheckinDate;

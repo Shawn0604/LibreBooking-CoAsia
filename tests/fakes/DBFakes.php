@@ -14,6 +14,12 @@ class FakeDatabase extends Database
     public $_ExpectedInsertIds = [];
     public $_Limit = 0;
     public $_Offset = 0;
+    /**
+     * @var int rows affected by the most recent Execute(), returned from GetAffectedRows().
+     * Defaults to 1 (a normal successful write) so existing tests that don't care about
+     * optimistic-locking behavior aren't affected; set to 0 to simulate a version conflict.
+     */
+    public $_AffectedRows = 1;
     private $readcount;
     private $executeInsertCount;
 
@@ -76,6 +82,11 @@ class FakeDatabase extends Database
     private function _AddCommand($command)
     {
         array_push($this->_Commands, $command);
+    }
+
+    public function GetAffectedRows()
+    {
+        return $this->_AffectedRows;
     }
 
     /**
@@ -203,6 +214,40 @@ class FakeDBConnection implements IDbConnection
     {
         $this->_LimitQueryCalled = true;
         return new FakeReader([]);
+    }
+
+    public $_AffectedRows = 1;
+    public $_BeginTransactionCalled = false;
+    public $_CommitCalled = false;
+    public $_RollbackCalled = false;
+    public $_InTransaction = false;
+
+    public function GetAffectedRows()
+    {
+        return $this->_AffectedRows;
+    }
+
+    public function BeginTransaction()
+    {
+        $this->_BeginTransactionCalled = true;
+        $this->_InTransaction = true;
+    }
+
+    public function Commit()
+    {
+        $this->_CommitCalled = true;
+        $this->_InTransaction = false;
+    }
+
+    public function Rollback()
+    {
+        $this->_RollbackCalled = true;
+        $this->_InTransaction = false;
+    }
+
+    public function InTransaction()
+    {
+        return $this->_InTransaction;
     }
 }
 

@@ -52,6 +52,14 @@ interface IReservationSavePage extends IReservationSaveResultsView, IRepeatOptio
     public function GetResources();
 
     /**
+     * @return string|null client-generated UUID identifying one logical "create" attempt,
+     *   reused across retries of that same attempt (double-click, network retry) — see
+     *   lib/Application/Reservation/Concurrency/IdempotencyService.php. Null/empty means the
+     *   caller isn't using idempotency protection (e.g. an older client).
+     */
+    public function GetRequestId();
+
+    /**
      * @return int[]
      */
     public function GetParticipants();
@@ -177,6 +185,14 @@ class ReservationSavePage extends SecurePage implements IReservationSavePage
             } else {
                 $this->Display('Ajax/reservation/save_failed.tpl');
             }
+        } catch (ReservationRequestInProgressException $ex) {
+            // Another submission with the same requestId (double-click / retry racing itself)
+            // is still being handled — tell the client to back off rather than creating a
+            // second reservation or hanging until the other one finishes.
+            Log::Debug('ReservationSavePage - request already in progress: %s', $ex->getMessage());
+            http_response_code(409);
+            $this->Set('Errors', ['另一個相同的預約請求正在處理中，請稍後再試。']);
+            $this->Display('Ajax/reservation/save_failed.tpl');
         } catch (Exception $ex) {
             Log::Error('ReservationSavePage - Critical error saving reservation: %s', $ex);
             $this->Display('Ajax/reservation/reservation_error.tpl');
@@ -231,6 +247,12 @@ class ReservationSavePage extends SecurePage implements IReservationSavePage
     public function GetResourceId()
     {
         return (int)$this->GetForm(FormKeys::RESOURCE_ID);
+    }
+
+    public function GetRequestId()
+    {
+        $raw = $this->GetForm(FormKeys::REQUEST_ID);
+        return is_scalar($raw) ? trim((string)$raw) : null;
     }
 
     public function GetTitle()

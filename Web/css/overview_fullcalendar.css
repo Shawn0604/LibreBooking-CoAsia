@@ -1025,7 +1025,9 @@
   padding: 6px 6px 0;
 }
 
-.event-popover .ep-icon-btn {
+/* Shared 36px circular icon button — used by the event popover's toolbar AND the
+   reservation Drawer's header (rd-header-actions), not redefined per-component. */
+.reservation-icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1041,14 +1043,14 @@
   text-decoration: none;
 }
 
-.event-popover .ep-icon-btn:hover {
+.reservation-icon-button:hover {
   background: var(--bs-tertiary-bg, #f1f2f6);
   color: var(--text-primary);
 }
 
 /* Delete stays neutral gray at rest — only turns red (var(--danger)) on hover, so the
    card isn't shouting "danger" every time it's opened. */
-.event-popover .ep-icon-btn-danger:hover {
+.reservation-icon-button-danger:hover {
   background: #fbe9e7;
   color: var(--danger);
 }
@@ -1291,6 +1293,295 @@
 .del-btn-spinner {
   width: 14px;
   height: 14px;
+}
+
+/* ---------- Reservation Drawer — the shared create/edit editor (replaces navigating to
+   reservation.php for the normal flow). Right-side panel on desktop, full-screen sheet on
+   mobile. Bootstrap's Modal JS only drives show/hide/focus/backdrop here — every visible
+   rule is page-scoped, not .modal-header/.modal-footer/.btn-* defaults. ---------- */
+
+.reservation-drawer-dialog {
+  position: fixed;
+  top: 0;
+  right: 0;
+  margin: 0;
+  height: 100vh;
+  max-width: 560px;
+  width: 100%;
+  transform: translateX(100%);
+  transition: transform 0.2s ease;
+}
+
+.reservation-drawer-modal.show .reservation-drawer-dialog {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reservation-drawer-dialog {
+    transition: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .reservation-drawer-dialog {
+    max-width: 100%;
+  }
+}
+
+.reservation-drawer {
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+}
+
+.rd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 12px 16px 24px;
+  flex-shrink: 0;
+}
+
+.rd-header-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.rd-header-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.rd-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 24px 24px;
+}
+
+.rd-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.rd-footer-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}
+
+/* ---- Shared field components — reservation-section/row/field/select/chip, usable by
+   any component beyond the Drawer too, per the shared design-language requirement. ---- */
+
+.reservation-section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.reservation-section:last-child {
+  border-bottom: none;
+}
+
+.reservation-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 0;
+}
+
+.reservation-row-top {
+  align-items: flex-start;
+}
+
+.reservation-row > i {
+  width: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+/* Keeps the resource <select> on row 2 lined up under row 1's real icon, without a second
+   visible icon competing for attention. */
+.rd-row-spacer-icon {
+  visibility: hidden;
+}
+
+.reservation-field,
+.reservation-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: var(--surface);
+  box-sizing: border-box;
+}
+
+textarea.reservation-field {
+  height: auto;
+  min-height: 44px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.reservation-field:focus,
+.reservation-select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.rd-title-input {
+  border: none;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 0 0 10px;
+  font-size: 16px;
+  font-weight: 500;
+  height: auto;
+}
+
+.rd-title-input:focus {
+  border-bottom-color: var(--primary);
+}
+
+.rd-time-dash {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.rd-category-tabs {
+  display: inline-flex;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  padding: 3px;
+}
+
+.rd-category-tab {
+  border: none;
+  background: transparent;
+  border-radius: 100px;
+  padding: 5px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.rd-category-tab.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.reservation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-muted);
+  border-radius: 100px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+/* ---- Shared buttons ---- */
+
+.reservation-btn-text {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 100px;
+  cursor: pointer;
+}
+
+.reservation-btn-text:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--text-primary);
+}
+
+/* The one and only brand-blue filled action in the Drawer. */
+.reservation-primary-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 20px;
+  border-radius: 100px;
+  cursor: pointer;
+}
+
+.reservation-primary-button:hover {
+  filter: brightness(0.92);
+}
+
+.reservation-primary-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.rd-save-spinner {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- Loading / error states ---- */
+
+.rd-skeleton {
+  padding: 8px 0;
+}
+
+.rd-skeleton-line {
+  height: 14px;
+  border-radius: 7px;
+  background: var(--surface-muted);
+  margin-bottom: 16px;
+  animation: rd-skeleton-pulse 1.2s ease-in-out infinite;
+}
+
+.rd-skeleton-line-lg {
+  height: 22px;
+  width: 60%;
+}
+
+.rd-skeleton-line-sm {
+  width: 40%;
+}
+
+@keyframes rd-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.rd-load-error,
+.rd-save-error,
+.rd-time-error {
+  font-size: 13px;
+  color: var(--danger);
+  background: #fbe9e7;
+  border-radius: var(--control-radius);
+  padding: 10px 12px;
+  margin-top: 12px;
 }
 
 /* FullCalendar's native drag-select highlight (.fc-highlight) already provides the

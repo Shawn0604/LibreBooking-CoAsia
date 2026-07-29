@@ -233,6 +233,7 @@ class ParameterNames
     public const START_DATE = '@startDate';
     public const START_TIME = '@startTime';
     public const STATUS_ID = '@statusid';
+    public const EXPECTED_VERSION = '@expectedVersion';
 
     public const TIMEZONE_NAME = '@timezone';
     public const TYPE_ID = '@typeid';

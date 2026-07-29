@@ -55,6 +55,11 @@ class ReservationSavePresenter implements IReservationSavePresenter
      */
     private $attributeRepository;
 
+    /**
+     * @var IIdempotencyService
+     */
+    private $idempotencyService;
+
     public function __construct(
         IReservationSavePage $page,
         IReservationPersistenceService $persistenceService,
@@ -62,7 +67,8 @@ class ReservationSavePresenter implements IReservationSavePresenter
         IResourceRepository $resourceRepository,
         IScheduleRepository $scheduleRepository,
         UserSession $userSession,
-        IAttributeRepository $attributeRepository
+        IAttributeRepository $attributeRepository,
+        IIdempotencyService $idempotencyService
     ) {
         $this->page = $page;
         $this->persistenceService = $persistenceService;
@@ -71,6 +77,7 @@ class ReservationSavePresenter implements IReservationSavePresenter
         $this->scheduleRepository = $scheduleRepository;
         $this->userSession = $userSession;
         $this->attributeRepository = $attributeRepository;
+        $this->idempotencyService = $idempotencyService;
     }
 
     public function BuildReservation()
@@ -152,11 +159,55 @@ class ReservationSavePresenter implements IReservationSavePresenter
      */
     public function HandleReservation($reservationSeries)
     {
-        $successfullySaved = $this->handler->Handle(
-            $reservationSeries,
-            $this->page
-        );
+        $requestId = $this->page->GetRequestId();
+        $userId = $this->userSession->UserId;
 
+        // Idempotency (P0-C, see lib/Application/Reservation/Concurrency/IdempotencyService.php)
+        // only applies when the caller actually sends a request id — older/other callers (REST
+        // API, anything not yet updated) simply don't get this protection, same as they don't
+        // get it today.
+        if (!empty($requestId)) {
+            $claim = $this->idempotencyService->TryClaim($requestId, $userId);
+
+            if ($claim->AlreadySucceededOutcome()) {
+                // A prior submission with this exact id already created the reservation —
+                // replay its result instead of creating a second one. Rewriting the reference
+                // number here means every downstream consumer (this method's own SetReferenceNumber()
+                // call below, templates, callers reading $reservationSeries afterward) sees the
+                // ORIGINAL reservation's reference number, not the new (unpersisted) one this
+                // particular ReservationSeries object happened to generate for itself.
+                $reservationSeries->CurrentInstance()->SetReferenceNumber($claim->ReferenceNumber());
+                $this->page->SetSaveSuccessfulMessage(true);
+                $this->page->SetRequiresApproval(false);
+                $this->page->SetReferenceNumber($claim->ReferenceNumber());
+                $this->page->SetVideoConferenceResources($this->GetVideoConferenceResources($reservationSeries->AllResources()));
+                return;
+            }
+
+            if ($claim->IsInProgress()) {
+                throw new ReservationRequestInProgressException($requestId);
+            }
+        }
+
+        try {
+            $successfullySaved = $this->handler->Handle(
+                $reservationSeries,
+                $this->page
+            );
+        } catch (Throwable $ex) {
+            if (!empty($requestId)) {
+                $this->idempotencyService->MarkFailed($requestId, $userId);
+            }
+            throw $ex;
+        }
+
+        if (!empty($requestId)) {
+            if ($successfullySaved) {
+                $this->idempotencyService->MarkSucceeded($requestId, $userId, $reservationSeries->CurrentInstance()->ReferenceNumber());
+            } else {
+                $this->idempotencyService->MarkFailed($requestId, $userId);
+            }
+        }
 
         if ($successfullySaved) {
             $this->page->SetRequiresApproval($reservationSeries->RequiresApproval());

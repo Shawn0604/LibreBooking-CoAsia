@@ -73,6 +73,53 @@ class ExistingReservationSeries extends ReservationSeries
     }
 
     /**
+     * @var int
+     */
+    private $_version = 0;
+
+    /**
+     * @var int|null caller-supplied override for the version checked by Update()/Delete();
+     * falls back to whatever WithVersion() populated from the load when never set explicitly
+     */
+    private $_expectedVersion;
+
+    /**
+     * @internal populates the version as it was found at load time
+     */
+    public function WithVersion($version)
+    {
+        $this->_version = (int)$version;
+    }
+
+    /**
+     * @return int the version as loaded from the database
+     */
+    public function Version()
+    {
+        return $this->_version;
+    }
+
+    /**
+     * Optimistic-locking check: the version the caller last saw (e.g. what a client submitted
+     * alongside an edit). Update()/Delete() fail with 0 affected rows if this no longer matches
+     * the database's current version. Call this explicitly for real cross-request optimistic
+     * locking; if never called, ExpectedVersion() falls back to the version loaded this request,
+     * which still protects against another writer racing in between load and persist.
+     */
+    public function SetExpectedVersion($version)
+    {
+        $this->_expectedVersion = (int)$version;
+    }
+
+    /**
+     * @return int the version value Update()/Delete() will check against the database
+     */
+    public function ExpectedVersion()
+    {
+        return $this->_expectedVersion ?? $this->_version;
+    }
+
+    /**
      * @internal
      */
     public function WithPrimaryResource(BookableResource $resource)

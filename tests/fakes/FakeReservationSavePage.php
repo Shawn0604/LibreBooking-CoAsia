@@ -45,6 +45,7 @@ class FakeReservationSavePage implements IReservationSavePage
     public $canJoinWaitlist = false;
     public $repeatCustomDates = [];
     public $videoConferenceResources = [];
+    public $requestId = null;
 
     public function __construct()
     {
@@ -105,6 +106,11 @@ class FakeReservationSavePage implements IReservationSavePage
     public function GetResources()
     {
         return $this->resourceIds;
+    }
+
+    public function GetRequestId()
+    {
+        return $this->requestId;
     }
 
     public function GetRepeatType()

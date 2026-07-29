@@ -630,10 +630,25 @@ class ReservationRepositoryTest extends TestBase
             $existingReservation->StatusId(),
             $userId,
             $allowParticipation,
-            $updatedBy->UserId
+            $updatedBy->UserId,
+            $existingReservation->ExpectedVersion()
         );
         $this->assertEquals(1, count($this->db->_Commands));
         $this->assertEquals($updateSeriesCommand, $this->db->_Commands[0]);
+    }
+
+    public function testUpdateThrowsVersionConflictExceptionWhenAffectedRowsIsZero()
+    {
+        $builder = new ExistingReservationSeriesBuilder();
+        $existingReservation = $builder->Build();
+        $existingReservation->Update(10, $existingReservation->Resource(), 'new title', 'new description', new FakeUserSession());
+
+        // Simulates someone else having already changed (or deleted) this series — the real
+        // `WHERE series_id = ? AND version = ?` UPDATE would affect 0 rows in that case.
+        $this->db->_AffectedRows = 0;
+
+        $this->expectException(ReservationVersionConflictException::class);
+        $this->repository->Update($existingReservation);
     }
 
     public function testWhenCreditsConsumedIncreases()
@@ -932,12 +947,29 @@ class ReservationRepositoryTest extends TestBase
 
         $this->repository->Delete($series);
 
-        $deleteSeriesCommand = new DeleteSeriesCommand($series->SeriesId(), Date::Now(), $deletedBy->UserId);
+        $deleteSeriesCommand = new DeleteSeriesCommand($series->SeriesId(), Date::Now(), $deletedBy->UserId, $series->ExpectedVersion());
         $adjustCreditsCommand = new AdjustUserCreditsCommand($series->UserId(), -10, 'ReservationDeletedLog' . $series->CurrentInstance()->ReferenceNumber());
 
         $this->assertEquals(2, count($this->db->_Commands));
         $this->assertTrue(in_array($deleteSeriesCommand, $this->db->_Commands));
         $this->assertTrue(in_array($adjustCreditsCommand, $this->db->_Commands));
+    }
+
+    public function testDeleteThrowsVersionConflictExceptionWhenAffectedRowsIsZero()
+    {
+        $deletedBy = new FakeUserSession(100);
+        $seriesId = 981;
+
+        $builder = new ExistingReservationSeriesBuilder();
+        $series = $builder->BuildTestVersion();
+        $series->WithId($seriesId);
+        $series->Delete($deletedBy);
+
+        // Simulates someone else having already changed (or deleted) this series first.
+        $this->db->_AffectedRows = 0;
+
+        $this->expectException(ReservationVersionConflictException::class);
+        $this->repository->Delete($series);
     }
 
     public function testDeleteInstances()

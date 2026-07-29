@@ -165,6 +165,7 @@ class ReservationViewRepository implements IReservationViewRepository
             $reservationView->StatusId = $row[ColumnNames::RESERVATION_STATUS];
             $reservationView->DateCreated = Date::FromDatabase($row[ColumnNames::RESERVATION_CREATED]);
             $reservationView->DateModified = Date::FromDatabase($row[ColumnNames::RESERVATION_MODIFIED]);
+            $reservationView->Version = array_key_exists(ColumnNames::RESERVATION_VERSION, $row) ? (int)$row[ColumnNames::RESERVATION_VERSION] : 0;
 
             $repeatConfig = RepeatConfiguration::Create($row[ColumnNames::REPEAT_TYPE], $row[ColumnNames::REPEAT_OPTIONS]);
 

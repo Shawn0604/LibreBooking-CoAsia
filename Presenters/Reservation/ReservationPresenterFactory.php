@@ -5,6 +5,7 @@ require_once(ROOT_DIR . 'Presenters/Reservation/ReservationUpdatePresenter.php')
 require_once(ROOT_DIR . 'Presenters/Reservation/ReservationDeletePresenter.php');
 require_once(ROOT_DIR . 'Presenters/Reservation/ReservationCheckinPresenter.php');
 require_once(ROOT_DIR . 'Presenters/Reservation/ReservationWaitlistPresenter.php');
+require_once(ROOT_DIR . 'lib/Application/Reservation/Concurrency/IdempotencyService.php');
 
 interface IReservationPresenterFactory
 {
@@ -67,7 +68,9 @@ class ReservationPresenterFactory implements IReservationPresenterFactory
             $userSession
         );
 
-        return new ReservationSavePresenter($savePage, $persistenceService, $handler, $resourceRepository, $scheduleRepository, $userSession, $attributeRepository);
+        $idempotencyService = new IdempotencyService(ServiceLocator::GetDatabase());
+
+        return new ReservationSavePresenter($savePage, $persistenceService, $handler, $resourceRepository, $scheduleRepository, $userSession, $attributeRepository, $idempotencyService);
     }
 
     public function Update(IReservationUpdatePage $updatePage, UserSession $userSession)

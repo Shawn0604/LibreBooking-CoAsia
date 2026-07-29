@@ -77,6 +77,8 @@ class FormKeys
 
     public const EMAIL = 'email';
     public const END_DATE = 'endDate';
+    public const EXPECTED_VERSION = 'expectedVersion';
+    public const REQUEST_ID = 'requestId';
     public const END_PERIOD = 'endPeriod';
     public const END_REMINDER_ENABLED = 'END_REMINDER_ENABLED';
     public const END_REMINDER_TIME = 'END_REMINDER_TIME';

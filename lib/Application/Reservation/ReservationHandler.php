@@ -9,6 +9,7 @@ require_once(ROOT_DIR . 'lib/Application/Reservation/namespace.php');
 require_once(ROOT_DIR . 'lib/Application/Reservation/Persistence/namespace.php');
 require_once(ROOT_DIR . 'lib/Application/Reservation/Validation/namespace.php');
 require_once(ROOT_DIR . 'lib/Application/Reservation/Notification/namespace.php');
+require_once(ROOT_DIR . 'lib/Application/Reservation/Concurrency/ResourceLockService.php');
 
 interface IReservationHandler
 {
@@ -42,16 +43,23 @@ class ReservationHandler implements IReservationHandler
      */
     private $retryOptions;
 
+    /**
+     * @var IResourceLockService
+     */
+    private $lockService;
+
     public function __construct(
         IReservationPersistenceService $persistenceService,
         IReservationValidationService $validationService,
         IReservationNotificationService $notificationService,
-        IReservationRetryOptions $retryOptions
+        IReservationRetryOptions $retryOptions,
+        IResourceLockService $lockService
     ) {
         $this->persistenceService = $persistenceService;
         $this->validationService = $validationService;
         $this->notificationService = $notificationService;
         $this->retryOptions = $retryOptions;
+        $this->lockService = $lockService;
     }
 
     /**
@@ -77,31 +85,50 @@ class ReservationHandler implements IReservationHandler
         $scheduleRepository = new ScheduleRepository();
         $retryOptions = new ReservationRetryOptions(new ReservationConflictIdentifier(new ResourceAvailability(new ReservationViewRepository())), $scheduleRepository);
 
-        return new ReservationHandler($persistenceService, $validationService, $notificationService, $retryOptions);
+        $lockService = new ResourceLockService(ServiceLocator::GetDatabase());
+
+        return new ReservationHandler($persistenceService, $validationService, $notificationService, $retryOptions, $lockService);
     }
 
     /**
      * @param ReservationSeries|ExistingReservationSeries $reservationSeries
      * @param IReservationSaveResultsView $view
      * @return bool if the reservation was handled or not
-     * @throws Exception
+     * @throws Throwable
      */
     public function Handle($reservationSeries, IReservationSaveResultsView $view)
     {
         $this->retryOptions->AdjustReservation($reservationSeries, $view->GetRetryParameters());
-        $validationResult = $this->validationService->Validate($reservationSeries, $view->GetRetryParameters());
-        $result = $validationResult->CanBeSaved();
 
-        if ($validationResult->CanBeSaved()) {
-            try {
+        // P0 concurrency protection: lock every resource this reservation touches (including
+        // ones being moved AWAY from, on update — see GetResourceIdsToLock()) before doing
+        // the "real" availability check, and re-run that check inside the same lock/
+        // transaction rather than trusting whatever was already established before the lock
+        // was acquired. Two requests racing for the same resource/time now serialize on the
+        // row lock instead of both reading "available" and both writing.
+        $this->lockService->LockResources($this->GetResourceIdsToLock($reservationSeries));
+
+        try {
+            $validationResult = $this->validationService->Validate($reservationSeries, $view->GetRetryParameters());
+            $result = $validationResult->CanBeSaved();
+
+            if ($result) {
                 $this->persistenceService->Persist($reservationSeries);
-            } catch (Exception $ex) {
-                Log::Error('Error saving reservation: %s', $ex);
-                throw($ex);
+                $this->lockService->Commit();
+            } else {
+                // Nothing to persist — still an ended transaction (lock released), just via
+                // rollback rather than commit. Not an exception: a real conflict/validation
+                // failure is a normal outcome, surfaced below via SetErrors() etc., not a
+                // thrown error.
+                $this->lockService->Rollback();
             }
+        } catch (Throwable $ex) {
+            $this->lockService->Rollback();
+            Log::Error('Error saving reservation: %s', $ex);
+            throw $ex;
+        }
 
-            $this->notificationService->Notify($reservationSeries);
-
+        if ($result) {
             $view->SetSaveSuccessfulMessage($result);
         } else {
             $view->SetSaveSuccessfulMessage($result);
@@ -118,6 +145,39 @@ class ReservationHandler implements IReservationHandler
 
         $view->SetWarnings($validationResult->GetWarnings());
 
+        // Only after the transaction has committed and the resource lock released — SMTP/
+        // LINE latency must never hold a meeting room lock open (this is also why Persist()
+        // errors above are rolled back and re-thrown before ever reaching here: a failed
+        // write must never trigger a "your reservation is confirmed" notification).
+        if ($result) {
+            $this->notificationService->Notify($reservationSeries);
+        }
+
         return $result;
+    }
+
+    /**
+     * @param ReservationSeries|ExistingReservationSeries $reservationSeries
+     * @return int[]
+     */
+    private function GetResourceIdsToLock($reservationSeries)
+    {
+        $ids = [];
+        foreach ($reservationSeries->AllResources() as $resource) {
+            $ids[] = $resource->GetResourceId();
+        }
+
+        // On update, a resource being REMOVED from the series needs to be locked too —
+        // freeing it up can unblock someone else's conflicting request just as much as
+        // adding a resource does, and both need to serialize against the same row lock.
+        if ($reservationSeries instanceof ExistingReservationSeries) {
+            foreach ($reservationSeries->GetEvents() as $event) {
+                if ($event instanceof ResourceRemovedEvent) {
+                    $ids[] = $event->ResourceId();
+                }
+            }
+        }
+
+        return $ids;
     }
 }

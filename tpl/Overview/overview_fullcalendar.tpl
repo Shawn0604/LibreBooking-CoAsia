@@ -108,13 +108,13 @@
     <div class="event-popover" id="eventPopover">
         <div class="ep-color-bar" id="epColorBar"></div>
         <div class="ep-toolbar">
-            <a href="#" id="epEditLink" class="ep-icon-btn d-none" title="{translate key='Edit'}" aria-label="{translate key='Edit'}">
+            <a href="#" id="epEditLink" class="reservation-icon-button d-none" title="{translate key='Edit'}" aria-label="{translate key='Edit'}">
                 <i class="bi bi-pencil"></i>
             </a>
-            <button type="button" id="epDeleteBtn" class="ep-icon-btn ep-icon-btn-danger d-none" title="{translate key='Delete'}" aria-label="{translate key='Delete'}">
+            <button type="button" id="epDeleteBtn" class="reservation-icon-button reservation-icon-button-danger d-none" title="{translate key='Delete'}" aria-label="{translate key='Delete'}">
                 <i class="bi bi-trash"></i>
             </button>
-            <button type="button" id="epCloseBtn" class="ep-icon-btn" title="{translate key='Cancel'}" aria-label="{translate key='Cancel'}">
+            <button type="button" id="epCloseBtn" class="reservation-icon-button" title="{translate key='Cancel'}" aria-label="{translate key='Cancel'}">
                 <i class="bi bi-x-lg"></i>
             </button>
         </div>
@@ -181,6 +181,141 @@
         </div>
     </div>
 
+    {* Reservation Drawer — the one full editor shared by "更多選項" (create, prefilled from
+       the quick-create draft) and the event card's pencil icon (edit, loaded by reference
+       number via ajax/overview_fullcalendar_reservation.php). Replaces navigating to
+       reservation.php for the normal create/edit flow; that page stays reachable directly
+       (bookmarks, admin tools) but is no longer a UI a regular user gets routed through.
+       Sections for data this phase doesn't yet expose editing for (recurrence rule,
+       participants, reminders) render as a read-only summary rather than disappearing, and
+       are echoed back unchanged on save (overview_fullcalendar.js) so a basic edit here can
+       never silently wipe them. *}
+    <div class="modal fade reservation-drawer-modal" id="reservationDrawer" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog reservation-drawer-dialog">
+            <div class="modal-content reservation-drawer">
+                <div class="rd-header">
+                    <div class="rd-header-title" id="rdHeaderTitle">{translate key='NewReservation'}</div>
+                    <div class="rd-header-actions">
+                        <button type="button" class="reservation-icon-button reservation-icon-button-danger d-none" id="rdDeleteBtn" title="{translate key='Delete'}" aria-label="{translate key='Delete'}">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                        <button type="button" class="reservation-icon-button" id="rdCloseBtn" title="{translate key='Cancel'}" aria-label="{translate key='Cancel'}">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="rd-body" id="rdBody">
+                    <div class="rd-skeleton d-none" id="rdSkeleton">
+                        <div class="rd-skeleton-line rd-skeleton-line-lg"></div>
+                        <div class="rd-skeleton-line"></div>
+                        <div class="rd-skeleton-line"></div>
+                        <div class="rd-skeleton-line rd-skeleton-line-sm"></div>
+                    </div>
+                    <div class="rd-load-error d-none" id="rdLoadError"></div>
+                    <div id="rdForm">
+                        <div class="reservation-section">
+                            <input type="text" class="reservation-field rd-title-input" id="rdTitle" placeholder="{translate key='NewReservation'}">
+                        </div>
+
+                        <div class="reservation-section">
+                            <div class="reservation-row">
+                                <i class="bi bi-calendar3"></i>
+                                <input type="date" class="reservation-field" id="rdStartDate">
+                                <select class="reservation-select" id="rdStartTime"></select>
+                            </div>
+                            <div class="reservation-row">
+                                <i class="bi bi-calendar3 rd-row-spacer-icon"></i>
+                                <input type="date" class="reservation-field" id="rdEndDate">
+                                <select class="reservation-select" id="rdEndTime"></select>
+                            </div>
+                            <div class="rd-time-error d-none" id="rdTimeError"></div>
+                        </div>
+
+                        <div class="reservation-section d-none" id="rdRecurringSummary">
+                            <div class="reservation-row"><i class="bi bi-arrow-repeat"></i><span id="rdRecurringSummaryText">{translate key='RecurringSummary'}</span></div>
+                        </div>
+
+                        <div class="reservation-section">
+                            <div class="reservation-row">
+                                <i class="bi bi-geo-alt"></i>
+                                <div class="rd-category-tabs" id="rdCategoryTabs">
+                                    <button type="button" class="rd-category-tab active" data-category="physical">{translate key='PhysicalRooms'}</button>
+                                    <button type="button" class="rd-category-tab" data-category="video">{translate key='VideoConferenceResources'}</button>
+                                </div>
+                            </div>
+                            <div class="reservation-row">
+                                <i class="bi bi-door-open rd-row-spacer-icon"></i>
+                                <select class="reservation-select" id="rdResource"></select>
+                            </div>
+                        </div>
+
+                        <div class="reservation-section d-none" id="rdParticipantsSummary">
+                            <div class="reservation-row"><i class="bi bi-people"></i><span id="rdParticipantsSummaryText"></span></div>
+                        </div>
+
+                        <div class="reservation-section">
+                            <div class="reservation-row reservation-row-top">
+                                <i class="bi bi-text-left"></i>
+                                <textarea class="reservation-field" id="rdDescription" placeholder="{translate key='Description'}" rows="3"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="reservation-section d-none" id="rdRemindersSummary">
+                            <div class="reservation-row"><i class="bi bi-bell"></i><span id="rdRemindersSummaryText">{translate key='RemindersSummary'}</span></div>
+                        </div>
+                    </div>
+                    <div class="rd-save-error d-none" id="rdSaveError"></div>
+                </div>
+                <div class="rd-footer">
+                    <button type="button" class="del-btn-text d-none" id="rdDeleteFooterBtn">{translate key='Delete'}</button>
+                    <div class="rd-footer-actions">
+                        <button type="button" class="reservation-btn-text" id="rdCancelBtn" data-bs-dismiss="modal">{translate key='Cancel'}</button>
+                        <button type="button" class="reservation-primary-button" id="rdSaveBtn">
+                            <span class="spinner-border spinner-border-sm rd-save-spinner d-none" aria-hidden="true"></span>
+                            <span id="rdSaveLabel">{translate key='Create'}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {* Recurring-reservation update scope — appears after "儲存" when editing a recurring
+       reservation, same three SeriesUpdateScope options the delete dialog offers. *}
+    <div class="modal fade" id="reservationUpdateScopeModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content del-dialog">
+                <button type="button" class="del-close-btn" data-bs-dismiss="modal" aria-label="{translate key='Cancel'}">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <div class="del-body">
+                    <div class="del-title">{translate key='ApplyUpdateTo'}</div>
+                    <div class="del-scope">
+                        <label class="del-radio">
+                            <input type="radio" name="rdUpdateScope" value="this">
+                            <span>{translate key='ThisInstance'}</span>
+                        </label>
+                        <label class="del-radio">
+                            <input type="radio" name="rdUpdateScope" value="future">
+                            <span>{translate key='FutureInstances'}</span>
+                        </label>
+                        <label class="del-radio">
+                            <input type="radio" name="rdUpdateScope" value="full" checked>
+                            <span>{translate key='AllInstances'}</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="del-footer">
+                    <button type="button" class="del-btn-text" data-bs-dismiss="modal">{translate key='Cancel'}</button>
+                    <button type="button" class="reservation-primary-button" id="rdUpdateScopeConfirmBtn">
+                        <span class="spinner-border spinner-border-sm rd-save-spinner d-none" aria-hidden="true"></span>
+                        <span>{translate key='Update'}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 {include file="javascript-includes.tpl"}
@@ -191,6 +326,10 @@
         reservationUrl: '{$ScriptUrl}/{Pages::RESERVATION}',
         eventsUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_events.php',
         saveUrl: '{$ScriptUrl}/ajax/reservation_save.php',
+        reservationDataUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_reservation.php',
+        {* Deliberately NOT ajax/reservation_update.php — see OverviewFullCalendarReservationUpdatePresenter's
+           doc comment for why the Drawer's basic-field edit needs its own narrower endpoint. *}
+        reservationUpdateUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_reservation_update.php',
         {* QueryStringKeys::RESPONSE_TYPE is 'rs', not 'response_type' — that's what actually
            routes DeleteReservationPageFactory to ReservationDeleteJsonPage (clean JSON) instead
            of the default HTML-fragment ReservationDeletePage. *}
@@ -198,6 +337,25 @@
         csrfToken: '{$CSRFToken|escape:'javascript'}',
         currentUserId: {$UserId},
         timezone: '{$Timezone|escape:'javascript'}',
+        {* Web/scripts/overview_fullcalendar.js is served as a static .js file — Smarty never
+           processes it, so any {translate} tag written directly inside it would reach the
+           browser as literal text. This is the bridge: translate here, reference via
+           opts.translations.* in the JS. *}
+        translations: {
+            editReservation: '{translate key='EditReservation'|escape:'javascript'}',
+            newReservation: '{translate key='NewReservation'|escape:'javascript'}',
+            update: '{translate key='Update'|escape:'javascript'}',
+            create: '{translate key='Create'|escape:'javascript'}',
+            loadReservationFailed: '{translate key='LoadReservationFailed'|escape:'javascript'}',
+            networkErrorRetry: '{translate key='NetworkErrorRetry'|escape:'javascript'}',
+            unsavedChangesPrompt: '{translate key='UnsavedChangesPrompt'|escape:'javascript'}',
+            endBeforeStart: '{translate key='EndDateBeforeStartDate'|escape:'javascript'}',
+            reservationChanged: '{translate key='ReservationChanged'|escape:'javascript'}',
+            reloadLatest: '{translate key='ReloadLatest'|escape:'javascript'}',
+            minutes: '{translate key='minutes'|escape:'javascript'}',
+            hours: '{translate key='hours'|escape:'javascript'}',
+            days: '{translate key='days'|escape:'javascript'}'
+        },
         resourceNames: {
             {foreach from=$PhysicalResources item=resource name=physicalNames}
                 "{$resource->GetId()}": "{$resource->GetName()|escape:'javascript'}"{if !$smarty.foreach.physicalNames.last},{/if}

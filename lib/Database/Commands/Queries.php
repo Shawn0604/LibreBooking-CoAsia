@@ -286,8 +286,9 @@ class Queries
         'UPDATE `reservation_series`
 		    SET `status_id` = @statusid,
 			`last_modified` = @dateModified,
-			`last_action_by` = @last_action_by
-		  WHERE `series_id` = @seriesid';
+			`last_action_by` = @last_action_by,
+			`version` = `version` + 1
+		  WHERE `series_id` = @seriesid AND `version` = @expectedVersion';
 
     public const DELETE_SERIES_PERMANENT = 'DELETE FROM `reservation_series` WHERE `series_id` = @seriesid';
 
@@ -1141,9 +1142,10 @@ class Queries
 			`status_id` = @statusid,
 			`owner_id` = @userid,
 			`allow_participation` = @allow_participation,
-			`last_action_by` = @last_action_by
+			`last_action_by` = @last_action_by,
+			`version` = `version` + 1
 		WHERE
-			`series_id` = @seriesid';
+			`series_id` = @seriesid AND `version` = @expectedVersion';
 
     public const UPDATE_RESOURCE =
         'UPDATE `resources`

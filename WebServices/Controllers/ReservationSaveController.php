@@ -541,6 +541,16 @@ class ReservationRequestResponseFacade implements IReservationSavePage
         return [];
     }
 
+    /**
+     * @return string|null the Web Service API request schema doesn't carry a client-generated
+     *   request id yet, so this create path doesn't get idempotency protection (a resend
+     *   creates a new reservation, same as before this change) — see ReservationSavePresenter.
+     */
+    public function GetRequestId()
+    {
+        return null;
+    }
+
     public function GetParticipants()
     {
         if (!empty($this->request->participants) && is_array($this->request->participants)) {
@@ -894,6 +904,16 @@ class ReservationDeleteRequestResponseFacade implements IReservationDeletePage
     public function GetReason()
     {
         return '';
+    }
+
+    /**
+     * @return int|null the Web Service API doesn't accept a client-tracked version yet, so
+     *   this falls back to whatever version gets loaded fresh in this same request — still
+     *   race-safe against a concurrent writer, just not stale-edit-safe across separate API calls.
+     */
+    public function GetExpectedVersion()
+    {
+        return null;
     }
 }
 

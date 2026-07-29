@@ -10,6 +10,8 @@ class MySqlConnection implements IDbConnection
 
     private $_db = null;
     private $_connected = false;
+    private $_inTransaction = false;
+    private $_lastAffectedRows = 0;
 
     /**
      * @param string $dbUser
@@ -59,6 +61,16 @@ class MySqlConnection implements IDbConnection
 
     public function Disconnect()
     {
+        // Every Database::Query()/Execute()/ExecuteInsert() call wraps itself in
+        // Connect()/Disconnect() — fine in isolation (a fresh mysqli connection per call),
+        // but fatal to a transaction: closing the connection mid-transaction implicitly
+        // rolls it back and releases any row locks immediately. While a transaction is open,
+        // keep the real connection alive; Commit()/Rollback() below call the real disconnect
+        // once the transaction is actually finished.
+        if ($this->_inTransaction) {
+            return;
+        }
+
         mysqli_close($this->_db);
         $this->_db = null;
         $this->_connected = false;
@@ -117,11 +129,73 @@ class MySqlConnection implements IDbConnection
             $result = mysqli_query($this->_db, $mysqlCommand->GetQuery());
         }
         $this->_handleError($result);
+
+        // Captured now, not read lazily from GetAffectedRows() — outside a transaction,
+        // Database::Execute() calls Disconnect() (a REAL disconnect, $this->_db becomes null)
+        // immediately after this method returns, so a caller checking GetAffectedRows()
+        // afterward (e.g. an optimistic-locking UPDATE ... WHERE version = ? check that isn't
+        // running inside ResourceLockService's transaction) would otherwise be asking
+        // mysqli_affected_rows() about a connection that's already closed.
+        $this->_lastAffectedRows = mysqli_affected_rows($this->_db);
     }
 
     public function GetLastInsertId()
     {
         return mysqli_insert_id($this->_db);
+    }
+
+    public function GetAffectedRows()
+    {
+        return $this->_lastAffectedRows;
+    }
+
+    public function BeginTransaction()
+    {
+        $this->Connect();
+
+        if (!mysqli_begin_transaction($this->_db)) {
+            throw new Exception('Error starting transaction: ' . mysqli_error($this->_db));
+        }
+
+        $this->_inTransaction = true;
+    }
+
+    public function Commit()
+    {
+        if (!$this->_inTransaction) {
+            return;
+        }
+
+        $committed = mysqli_commit($this->_db);
+        $this->_inTransaction = false;
+        // Now that the transaction is actually over, let the next Disconnect() through
+        // (the one Database::Execute()/Query() is about to call) release the connection —
+        // and with it, any resource-row locks acquired via SELECT ... FOR UPDATE.
+        $this->Disconnect();
+
+        if (!$committed) {
+            throw new Exception('Error committing transaction: ' . mysqli_error($this->_db));
+        }
+    }
+
+    public function Rollback()
+    {
+        if (!$this->_inTransaction) {
+            return;
+        }
+
+        $rolledBack = mysqli_rollback($this->_db);
+        $this->_inTransaction = false;
+        $this->Disconnect();
+
+        if (!$rolledBack) {
+            Log::Error('Error rolling back transaction: %s', mysqli_error($this->_db));
+        }
+    }
+
+    public function InTransaction()
+    {
+        return $this->_inTransaction;
     }
 
     private function _handleError($result)

@@ -952,6 +952,17 @@ class en_us extends Language
         $strings['DeleteRecurringScopePrompt'] = 'Which reservations do you want to delete?';
         $strings['DeleteNotifiesParticipants'] = 'Participants will receive a cancellation notice.';
         $strings['NewReservation'] = 'New Reservation';
+        $strings['EditReservation'] = 'Edit Reservation';
+        $strings['ParticipantsSummary'] = '%s participants (manage via More Options)';
+        $strings['RemindersSummary'] = 'Reminders set (adjust via More Options)';
+        $strings['RecurringSummary'] = 'Recurring reservation (edit rule via More Options)';
+        $strings['LoadReservationFailed'] = 'Could not load this reservation.';
+        $strings['NetworkErrorRetry'] = 'Network error — please try again.';
+        $strings['UnsavedChangesPrompt'] = 'Unsaved changes will be lost. Leave anyway?';
+        $strings['ApplyUpdateTo'] = 'Apply this change to which reservations?';
+        $strings['EndDateBeforeStartDate'] = 'End time must be after start time.';
+        $strings['ReservationChanged'] = 'This reservation was changed by someone else. Please reload before trying again.';
+        $strings['ReloadLatest'] = 'Reload latest';
         $strings['ServerSettings'] = 'Server Settings';
         $strings['Dashboard'] = 'Dashboard';
         $strings['Help'] = 'Help';

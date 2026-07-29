@@ -94,6 +94,7 @@ class ColumnNames
     public const RESERVATION_ALLOW_PARTICIPATION = 'allow_participation';
     public const RESERVATION_TERMS_ACCEPTANCE_DATE = 'terms_date_accepted';
     public const RESERVATION_SERIES_ID = 'series_id';
+    public const RESERVATION_VERSION = 'version';
 
     // RESERVATION_INSTANCE //
     public const RESERVATION_INSTANCE_ID = 'reservation_instance_id';

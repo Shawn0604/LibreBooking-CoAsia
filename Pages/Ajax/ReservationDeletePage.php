@@ -20,6 +20,13 @@ interface IReservationDeletePage extends IReservationSaveResultsView
      * @return string
      */
     public function GetReason();
+
+    /**
+     * @return int|null the version the caller last saw, or null to fall back to whatever
+     *   version gets loaded fresh in this same request (see ExistingReservationSeries::
+     *   ExpectedVersion())
+     */
+    public function GetExpectedVersion();
 }
 
 class ReservationDeletePage extends SecurePage implements IReservationDeletePage
@@ -54,6 +61,11 @@ class ReservationDeletePage extends SecurePage implements IReservationDeletePage
             } else {
                 $this->Display('Ajax/reservation/delete_failed.tpl');
             }
+        } catch (ReservationVersionConflictException $ex) {
+            Log::Debug('ReservationDeletePage - version conflict: %s', $ex->getMessage());
+            http_response_code(409);
+            $this->SetErrors(['這筆預約已被其他人修改，請重新載入後再試。']);
+            $this->Display('Ajax/reservation/delete_failed.tpl');
         } catch (Exception $ex) {
             Log::Error('ReservationDeletePage - Critical error saving reservation: %s', $ex);
             $this->Display('Ajax/reservation/reservation_error.tpl');
@@ -115,6 +127,12 @@ class ReservationDeletePage extends SecurePage implements IReservationDeletePage
     {
         return $this->GetForm(FormKeys::DELETE_REASON);
     }
+
+    public function GetExpectedVersion()
+    {
+        $raw = $this->GetForm(FormKeys::EXPECTED_VERSION);
+        return ($raw === null || $raw === '') ? null : (int)$raw;
+    }
 }
 
 class ReservationDeleteJsonPage extends ReservationDeletePage implements IReservationDeletePage
@@ -126,8 +144,20 @@ class ReservationDeleteJsonPage extends ReservationDeletePage implements IReserv
 
     public function PageLoad()
     {
-        $reservation = $this->presenter->BuildReservation();
-        $this->presenter->HandleReservation($reservation);
+        try {
+            $reservation = $this->presenter->BuildReservation();
+            $this->presenter->HandleReservation($reservation);
+        } catch (ReservationVersionConflictException $ex) {
+            Log::Debug('ReservationDeleteJsonPage - version conflict: %s', $ex->getMessage());
+            $this->SetJson(
+                ['deleted' => (string)false, 'code' => 'reservation_changed'],
+                ['這筆預約已被其他人修改，請重新載入後再試。'],
+                409
+            );
+        } catch (Exception $ex) {
+            Log::Error('ReservationDeleteJsonPage - Critical error deleting reservation: %s', $ex);
+            $this->SetJson(['deleted' => (string)false], ['A critical error occurred.'], 500);
+        }
     }
 
     /**

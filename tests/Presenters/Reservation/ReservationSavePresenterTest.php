@@ -41,6 +41,8 @@ class ReservationSavePresenterTest extends TestBase
      */
     private $scheduleRepository;
 
+    private IIdempotencyService&\PHPUnit\Framework\MockObject\MockObject $idempotencyService;
+
     public function setUp(): void
     {
         parent::setup();
@@ -56,6 +58,7 @@ class ReservationSavePresenterTest extends TestBase
         $this->attributeRepository = $this->createMock('IAttributeRepository');
         $this->attributeRepository->method('GetByCategory')->willReturn([]);
         $this->scheduleRepository = new FakeScheduleRepository();
+        $this->idempotencyService = $this->createMock('IIdempotencyService');
 
         $this->presenter = new ReservationSavePresenter(
             $this->page,
@@ -64,7 +67,8 @@ class ReservationSavePresenterTest extends TestBase
             $this->resourceRepository,
             $this->scheduleRepository,
             $this->fakeUser,
-            $this->attributeRepository
+            $this->attributeRepository,
+            $this->idempotencyService
         );
     }
 
@@ -182,5 +186,80 @@ class ReservationSavePresenterTest extends TestBase
 
         $this->assertEquals($instance->ReferenceNumber(), $this->page->referenceNumber);
         $this->assertEquals($series->RequiresApproval(), $this->page->requiresApproval);
+    }
+
+    public function testHandleReservationWithRequestIdClaimsBeforeHandlingAndMarksSucceeded()
+    {
+        $this->page->requestId = 'req-1';
+        $series = new TestReservationSeries();
+        $instance = new Reservation($series, NullDateRange::Instance());
+        $series->WithCurrentInstance($instance);
+
+        $this->idempotencyService->expects($this->once())
+            ->method('TryClaim')
+            ->with('req-1', $this->userId)
+            ->willReturn(IdempotencyClaim::Claimed());
+
+        $this->handler->expects($this->once())
+            ->method('Handle')
+            ->willReturn(true);
+
+        $this->idempotencyService->expects($this->once())
+            ->method('MarkSucceeded')
+            ->with('req-1', $this->userId, $instance->ReferenceNumber());
+
+        $this->presenter->HandleReservation($series);
+
+        $this->assertEquals($instance->ReferenceNumber(), $this->page->referenceNumber);
+    }
+
+    public function testHandleReservationWithRequestIdMarksFailedWhenHandlerReturnsFalse()
+    {
+        $this->page->requestId = 'req-2';
+        $series = new TestReservationSeries();
+        $instance = new Reservation($series, NullDateRange::Instance());
+        $series->WithCurrentInstance($instance);
+
+        $this->idempotencyService->method('TryClaim')->willReturn(IdempotencyClaim::Claimed());
+        $this->handler->method('Handle')->willReturn(false);
+
+        $this->idempotencyService->expects($this->once())
+            ->method('MarkFailed')
+            ->with('req-2', $this->userId);
+
+        $this->presenter->HandleReservation($series);
+    }
+
+    public function testHandleReservationAlreadySucceededReplaysStoredReferenceNumberWithoutCallingHandler()
+    {
+        $this->page->requestId = 'req-3';
+        $series = new TestReservationSeries();
+        $instance = new Reservation($series, NullDateRange::Instance());
+        $series->WithCurrentInstance($instance);
+
+        $this->idempotencyService->method('TryClaim')->willReturn(IdempotencyClaim::AlreadySucceeded('ORIGINAL-REF'));
+
+        $this->handler->expects($this->never())->method('Handle');
+
+        $this->presenter->HandleReservation($series);
+
+        $this->assertEquals('ORIGINAL-REF', $this->page->referenceNumber);
+        $this->assertEquals('ORIGINAL-REF', $instance->ReferenceNumber());
+        $this->assertTrue($this->page->saveSuccessful);
+    }
+
+    public function testHandleReservationInProgressThrowsWithoutCallingHandler()
+    {
+        $this->page->requestId = 'req-4';
+        $series = new TestReservationSeries();
+        $instance = new Reservation($series, NullDateRange::Instance());
+        $series->WithCurrentInstance($instance);
+
+        $this->idempotencyService->method('TryClaim')->willReturn(IdempotencyClaim::InProgress());
+
+        $this->handler->expects($this->never())->method('Handle');
+
+        $this->expectException(ReservationRequestInProgressException::class);
+        $this->presenter->HandleReservation($series);
     }
 }
