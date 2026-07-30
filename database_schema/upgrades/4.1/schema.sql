@@ -21,8 +21,27 @@
 --   DROP TABLE IF EXISTS `reservation_requests`;
 --
 
-ALTER TABLE `reservation_series`
-  ADD COLUMN `version` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `last_modified`;
+-- MariaDB supports `ADD COLUMN IF NOT EXISTS`, but MySQL 8.0's documented ALTER TABLE syntax
+-- does not (confirmed against the real MySQL 8.0.46 dev instance). Use metadata checks plus
+-- dynamic SQL, same pattern as database_schema/upgrades/3.0/schema.sql, so this upgrade stays
+-- safe to rerun (phing-tasks/UpgradeDbTask.php reruns every upgrade folder unconditionally on
+-- every invocation — there is no dbversion-based skip at that layer, only in the web
+-- installer's Installer::Upgrade()).
+SET @version_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'reservation_series'
+        AND COLUMN_NAME = 'version'
+);
+SET @version_sql := IF(
+    @version_exists = 0,
+    'ALTER TABLE `reservation_series` ADD COLUMN `version` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `last_modified`',
+    'SELECT 1'
+);
+PREPARE stmt FROM @version_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS `reservation_requests` (
   `request_id` VARCHAR(36) NOT NULL,

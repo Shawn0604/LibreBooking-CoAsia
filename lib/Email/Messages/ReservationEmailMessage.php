@@ -226,11 +226,50 @@ abstract class ReservationEmailMessage extends EmailMessage
         $rv->Attributes = $ca;
         $rv->UserPreferences = $this->reservationOwner->GetPreferences();
         $rv->OwnerEmailAddress = $this->reservationOwner->EmailAddress();
+        // SEQUENCE — see Domain/ReservationSeries::Version()/WithVersion(). Starts at 0 for a
+        // brand-new series and is bumped by ReservationRepository::Update()/DeleteSeriesEventCommand
+        // right after each successful write, so a create/update/cancel notification's ICS always
+        // carries a SEQUENCE that's at least as high as the last one a recipient's calendar app saw.
+        $rv->Version = $this->reservationSeries->Version();
 
-        $icsView = new iCalendarReservationView($rv, $this->reservationSeries->BookedBy(), new NullPrivacyFilter());
+        $icsView = new iCalendarReservationView(
+            $rv,
+            $this->reservationSeries->BookedBy(),
+            new NullPrivacyFilter(),
+            null,
+            $this->GetIcsMethod()
+        );
 
         $display = new CalendarExportDisplay();
         $icsContents = $display->Render([$icsView]);
-        $this->AddStringAttachment($icsContents, 'reservation.ics');
+        $this->AddStringAttachment($icsContents, $this->BuildIcsFileName($currentInstance->ReferenceNumber()));
+    }
+
+    /**
+     * Top-level iCalendar METHOD for this notification's ICS attachment. 'REQUEST' (create/
+     * update) by default; ReservationDeletedEmail overrides this to 'CANCEL' — the two need
+     * genuinely different ICS bodies (STATUS:CANCELLED etc, see iCalendarReservationView),
+     * not just a different subject line.
+     * @return string
+     */
+    protected function GetIcsMethod()
+    {
+        return 'REQUEST';
+    }
+
+    /**
+     * A unique, single-extension filename per reservation — deliberately not the fixed literal
+     * 'reservation.ics' every notification used to attach, which some mail gateways/clients
+     * (already primed to append their own sniffed extension to a generic-looking attachment
+     * name) have been observed re-suffixing into 'reservation.ics.ics'. Stripping any existing
+     * .ics suffix from the reference number before appending our own makes that impossible from
+     * this end regardless of the root cause.
+     * @param string $referenceNumber
+     * @return string
+     */
+    private function BuildIcsFileName($referenceNumber)
+    {
+        $base = preg_replace('/\.ics$/i', '', (string)$referenceNumber);
+        return 'reservation-' . $base . '.ics';
     }
 }

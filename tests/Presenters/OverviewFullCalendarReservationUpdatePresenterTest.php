@@ -45,6 +45,11 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
     private $view;
 
     /**
+     * @var FakeRepeatOptionsComposite
+     */
+    private $repeatOptions;
+
+    /**
      * @var OverviewFullCalendarReservationUpdatePresenter
      */
     private $presenter;
@@ -62,6 +67,7 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
         $this->handler = new FakeReservationHandler();
         $this->handler->_Success = true;
         $this->view = new FakeReservationSaveResultsView();
+        $this->repeatOptions = new FakeRepeatOptionsComposite();
 
         $this->presenter = new OverviewFullCalendarReservationUpdatePresenter(
             $this->reservationViewRepository,
@@ -112,6 +118,7 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
             '10:00:00',
             8,
             null,
+            $this->repeatOptions,
             $this->UserSession(self::ACTING_ADMIN_ID, true),
             $this->view
         );
@@ -138,6 +145,7 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
             '10:45:00',
             8,
             null,
+            $this->repeatOptions,
             $this->UserSession(self::OWNER_ID),
             $this->view
         );
@@ -169,6 +177,7 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
             '10:00:00',
             8,
             null,
+            $this->repeatOptions,
             $this->UserSession(self::OWNER_ID),
             $this->view
         );
@@ -193,6 +202,7 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
             '10:00:00',
             8,
             null,
+            $this->repeatOptions,
             $this->UserSession(self::OWNER_ID),
             $this->view
         );
@@ -219,6 +229,7 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
             '10:00:00',
             8,
             3,
+            $this->repeatOptions,
             $this->UserSession(self::OWNER_ID),
             $this->view
         );
@@ -249,11 +260,71 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
             '10:00:00',
             8,
             null,
+            $this->repeatOptions,
             $this->UserSession(self::OWNER_ID),
             $this->view
         );
 
         $this->assertEquals(5, $this->handler->_LastSeries->ExpectedVersion());
+    }
+
+    public function testUpdateBasicFieldsAppliesSubmittedRepeatRule()
+    {
+        $this->reservationViewRepository->_ReservationView = new ReservationView();
+        $this->reservationAuthorization->_CanEdit = true;
+        $this->reservationRepository->_Series = $this->ExistingSeriesWithRealData();
+
+        $this->repeatOptions->_RepeatType = RepeatType::Weekly;
+        $this->repeatOptions->_RepeatInterval = 2;
+        $this->repeatOptions->_RepeatWeekdays = [1, 3];
+        $this->repeatOptions->_RepeatTerminationDate = '2026-09-01';
+
+        $this->presenter->UpdateBasicFields(
+            'rn1',
+            SeriesUpdateScope::FullSeries,
+            'title',
+            'description',
+            '2026-07-29',
+            '09:00:00',
+            '2026-07-29',
+            '10:00:00',
+            8,
+            null,
+            $this->repeatOptions,
+            $this->UserSession(self::OWNER_ID),
+            $this->view
+        );
+
+        $repeatOptions = $this->handler->_LastSeries->RepeatOptions();
+        $this->assertEquals(RepeatType::Weekly, $repeatOptions->RepeatType());
+    }
+
+    public function testUpdateBasicFieldsWithNoRepeatSubmittedAppliesRepeatNone()
+    {
+        $this->reservationViewRepository->_ReservationView = new ReservationView();
+        $this->reservationAuthorization->_CanEdit = true;
+        $this->reservationRepository->_Series = $this->ExistingSeriesWithRealData();
+
+        // FakeRepeatOptionsComposite defaults to RepeatType::None — the Drawer always submits
+        // its current repeat state (same principle as title/date/resource), so "not recurring"
+        // is a deliberate, explicit submission, not an omitted field.
+        $this->presenter->UpdateBasicFields(
+            'rn1',
+            SeriesUpdateScope::FullSeries,
+            'title',
+            'description',
+            '2026-07-29',
+            '09:00:00',
+            '2026-07-29',
+            '10:00:00',
+            8,
+            null,
+            $this->repeatOptions,
+            $this->UserSession(self::OWNER_ID),
+            $this->view
+        );
+
+        $this->assertEquals(RepeatType::None, $this->handler->_LastSeries->RepeatOptions()->RepeatType());
     }
 
     public function testUnauthorizedUserCannotUpdate()
@@ -273,6 +344,7 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
             '10:00:00',
             8,
             null,
+            $this->repeatOptions,
             $this->UserSession(self::ACTING_ADMIN_ID),
             $this->view
         );
@@ -297,6 +369,7 @@ class OverviewFullCalendarReservationUpdatePresenterTest extends TestBase
             '10:00:00',
             8,
             null,
+            $this->repeatOptions,
             $this->UserSession(self::OWNER_ID),
             $this->view
         );

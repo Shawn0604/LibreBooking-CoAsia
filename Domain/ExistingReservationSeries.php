@@ -45,10 +45,82 @@ class ExistingReservationSeries extends ReservationSeries
      */
     private $_deleteReason;
 
+    /**
+     * @var bool true once SnapshotForChangeDetection() has captured the as-loaded field
+     * values — before any mutator (Update(), UpdateDuration(), ...) has had a chance to run.
+     */
+    private $_changeSnapshotTaken = false;
+
+    private $_originalTitle;
+    private $_originalDescription;
+    private $_originalResourceName;
+
+    /**
+     * @var DateRange|null
+     */
+    private $_originalDuration;
+
     public function __construct()
     {
         parent::__construct();
         $this->ApplyChangesTo(SeriesUpdateScope::FullSeries);
+    }
+
+    /**
+     * Captures the field values a caller might change via Update()/UpdateDuration() as they
+     * stood right after loading from the database — before any such call has run. Intended to
+     * be called exactly once, immediately after a series is fully populated by
+     * ReservationRepository::Load(), so that a before/after diff (see GetChangeSummary()) is
+     * available later for the "reservation updated" notification email, no matter which caller
+     * or code path performed the actual mutation.
+     */
+    public function SnapshotForChangeDetection()
+    {
+        $this->_originalTitle = $this->_title;
+        $this->_originalDescription = $this->_description;
+        $this->_originalResourceName = $this->_resource != null ? $this->_resource->GetName() : null;
+        $currentInstance = $this->CurrentInstance();
+        $this->_originalDuration = $currentInstance != null ? $currentInstance->Duration() : null;
+        $this->_changeSnapshotTaken = true;
+    }
+
+    /**
+     * @return array list of ['label' => string, 'before' => string, 'after' => string] entries,
+     * one per field that differs from the snapshot taken at load time. Empty (not necessarily
+     * meaning "nothing changed" — also empty, safely, if SnapshotForChangeDetection() was never
+     * called, e.g. for a series that isn't going through an edit flow at all).
+     */
+    public function GetChangeSummary()
+    {
+        $changes = [];
+
+        if (!$this->_changeSnapshotTaken) {
+            return $changes;
+        }
+
+        if ($this->_originalTitle !== $this->_title) {
+            $changes[] = ['field' => 'Title', 'before' => $this->_originalTitle, 'after' => $this->_title];
+        }
+
+        if ($this->_originalDescription !== $this->_description) {
+            $changes[] = ['field' => 'Description', 'before' => $this->_originalDescription, 'after' => $this->_description];
+        }
+
+        $currentResourceName = $this->_resource != null ? $this->_resource->GetName() : null;
+        if ($this->_originalResourceName !== $currentResourceName) {
+            $changes[] = ['field' => 'Resource', 'before' => $this->_originalResourceName, 'after' => $currentResourceName];
+        }
+
+        $currentInstance = $this->CurrentInstance();
+        $currentDuration = $currentInstance != null ? $currentInstance->Duration() : null;
+        if (
+            $this->_originalDuration != null && $currentDuration != null &&
+            !$this->_originalDuration->Equals($currentDuration)
+        ) {
+            $changes[] = ['field' => 'Duration', 'before' => $this->_originalDuration, 'after' => $currentDuration];
+        }
+
+        return $changes;
     }
 
     public function SeriesUpdateScope()
@@ -73,31 +145,12 @@ class ExistingReservationSeries extends ReservationSeries
     }
 
     /**
-     * @var int
-     */
-    private $_version = 0;
-
-    /**
      * @var int|null caller-supplied override for the version checked by Update()/Delete();
-     * falls back to whatever WithVersion() populated from the load when never set explicitly
+     * falls back to whatever WithVersion() populated from the load when never set explicitly.
+     * Version()/WithVersion() themselves live on the base ReservationSeries now (shared with
+     * brand-new, not-yet-saved series, which need Version() too — see iCalendarReservationView).
      */
     private $_expectedVersion;
-
-    /**
-     * @internal populates the version as it was found at load time
-     */
-    public function WithVersion($version)
-    {
-        $this->_version = (int)$version;
-    }
-
-    /**
-     * @return int the version as loaded from the database
-     */
-    public function Version()
-    {
-        return $this->_version;
-    }
 
     /**
      * Optimistic-locking check: the version the caller last saw (e.g. what a client submitted

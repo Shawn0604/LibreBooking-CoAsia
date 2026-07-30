@@ -143,13 +143,16 @@ class OverviewFullCalendarReservationPresenter
 
     /**
      * @param AttributeValue[] $attributes
-     * @return array<string, mixed>
+     * @return array<string, array{label: string, value: mixed}>
      */
     private function MapAttributes($attributes)
     {
         $mapped = [];
         foreach ($attributes as $attribute) {
-            $mapped[(string)$attribute->AttributeId] = $attribute->Value;
+            $mapped[(string)$attribute->AttributeId] = [
+                'label' => $attribute->AttributeLabel,
+                'value' => $attribute->Value,
+            ];
         }
         return $mapped;
     }

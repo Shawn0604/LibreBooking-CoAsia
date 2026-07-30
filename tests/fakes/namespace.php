@@ -52,6 +52,7 @@ require_once(ROOT_DIR . 'tests/fakes/FakeResourceService.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeReservationViewRepository.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeReservationAuthorization.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeReservationSaveResultsView.php');
+require_once(ROOT_DIR . 'tests/fakes/FakeRepeatOptionsComposite.php');
 require_once(ROOT_DIR . 'lib/Application/Reservation/Concurrency/ResourceLockService.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeResourceLockService.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeGroupRepository.php');

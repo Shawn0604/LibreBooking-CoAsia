@@ -57,6 +57,11 @@ class ReservationRepository implements IReservationRepository
         $this->PopulateReminders($series);
         $this->PopulateGuests($series);
 
+        // Captures title/description/resource/duration as-loaded, before any caller's mutator
+        // runs, so a later "reservation updated" notification can show what actually changed —
+        // see ExistingReservationSeries::GetChangeSummary().
+        $series->SnapshotForChangeDetection();
+
         return $series;
     }
 
@@ -129,6 +134,12 @@ class ReservationRepository implements IReservationRepository
             if ($database->GetAffectedRows() === 0) {
                 throw new ReservationVersionConflictException($reservationSeries->SeriesId());
             }
+
+            // Keep the in-memory object in sync with the row it just wrote (version = version + 1
+            // above) — notifications fire right after Persist() returns, on this same object, and
+            // need Version() to reflect what's now actually in the database (e.g. for the ICS
+            // attachment's SEQUENCE) rather than the value that was true before this write.
+            $reservationSeries->WithVersion($reservationSeries->ExpectedVersion() + 1);
 
             foreach ($reservationSeries->AddedAttachments() as $attachment) {
                 $this->AddReservationAttachment($attachment);
@@ -768,6 +779,11 @@ class DeleteSeriesEventCommand extends EventCommand
         if ($database->GetAffectedRows() === 0) {
             throw new ReservationVersionConflictException($this->series->SeriesId());
         }
+
+        // Same reasoning as ReservationRepository::Update() — keep Version() in sync so the
+        // cancellation notification's ICS attachment (METHOD:CANCEL) gets a SEQUENCE at least
+        // as high as the last REQUEST the recipient's calendar app saw.
+        $this->series->WithVersion($this->series->ExpectedVersion() + 1);
     }
 }
 

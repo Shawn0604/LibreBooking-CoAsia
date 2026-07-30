@@ -427,6 +427,12 @@ class ReservationRepositoryTest extends TestBase
 
         $expected->WithStartReminder(new ReservationReminder($startReminderMinutes, ReservationReminderInterval::Minutes));
         $expected->WithEndReminder(new ReservationReminder($endReminderMinutes / 60, ReservationReminderInterval::Hours));
+        // ReservationRepository::Load() snapshots title/description/resource/duration for
+        // change-detection (see ExistingReservationSeries::SnapshotForChangeDetection(), used by
+        // the "reservation updated" notification email) right after fully hydrating a series —
+        // matching that here so $expected reflects the same post-load state $actualReservation
+        // will have below.
+        $expected->SnapshotForChangeDetection();
 
         $reservationRow = new ReservationRow(
             $reservationId,
@@ -617,6 +623,11 @@ class ReservationRepositoryTest extends TestBase
         $repeatOptions = $existingReservation->RepeatOptions();
         $repeatType = $repeatOptions->RepeatType();
         $repeatConfiguration = $repeatOptions->ConfigurationString();
+        // Captured before Update() runs: ReservationRepository::Update() bumps the in-memory
+        // version (WithVersion(ExpectedVersion() + 1)) right after a successful write, so
+        // $existingReservation->ExpectedVersion() would no longer match what the SQL command
+        // actually used if read after the fact.
+        $expectedVersionAtUpdateTime = $existingReservation->ExpectedVersion();
 
         $this->repository->Update($existingReservation);
 
@@ -631,7 +642,7 @@ class ReservationRepositoryTest extends TestBase
             $userId,
             $allowParticipation,
             $updatedBy->UserId,
-            $existingReservation->ExpectedVersion()
+            $expectedVersionAtUpdateTime
         );
         $this->assertEquals(1, count($this->db->_Commands));
         $this->assertEquals($updateSeriesCommand, $this->db->_Commands[0]);
@@ -944,10 +955,14 @@ class ReservationRepositoryTest extends TestBase
         $series->WithId($seriesId);
         $series->Delete($deletedBy);
         $series->WithUnusedCreditBalance(10);
+        // Captured before Delete() runs — see the identical note in
+        // testChangingOnlySharedInformationForFullSeriesJustUpdatesSeriesTable(): the repository
+        // bumps the in-memory version right after a successful delete too.
+        $expectedVersionAtDeleteTime = $series->ExpectedVersion();
 
         $this->repository->Delete($series);
 
-        $deleteSeriesCommand = new DeleteSeriesCommand($series->SeriesId(), Date::Now(), $deletedBy->UserId, $series->ExpectedVersion());
+        $deleteSeriesCommand = new DeleteSeriesCommand($series->SeriesId(), Date::Now(), $deletedBy->UserId, $expectedVersionAtDeleteTime);
         $adjustCreditsCommand = new AdjustUserCreditsCommand($series->UserId(), -10, 'ReservationDeletedLog' . $series->CurrentInstance()->ReferenceNumber());
 
         $this->assertEquals(2, count($this->db->_Commands));

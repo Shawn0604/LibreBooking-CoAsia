@@ -113,6 +113,32 @@ class ReservationSeries
     }
 
     /**
+     * @var int optimistic-locking version, as loaded from `reservation_series.version`.
+     * Defaults to 0, matching the DB column's DEFAULT for a series that has never been
+     * persisted yet — also doubles as the iCalendar SEQUENCE for this series' ICS
+     * attachment (see lib/Application/Schedule/iCalendarReservationView.php), since both
+     * need the same "how many times has this been written" counter.
+     */
+    protected $_version = 0;
+
+    /**
+     * @return int
+     */
+    public function Version()
+    {
+        return $this->_version;
+    }
+
+    /**
+     * @internal populates the version as it was found at load time, or bumped after a
+     * successful write (see ReservationRepository::Update()).
+     */
+    public function WithVersion($version)
+    {
+        $this->_version = (int)$version;
+    }
+
+    /**
      * @var IRepeatOptions
      */
     protected $repeatOptions;

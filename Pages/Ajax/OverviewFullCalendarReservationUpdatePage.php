@@ -11,9 +11,11 @@ require_once(ROOT_DIR . 'lib/Application/Reservation/namespace.php');
  * Basic-fields-only update endpoint backing the reservation Drawer — see
  * OverviewFullCalendarReservationUpdatePresenter's doc comment for why this is a
  * deliberately separate, narrower code path from ajax/reservation_update.php rather than a
- * thin JSON wrapper around it.
+ * thin JSON wrapper around it. Repeat/recurrence (IRepeatOptionsComposite) is the one
+ * exception: it's now a deliberately exposed, always-submitted field (P0-4), read via the
+ * exact same FormKeys the classic form already uses, so RepeatOptionsFactory needs no changes.
  */
-class OverviewFullCalendarReservationUpdatePage extends SecurePage implements IReservationSaveResultsView
+class OverviewFullCalendarReservationUpdatePage extends SecurePage implements IReservationSaveResultsView, IRepeatOptionsComposite
 {
     private $succeeded = false;
     private $errors = [];
@@ -62,6 +64,7 @@ class OverviewFullCalendarReservationUpdatePage extends SecurePage implements IR
                 (string)$this->GetForm(FormKeys::END_PERIOD),
                 (int)$this->GetForm(FormKeys::RESOURCE_ID),
                 $expectedVersion,
+                $this,
                 $userSession,
                 $this
             );
@@ -138,5 +141,64 @@ class OverviewFullCalendarReservationUpdatePage extends SecurePage implements IR
     public function SetCanJoinWaitList($canJoinWaitlist)
     {
         // no-op
+    }
+
+    public function GetRepeatType()
+    {
+        return $this->GetForm(FormKeys::REPEAT_OPTIONS);
+    }
+
+    public function GetRepeatInterval()
+    {
+        return $this->GetForm(FormKeys::REPEAT_EVERY);
+    }
+
+    public function GetRepeatWeekdays()
+    {
+        $days = [];
+
+        if (!empty($this->GetForm(FormKeys::REPEAT_SUNDAY))) {
+            $days[] = 0;
+        }
+        if (!empty($this->GetForm(FormKeys::REPEAT_MONDAY))) {
+            $days[] = 1;
+        }
+        if (!empty($this->GetForm(FormKeys::REPEAT_TUESDAY))) {
+            $days[] = 2;
+        }
+        if (!empty($this->GetForm(FormKeys::REPEAT_WEDNESDAY))) {
+            $days[] = 3;
+        }
+        if (!empty($this->GetForm(FormKeys::REPEAT_THURSDAY))) {
+            $days[] = 4;
+        }
+        if (!empty($this->GetForm(FormKeys::REPEAT_FRIDAY))) {
+            $days[] = 5;
+        }
+        if (!empty($this->GetForm(FormKeys::REPEAT_SATURDAY))) {
+            $days[] = 6;
+        }
+
+        return $days;
+    }
+
+    public function GetRepeatMonthlyType()
+    {
+        return $this->GetForm(FormKeys::REPEAT_MONTHLY_TYPE);
+    }
+
+    public function GetRepeatTerminationDate()
+    {
+        return $this->GetForm(FormKeys::END_REPEAT_DATE);
+    }
+
+    public function GetRepeatCustomDates()
+    {
+        $dates = $this->GetForm(FormKeys::REPEAT_CUSTOM_DATES);
+        if (!is_array($dates) || empty($dates)) {
+            return [];
+        }
+
+        return $dates;
     }
 }

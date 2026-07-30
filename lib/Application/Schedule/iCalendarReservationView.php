@@ -21,6 +21,40 @@ class iCalendarReservationView
     public $ExtraIcalLines;
 
     /**
+     * The time this particular iCalendar object instance was generated (RFC 5545 DTSTAMP) —
+     * distinct from DateCreated (the reservation's original creation time): DTSTAMP must
+     * advance on every REQUEST/CANCEL a client receives for the same UID, even when nothing
+     * else about the reservation changed, or some calendar apps won't treat it as a fresh
+     * update. Always "now", always UTC.
+     * @var Date
+     */
+    public $DtStamp;
+
+    /**
+     * iCalendar SEQUENCE — sourced from the reservation series' optimistic-locking version
+     * (ReservationItemView::$Version), so it naturally starts at 0 for a new reservation and
+     * increases by exactly 1 on every subsequent REQUEST/CANCEL, matching what Outlook/Google
+     * Calendar expect in order to apply an update in place instead of adding a duplicate event.
+     * @var int
+     */
+    public $Sequence = 0;
+
+    /**
+     * Top-level iCalendar METHOD — 'REQUEST' for create/update, 'CANCEL' when this ICS is
+     * attached to a cancellation notification (see ReservationEmailMessage::GetIcsMethod()).
+     * @var string
+     */
+    public $Method;
+
+    /**
+     * STATUS for this VEVENT — CANCELLED unconditionally when Method is CANCEL (regardless of
+     * whether the reservation happened to require approval), otherwise TENTATIVE/CONFIRMED
+     * based on IsPending, same as before.
+     * @var string
+     */
+    public $Status;
+
+    /**
      * @var ExportFactory
      */
     private $ExportFactory;
@@ -35,8 +69,9 @@ class iCalendarReservationView
      * @param UserSession $currentUser
      * @param IPrivacyFilter $privacyFilter
      * @param string|null $summaryFormat
+     * @param string $method 'REQUEST' (create/update, default) or 'CANCEL'
      */
-    public function __construct($res, UserSession $currentUser, IPrivacyFilter $privacyFilter, $summaryFormat = null)
+    public function __construct($res, UserSession $currentUser, IPrivacyFilter $privacyFilter, $summaryFormat = null, $method = 'REQUEST')
     {
         if ($summaryFormat == null) {
             $summaryFormat = Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_LABELS_ICS_SUMMARY);
@@ -62,14 +97,26 @@ class iCalendarReservationView
         $privateNotice = 'Private';
 
         $this->Classification = method_exists($this->ExportFactory, 'GetIcalendarClassification') ? $this->ExportFactory->GetIcalendarClassification($res) : 'PUBLIC';
+        // ->ToUtc() on every timestamp below is what makes the trailing 'Z' the ical date
+        // format (Resources::$systemDateKeys['ical'] = 'Ymd\THis\Z') writes actually true —
+        // Date::Format() just prints whatever timezone the Date object currently holds, it
+        // doesn't convert anything itself. $res->DateCreated/ModifiedDate are UTC already when
+        // sourced from the database (Date::FromDatabase() always tags 'UTC'), so ->ToUtc() is a
+        // harmless no-op there; the case this actually fixes is the email attachment path
+        // (ReservationEmailMessage::PopulateIcsAttachment()), which never sets DateCreated at
+        // all, so it fell through to Date::Now() — the *server's local* timezone — and got
+        // labelled 'Z' (UTC) regardless, silently off by the server's UTC offset.
         if ($res->DateCreated) {
-            $this->DateCreated = $res->DateCreated;
+            $this->DateCreated = $res->DateCreated->ToUtc();
         } else {
-            $this->DateCreated = Date::Now();
+            $this->DateCreated = Date::Now()->ToUtc();
         }
 
-        $this->DateEnd = $res->EndDate;
-        $this->DateStart = $res->StartDate;
+        // Guarded the same way as DateCreated above — some callers (and several existing tests)
+        // build a ReservationItemView without dates when they only care about testing unrelated
+        // fields (e.g. Organizer), so these can legitimately be null.
+        $this->DateEnd = $res->EndDate ? $res->EndDate->ToUtc() : $res->EndDate;
+        $this->DateStart = $res->StartDate ? $res->StartDate->ToUtc() : $res->StartDate;
         $this->Summary = $canViewDetails ? self::toRfc5545Text($factory->Format($res, $summaryFormat)) : $privateNotice;
         $this->Description = $canViewDetails ? self::toRfc5545Text($res->Description ?? '') : $privateNotice;
         $fullName = new FullName($res->OwnerFirstName, $res->OwnerLastName);
@@ -88,8 +135,19 @@ class iCalendarReservationView
 
         $this->StartReminder = $res->StartReminder;
         $this->EndReminder = $res->EndReminder;
-        $this->LastModified = empty($res->ModifiedDate) || $res->ModifiedDate->ToString() == '' ? $this->DateCreated : $res->ModifiedDate;
+        $this->LastModified = (empty($res->ModifiedDate) || $res->ModifiedDate->ToString() == '') ? $this->DateCreated : $res->ModifiedDate->ToUtc();
         $this->IsPending = $res->RequiresApproval;
+
+        // DTSTAMP is "when was this particular message generated", never the reservation's
+        // original creation time — reusing DateCreated here (as this class used to) means an
+        // update email's ICS carries the same DTSTAMP as the original create email, which is
+        // exactly the kind of thing that makes Outlook/Google Calendar unsure whether they're
+        // looking at a stale re-delivery or a genuine new revision.
+        $this->DtStamp = Date::Now()->ToUtc();
+
+        $this->Sequence = isset($res->Version) ? (int)$res->Version : 0;
+        $this->Method = $method;
+        $this->Status = $method === 'CANCEL' ? 'CANCELLED' : ($this->IsPending ? 'TENTATIVE' : 'CONFIRMED');
 
         if ($canViewUser && $res->OwnerId == $currentUser->UserId) {
             $this->OrganizerEmail = str_replace('@', '-noreply@', $res->OwnerEmailAddress);

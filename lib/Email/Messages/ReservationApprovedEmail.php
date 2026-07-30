@@ -14,6 +14,7 @@ class ReservationApprovedEmail extends ReservationEmailMessage
     {
         parent::PopulateTemplate();
         $this->Set('ApprovedBy', new FullName($this->reservationSeries->BookedBy()->FirstName, $this->reservationSeries->BookedBy()->LastName));
+        $this->Set('Status', 'approved');
     }
 
     /**

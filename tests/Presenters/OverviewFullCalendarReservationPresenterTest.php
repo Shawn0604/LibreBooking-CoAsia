@@ -70,7 +70,7 @@ class OverviewFullCalendarReservationPresenterTest extends TestBase
         $view->StartReminder = new ReservationReminderView(15);
         $view->EndReminder = null;
         $view->AllowParticipation = true;
-        $view->Attributes = [1 => new AttributeValue(1, '42'), 2 => new AttributeValue(2, 'hello')];
+        $view->Attributes = [1 => new AttributeValue(1, '42', 'Project Code'), 2 => new AttributeValue(2, 'hello', 'Notes')];
         $view->ParticipatingGuests = ['guest@example.com'];
         $view->InvitedGuests = ['invited@example.com'];
         $view->Accessories = [new ReservationAccessoryView(3, 1, 'Projector', 5)];
@@ -133,7 +133,10 @@ class OverviewFullCalendarReservationPresenterTest extends TestBase
         $this->assertEquals(15, $data['reminders']['start']['value']);
         $this->assertFalse($data['reminders']['end']['enabled']);
         $this->assertTrue($data['allowParticipation']);
-        $this->assertEquals(['1' => '42', '2' => 'hello'], $data['attributes']);
+        $this->assertEquals([
+            '1' => ['label' => 'Project Code', 'value' => '42'],
+            '2' => ['label' => 'Notes', 'value' => 'hello'],
+        ], $data['attributes']);
         $this->assertEquals(['guest@example.com'], $data['participatingGuests']);
         $this->assertEquals(['invited@example.com'], $data['invitedGuests']);
         $this->assertCount(1, $data['accessories']);

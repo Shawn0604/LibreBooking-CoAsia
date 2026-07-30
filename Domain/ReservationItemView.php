@@ -208,6 +208,15 @@ class ReservationItemView implements IReservedItemView
     public $ModifiedDate;
 
     /**
+     * Optimistic-locking version — used as the iCalendar SEQUENCE when this view backs an
+     * .ics attachment (see iCalendarReservationView). Not populated by the constructor;
+     * callers set it directly (same pattern as $Attributes/$UserPreferences below) when the
+     * underlying source (ReservationView::$Version, ExistingReservationSeries::Version()) has it.
+     * @var int
+     */
+    public $Version = 0;
+
+    /**
      * @var null|bool
      */
     public $IsRecurring;
@@ -577,6 +586,10 @@ class ReservationItemView implements IReservedItemView
             $view->ModifiedDate = Date::FromDatabase($row[ColumnNames::RESERVATION_MODIFIED]);
         }
 
+        if (array_key_exists(ColumnNames::RESERVATION_VERSION, $row)) {
+            $view->Version = (int)$row[ColumnNames::RESERVATION_VERSION];
+        }
+
         if (isset($row[ColumnNames::REPEAT_TYPE])) {
             $repeatConfig = RepeatConfiguration::Create(
                 $row[ColumnNames::REPEAT_TYPE],
@@ -710,6 +723,7 @@ class ReservationItemView implements IReservedItemView
         $item->CreatedDate = $r->DateCreated;
         $item->DateCreated = $r->DateCreated;
         $item->ModifiedDate = $r->DateModified;
+        $item->Version = $r->Version ?? 0;
         $item->OwnerEmailAddress = $r->OwnerEmailAddress;
         $item->OwnerPhone = $r->OwnerPhone;
 

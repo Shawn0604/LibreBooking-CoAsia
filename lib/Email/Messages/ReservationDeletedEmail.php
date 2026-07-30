@@ -19,6 +19,12 @@ class ReservationDeletedEmail extends ReservationEmailMessage
             $this->Set('DeleteReason', $this->reservationSeries->GetDeleteReason());
         }
         $this->Set('Deleted', true);
+        $this->Set('Status', 'cancelled');
+    }
+
+    protected function GetIcsMethod()
+    {
+        return 'CANCEL';
     }
 
     protected function GetTemplateName()
