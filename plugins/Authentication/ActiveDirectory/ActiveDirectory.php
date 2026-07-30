@@ -85,9 +85,30 @@ class ActiveDirectory extends Authentication implements IAuthentication
         $this->password = $password;
 
         $username = $this->CleanUsername($username);
-        $connected = $this->ldap->Connect();
+
+        // AdLdapWrapper::Connect() (and the adLDAP library underneath it) doesn't just return
+        // false on a connection/bind failure the way its own "if (!$connected)" check below
+        // assumes — a failed *admin/service-account* bind (wrong bind credentials, or the LDAP
+        // server(s) unreachable/unresponsive, e.g. a firewall dropping the TLS handshake on
+        // 636) throws an adLDAPException instead. Uncaught, that would propagate all the way
+        // out of login and lock out every account — including ones that only ever authenticate
+        // against the local database — the moment AD is unreachable for any reason, which
+        // defeats the entire point of database.auth.when.ldap.user.not.found. Catching it here
+        // and treating it the same as "connection failed" restores that fallback for this case
+        // too, not just the case where the connection succeeds but a specific user's own
+        // credentials don't validate (the other branch, further down).
+        try {
+            $connected = $this->ldap->Connect();
+        } catch (Throwable $ex) {
+            Log::Error('ActiveDirectory - could not connect/bind to LDAP server(s): %s', $ex->getMessage());
+            $connected = false;
+        }
 
         if (!$connected) {
+            if ($this->options->RetryAgainstDatabase()) {
+                Log::Debug('ActiveDirectory - LDAP unavailable, falling back to database authentication for user %s', $username);
+                return $this->authToDecorate->Validate($username, $password);
+            }
             throw new Exception('Could not connect to ActiveDirectory LDAP server. Please check your ActiveDirectory LDAP configuration settings');
         }
 

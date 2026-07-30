@@ -22,7 +22,15 @@ class ActiveDirectoryUser
 
         $this->fname = $this->Get($entry, 'givenname');
         $this->lname = $this->Get($entry, 'sn');
-        $this->mail = strtolower($this->Get($entry, 'mail'));
+        // AD accounts aren't guaranteed to have every mapped attribute populated (e.g. a
+        // service/test account with no 'mail' set) — strtolower(null) is a deprecation warning
+        // under PHP 8.1+, and with display_errors on (this dev environment) that warning gets
+        // printed into the response body *before* Page.php's post-login header('Location: ...')
+        // redirect runs, which then fails with "headers already sent" and strands the user on a
+        // raw warning page instead of being redirected in — even though the login itself already
+        // succeeded. The account still gets created/updated correctly either way; this only
+        // fixes the broken redirect.
+        $this->mail = strtolower($this->Get($entry, 'mail') ?? '');
         $this->phone = $this->Get($entry, 'telephonenumber');
         $this->institution = $this->Get($entry, 'physicaldeliveryofficename');
         $this->title = $this->Get($entry, 'title');

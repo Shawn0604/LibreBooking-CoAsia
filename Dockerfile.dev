@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
         git \
     && docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu \
     && docker-php-ext-configure gd --with-freetype --with-jpeg \
-    && docker-php-ext-install -j"$(nproc)" intl ldap mysqli pdo pdo_mysql zip gd \
+    && docker-php-ext-install -j"$(nproc)" intl ldap mysqli pdo pdo_mysql zip gd bcmath \
     && a2enmod rewrite \
     && sed -i 's/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf \
     && rm -rf /var/lib/apt/lists/*
