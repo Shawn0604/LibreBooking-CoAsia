@@ -1,0 +1,187 @@
+/* CoAsia "Notification Preferences" page (Web/notification-preferences.php) — follows the
+   same shell/page-head/card pattern as Web/css/my-meetings.css so secondary pages read as
+   one system rather than each reinventing its own layout. */
+
+#page-notification-preferences {
+  --np-text-primary: #1c2333;
+  --np-text-secondary: #6c7488;
+
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 24px 60px;
+}
+
+#page-notification-preferences .page-head {
+  padding: 24px 0 16px;
+}
+
+#page-notification-preferences h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--np-text-primary);
+}
+
+#page-notification-preferences .np-alert {
+  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  margin-bottom: 20px;
+}
+
+#page-notification-preferences .np-card {
+  background: #fff;
+  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  box-shadow: var(--bs-box-shadow);
+  padding: 20px 20px 8px;
+  margin-bottom: 20px;
+}
+
+#page-notification-preferences .np-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--np-text-primary);
+  margin: 0 0 4px;
+}
+
+#page-notification-preferences .np-card-subtitle {
+  font-size: 13px;
+  color: var(--np-text-secondary);
+  margin: 0 0 16px;
+}
+
+/* Only ever one row per card now (the six per-event toggles collapsed into a single "接收
+   Email 通知" switch) — no more inter-row divider/border-top logic to worry about, just the
+   row's own spacing relative to whatever sits above it (card title, LINE status line, ...). */
+#page-notification-preferences .np-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 0 4px;
+  cursor: pointer;
+}
+
+#page-notification-preferences .np-row-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--np-text-secondary);
+  font-size: 16px;
+}
+
+#page-notification-preferences .np-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+#page-notification-preferences .np-row-label {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--np-text-primary);
+}
+
+#page-notification-preferences .np-row-desc {
+  font-size: 12px;
+  color: var(--np-text-secondary);
+}
+
+#page-notification-preferences .np-switch {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
+}
+
+#page-notification-preferences .np-switch .form-check-input {
+  width: 2.25em;
+  height: 1.25em;
+  margin: 0;
+  cursor: pointer;
+}
+
+#page-notification-preferences .np-line-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+#page-notification-preferences .np-line-status-linked {
+  color: var(--gcal-today-accent, #34a853);
+}
+
+#page-notification-preferences .np-line-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gcal-border, #eceff1);
+}
+
+#page-notification-preferences .np-line-unbound {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+#page-notification-preferences .np-line-qr {
+  flex-shrink: 0;
+  width: 140px;
+  height: 140px;
+  border: 1px solid var(--gcal-border, #eceff1);
+  border-radius: var(--bs-border-radius, 0.6rem);
+  padding: 8px;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+#page-notification-preferences .np-line-steps {
+  flex: 1 1 220px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+#page-notification-preferences .np-line-add-friend {
+  background: #06c755;
+  border-color: #06c755;
+}
+
+#page-notification-preferences .np-line-add-friend:hover {
+  background: #05a648;
+  border-color: #05a648;
+}
+
+#page-notification-preferences .np-line-start-binding {
+  padding-top: 4px;
+}
+
+#page-notification-preferences .np-line-start-binding-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--np-text-primary);
+  margin: 0 0 4px;
+}
+
+#page-notification-preferences .np-line-code {
+  display: inline-block;
+  font-family: 'Courier New', monospace;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--np-text-primary);
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  border-radius: var(--bs-border-radius-sm);
+  padding: 4px 12px;
+  margin-top: 4px;
+}

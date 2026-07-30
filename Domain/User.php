@@ -2,6 +2,7 @@
 
 require_once(ROOT_DIR . 'Domain/Values/RoleLevel.php');
 require_once(ROOT_DIR . 'Domain/Values/EmailPreferences.php');
+require_once(ROOT_DIR . 'Domain/Values/UserPreferences.php');
 
 class User
 {
@@ -466,6 +467,25 @@ class User
         } else {
             $this->emailPreferences->RemovePreference($event);
         }
+    }
+
+    /**
+     * Whether LINE pushes should actually be sent to this user right now — true unless they've
+     * explicitly turned the toggle off, independent of whether they're bound at all (callers
+     * still need their own LINE_USER_ID check for that).
+     * @return bool
+     */
+    public function WantsLineNotifications()
+    {
+        return $this->preferences->Get(UserPreferences::LINE_NOTIFICATIONS_ENABLED) !== '0';
+    }
+
+    /**
+     * @param bool $turnedOn
+     */
+    public function ChangeLineNotificationsPreference($turnedOn)
+    {
+        $this->ChangePreference(UserPreferences::LINE_NOTIFICATIONS_ENABLED, $turnedOn ? '1' : '0');
     }
 
     /**

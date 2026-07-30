@@ -9,19 +9,16 @@ $(function () {
         return;
     }
 
-    function checkedResourceIds() {
-        var ids = {};
-        $('#resourceSidebar input[type="checkbox"][data-resource]:checked').each(function () {
-            ids[String($(this).data('resource'))] = true;
-        });
-        return ids;
-    }
-
-    // ---- Physical/video category tabs — same "one category's resources shown at a time"
-    // model as Web/scripts/overview.js's setCalCategory(), driven by the same
-    // resourceGroups shape (tpl/Overview/overview_fullcalendar.tpl mirrors overview.tpl's
-    // window.overviewOpts.resourceGroups output). ----
-    var activeCalCategory = 'physical';
+    // ---- Resource selection (toolbar left "資源選擇器") — one control now covers what
+    // used to be three separate things: the top physical/video category tabs, AND the
+    // sidebar's own duplicate resource checklist. Exactly one specific resource is always
+    // selected (no "全部資源"/show-everything option — dropped per explicit request; this
+    // page shows one room's calendar at a time, same as before, just picked from one unified
+    // dropdown instead of category tabs + a sidebar checklist). categoryOf() is kept exactly
+    // as it was: the reservation Drawer's OWN independent category state
+    // (activeResourceCategory, further down) still needs it and must not be touched by
+    // anything in this section. ----
+    var RESOURCE_STORAGE_KEY = 'overview-fc-selected-resource';
 
     function categoryOf(resourceId) {
         var groups = opts.resourceGroups || { physical: [], video: [] };
@@ -29,102 +26,150 @@ $(function () {
         return isVideo ? 'video' : 'physical';
     }
 
-    // ---- Resource checklist is single-select here (per category): users expect "click a
-    // room, see only that room's bookings", not the multi-resource color-overlay this
-    // checkbox markup was originally built for. The markup/CSS (globalheader.tpl,
-    // "checked" on every box) is shared with overview.php, which still wants real
-    // multi-select — so exclusivity is enforced purely in JS on this page, without
-    // touching the shared template. ----
-    function $resourceCheckboxesIn(category) {
-        return $('#resourceSidebar input[type="checkbox"][data-resource]').filter(function () {
-            return categoryOf($(this).data('resource')) === category;
-        });
+    function allResourceIds() {
+        var groups = opts.resourceGroups || { physical: [], video: [] };
+        return (groups.physical || []).concat(groups.video || []).map(function (r) { return String(r.id); });
     }
 
-    function selectSingleResource($checkbox) {
-        var category = categoryOf($checkbox.data('resource'));
-        $resourceCheckboxesIn(category).each(function () {
-            this.checked = (this === $checkbox.get(0));
-        });
+    // Default room when there's no (valid) stored selection yet: whichever physical resource
+    // is Shanghai's (resource names carry a flag emoji + English city name, e.g. "🇨🇳
+    // Shanghai" — confirmed live against the actual resources table), falling back to the
+    // first physical resource, then the first resource overall, so this never returns
+    // nothing as long as any resource exists.
+    function defaultShanghaiResourceId() {
+        var groups = opts.resourceGroups || { physical: [], video: [] };
+        var physical = groups.physical || [];
+        var shanghai = physical.filter(function (r) {
+            return /上海|shanghai/i.test(r.name);
+        })[0];
+        if (shanghai) {
+            return String(shanghai.id);
+        }
+        var first = physical[0] || (groups.video && groups.video[0]);
+        return first ? String(first.id) : null;
     }
 
-    function initSingleSelectResources() {
-        ['physical', 'video'].forEach(function (category) {
-            var $inCategory = $resourceCheckboxesIn(category);
-            if (!$inCategory.length) {
-                return;
+    function loadStoredResourceSelection() {
+        try {
+            var stored = localStorage.getItem(RESOURCE_STORAGE_KEY);
+            if (stored && allResourceIds().indexOf(stored) !== -1) {
+                return stored;
             }
-            var $toSelect = $inCategory.filter(':checked').first();
-            if (!$toSelect.length) {
-                $toSelect = $inCategory.first();
-            }
-            selectSingleResource($toSelect);
-        });
+        } catch (e) {}
+        return defaultShanghaiResourceId();
     }
 
-    function setCalCategory(category) {
-        activeCalCategory = category;
-        $('#fcCategoryTabs .cal-category-tab').each(function () {
-            $(this).toggleClass('active', $(this).data('category') === category);
-        });
-        $('#navResGroupPhysical').toggleClass('d-none', category !== 'physical');
-        $('#navResGroupVideo').toggleClass('d-none', category !== 'video');
+    // selectedResourceId is the single source of truth for both the events() fetch filter
+    // and the resource picker's own checkmark/label — never read back from the DOM. Restored
+    // from localStorage on load (falling back to the Shanghai default if the stored id no
+    // longer exists, e.g. the resource was deleted since), and persisted on every change so
+    // the user's last choice survives a reload/revisit, per the "記住使用者最後選擇" requirement.
+    var selectedResourceId = loadStoredResourceSelection();
+
+    function updateResourcePickerTrigger() {
+        var $items = $('#resourcePickerList .resource-picker-item');
+        $items.removeClass('selected');
+        $items.filter('[data-resource-id="' + selectedResourceId + '"]').addClass('selected');
+
+        var $dot = $('#resourcePickerDot');
+        var color = (opts.resourceColors || {})[selectedResourceId];
+        // jQuery's .css() doesn't reliably round-trip custom properties (`--dot-color`) across
+        // versions — set it via the native CSSStyleDeclaration API instead.
+        $dot.toggle(!!color);
+        $dot.get(0).style.setProperty('--dot-color', color || '');
+
+        $('#resourcePickerLabel').text((opts.resourceNames || {})[selectedResourceId] || '');
+    }
+
+    function setSelectedResource(resourceId) {
+        selectedResourceId = resourceId;
+        try {
+            localStorage.setItem(RESOURCE_STORAGE_KEY, resourceId);
+        } catch (e) {}
+        updateResourcePickerTrigger();
         if (typeof calendar !== 'undefined') {
             calendar.refetchEvents();
         }
     }
 
-    $('#fcCategoryTabs .cal-category-tab').on('click', function () {
-        var category = $(this).data('category');
-        if (category !== activeCalCategory) {
-            setCalCategory(category);
-        }
-    });
+    // Registered against allDropdownClosers (declared further below, alongside the
+    // quick-create modal's own dropdowns) so this panel closes along with every other
+    // toolbar/modal dropdown on an outside click — initResourcePicker() itself isn't called
+    // until after that array exists (see the bottom of this file), same ordering the
+    // view-picker dropdown further down relies on.
+    function initResourcePicker() {
+        var $picker = $('#resourcePicker');
+        var $trigger = $('#resourcePickerTrigger');
+        var $panel = $('#resourcePickerPanel');
+        var $search = $('#resourcePickerSearch');
 
-    // ---- Reservation scope (全體／只看我的) — a SEPARATE dimension from resource type.
-    // Independent of activeCalCategory: switching scope must not touch the resource
-    // category, the sidebar's selected resource, the calendar's current date/view, or its
-    // scroll position — it only changes whether the fetched events are further narrowed to
-    // this user's own reservations (see the events() callback below, and
+        function open() {
+            closeAllDropdowns();
+            $picker.addClass('open');
+            $trigger.attr('aria-expanded', 'true');
+            $search.val('').trigger('input');
+            setTimeout(function () { $search.trigger('focus'); }, 0);
+        }
+        function close() {
+            $picker.removeClass('open');
+            $trigger.attr('aria-expanded', 'false');
+        }
+        allDropdownClosers.push(close);
+
+        $trigger.on('click', function (e) {
+            e.stopPropagation();
+            if ($picker.hasClass('open')) {
+                close();
+            } else {
+                open();
+            }
+        });
+        $panel.on('click', function (e) { e.stopPropagation(); });
+        $panel.on('click', '.resource-picker-item', function () {
+            setSelectedResource(String($(this).data('resource-id')));
+            close();
+        });
+
+        $search.on('input', function () {
+            var term = $(this).val().trim().toLowerCase();
+            var anyVisible = { physical: false, video: false };
+            $('#resourcePickerList .resource-picker-item[data-section]').each(function () {
+                var label = $(this).find('.resource-picker-item-label').text().toLowerCase();
+                var match = label.indexOf(term) !== -1;
+                $(this).toggleClass('d-none', !match);
+                if (match) {
+                    anyVisible[$(this).data('section')] = true;
+                }
+            });
+            $('#resourcePickerList .resource-picker-section-label').each(function () {
+                $(this).toggleClass('d-none', !anyVisible[$(this).data('section')]);
+            });
+            $('#resourcePickerEmpty').toggleClass('d-none', anyVisible.physical || anyVisible.video);
+        });
+
+        updateResourcePickerTrigger();
+    }
+
+    // ---- Reservation scope (全體／只看我的) — a SEPARATE dimension from resource
+    // selection. Independent of selectedResourceId: switching scope must not touch the
+    // resource picker, the calendar's current date/view, or its scroll position — it only
+    // changes whether the fetched events are further narrowed to this user's own
+    // reservations (see the events() callback below, and
     // OverviewFullCalendarEventsPresenter::GetEvents()'s $mineOnly branch on the server).
     var mineOnly = false;
 
-    function setReservationScope(scope) {
-        mineOnly = (scope === 'mine');
-        $('#fcScopeTabs .cal-category-tab').each(function () {
-            $(this).toggleClass('active', $(this).data('scope') === scope);
-        });
+    $('#fcMineOnlyToggle').on('change', function () {
+        mineOnly = this.checked;
         if (typeof calendar !== 'undefined') {
             calendar.refetchEvents();
-        }
-    }
-
-    $('#fcScopeTabs .cal-category-tab').on('click', function () {
-        var scope = $(this).data('scope');
-        if ((scope === 'mine') !== mineOnly) {
-            setReservationScope(scope);
         }
     });
 
     // ---- Default resource for quick-create actions (drag-select, sidebar "+新增預約") ----
-    // Same rule as Web/scripts/overview.js's defaultResourceId(): prefers whichever checked
-    // checkbox belongs to the active category; falls back to the category's first resource
-    // so quick-create still works before any checkbox is touched.
+    // Always the currently selected resource — there's exactly one at any time now, so this
+    // no longer needs a fallback chain.
     function defaultResourceId() {
-        var groups = opts.resourceGroups || { physical: [], video: [] };
-        var activeList = groups[activeCalCategory] || [];
-        var activeIds = activeList.map(function (r) { return String(r.id); });
-
-        var $firstChecked = $('#resourceSidebar input[type="checkbox"][data-resource]:checked').filter(function () {
-            return activeIds.indexOf(String($(this).data('resource'))) !== -1;
-        }).first();
-        if ($firstChecked.length) {
-            return $firstChecked.data('resource');
-        }
-        if (activeList.length) {
-            return activeList[0].id;
-        }
-        return null;
+        return selectedResourceId;
     }
 
     function pad(n) {
@@ -149,21 +194,19 @@ $(function () {
         return y + '-' + m + '-' + d;
     }
 
-    // Same three-case format as tpl/Overview/overview.tpl's .month-label: same month,
-    // same year but different month, or different year — always "Y年n月" per side.
-    function formatMonthLabel(start, lastDayOfWeek) {
-        var sy = start.getUTCFullYear();
-        var sm = start.getUTCMonth() + 1;
-        var ey = lastDayOfWeek.getUTCFullYear();
-        var em = lastDayOfWeek.getUTCMonth() + 1;
-
-        if (sy === ey && sm === em) {
-            return sy + '年' + sm + '月';
+    // Always a single "Y年n月" — never a "7月－8月"-style range. A week view's visible range
+    // can span two months; rather than growing the label to cover both (which changed the
+    // label's width/length depending on the exact week, making the whole centered toolbar
+    // visibly shift as you navigate), this picks ONE month to report by looking at the
+    // week's middle day (start + 3, i.e. Thursday for a Monday-start week) — whichever month
+    // holds 4+ of the week's 7 days "owns" the label.
+    function formatMonthLabel(viewType, start) {
+        var reference = start;
+        if (viewType === 'timeGridWeek') {
+            reference = new Date(start.getTime());
+            reference.setUTCDate(reference.getUTCDate() + 3);
         }
-        if (sy === ey) {
-            return sy + '年' + sm + '月－' + em + '月';
-        }
-        return sy + '年' + sm + '月－' + ey + '年' + em + '月';
+        return reference.getUTCFullYear() + '年' + (reference.getUTCMonth() + 1) + '月';
     }
 
     function todayIsoInZone(timeZone) {
@@ -322,19 +365,13 @@ $(function () {
     // mousedown/mousemove/mouseup pixel-math drag implementation. ----
     var $modalEl = $('#quickCreateModal');
     var quickCreateModal = $modalEl.length && window.bootstrap ? new bootstrap.Modal($modalEl[0]) : null;
-    var pending = null; // { resourceId, date, beginMinutes, endMinutes }
+    var pending = null; // { resourceId, startDate, endDate, beginMinutes, endMinutes } — beginMinutes/endMinutes are each 0-1439 within their OWN date; a cross-day reservation has endDate > startDate, not endMinutes > 1440.
 
     $modalEl.find('.qc-close').on('click', function () {
         if (quickCreateModal) {
             quickCreateModal.hide();
         }
     });
-
-    function formatDateLabel(dateStr) {
-        var parts = dateStr.split('-');
-        var d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        return (parseInt(parts[1], 10)) + '月' + (parseInt(parts[2], 10)) + '日（週' + WEEKDAY_LABELS[d.getDay()] + '）';
-    }
 
     function minutesToHHMMSS(minutes) {
         var h = Math.floor(minutes / 60) % 24;
@@ -416,9 +453,16 @@ $(function () {
     $(document).on('click', closeAllDropdowns);
 
     var startPicker = TimeDropdown('#qcStartPill', '#qcStartDropdown', function (minutes) {
-        var duration = Math.max(30, pending.endMinutes - pending.beginMinutes);
-        pending.beginMinutes = minutes;
-        pending.endMinutes = minutes + duration;
+        // Preserve the current duration when nudging the start time, but only when start/end
+        // are still the same calendar day — once the end date is a later day, its time is
+        // independent of the start time and shouldn't be dragged along.
+        if (pending.startDate === pending.endDate) {
+            var duration = Math.max(30, pending.endMinutes - pending.beginMinutes);
+            pending.beginMinutes = minutes;
+            pending.endMinutes = Math.min(24 * 60 - 30, minutes + duration);
+        } else {
+            pending.beginMinutes = minutes;
+        }
         refreshTimeUI();
     });
     var endPicker = TimeDropdown('#qcEndPill', '#qcEndDropdown', function (minutes) {
@@ -428,6 +472,25 @@ $(function () {
     allDropdownClosers.push(startPicker.close, endPicker.close);
 
     function refreshTimeUI() {
+        // Full 00:00-23:30 range, no artificial duration cap (previously capped at +8 hours).
+        // Same-day end time must be strictly after the start time; once the end date is a
+        // later day, the end time is free to be anything — a genuine cross-midnight range
+        // (e.g. 22:00 -> next day 02:00) is expressed via the separate end DATE input, not by
+        // letting minutes run past 1440.
+        var sameDay = pending.startDate === pending.endDate;
+        var minEndMinutes = sameDay ? pending.beginMinutes + 30 : 0;
+        // A date-input change (or a start-time change that pushes past the old end time) can
+        // leave pending.endMinutes stale/invalid for the now-current start/end date pair (e.g.
+        // switching the end date back to match the start date after picking an end time that
+        // only made sense cross-day) — snap it back into range rather than silently submitting
+        // an end time that's actually before the start time on the same day.
+        if (pending.endMinutes < minEndMinutes) {
+            pending.endMinutes = minEndMinutes;
+        }
+        if (pending.endMinutes > 24 * 60 - 30) {
+            pending.endMinutes = 24 * 60 - 30;
+        }
+
         $('#qcStartPill').text(formatTimeLabel(pending.beginMinutes));
         $('#qcEndPill').text(formatTimeLabel(pending.endMinutes));
 
@@ -438,11 +501,16 @@ $(function () {
         startPicker.render(startOptions, pending.beginMinutes);
 
         var endOptions = [];
-        var cap = Math.min(24 * 60, pending.beginMinutes + 8 * 60);
-        for (var e = pending.beginMinutes + 30; e <= cap; e += 30) {
-            endOptions.push({ minutes: e, label: formatTimeLabel(e) + '（' + formatDuration(e - pending.beginMinutes) + '）' });
+        for (var e = minEndMinutes; e <= 24 * 60 - 30; e += 30) {
+            var label = formatTimeLabel(e);
+            if (sameDay) {
+                label += '（' + formatDuration(e - pending.beginMinutes) + '）';
+            }
+            endOptions.push({ minutes: e, label: label });
         }
         endPicker.render(endOptions, pending.endMinutes);
+
+        $('#qcTimeError').addClass('d-none').empty();
 
         $('#qcMoreOptions').attr('href', moreOptionsUrl());
     }
@@ -489,55 +557,58 @@ $(function () {
     function moreOptionsUrl() {
         return opts.reservationUrl +
             '?rid=' + encodeURIComponent(pending.resourceId) +
-            '&sd=' + pending.date + '+' + minutesToHHMMSS(pending.beginMinutes) +
-            '&ed=' + pending.date + '+' + minutesToHHMMSS(pending.endMinutes);
+            '&sd=' + pending.startDate + '+' + minutesToHHMMSS(pending.beginMinutes) +
+            '&ed=' + pending.endDate + '+' + minutesToHHMMSS(pending.endMinutes);
     }
 
     function openQuickCreate(p) {
+        var startDate = p.startDate || p.date;
+        var endDate = p.endDate || p.date;
         if (!quickCreateModal) {
             window.location = opts.reservationUrl +
-                '?rid=' + encodeURIComponent(p.resourceId) + '&sd=' + p.date + '+' + p.beginTime + '&ed=' + p.date + '+' + p.endTime;
+                '?rid=' + encodeURIComponent(p.resourceId) + '&sd=' + startDate + '+' + p.beginTime + '&ed=' + endDate + '+' + p.endTime;
             return; // no Bootstrap JS available — fall back to the full form
         }
         var beginMinutes = parseInt(p.beginTime.slice(0, 2), 10) * 60 + parseInt(p.beginTime.slice(3, 5), 10);
         var endMinutes = parseInt(p.endTime.slice(0, 2), 10) * 60 + parseInt(p.endTime.slice(3, 5), 10);
-        pending = { resourceId: p.resourceId, date: p.date, beginMinutes: beginMinutes, endMinutes: endMinutes };
+        pending = { resourceId: p.resourceId, startDate: startDate, endDate: endDate, beginMinutes: beginMinutes, endMinutes: endMinutes };
         activeResourceCategory = categoryOf(p.resourceId);
 
         $('#qcTitle').val('');
         $('#qcDescription').val('');
-        $('#qcDateLabel').text(formatDateLabel(p.date));
+        $('#qcStartDate').val(startDate);
+        $('#qcEndDate').val(endDate);
         $('#qcError').addClass('d-none').empty();
+        $('#qcTimeError').addClass('d-none').empty();
         refreshTimeUI();
         refreshResourceUI();
         quickCreateModal.show();
         setTimeout(function () { $('#qcTitle').trigger('focus'); }, 200);
     }
 
-    function isoDateLocal(d) {
-        return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-    }
-
-    // ---- Sidebar "+新增預約" button: same quick-create modal, defaulted to the next half-hour slot ----
-    $('.create-btn').on('click', function (e) {
-        var resourceId = defaultResourceId();
-        if (!quickCreateModal || !resourceId) {
-            return; // no modal (not on this page) or nothing selected — let the plain link to reservation.php go through
+    // Keep the end date from ever landing before the start date — bump it forward instead of
+    // silently accepting an invalid range, same principle as the Drawer's own date fields.
+    $('#qcStartDate').on('change', function () {
+        pending.startDate = $(this).val();
+        if (pending.endDate < pending.startDate) {
+            pending.endDate = pending.startDate;
+            $('#qcEndDate').val(pending.endDate);
         }
-        e.preventDefault();
-
-        var now = new Date();
-        var start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0);
-        start.setMinutes(now.getMinutes() < 30 ? 30 : 60);
-        var end = new Date(start.getTime() + 30 * 60000);
-
-        openQuickCreate({
-            resourceId: resourceId,
-            date: isoDateLocal(start),
-            beginTime: pad(start.getHours()) + ':' + pad(start.getMinutes()) + ':00',
-            endTime: pad(end.getHours()) + ':' + pad(end.getMinutes()) + ':00'
-        });
+        refreshTimeUI();
     });
+    $('#qcEndDate').on('change', function () {
+        pending.endDate = $(this).val();
+        if (pending.startDate > pending.endDate) {
+            pending.startDate = pending.endDate;
+            $('#qcStartDate').val(pending.startDate);
+        }
+        refreshTimeUI();
+    });
+
+    // CoAsia: the sidebar's own "+新增預約" button (and its click handler that used to live
+    // here) was removed — creating a reservation now happens in exactly one place, clicking
+    // or dragging a blank slot directly on the calendar (the `select` callback further down),
+    // instead of two separate entry points into the same quick-create modal.
 
     // ---- Existing event: quick-view popover instead of an immediate full-page jump ----
     var $eventPopover = $('#eventPopover');
@@ -559,11 +630,14 @@ $(function () {
         closeEventPopover();
     });
 
-    // Edit opens the reservation Drawer in place — never navigates to reservation.php for
-    // the normal flow (openReservationDrawer is defined further down; safe to reference here
-    // since this handler only runs on a later click, same pattern setCalCategory() already
-    // uses for the `calendar` variable it references before its own declaration).
-    $('#epEditLink').on('click', function (e) {
+    // Edit AND "查看詳情" (View Details) both open the same Drawer in place — never navigate
+    // to reservation.php. There's no separate read-only mode: the Drawer's edit mode already
+    // disables every field and hides save/delete based on the server-computed canEdit/canDelete
+    // (see populateDrawerFromData()), so opening it for someone without edit rights naturally
+    // renders as view-only. (openReservationDrawer is defined further down; safe to reference
+    // here since this handler only runs on a later click, same pattern used elsewhere in this
+    // file for the `calendar` variable, which is also referenced before its own declaration.)
+    $('#epEditLink, #epViewLink').on('click', function (e) {
         e.preventDefault();
         var referenceNumber = $(this).data('reference-number');
         if (!referenceNumber) {
@@ -575,9 +649,8 @@ $(function () {
 
     // ---- Delete confirmation — reuses the existing ajax/reservation_delete.php pipeline
     // (Presenters/Reservation/ReservationDeletePresenter.php, SeriesUpdateScope) rather than
-    // a new endpoint/format. Edit reuses the existing full reservation.php form entirely
-    // (info.event.url); only delete needs a request built from here, since there's no form
-    // on this page to submit. ----
+    // a new endpoint/format; view/edit both open the Drawer (see above), only delete needs a
+    // request built from here, since there's no form on this page to submit. ----
     var $deleteModalEl = $('#deleteReservationModal');
     var deleteReservationModal = $deleteModalEl.length && window.bootstrap ? new bootstrap.Modal($deleteModalEl[0]) : null;
     var pendingDelete = null; // { referenceNumber, isRecurring }
@@ -697,6 +770,8 @@ $(function () {
     var reservationDrawer = $drawerEl.length && window.bootstrap ? new bootstrap.Modal($drawerEl[0]) : null;
     var drawerState = null; // { mode: 'create'|'edit', referenceNumber, echo, saved }
     var drawerDirty = false;
+    var rdSelectedWeekdays = []; // int[] 0(Sun)-6(Sat), synced with #rdWeekdayPicker button state
+    var rdCustomDates = []; // string[] 'YYYY-MM-DD', synced with #rdRepeatCustomList chips
 
     function buildTimeSelectOptions($select) {
         $select.empty();
@@ -757,10 +832,23 @@ $(function () {
         $('#rdStartDate, #rdEndDate').prop('disabled', false);
         $('#rdStartTime, #rdEndTime, #rdResource').prop('disabled', false);
         $('#rdCategoryTabs .rd-category-tab').prop('disabled', false);
-        $('#rdRecurringSummary, #rdParticipantsSummary, #rdRemindersSummary').addClass('d-none');
+        $('#rdAdditionalResourcesSummary, #rdAccessoriesSummary, #rdAllowParticipationSummary, #rdParticipantsSummary, #rdGuestsSummary, #rdRemindersSummary, #rdAttributesSummary, #rdAttachmentsSummary').addClass('d-none');
+        $('#rdAdditionalResourcesList, #rdAccessoriesList, #rdParticipantsList, #rdGuestsList, #rdAttributesList, #rdAttachmentsList').empty();
+
+        $('#rdRepeatType').val('none').prop('disabled', false);
+        $('#rdRepeatInterval').val('1').prop('disabled', false);
+        $('#rdRepeatMonthlyType').val('dayOfMonth').prop('disabled', false);
+        $('#rdRepeatEndDate').val('').prop('disabled', false);
+        $('#rdRepeatCustomDateInput, #rdRepeatCustomAddBtn').prop('disabled', false);
+        rdSelectedWeekdays = [];
+        $('#rdWeekdayPicker .rd-weekday-btn').removeClass('active').prop('disabled', false);
+        rdCustomDates = [];
+        renderRepeatCustomDatesList();
+        refreshRepeatUI();
         $('#rdLoadError').addClass('d-none').empty();
         $('#rdSaveError').addClass('d-none').empty();
         $('#rdTimeError').addClass('d-none').empty();
+        $('#rdRepeatError').addClass('d-none').empty();
         $('#rdSkeleton').addClass('d-none');
         $('#rdForm').removeClass('d-none');
         $('#rdSaveBtn').removeClass('d-none').prop('disabled', false);
@@ -774,10 +862,63 @@ $(function () {
         return key ? (opts.translations && opts.translations[key]) || interval : interval;
     }
 
-    function repeatSummaryText(repeat) {
-        var labels = { daily: '每天', weekly: '每週', monthly: '每月', yearly: '每年', custom: '自訂' };
-        return labels[repeat.type] || repeat.type;
+    function repeatIntervalUnitLabel(type) {
+        return { daily: '天', weekly: '週', monthly: '月' }[type] || '';
     }
+
+    function refreshRepeatUI() {
+        var type = $('#rdRepeatType').val();
+        $('#rdRepeatIntervalRow').toggleClass('d-none', type === 'none' || type === 'custom');
+        $('#rdRepeatWeekdaysRow').toggleClass('d-none', type !== 'weekly');
+        $('#rdRepeatMonthlyTypeRow').toggleClass('d-none', type !== 'monthly');
+        $('#rdRepeatEndRow').toggleClass('d-none', type === 'none' || type === 'custom');
+        $('#rdRepeatCustomRow').toggleClass('d-none', type !== 'custom');
+        $('#rdRepeatIntervalUnit').text(repeatIntervalUnitLabel(type));
+    }
+
+    $('#rdRepeatType').on('change', refreshRepeatUI);
+
+    $('#rdWeekdayPicker').on('click', '.rd-weekday-btn', function () {
+        if ($(this).prop('disabled')) {
+            return;
+        }
+        var day = parseInt($(this).data('day'), 10);
+        var idx = rdSelectedWeekdays.indexOf(day);
+        if (idx === -1) {
+            rdSelectedWeekdays.push(day);
+            $(this).addClass('active');
+        } else {
+            rdSelectedWeekdays.splice(idx, 1);
+            $(this).removeClass('active');
+        }
+    });
+
+    function renderRepeatCustomDatesList() {
+        var $list = $('#rdRepeatCustomList').empty();
+        rdCustomDates.forEach(function (dateStr) {
+            var $chip = $('<span class="reservation-chip"></span>').text(dateStr);
+            $('<button type="button" class="btn-close btn-close-white" style="font-size:8px" aria-label="Remove"></button>')
+                .on('click', function () {
+                    var idx = rdCustomDates.indexOf(dateStr);
+                    if (idx !== -1) {
+                        rdCustomDates.splice(idx, 1);
+                    }
+                    renderRepeatCustomDatesList();
+                })
+                .appendTo($chip);
+            $list.append($chip);
+        });
+    }
+
+    $('#rdRepeatCustomAddBtn').on('click', function () {
+        var val = $('#rdRepeatCustomDateInput').val();
+        if (val && rdCustomDates.indexOf(val) === -1) {
+            rdCustomDates.push(val);
+            rdCustomDates.sort();
+            renderRepeatCustomDatesList();
+        }
+        $('#rdRepeatCustomDateInput').val('');
+    });
 
     function populateDrawerFromData(data) {
         var canEdit = !!data.canEdit;
@@ -795,15 +936,102 @@ $(function () {
         $('#rdCategoryTabs .rd-category-tab').prop('disabled', !canEdit);
         setDrawerCategory(categoryOf(data.resourceId), data.resourceId);
 
-        if (data.isRecurring) {
-            $('#rdRecurringSummary').removeClass('d-none');
-            $('#rdRecurringSummaryText').text(repeatSummaryText(data.repeat) + '重複');
+        var $additionalResourcesList = $('#rdAdditionalResourcesList').empty();
+        if ((data.additionalResourceIds || []).length > 0) {
+            $('#rdAdditionalResourcesSummary').removeClass('d-none');
+            data.additionalResourceIds.forEach(function (resourceId) {
+                $('<span class="reservation-chip"></span>').text(resourceNameFor(resourceId) || resourceId).appendTo($additionalResourcesList);
+            });
         }
 
-        var peopleCount = (data.participants || []).length + (data.invitees || []).length;
-        if (peopleCount > 0) {
+        var $accessoriesList = $('#rdAccessoriesList').empty();
+        if ((data.accessories || []).length > 0) {
+            $('#rdAccessoriesSummary').removeClass('d-none');
+            data.accessories.forEach(function (accessory) {
+                $('<span class="reservation-chip"></span>')
+                    .text(accessory.name + (accessory.quantityReserved > 1 ? ' × ' + accessory.quantityReserved : ''))
+                    .appendTo($accessoriesList);
+            });
+        }
+
+        if (data.allowParticipation) {
+            $('#rdAllowParticipationSummary').removeClass('d-none');
+        }
+
+        var repeat = data.repeat || { type: 'none' };
+        $('#rdRepeatType').val(repeat.type || 'none').prop('disabled', !canEdit);
+        $('#rdRepeatInterval').val(repeat.interval || 1).prop('disabled', !canEdit);
+        $('#rdRepeatMonthlyType').val(repeat.monthlyType || 'dayOfMonth').prop('disabled', !canEdit);
+        $('#rdRepeatEndDate').val(repeat.terminationDate || '').prop('disabled', !canEdit);
+        rdSelectedWeekdays = (repeat.weekdays || []).slice();
+        $('#rdWeekdayPicker .rd-weekday-btn').each(function () {
+            var day = parseInt($(this).data('day'), 10);
+            $(this).toggleClass('active', rdSelectedWeekdays.indexOf(day) !== -1).prop('disabled', !canEdit);
+        });
+        rdCustomDates = (repeat.customDates || []).slice();
+        renderRepeatCustomDatesList();
+        $('#rdRepeatCustomDateInput, #rdRepeatCustomAddBtn').prop('disabled', !canEdit);
+        refreshRepeatUI();
+
+        // Full read-only lists (not just a count) — everyone who can open this Drawer sees
+        // who's involved, whether or not they can edit; management (add/remove) still only
+        // exists via "更多選項" into the classic form (see COASIA-CHANGES.md P0-1 scope note).
+        var people = (data.participants || []).concat((data.invitees || []).map(function (u) {
+            return { userId: u.userId, fullName: u.fullName, invitee: true };
+        }));
+        var $participantsList = $('#rdParticipantsList').empty();
+        if (people.length > 0) {
             $('#rdParticipantsSummary').removeClass('d-none');
-            $('#rdParticipantsSummaryText').text(peopleCount + ' 位參與者（更多選項可管理）');
+            people.forEach(function (person) {
+                $('<span class="reservation-chip"></span>')
+                    .text(person.fullName + (person.invitee ? '（受邀）' : ''))
+                    .appendTo($participantsList);
+            });
+        }
+
+        var guests = (data.participatingGuests || []).map(function (email) {
+            return { email: email, invited: false };
+        }).concat((data.invitedGuests || []).map(function (email) {
+            return { email: email, invited: true };
+        }));
+        var $guestsList = $('#rdGuestsList').empty();
+        if (guests.length > 0) {
+            $('#rdGuestsSummary').removeClass('d-none');
+            guests.forEach(function (guest) {
+                $('<span class="reservation-chip"></span>')
+                    .text(guest.email + (guest.invited ? '（受邀）' : ''))
+                    .appendTo($guestsList);
+            });
+        }
+
+        var attributes = data.attributes || {};
+        var $attributesList = $('#rdAttributesList').empty();
+        var hasAttributeValue = Object.keys(attributes).some(function (id) {
+            return attributes[id] && attributes[id].value;
+        });
+        if (hasAttributeValue) {
+            $('#rdAttributesSummary').removeClass('d-none');
+            Object.keys(attributes).forEach(function (id) {
+                var attr = attributes[id];
+                if (!attr || !attr.value) {
+                    return;
+                }
+                $('<div class="rd-attribute-row"></div>')
+                    .append($('<span class="rd-attribute-label"></span>').text((attr.label || id) + '：'))
+                    .append($('<span class="rd-attribute-value"></span>').text(attr.value))
+                    .appendTo($attributesList);
+            });
+        }
+
+        var $attachmentsList = $('#rdAttachmentsList').empty();
+        if ((data.attachments || []).length > 0) {
+            $('#rdAttachmentsSummary').removeClass('d-none');
+            data.attachments.forEach(function (attachment) {
+                $('<span class="reservation-chip"></span>')
+                    .html('<i class="bi bi-paperclip"></i> ')
+                    .append(document.createTextNode(attachment.fileName))
+                    .appendTo($attachmentsList);
+            });
         }
 
         var reminderParts = [];
@@ -866,8 +1094,8 @@ $(function () {
             ensureTimeOption($('#rdEndTime'), draft.endTime);
             $('#rdTitle').val(draft.title || '');
             $('#rdDescription').val(draft.description || '');
-            $('#rdStartDate').val(draft.date || '');
-            $('#rdEndDate').val(draft.date || '');
+            $('#rdStartDate').val(draft.startDate || draft.date || '');
+            $('#rdEndDate').val(draft.endDate || draft.date || '');
             setDrawerCategory(draft.resourceId ? categoryOf(draft.resourceId) : activeResourceCategory, draft.resourceId);
             drawerDirty = false;
             return;
@@ -978,6 +1206,48 @@ $(function () {
         return true;
     }
 
+    // Mirrors the classic form's own required-field rules (Web/scripts/recurrence.js's
+    // RequiresTerminationDate()) rather than inventing new ones: daily/weekly/monthly repeats
+    // need an end date (open-ended recurrence isn't supported), weekly needs at least one
+    // weekday, custom needs at least one date.
+    function validateRepeatOptions() {
+        $('#rdRepeatError').addClass('d-none').empty();
+        var type = $('#rdRepeatType').val();
+
+        if ((type === 'daily' || type === 'weekly' || type === 'monthly') && !$('#rdRepeatEndDate').val()) {
+            $('#rdRepeatError').removeClass('d-none').text(opts.translations.repeatEndDateRequired);
+            return false;
+        }
+        if (type === 'weekly' && rdSelectedWeekdays.length === 0) {
+            $('#rdRepeatError').removeClass('d-none').text(opts.translations.repeatWeekdayRequired);
+            return false;
+        }
+        if (type === 'custom' && rdCustomDates.length === 0) {
+            $('#rdRepeatError').removeClass('d-none').text(opts.translations.repeatCustomDateRequired);
+            return false;
+        }
+        return true;
+    }
+
+    // Same field names the classic form's RecurrenceControl already submits (FormKeys::
+    // REPEAT_OPTIONS etc) — RepeatOptionsFactory needs no changes to read these.
+    function appendRepeatFields(body) {
+        var type = $('#rdRepeatType').val();
+        body.set('repeatOptions', type);
+        body.set('repeatEvery', $('#rdRepeatInterval').val() || '1');
+        var dayKeys = ['repeatSunday', 'repeatMonday', 'repeatTuesday', 'repeatWednesday', 'repeatThursday', 'repeatFriday', 'repeatSaturday'];
+        dayKeys.forEach(function (key, day) {
+            if (rdSelectedWeekdays.indexOf(day) !== -1) {
+                body.set(key, '1');
+            }
+        });
+        body.set('repeatMonthlyType', $('#rdRepeatMonthlyType').val());
+        body.set('endRepeatDate', $('#rdRepeatEndDate').val() || '');
+        rdCustomDates.forEach(function (d) {
+            body.append('repeatCustomDates[]', d);
+        });
+    }
+
     function buildCreateBody() {
         var v = drawerStartEndValues();
         var body = new URLSearchParams();
@@ -990,7 +1260,7 @@ $(function () {
         body.set('beginPeriod', v.startTime);
         body.set('endDate', v.endDate);
         body.set('endPeriod', v.endTime);
-        body.set('repeatOptions', 'none');
+        appendRepeatFields(body);
         if (drawerState.requestId) {
             body.set('requestId', drawerState.requestId);
         }
@@ -1010,6 +1280,7 @@ $(function () {
         body.set('beginPeriod', v.startTime);
         body.set('endDate', v.endDate);
         body.set('endPeriod', v.endTime);
+        appendRepeatFields(body);
         // The version this Drawer loaded the reservation at (OverviewFullCalendarReservationPresenter's
         // 'version' field) — round-tripped so the server can detect someone else having changed
         // it in between (Domain/Access/ReservationRepository.php's WHERE version=? check), not
@@ -1142,6 +1413,9 @@ $(function () {
         if (!validateDrawerTimes()) {
             return;
         }
+        if (!validateRepeatOptions()) {
+            return;
+        }
         var isEditingRecurring = drawerState.mode === 'edit' && drawerState.echo && drawerState.echo.isRecurring;
         if (isEditingRecurring) {
             $('input[name="rdUpdateScope"][value="full"]').prop('checked', true);
@@ -1168,7 +1442,8 @@ $(function () {
         var draft = {
             title: $('#qcTitle').val(),
             description: $('#qcDescription').val(),
-            date: pending ? pending.date : '',
+            startDate: pending ? pending.startDate : '',
+            endDate: pending ? pending.endDate : '',
             beginTime: pending ? minutesToHHMMSS(pending.beginMinutes) : '',
             endTime: pending ? minutesToHHMMSS(pending.endMinutes) : '',
             resourceId: pending ? pending.resourceId : null,
@@ -1177,6 +1452,73 @@ $(function () {
             quickCreateModal.hide();
         }
         openReservationDrawer({ mode: 'create', draft: draft });
+    });
+
+    // Repositions the custom #fcNowDot from the REAL, current geometry of the now-indicator
+    // line itself — never a fixed pixel guess — so it stays correct across window resize,
+    // vertical scroll, and view/date navigation (all of which can change the line's position).
+    // Anchored at the line's own left edge (not the axis/day-grid boundary) so the dot always
+    // sits at the start of the actual red line, regardless of which day column "today" is.
+    // No-ops (hides the dot) when there's no now-indicator line in the currently rendered range
+    // (viewing a week/day that doesn't include today, or month view, which has no time grid).
+    function positionNowDot() {
+        var line = document.querySelector('.fc-timegrid-now-indicator-line');
+        // #fcNowDot is a SIBLING of #fullcalendarRoot (not a descendant — FullCalendar owns
+        // #fullcalendarRoot's entire innerHTML and would wipe out a child element on its own
+        // re-renders), so its CSS positioning ancestor is .fc-frame (position:relative), the
+        // nearest element that actually contains both — offsets must be computed against
+        // THAT rect, not #fullcalendarRoot's own, or every coordinate is off by whatever the
+        // two ancestors don't share (confirmed live: was off by double digits to tens of px).
+        var root = document.querySelector('.fc-frame');
+        if (!line || !root) {
+            $('#fcNowDot').addClass('d-none');
+            return;
+        }
+        var lineRect = line.getBoundingClientRect();
+        var rootRect = root.getBoundingClientRect();
+        $('#fcNowDot').removeClass('d-none').css({
+            left: (lineRect.left - rootRect.left) + 'px',
+            top: (lineRect.top + lineRect.height / 2 - rootRect.top) + 'px',
+        });
+    }
+
+    $(window).on('resize', positionNowDot);
+    // The time-grid body's scroller is created/destroyed by FullCalendar itself on every
+    // render, so this listens on the stable #fullcalendarRoot ancestor rather than looking up
+    // the scroller element directly (which wouldn't survive a re-render) — but native `scroll`
+    // events don't bubble, so normal (bubble-phase) event delegation, jQuery's .on(event,
+    // selector, handler) included, never actually fires here. Capture-phase listening does see
+    // it, since capture runs top-down before the event reaches its target.
+    document.getElementById('fullcalendarRoot').addEventListener('scroll', function (e) {
+        if (e.target.classList && e.target.classList.contains('fc-scroller-liquid-absolute')) {
+            positionNowDot();
+        }
+    }, true);
+    // FullCalendar's own now-indicator line advances on its own internal timer as real time
+    // passes; this keeps the dot following it without needing to hook that internal timer.
+    setInterval(positionNowDot, 30000);
+    // requestAnimationFrame after render()/datesSet fires too early — FullCalendar hasn't
+    // always inserted the now-indicator-line/axis-frame elements into the DOM yet at that
+    // point (confirmed live: positionNowDot() ran but found them missing, then never got
+    // called again until something else happened to trigger it). A MutationObserver reacts to
+    // whatever FullCalendar's own DOM insertion actually looks like instead of guessing how
+    // many frames to wait, so it's correct regardless of timing.
+    // Deliberately synchronous, no RAF/debounce wrapper: FullCalendar tears down and rebuilds
+    // the now-indicator-line/axis-frame elements more than once around a render (its own
+    // internal now-indicator refresh included), and a "run once on the next frame" debounce
+    // could end up reading the DOM in between two of those rebuilds — i.e. exactly the "found
+    // nothing, hid the dot, and nothing re-triggered a re-check before the next unrelated
+    // mutation" gap this is meant to close. positionNowDot() itself is cheap, so there's no
+    // real cost to just running it on every mutation batch instead.
+    var nowDotObserver = new MutationObserver(positionNowDot);
+    nowDotObserver.observe(document.getElementById('fullcalendarRoot'), {
+        childList: true,
+        subtree: true,
+        // FullCalendar's own now-indicator refresh moves the existing line/arrow elements by
+        // updating their `style` attribute in place rather than replacing them — childList
+        // alone would miss that.
+        attributes: true,
+        attributeFilter: ['style'],
     });
 
     var calendar = new FullCalendar.Calendar(rootEl, {
@@ -1217,10 +1559,14 @@ $(function () {
         eventDurationEditable: false,
         // Dragging out a range opens the same quick-create modal overview.js's manual
         // mousedown/mousemove/mouseup implementation did — FullCalendar's own
-        // .fc-highlight gives the drag feedback, and slotDuration (30min) already
-        // provides the snapping overview.js computed by hand.
+        // .fc-highlight (fixed color, see overview_fullcalendar.css) gives the drag
+        // feedback, and slotDuration (30min) already provides the snapping overview.js
+        // computed by hand. selectMirror is off: it renders a second, separate
+        // .fc-event-mirror preview block on top of .fc-highlight, which is what actually
+        // caused the color flicker/jump during drag — .fc-highlight alone is sufficient
+        // feedback and doesn't recompute or vary by resource color.
         selectable: true,
-        selectMirror: true,
+        selectMirror: false,
         select: function (info) {
             calendar.unselect();
             var resourceId = defaultResourceId();
@@ -1234,15 +1580,21 @@ $(function () {
             if (info.view.type === 'dayGridMonth') {
                 openQuickCreate({
                     resourceId: resourceId,
-                    date: isoUTC(info.start),
+                    startDate: isoUTC(info.start),
+                    endDate: isoUTC(info.start),
                     beginTime: '09:00:00',
                     endTime: '09:30:00',
                 });
                 return;
             }
+            // info.start/info.end are each read independently here (including their OWN date,
+            // not just time-of-day) — a drag that crosses midnight (e.g. 7/30 22:00 -> 7/31
+            // 02:00) previously collapsed to a single date taken from info.start alone, silently
+            // discarding info.end's real date and corrupting the selected range.
             openQuickCreate({
                 resourceId: resourceId,
-                date: isoUTC(info.start),
+                startDate: isoUTC(info.start),
+                endDate: isoUTC(info.end),
                 beginTime: pad(info.start.getUTCHours()) + ':' + pad(info.start.getUTCMinutes()) + ':00',
                 endTime: pad(info.end.getUTCHours()) + ':' + pad(info.end.getUTCMinutes()) + ':00',
             });
@@ -1264,7 +1616,16 @@ $(function () {
         // dayHeaderContent above touches) — FullCalendar's zh-tw locale default renders this
         // as e.g. "27日"; overview.tpl's own week/day view never shows that suffix (matches
         // {formatdate...format="j"}, a bare number), so match it here too.
+        //
+        // Scoped to dayGridMonth only — timeGridWeek/timeGridDay have "day cells" too (the
+        // all-day row's cells), and even with allDaySlot:false hiding that row, FullCalendar
+        // still calls this for it; returning the day number unconditionally injected a stray
+        // "27"/"28"/... into each column that rendered squeezed into the 00:00 slot instead of
+        // a proper (hidden) row, since there's no all-day row space reserved for it.
         dayCellContent: function (arg) {
+            if (arg.view.type !== 'dayGridMonth') {
+                return '';
+            }
             return String(arg.date.getUTCDate());
         },
         eventContent: function (arg) {
@@ -1293,28 +1654,30 @@ $(function () {
         datesSet: function (info) {
             // info.start/info.end are the actual RENDERED range, which for month view is
             // padded out to full weeks (often bleeding into the adjacent month on either
-            // side) — using those here made the label read like "2026年6月－8月" instead of
-            // just "7月". info.view.currentStart/currentEnd are the unpadded logical range
-            // (exactly the 1st through the last day of the target month), which is what the
-            // label should reflect; week/day view still use the real visible range since
-            // showing a week that spans two months IS meant to say so.
+            // side) — using those here made the label read like "6月" instead of "7月" when
+            // the visible grid's first row is still June. info.view.currentStart is the
+            // unpadded logical range start (exactly the 1st of the target month), which is
+            // what the label should reflect; week/day view use the real visible start since
+            // there's no such padding for them.
             var labelStart = info.view.type === 'dayGridMonth' ? info.view.currentStart : info.start;
-            var labelEnd = info.view.type === 'dayGridMonth' ? info.view.currentEnd : info.end;
-            var lastDayOfWeek = new Date(labelEnd.getTime());
-            lastDayOfWeek.setUTCDate(lastDayOfWeek.getUTCDate() - 1);
-            $('#fcMonthLabel').text(formatMonthLabel(labelStart, lastDayOfWeek));
+            $('#fcMonthLabel').text(formatMonthLabel(info.view.type, labelStart));
 
             var todayStr = todayIsoInZone(opts.timezone);
             var isCurrentWeek = todayStr >= isoUTC(info.start) && todayStr < isoUTC(info.end);
             $('#fcTodayBtn').toggleClass('disabled', isCurrentWeek).attr('aria-disabled', isCurrentWeek ? 'true' : null);
 
-            $('#fcViewTabs .cal-view-tab').each(function () {
+            $('.view-picker-item').each(function () {
                 $(this).toggleClass('active', $(this).data('view') === info.view.type);
             });
+            $('#viewPickerLabel').text($('.view-picker-item[data-view="' + info.view.type + '"]').text());
 
             if (miniCal) {
                 miniCal.setWeekStart(info.start);
             }
+            // A view/date change tears down and rebuilds the whole time grid (new axis frame,
+            // new now-indicator-line element or none at all) — the nowDotObserver MutationObserver
+            // (set up alongside positionNowDot()) reacts to that DOM rebuild on its own, no
+            // explicit call needed here.
         },
         eventClick: function (info) {
             // Preserve normal browser behavior for modified clicks (open in new tab, etc.)
@@ -1343,12 +1706,13 @@ $(function () {
             $('#epResource').text(extendedProps.resourceName || '');
             $('#epOwnerRow').toggleClass('d-none', !extendedProps.ownerName);
             $('#epOwner').text(extendedProps.ownerName || '');
-            $('#epViewLink').attr('href', info.event.url || '#');
-            // Other people's reservations only ever get "查看詳情" — edit/delete are gated on
-            // the server-computed canEdit/canDelete (ReservationAuthorization::CanEdit(), see
-            // OverviewFullCalendarEventsPresenter::GetEvents()), never assumed client-side.
+            // "查看詳情" always opens the Drawer (never reservation.php — see the #epViewLink
+            // click handler above); everyone gets this link regardless of canEdit, since it's
+            // the read/view path. Edit/delete are gated on the server-computed canEdit/canDelete
+            // (ReservationAuthorization::CanEdit(), see OverviewFullCalendarEventsPresenter::
+            // GetEvents()), never assumed client-side.
+            $('#epViewLink').data('reference-number', extendedProps.referenceNumber || null);
             $('#epEditLink')
-                .attr('href', info.event.url || '#')
                 .toggleClass('d-none', !canEdit)
                 .data('reference-number', extendedProps.referenceNumber || null);
             $('#epDeleteBtn')
@@ -1388,20 +1752,18 @@ $(function () {
                     return response.json();
                 })
                 .then(function (allEvents) {
-                    var checked = checkedResourceIds();
                     successCallback(allEvents.filter(function (event) {
                         var resourceId = event.extendedProps && event.extendedProps.resourceId;
                         if (resourceId === undefined) {
                             return true;
                         }
-                        return categoryOf(resourceId) === activeCalCategory && checked[String(resourceId)];
+                        return String(resourceId) === selectedResourceId;
                     }));
                 })
                 .catch(failureCallback);
         },
     });
 
-    initSingleSelectResources();
     calendar.render();
 
     // FullCalendar measures its container once at render() time; if that happened before
@@ -1413,20 +1775,7 @@ $(function () {
         calendar.updateSize();
     });
 
-    setCalCategory(activeCalCategory);
-
-    // Same resource checklist already in the shared sidebar (tpl/globalheader.tpl), but
-    // single-select here (see initSingleSelectResources above): checking a box exclusively
-    // selects it within its category; unchecking the only selected box is a no-op (a
-    // category always has exactly one resource selected).
-    $('#resourceSidebar input[type="checkbox"][data-resource]').on('change', function () {
-        if (this.checked) {
-            selectSingleResource($(this));
-        } else {
-            this.checked = true;
-        }
-        calendar.refetchEvents();
-    });
+    initResourcePicker();
 
     $('#fcPrevBtn').on('click', function (e) {
         e.preventDefault();
@@ -1443,16 +1792,55 @@ $(function () {
         }
     });
 
-    // ---- Week/day/month view switcher ----
-    $('#fcViewTabs .cal-view-tab').on('click', function () {
-        var view = $(this).data('view');
-        $('#fcViewTabs .cal-view-tab').toggleClass('active', false);
-        $(this).addClass('active');
-        calendar.changeView(view);
-    });
+    // ---- Week/day/month view switcher (dropdown, "月 ▾") — active state + trigger label
+    // are kept in sync from datesSet above (the single source of truth for "what view is
+    // this"), not set here; this handler only asks FullCalendar to change view. ----
+    (function initViewPicker() {
+        var $picker = $('#viewPicker');
+        var $trigger = $('#viewPickerTrigger');
+        var $panel = $('#viewPickerPanel');
+
+        function open() {
+            closeAllDropdowns();
+            $picker.addClass('open');
+            $trigger.attr('aria-expanded', 'true');
+        }
+        function close() {
+            $picker.removeClass('open');
+            $trigger.attr('aria-expanded', 'false');
+        }
+        allDropdownClosers.push(close);
+
+        $trigger.on('click', function (e) {
+            e.stopPropagation();
+            if ($picker.hasClass('open')) {
+                close();
+            } else {
+                open();
+            }
+        });
+        $panel.on('click', function (e) { e.stopPropagation(); });
+        $panel.on('click', '.view-picker-item', function () {
+            calendar.changeView($(this).data('view'));
+            close();
+        });
+    })();
+
+    // Cross-day-safe: compares full 'YYYY-MM-DD HH:MM:SS' strings (same approach as the
+    // Drawer's validateDrawerTimes()), not just the time-of-day, so a legitimate cross-midnight
+    // range (e.g. start 22:00 / end next-day 02:00) isn't mistaken for an invalid one.
+    function quickCreateTimesValid() {
+        var start = pending.startDate + ' ' + minutesToHHMMSS(pending.beginMinutes);
+        var end = pending.endDate + ' ' + minutesToHHMMSS(pending.endMinutes);
+        return end > start;
+    }
 
     $('#qcSave').on('click', function () {
         if (!pending) {
+            return;
+        }
+        if (!quickCreateTimesValid()) {
+            $('#qcTimeError').removeClass('d-none').text(opts.translations.endBeforeStart);
             return;
         }
         var title = $('#qcTitle').val();
@@ -1466,9 +1854,9 @@ $(function () {
         body.set('resourceId', pending.resourceId);
         body.set('reservationTitle', title);
         body.set('reservationDescription', description);
-        body.set('beginDate', pending.date);
+        body.set('beginDate', pending.startDate);
         body.set('beginPeriod', minutesToHHMMSS(pending.beginMinutes));
-        body.set('endDate', pending.date);
+        body.set('endDate', pending.endDate);
         body.set('endPeriod', minutesToHHMMSS(pending.endMinutes));
 
         fetch(opts.saveUrl, {

@@ -35,8 +35,9 @@ try {
             ServiceLocator::GetEmailService()->Send(new ReminderStartEmail($notice));
         }
         if ($lineEnabled) {
-            $lineUserId = $userRepository->LoadById($notice->UserId())->GetPreferences()->Get(UserPreferences::LINE_USER_ID);
-            if (!empty($lineUserId)) {
+            $noticeOwner = $userRepository->LoadById($notice->UserId());
+            $lineUserId = $noticeOwner->GetPreferences()->Get(UserPreferences::LINE_USER_ID);
+            if (!empty($lineUserId) && $noticeOwner->WantsLineNotifications()) {
                 $text = Resources::GetInstance()->GetString('LineReminderStartMessage', [$notice->Title(), $notice->ResourceNames()]);
                 ServiceLocator::GetLineService()->Push($lineUserId, $text);
             }
@@ -50,8 +51,9 @@ try {
             ServiceLocator::GetEmailService()->Send(new ReminderEndEmail($notice));
         }
         if ($lineEnabled) {
-            $lineUserId = $userRepository->LoadById($notice->UserId())->GetPreferences()->Get(UserPreferences::LINE_USER_ID);
-            if (!empty($lineUserId)) {
+            $noticeOwner = $userRepository->LoadById($notice->UserId());
+            $lineUserId = $noticeOwner->GetPreferences()->Get(UserPreferences::LINE_USER_ID);
+            if (!empty($lineUserId) && $noticeOwner->WantsLineNotifications()) {
                 $text = Resources::GetInstance()->GetString('LineReminderEndMessage', [$notice->Title(), $notice->ResourceNames()]);
                 ServiceLocator::GetLineService()->Push($lineUserId, $text);
             }

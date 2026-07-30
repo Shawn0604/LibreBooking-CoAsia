@@ -1,133 +1,102 @@
-{include file='globalheader.tpl' }
+{include file='globalheader.tpl' cssFiles='css/notification-preferences.css'}
 
-<div class="page-notification-preferences">
-	{if !$EmailEnabled}
-		<div class="alert alert-danger text-center">
-			<i class="bi bi-exclamation-triangle-fill fs-5"></i> {translate key=EmailDisabled}
-		</div>
-	{else}
-		<div id="notification-preferences-box" class="default-box card shadow col- col-sm-8 mx-auto">
+<div class="shell" id="page-notification-preferences">
 
-			<form id="notification-preferences-form" method="post" action="{$smarty.server.SCRIPT_NAME}">
-				<div class="card-body mx-3">
-					<h1 class="text-center border-bottom mb-3">{translate key=NotificationPreferences}</h1>
-					{if $PreferencesUpdated}
-						<div class="success alert alert-success">
-							<i class="bi bi-check-circle-fill"></i> {translate key=YourSettingsWereUpdated}
-						</div>
-					{/if}
-					<div class="row gy-3">
-						<div class="notification-row col-12 col-sm-6">
-							<div class="notification-type">{translate key=ReservationCreatedPreference}</div>
-							<div class="form-check form-switch">
-								<input class="form-check-input" type="checkbox" role="switch"
-									id="{ReservationEvent::Created}" name="{ReservationEvent::Created}"
-									{if $Created}checked="checked" {/if}>
-								<label class="form-check-label"
-									for="{ReservationEvent::Created}">{translate key=PreferenceSendEmail}</label>
-							</div>
-						</div>
+    <div class="page-head">
+        <h1>{translate key=NotificationPreferences}</h1>
+    </div>
 
-						<div class="notification-row col-12 col-sm-6">
-							<div class="notification-type">{translate key=ReservationUpdatedPreference}</div>
-							<div class="form-check form-switch">
-								<input class="form-check-input" type="checkbox" role="switch"
-									id="{ReservationEvent::Updated}" name="{ReservationEvent::Updated}"
-									{if $Updated}checked="checked" {/if}>
-								<label class="form-check-label"
-									for="{ReservationEvent::Updated}">{translate key=PreferenceSendEmail}</label>
-							</div>
-						</div>
+    <div id="npError" class="alert alert-danger np-alert d-none">
+        <i class="bi bi-exclamation-triangle-fill"></i> <span id="npErrorText"></span>
+    </div>
 
-						<div class="notification-row col-12 col-sm-6">
-							<div class="notification-type">
-								{translate key=ReservationDeletedPreference}
-							</div>
-							<div class="form-check form-switch">
-								<input class="form-check-input" type="checkbox" role="switch"
-									id="{ReservationEvent::Deleted}" name="{ReservationEvent::Deleted}"
-									{if $Deleted}checked="checked" {/if}>
-								<label class="form-check-label"
-									for="{ReservationEvent::Deleted}">{translate key=PreferenceSendEmail}</label>
-							</div>
+    {if !$EmailEnabled}
+        <div class="alert alert-danger np-alert">
+            <i class="bi bi-exclamation-triangle-fill"></i> {translate key=EmailDisabled}
+        </div>
+    {else}
+        {* No form/submit button anymore — every control here saves itself immediately via
+           Web/scripts/notification-preferences.js (fetch to ajax/notification_preferences_save.php),
+           showing the shared toast (tpl/globalfooter.tpl#notificationPreferencesSavedToast)
+           instead of a full-page reload + banner. *}
+        <section class="np-card">
+            <h2 class="np-card-title">{translate key=EmailNotifications}</h2>
 
-						</div>
+            <label class="np-row" for="emailNotificationsEnabled">
+                <span class="np-row-icon"><i class="bi bi-envelope"></i></span>
+                <span class="np-row-text">
+                    <span class="np-row-label">{translate key=EmailNotificationsToggleLabel}</span>
+                    <span class="np-row-desc">{translate key=EmailNotificationsToggleDescription}</span>
+                </span>
+                <span class="form-check form-switch np-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="emailNotificationsEnabled"
+                        {if $EmailNotificationsEnabled}checked="checked"{/if}>
+                    <span class="visually-hidden">{translate key=EmailNotificationsToggleLabel}</span>
+                </span>
+            </label>
+        </section>
+    {/if}
 
-						<div class="notification-row alt col-12 col-sm-6">
-							<div class="notification-type">
-								{translate key=ReservationApprovalPreference}
-							</div>
-							<div class="form-check form-switch">
-								<input class="form-check-input" type="checkbox" role="switch"
-									id="{ReservationEvent::Approved}" name="{ReservationEvent::Approved}"
-									{if $Approved}checked="checked" {/if}>
-								<label class="form-check-label"
-									for="{ReservationEvent::Approved}">{translate key=PreferenceSendEmail}</label>
-							</div>
-						</div>
+    {if $LineEnabled}
+        <section class="np-card">
+            <h2 class="np-card-title">{translate key=LineNotifications}</h2>
 
-						<div class="notification-row col-12 col-sm-6">
-							<div class="notification-type">
-								{translate key=ReservationParticipationActivityPreference}
-							</div>
-							<div class="form-check form-switch">
-								<input class="form-check-input" type="checkbox" role="switch"
-									id="{ReservationEvent::ParticipationChanged}"
-									name="{ReservationEvent::ParticipationChanged}"
-									{if $ParticipantChanged}checked="checked" {/if}>
-								<label class="form-check-label"
-									for="{ReservationEvent::ParticipationChanged}">{translate key=PreferenceSendEmail}</label>
-							</div>
-						</div>
+            {if $LineLinked}
+                <div class="np-line-status np-line-status-linked">
+                    <i class="bi bi-check-circle-fill"></i> {translate key=LineLinked}
+                </div>
 
-						<div class="notification-row-alt col-12 col-sm-6">
-							<div class="notification-type">
-								{translate key=ReservationSeriesEndingPreference}
-							</div>
-							<div class="form-check form-switch">
-								<input class="form-check-input" type="checkbox" role="switch"
-									id="{ReservationEvent::SeriesEnding}" name="{ReservationEvent::SeriesEnding}"
-									{if $SeriesEnding}checked="checked" {/if}>
-								<label class="form-check-label"
-									for="{ReservationEvent::SeriesEnding}">{translate key=PreferenceSendEmail}</label>
-							</div>
-						</div>
+                <label class="np-row" for="lineNotificationsEnabled">
+                    <span class="np-row-icon"><i class="bi bi-bell"></i></span>
+                    <span class="np-row-text">
+                        <span class="np-row-label">{translate key=LineNotificationsToggleLabel}</span>
+                    </span>
+                    <span class="form-check form-switch np-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="lineNotificationsEnabled"
+                            {if $LineNotificationsEnabled}checked="checked"{/if}>
+                        <span class="visually-hidden">{translate key=LineNotificationsToggleLabel}</span>
+                    </span>
+                </label>
 
-					</div>
-					<div class="form-group d-grid mt-3">
-						<button type="submit" class="btn btn-primary update prompt" name="{Actions::SAVE}">
-							{translate key='Update'}
-						</button>
-					</div>
-
-					{if $LineEnabled}
-						<div id="line-notification-box" class="mt-4 pt-3 border-top">
-							<h2 class="fs-5">{translate key=LineNotifications}</h2>
-							{if $LineLinked}
-								<div class="text-success mb-2">
-									<i class="bi bi-check-circle-fill"></i> {translate key=LineLinked}
-								</div>
-								<button type="submit" class="btn btn-outline-secondary btn-sm" name="lineUnlink" value="1">
-									{translate key=LineUnlink}
-								</button>
-							{else}
-								<p>{translate key=LineLinkInstructions}</p>
-								<div class="d-flex align-items-center gap-3 flex-wrap">
-									<span class="fs-3 fw-bold font-monospace">{$LineLinkCode}</span>
-									<a class="btn btn-success btn-sm" href="{$LineFriendUrl}" target="_blank" rel="noopener">
-										{translate key=LineAddFriend}
-									</a>
-								</div>
-							{/if}
-						</div>
-					{/if}
-				</div>
-			</form>
-
-		</div>
-	{/if}
+                <div class="np-line-actions">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="lineTestNotificationBtn">
+                        <i class="bi bi-send"></i> {translate key=LineTestNotification}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="lineUnlinkBtn">
+                        {translate key=LineUnlink}
+                    </button>
+                </div>
+            {else}
+                <div class="np-line-unbound">
+                    <img class="np-line-qr" src="{$LineQrDataUri}" alt="{translate key=LineNotifications}" width="180" height="180">
+                    <div class="np-line-steps">
+                        <a class="btn btn-success btn-sm np-line-add-friend" href="{$LineFriendUrl}" target="_blank" rel="noopener">
+                            {translate key=LineAddFriend}
+                        </a>
+                        <div class="np-line-start-binding">
+                            <p class="np-line-start-binding-label">{translate key=LineStartBinding}</p>
+                            <p class="np-card-subtitle">{translate key=LineLinkInstructions}</p>
+                            <span class="np-line-code">{$LineLinkCode}</span>
+                        </div>
+                    </div>
+                </div>
+            {/if}
+        </section>
+    {/if}
 
 </div>
+
+<script>
+    window.notificationPreferencesOpts = {
+        saveUrl: '{$ScriptUrl}/ajax/notification_preferences_save.php',
+        testUrl: '{$ScriptUrl}/ajax/line_test_notification.php',
+        csrfToken: '{$CSRFToken|escape:'javascript'}',
+        translations: {
+            networkError: '{translate key='NetworkErrorRetry'|escape:'javascript'}'
+        }
+    };
+</script>
+{jsfile src="notification-preferences.js"}
 
 {include file="javascript-includes.tpl"}
 {include file='globalfooter.tpl'}

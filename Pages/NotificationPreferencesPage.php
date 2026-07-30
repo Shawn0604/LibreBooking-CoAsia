@@ -11,74 +11,9 @@ interface INotificationPreferencesPage extends IPage
     public function SetEmailEnabled($enabled);
 
     /**
-     * @param bool $wantsApprovalEmails
-     */
-    public function SetApproved($wantsApprovalEmails);
-
-    /**
-     * @param bool $wantsCreationEmails
-     */
-    public function SetCreated($wantsCreationEmails);
-
-    /**
-     * @param bool $wantsUpdateEmails
-     */
-    public function SetUpdated($wantsUpdateEmails);
-
-    /**
-     * @param bool $wantsDeleteEmails
-     */
-    public function SetDeleted($wantsDeleteEmails);
-
-    /**
-     * @param bool $wantsSeriesEndingEmails
-     */
-    public function SetSeriesEnding($wantsSeriesEndingEmails);
-
-    /**
-     * @param bool $wantsParticipantChangedEmails
-     */
-    public function SetParticipantChanged($wantsParticipantChangedEmails);
-
-    /**
-     * @return bool
-     */
-    public function GetApproved();
-
-    /**
-     * @return bool
-     */
-    public function GetCreated();
-
-    /**
-     * @return bool
-     */
-    public function GetUpdated();
-
-    /**
-     * @return bool
-     */
-    public function GetDeleted();
-
-    /**
-     * @return bool
-     */
-    public function GetSeriesEnding();
-
-    /**
-     * @return bool
-     */
-    public function GetParticipantChanged();
-
-    /**
-     * @param bool $werePreferencesUpdated
-     */
-    public function SetPreferencesSaved($werePreferencesUpdated);
-
-    /**
      * @param bool $enabled
      */
-    public function SetParticipationEnabled($enabled);
+    public function SetEmailNotificationsEnabled($enabled);
 
     /**
      * @param bool $enabled
@@ -91,6 +26,11 @@ interface INotificationPreferencesPage extends IPage
     public function SetLineLinked($isLinked);
 
     /**
+     * @param bool $enabled
+     */
+    public function SetLineNotificationsEnabled($enabled);
+
+    /**
      * @param string $code
      */
     public function SetLineLinkCode($code);
@@ -101,9 +41,9 @@ interface INotificationPreferencesPage extends IPage
     public function SetLineFriendUrl($url);
 
     /**
-     * @return bool
+     * @param string $dataUri
      */
-    public function GetUnlinkLine();
+    public function SetLineQrDataUri($dataUri);
 }
 
 class NotificationPreferencesPage extends SecurePage implements INotificationPreferencesPage
@@ -125,79 +65,14 @@ class NotificationPreferencesPage extends SecurePage implements INotificationPre
         $this->Display('MyAccount/notification-preferences.tpl');
     }
 
-    public function SetApproved($wantsApprovalEmails)
-    {
-        $this->Set('Approved', $wantsApprovalEmails);
-    }
-
-    public function SetCreated($wantsCreationEmails)
-    {
-        $this->Set('Created', $wantsCreationEmails);
-    }
-
-    public function SetUpdated($wantsUpdateEmails)
-    {
-        $this->Set('Updated', $wantsUpdateEmails);
-    }
-
-    public function SetDeleted($wantsDeleteEmails)
-    {
-        $this->Set('Deleted', $wantsDeleteEmails);
-    }
-
-    public function SetSeriesEnding($wantsSeriesEndingEmails)
-    {
-        $this->Set('SeriesEnding', $wantsSeriesEndingEmails);
-    }
-
-    public function SetParticipantChanged($wantsParticipantChangedEmails)
-    {
-        $this->Set('ParticipantChanged', $wantsParticipantChangedEmails);
-    }
-
-    public function GetApproved()
-    {
-        return (bool)$this->GetForm(ReservationEvent::Approved);
-    }
-
-    public function GetCreated()
-    {
-        return (bool)$this->GetForm(ReservationEvent::Created);
-    }
-
-    public function GetUpdated()
-    {
-        return (bool)$this->GetForm(ReservationEvent::Updated);
-    }
-
-    public function GetDeleted()
-    {
-        return (bool)$this->GetForm(ReservationEvent::Deleted);
-    }
-
-    public function GetSeriesEnding()
-    {
-        return (bool)$this->GetForm(ReservationEvent::SeriesEnding);
-    }
-
-    public function GetParticipantChanged()
-    {
-        return (bool)$this->GetForm(ReservationEvent::ParticipationChanged);
-    }
-
-    public function SetPreferencesSaved($werePreferencesUpdated)
-    {
-        $this->Set('PreferencesUpdated', $werePreferencesUpdated);
-    }
-
     public function SetEmailEnabled($enabled)
     {
         $this->Set('EmailEnabled', $enabled);
     }
 
-    public function SetParticipationEnabled($enabled)
+    public function SetEmailNotificationsEnabled($enabled)
     {
-        $this->Set('ParticipationEnabled', $enabled);
+        $this->Set('EmailNotificationsEnabled', $enabled);
     }
 
     public function SetLineEnabled($enabled)
@@ -210,6 +85,11 @@ class NotificationPreferencesPage extends SecurePage implements INotificationPre
         $this->Set('LineLinked', $isLinked);
     }
 
+    public function SetLineNotificationsEnabled($enabled)
+    {
+        $this->Set('LineNotificationsEnabled', $enabled);
+    }
+
     public function SetLineLinkCode($code)
     {
         $this->Set('LineLinkCode', $code);
@@ -220,8 +100,8 @@ class NotificationPreferencesPage extends SecurePage implements INotificationPre
         $this->Set('LineFriendUrl', $url);
     }
 
-    public function GetUnlinkLine()
+    public function SetLineQrDataUri($dataUri)
     {
-        return (bool)$this->GetForm('lineUnlink');
+        $this->Set('LineQrDataUri', $dataUri);
     }
 }

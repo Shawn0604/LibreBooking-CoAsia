@@ -6,42 +6,106 @@
 
 <div class="shell" id="page-overview-fc">
 
-    <div class="cal-toolbar">
-        <h1>{translate key="Overview"} <span class="fc-proto-badge">FullCalendar prototype</span></h1>
+    {* Three-column toolbar (left/center/right each `1fr`, see overview_fullcalendar.css) —
+       the center date-nav group is only ever as wide as its own content and sits on the
+       toolbar's true horizontal center regardless of how wide the resource picker (left) or
+       the mine-only toggle + view picker (right) are, rather than just being centered
+       *between* its neighbors the way a plain flex row would. *}
+    <div class="cal-toolbar cal-toolbar-3col">
+        <div class="toolbar-col toolbar-col-left">
+            {* Physical/video resource type and resource search are both facets of the same
+               one decision — "which resource is the calendar showing right now" — so they
+               live together in one control instead of separate toolbar widgets (the old
+               top-level physical/video tabs + the sidebar's own duplicate resource checklist,
+               both removed). Always exactly one specific resource is selected (no "全部資源"
+               option — dropped per explicit request, this page shows one room's calendar at
+               a time); the default is whichever resource's name matches Shanghai (see
+               defaultShanghaiResourceId() in overview_fullcalendar.js), falling back to the
+               first physical resource if no Shanghai room exists. overview_fullcalendar.js
+               drives all of it: opens/closes the panel, filters the list as you type, and
+               sets the trigger's label/dot/checkmark — see setSelectedResource() there. *}
+            <div class="resource-picker" id="resourcePicker">
+                <button type="button" class="ghost-btn resource-picker-trigger" id="resourcePickerTrigger"
+                    aria-haspopup="listbox" aria-expanded="false">
+                    <span class="resource-picker-dot" id="resourcePickerDot" style="display:none;"></span>
+                    <span class="resource-picker-label" id="resourcePickerLabel"></span>
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+                <div class="resource-picker-panel" id="resourcePickerPanel">
+                    <div class="resource-picker-search">
+                        <i class="bi bi-search"></i>
+                        <input type="text" id="resourcePickerSearch" placeholder="{translate key='SearchResources'}" autocomplete="off">
+                    </div>
+                    <div class="resource-picker-list" id="resourcePickerList">
+                        {if count($PhysicalResources) > 0}
+                            <div class="resource-picker-section-label" data-section="physical">{translate key='PhysicalRooms'}</div>
+                            {foreach from=$PhysicalResources item=resource}
+                                <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="physical">
+                                    <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                    <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                    <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                </button>
+                            {/foreach}
+                        {/if}
+                        {if count($VideoResources) > 0}
+                            <div class="resource-picker-section-label" data-section="video">{translate key='VideoConferenceResources'}</div>
+                            {foreach from=$VideoResources item=resource}
+                                <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="video">
+                                    <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                    <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                    <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                </button>
+                            {/foreach}
+                        {/if}
+                        <div class="resource-picker-empty d-none" id="resourcePickerEmpty">{translate key='NoMatchesFound'}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-        <div class="toolbar-nav-group">
-            <a class="today-btn" id="fcTodayBtn" href="#">{translate key='Today'}</a>
+        <div class="toolbar-col toolbar-col-center">
+            <a class="ghost-btn today-btn" id="fcTodayBtn" href="#">{translate key='Today'}</a>
             <div class="arrows">
-                <a class="nav" id="fcPrevBtn" href="#" aria-label="Previous week"><i class="bi bi-chevron-left"></i></a>
-                <a class="nav" id="fcNextBtn" href="#" aria-label="Next week"><i class="bi bi-chevron-right"></i></a>
+                <a class="ghost-btn nav" id="fcPrevBtn" href="#" aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
+                <a class="ghost-btn nav" id="fcNextBtn" href="#" aria-label="Next"><i class="bi bi-chevron-right"></i></a>
             </div>
             <span class="month-label" id="fcMonthLabel"></span>
         </div>
 
-        <div class="toolbar-actions">
-            {* Three independent dimensions — reservation scope (mine/all), resource type
-               (physical/video), and view (day/week/month) are NOT the same axis and must
-               not share one mutually-exclusive tab group. Each toggles its own state in
-               overview_fullcalendar.js (mineOnly / activeCalCategory / FullCalendar's view)
-               without touching the other two. *}
-            <div class="cal-scope-tabs" id="fcScopeTabs">
-                <button type="button" class="cal-category-tab active" data-scope="all">{translate key='ReservationScopeAll'}</button>
-                <button type="button" class="cal-category-tab" data-scope="mine">{translate key='ReservationScopeMine'}</button>
-            </div>
-            <div class="cal-category-tabs" id="fcCategoryTabs">
-                <button type="button" class="cal-category-tab active" data-category="physical">{translate key='PhysicalRooms'}</button>
-                <button type="button" class="cal-category-tab" data-category="video">{translate key='VideoConferenceResources'}</button>
-            </div>
-            <div class="cal-view-tabs" id="fcViewTabs">
-                <button type="button" class="cal-view-tab" data-view="timeGridDay">{translate key='Day'}</button>
-                <button type="button" class="cal-view-tab active" data-view="timeGridWeek">{translate key='Week'}</button>
-                <button type="button" class="cal-view-tab" data-view="dayGridMonth">{translate key='Month'}</button>
+        <div class="toolbar-col toolbar-col-right">
+            <label class="mine-only-toggle" for="fcMineOnlyToggle">
+                <span class="mine-only-label">{translate key='ReservationScopeMine'}</span>
+                <span class="toggle-switch">
+                    <input type="checkbox" id="fcMineOnlyToggle">
+                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+                </span>
+            </label>
+            <div class="view-picker" id="viewPicker">
+                <button type="button" class="ghost-btn view-picker-trigger" id="viewPickerTrigger"
+                    aria-haspopup="listbox" aria-expanded="false">
+                    <span id="viewPickerLabel">{translate key='Week'}</span>
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+                <div class="view-picker-panel" id="viewPickerPanel">
+                    <button type="button" class="view-picker-item" data-view="timeGridDay">{translate key='Day'}</button>
+                    <button type="button" class="view-picker-item active" data-view="timeGridWeek">{translate key='Week'}</button>
+                    <button type="button" class="view-picker-item" data-view="dayGridMonth">{translate key='Month'}</button>
+                </div>
             </div>
         </div>
     </div>
 
     <div class="fc-frame">
         <div id="fullcalendarRoot"></div>
+        {* Custom now-indicator dot — FullCalendar's own default arrow lives inside the axis
+           column's own now-indicator container (a different DOM subtree than the day-column
+           that holds the actual red line), so anchoring it there with a fixed CSS offset only
+           happened to look right at one specific width; it drifts under resize/scroll/whenever
+           FullCalendar re-renders the grid. This sits as a sibling of #fullcalendarRoot inside
+           .fc-frame (position: relative) and gets repositioned in JS from the real, current
+           geometry of the now-indicator line's own left edge every time it could have moved,
+           so the dot always sits at the actual start of the red line. *}
+        <div id="fcNowDot" class="d-none"></div>
     </div>
 
     <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-hidden="true" aria-labelledby="quickCreateModalLabel">
@@ -56,17 +120,19 @@
                         <i class="bi bi-clock"></i>
                         <div class="qc-row-text">
                             <div class="qc-time-edit">
-                                <span id="qcDateLabel"></span>
+                                <input type="date" class="qc-date-input" id="qcStartDate">
                                 <div class="qc-time-picker" id="qcStartPicker">
                                     <button type="button" class="qc-time-pill" id="qcStartPill" aria-haspopup="listbox" aria-expanded="false"></button>
                                     <div class="qc-time-dropdown" id="qcStartDropdown" role="listbox"></div>
                                 </div>
                                 <span class="qc-time-dash">–</span>
+                                <input type="date" class="qc-date-input" id="qcEndDate">
                                 <div class="qc-time-picker" id="qcEndPicker">
                                     <button type="button" class="qc-time-pill" id="qcEndPill" aria-haspopup="listbox" aria-expanded="false"></button>
                                     <div class="qc-time-dropdown" id="qcEndDropdown" role="listbox"></div>
                                 </div>
                             </div>
+                            <div class="qc-time-error d-none" id="qcTimeError"></div>
                             <span class="qc-row-sub">{translate key='DoesNotRepeat'}</span>
                         </div>
                     </div>
@@ -231,8 +297,64 @@
                             <div class="rd-time-error d-none" id="rdTimeError"></div>
                         </div>
 
-                        <div class="reservation-section d-none" id="rdRecurringSummary">
-                            <div class="reservation-row"><i class="bi bi-arrow-repeat"></i><span id="rdRecurringSummaryText">{translate key='RecurringSummary'}</span></div>
+                        {* Repeat rule — reuses the exact same backend field names/values the classic
+                           form's RecurrenceControl already submits (FormKeys::REPEAT_OPTIONS etc, see
+                           RepeatType/RepeatMonthlyType in Domain/RepeatOptions.php), so
+                           RepeatOptionsFactory needs no changes. Built lightweight here rather than
+                           reusing RecurrenceDiv.tpl/recurrence.js directly, since those are wired to
+                           the classic form's own field ids. *}
+                        <div class="reservation-section" id="rdRepeatSection">
+                            <div class="reservation-row">
+                                <i class="bi bi-arrow-repeat"></i>
+                                <select class="reservation-select" id="rdRepeatType">
+                                    <option value="none">{translate key='DoesNotRepeat'}</option>
+                                    <option value="daily">{translate key='Daily'}</option>
+                                    <option value="weekly">{translate key='Weekly'}</option>
+                                    <option value="monthly">{translate key='Monthly'}</option>
+                                    <option value="custom">{translate key='Custom'}</option>
+                                </select>
+                            </div>
+                            <div class="reservation-row d-none" id="rdRepeatIntervalRow">
+                                <i class="bi bi-arrow-repeat rd-row-spacer-icon"></i>
+                                <span>{translate key='RepeatEveryPrompt'}</span>
+                                <input type="number" class="reservation-field rd-repeat-interval-input" id="rdRepeatInterval" min="1" value="1">
+                                <span id="rdRepeatIntervalUnit"></span>
+                            </div>
+                            <div class="reservation-row d-none" id="rdRepeatWeekdaysRow">
+                                <i class="bi bi-arrow-repeat rd-row-spacer-icon"></i>
+                                <div class="rd-weekday-picker" id="rdWeekdayPicker">
+                                    <button type="button" class="rd-weekday-btn" data-day="0">{translate key='DaySundayAbbr'}</button>
+                                    <button type="button" class="rd-weekday-btn" data-day="1">{translate key='DayMondayAbbr'}</button>
+                                    <button type="button" class="rd-weekday-btn" data-day="2">{translate key='DayTuesdayAbbr'}</button>
+                                    <button type="button" class="rd-weekday-btn" data-day="3">{translate key='DayWednesdayAbbr'}</button>
+                                    <button type="button" class="rd-weekday-btn" data-day="4">{translate key='DayThursdayAbbr'}</button>
+                                    <button type="button" class="rd-weekday-btn" data-day="5">{translate key='DayFridayAbbr'}</button>
+                                    <button type="button" class="rd-weekday-btn" data-day="6">{translate key='DaySaturdayAbbr'}</button>
+                                </div>
+                            </div>
+                            <div class="reservation-row d-none" id="rdRepeatMonthlyTypeRow">
+                                <i class="bi bi-arrow-repeat rd-row-spacer-icon"></i>
+                                <select class="reservation-select" id="rdRepeatMonthlyType">
+                                    <option value="dayOfMonth">{translate key='repeatDayOfMonth'}</option>
+                                    <option value="dayOfWeek">{translate key='repeatDayOfWeek'}</option>
+                                </select>
+                            </div>
+                            <div class="reservation-row d-none" id="rdRepeatEndRow">
+                                <i class="bi bi-arrow-repeat rd-row-spacer-icon"></i>
+                                <span>{translate key='RepeatUntilPrompt'}</span>
+                                <input type="date" class="reservation-field" id="rdRepeatEndDate">
+                            </div>
+                            <div class="reservation-row reservation-row-top d-none" id="rdRepeatCustomRow">
+                                <i class="bi bi-arrow-repeat rd-row-spacer-icon"></i>
+                                <div class="rd-custom-dates" id="rdRepeatCustom">
+                                    <div class="rd-custom-dates-input">
+                                        <input type="date" class="reservation-field" id="rdRepeatCustomDateInput">
+                                        <button type="button" class="reservation-btn-text" id="rdRepeatCustomAddBtn">{translate key='AddDate'}</button>
+                                    </div>
+                                    <div class="rd-chip-list" id="rdRepeatCustomList"></div>
+                                </div>
+                            </div>
+                            <div class="rd-time-error d-none" id="rdRepeatError"></div>
                         </div>
 
                         <div class="reservation-section">
@@ -249,8 +371,40 @@
                             </div>
                         </div>
 
+                        {* Additional resources / accessories / allow-participation are read-only
+                           here (not editable via the Drawer yet — see COASIA-CHANGES.md P0-1
+                           scope note); management still goes through "更多選項" into the classic
+                           form. *}
+                        <div class="reservation-section d-none" id="rdAdditionalResourcesSummary">
+                            <div class="reservation-row reservation-row-top">
+                                <i class="bi bi-door-open"></i>
+                                <div class="rd-chip-list" id="rdAdditionalResourcesList"></div>
+                            </div>
+                        </div>
+
+                        <div class="reservation-section d-none" id="rdAccessoriesSummary">
+                            <div class="reservation-row reservation-row-top">
+                                <i class="bi bi-tools"></i>
+                                <div class="rd-chip-list" id="rdAccessoriesList"></div>
+                            </div>
+                        </div>
+
+                        <div class="reservation-section d-none" id="rdAllowParticipationSummary">
+                            <div class="reservation-row"><i class="bi bi-people-fill"></i><span id="rdAllowParticipationText">{translate key='AllowParticipantsToJoin'}</span></div>
+                        </div>
+
                         <div class="reservation-section d-none" id="rdParticipantsSummary">
-                            <div class="reservation-row"><i class="bi bi-people"></i><span id="rdParticipantsSummaryText"></span></div>
+                            <div class="reservation-row reservation-row-top">
+                                <i class="bi bi-people"></i>
+                                <div class="rd-chip-list" id="rdParticipantsList"></div>
+                            </div>
+                        </div>
+
+                        <div class="reservation-section d-none" id="rdGuestsSummary">
+                            <div class="reservation-row reservation-row-top">
+                                <i class="bi bi-person-plus"></i>
+                                <div class="rd-chip-list" id="rdGuestsList"></div>
+                            </div>
                         </div>
 
                         <div class="reservation-section">
@@ -262,6 +416,20 @@
 
                         <div class="reservation-section d-none" id="rdRemindersSummary">
                             <div class="reservation-row"><i class="bi bi-bell"></i><span id="rdRemindersSummaryText">{translate key='RemindersSummary'}</span></div>
+                        </div>
+
+                        <div class="reservation-section d-none" id="rdAttributesSummary">
+                            <div class="reservation-row reservation-row-top">
+                                <i class="bi bi-tags"></i>
+                                <div class="rd-attribute-list" id="rdAttributesList"></div>
+                            </div>
+                        </div>
+
+                        <div class="reservation-section d-none" id="rdAttachmentsSummary">
+                            <div class="reservation-row reservation-row-top">
+                                <i class="bi bi-paperclip"></i>
+                                <div class="rd-chip-list" id="rdAttachmentsList"></div>
+                            </div>
                         </div>
                     </div>
                     <div class="rd-save-error d-none" id="rdSaveError"></div>
@@ -352,6 +520,9 @@
             endBeforeStart: '{translate key='EndDateBeforeStartDate'|escape:'javascript'}',
             reservationChanged: '{translate key='ReservationChanged'|escape:'javascript'}',
             reloadLatest: '{translate key='ReloadLatest'|escape:'javascript'}',
+            repeatEndDateRequired: '{translate key='RepeatEndDateRequired'|escape:'javascript'}',
+            repeatWeekdayRequired: '{translate key='RepeatWeekdayRequired'|escape:'javascript'}',
+            repeatCustomDateRequired: '{translate key='RepeatCustomDateRequired'|escape:'javascript'}',
             minutes: '{translate key='minutes'|escape:'javascript'}',
             hours: '{translate key='hours'|escape:'javascript'}',
             days: '{translate key='days'|escape:'javascript'}'
@@ -363,6 +534,15 @@
             {if count($PhysicalResources) > 0 && count($VideoResources) > 0},{/if}
             {foreach from=$VideoResources item=resource name=videoNames}
                 "{$resource->GetId()}": "{$resource->GetName()|escape:'javascript'}"{if !$smarty.foreach.videoNames.last},{/if}
+            {/foreach}
+        },
+        resourceColors: {
+            {foreach from=$PhysicalResources item=resource name=physicalColors}
+                "{$resource->GetId()}": "{$ResourceColors[$resource->GetId()].bg|escape:'javascript'}"{if !$smarty.foreach.physicalColors.last},{/if}
+            {/foreach}
+            {if count($PhysicalResources) > 0 && count($VideoResources) > 0},{/if}
+            {foreach from=$VideoResources item=resource name=videoColors}
+                "{$resource->GetId()}": "{$ResourceColors[$resource->GetId()].bg|escape:'javascript'}"{if !$smarty.foreach.videoColors.last},{/if}
             {/foreach}
         },
         resourceGroups: {

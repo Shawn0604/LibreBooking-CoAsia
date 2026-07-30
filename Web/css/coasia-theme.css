@@ -108,6 +108,130 @@ img.logo {
   border-right: 1px solid var(--gcal-border);
 }
 
+@media (min-width: 992px) {
+  .app-sidebar {
+    transition: width 0.2s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-sidebar {
+      transition: none;
+    }
+  }
+
+  .app-sidebar.collapsed {
+    width: 72px;
+  }
+
+  /* Text has no wrapper element to hide directly (it's a plain text node next to the
+     icon), so this relies on cascade order: `.sidebar-link i:first-child` below already
+     sets an explicit font-size that's more specific than this rule, so the icon keeps its
+     size while the sibling text — which has nothing of its own to override with — shrinks
+     to nothing. */
+  .app-sidebar.collapsed .sidebar-link,
+  .app-sidebar.collapsed .sidebar-group-toggle {
+    position: relative;
+    font-size: 0;
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  /* justify-content:center above centers the whole flex *group* (icon + the invisible-but-
+     still-present trailing text node next to it), not the icon by itself — since that phantom
+     text item still occupies its own sliver of layout width even at font-size:0, the visibly
+     centered "group" leaves the icon itself sitting left of true center. .sidebar-user-avatar
+     and .sidebar-collapse-toggle don't have this problem (no trailing text sibling), which is
+     why only the nav icons looked off. Taking the icon out of flex flow entirely and centering
+     it directly against the 36px box sidesteps the phantom-sibling width regardless of how
+     wide it computes to be. */
+  .app-sidebar.collapsed .sidebar-link i:first-child,
+  .app-sidebar.collapsed .sidebar-group-toggle i:first-child {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  /* Every tappable circle in the collapsed rail — nav links, the group toggles, the user
+     avatar — shares one fixed diameter so the rail reads as one consistent row of icon
+     buttons instead of a mix of sizes. 36px matches --icon-button-size, the same diameter
+     already used for icon buttons elsewhere in the app (event popover / Drawer, see
+     overview_fullcalendar.css). The collapse/expand toggle itself is deliberately NOT in this
+     list — it should look identical (28px, white circle, bordered) whether the sidebar is
+     expanded or collapsed, only the chevron's rotation changes; see its own rule below
+     instead of unifying it into this size. */
+  .app-sidebar.collapsed .sidebar-link,
+  .app-sidebar.collapsed .sidebar-group-toggle,
+  .app-sidebar.collapsed .sidebar-user-avatar {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
+    margin-inline: 0;
+    border-radius: 50%;
+    box-sizing: border-box;
+  }
+
+  .app-sidebar.collapsed .sidebar-brand {
+    flex: 0 0 auto;
+    height: auto;
+    min-height: 64px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 10px 0;
+    gap: 6px;
+  }
+
+  .app-sidebar.collapsed .sidebar-collapse-toggle {
+    position: static;
+  }
+
+  .app-sidebar.collapsed .sidebar-brand-company,
+  .app-sidebar.collapsed .sidebar-user-name,
+  .app-sidebar.collapsed .mini-cal,
+  .app-sidebar.collapsed .sidebar-divider,
+  .app-sidebar.collapsed #resourceSidebar,
+  .app-sidebar.collapsed .sidebar-chevron,
+  .app-sidebar.collapsed .sidebar-submenu,
+  .app-sidebar.collapsed .badge-new-version {
+    display: none !important;
+  }
+
+  /* .sidebar-nav/.sidebar-footer (each row's stacking column) and .sidebar-user (the avatar's
+     own row) previously kept their expanded-view horizontal padding (12px/16px respectively)
+     in collapsed mode — different padding on each of the three sections meant each one's items
+     centered against a different effective width, so the toggle/avatar landed on a different
+     vertical line than the nav icons/create button/footer icons even though every item itself
+     was already centered *within its own row*. Zeroing inline padding on all three and
+     centering here (align-items for these two column-direction containers; justify-content on
+     .sidebar-user below, which is row-direction) puts every row's centering axis at the same
+     x — the sidebar's true horizontal center — regardless of which section it's in. */
+  .app-sidebar.collapsed .sidebar-nav,
+  .app-sidebar.collapsed .sidebar-footer {
+    padding-inline: 0;
+    align-items: center;
+    box-sizing: border-box;
+  }
+
+  .app-sidebar.collapsed .sidebar-user {
+    padding-inline: 0;
+    justify-content: center;
+    box-sizing: border-box;
+  }
+
+  /* The remaining offset after the fix above turned out not to be padding at all: their common
+     ancestor, #librebooking-navigation.sidebar-nav-collapse, reserves `scrollbar-gutter:stable`
+     (added for the *expanded* sidebar, so an expanding submenu's scrollbar doesn't narrow the
+     usable width — see that rule's own comment) — confirmed by measuring it directly:
+     offsetWidth 71px vs clientWidth 61px, a 10px reservation on the right that isn't there for
+     .sidebar-brand/.sidebar-user (outside this scrolling wrapper), which is exactly why only
+     the nav/footer icons were sitting ~5px left of the toggle/avatar's center. Collapsed mode's
+     content is short enough that this scrollbar accommodation isn't needed. */
+  .app-sidebar.collapsed #librebooking-navigation.sidebar-nav-collapse {
+    scrollbar-gutter: auto;
+  }
+}
+
 .app-content {
   flex: 1;
   min-width: 0;
@@ -128,9 +252,12 @@ img.logo {
   flex: 0 0 64px;
   height: 64px;
   min-height: 64px;
-  padding: 0 16px;
+  /* Right padding reserves room for .sidebar-collapse-toggle (absolutely positioned,
+     anchored to this row) so it never overlaps the company name text. */
+  padding: 0 44px 0 16px;
   box-sizing: border-box;
   border-bottom: 1px solid var(--gcal-border);
+  position: relative;
 }
 
 /* The logo link is a flex item of .sidebar-brand — without flex-shrink:0 it's allowed to
@@ -151,6 +278,31 @@ img.logo {
   display: block;
 }
 
+.sidebar-brand-logo-mark {
+  display: none;
+}
+
+.sidebar-brand-logo-mark img.logo-mark {
+  height: 24px;
+  width: auto;
+  flex-shrink: 0;
+  display: block;
+}
+
+@media (min-width: 992px) {
+  .app-sidebar.collapsed .sidebar-brand-logo-full {
+    display: none;
+  }
+
+  /* Collapsed rail keeps only the expand control in the brand row — no logo at all (the mark
+     was tried here first, but at 72px wide next to the toggle it read as visual clutter, not
+     branding). .sidebar-brand-logo-mark stays defined/unused rather than removed, in case a
+     future narrower treatment wants it back. */
+  .app-sidebar.collapsed .sidebar-brand-logo-mark {
+    display: none;
+  }
+}
+
 .sidebar-brand-company {
   color: #1c2333;
   font-weight: 500;
@@ -163,11 +315,45 @@ img.logo {
   text-decoration: underline;
 }
 
+/* Also the account menu's trigger (data-bs-toggle="collapse", see globalheader.tpl) — a
+   plain <button> needs its native chrome reset since this class no longer styles a <div>.
+   Deliberately NOT sharing .sidebar-link/.sidebar-group-toggle's rule (see the tpl's own
+   comment): that class's collapsed-rail treatment would force this whole row into a 36px
+   circle instead of just its avatar child. */
 .sidebar-user {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   padding: 24px 16px 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--bs-border-radius, 0.6rem);
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.sidebar-user:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+.sidebar-user .sidebar-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.sidebar-user[aria-expanded="true"] .sidebar-chevron {
+  transform: rotate(90deg);
+}
+
+/* .sidebar-submenu's own base rule (further down this file) sets padding-left:20px — this
+   combined selector needs the extra specificity to win regardless of source order, since the
+   account menu sits outside .sidebar-nav (no 12px container inset to align with) and instead
+   needs to match .sidebar-user's own 16px inset directly above it. */
+.sidebar-submenu.sidebar-account-submenu {
+  padding: 4px 16px 0;
 }
 
 .sidebar-user-avatar {
@@ -191,6 +377,52 @@ img.logo {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Desktop-only collapse/expand control — the mobile hamburger (.sidebar-toggler below)
+   handles the equivalent job under the lg breakpoint, where the sidebar is a horizontal
+   bar instead of a rail, so the two never show at once. */
+.sidebar-collapse-toggle {
+  display: none;
+  position: absolute;
+  top: 18px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--gcal-border);
+  border-radius: 50%;
+  background: #fff;
+  color: #6c7488;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.sidebar-collapse-toggle:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--primary);
+}
+
+.sidebar-collapse-toggle i {
+  font-size: 14px;
+  transition: transform 0.2s ease;
+}
+
+.app-sidebar.collapsed .sidebar-collapse-toggle i {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-collapse-toggle i {
+    transition: none;
+  }
+}
+
+@media (min-width: 992px) {
+  .sidebar-collapse-toggle {
+    display: inline-flex;
+  }
 }
 
 .sidebar-toggler {
@@ -302,6 +534,18 @@ img.logo {
 .sidebar-link:active,
 .sidebar-group-toggle:active {
   background: color-mix(in oklab, var(--primary) 12%, white);
+}
+
+/* "行事曆首頁" is the only top-level .sidebar-link with a persistent active state (the
+   admin/config groups highlight via their own [aria-expanded] chevron rotation instead,
+   since being "open" isn't the same thing as being "the current page"). */
+.sidebar-link.active {
+  background: color-mix(in oklab, var(--primary) 10%, white);
+  color: var(--primary);
+}
+
+.sidebar-link.active i:first-child {
+  color: var(--primary);
 }
 
 .sidebar-link#navSignOut,

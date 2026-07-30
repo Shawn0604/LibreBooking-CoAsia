@@ -7,6 +7,10 @@ class UserPreferences
     public const CALENDAR_FILTER = 'CalendarFilter';
     public const LINE_USER_ID = 'LineUserId';
     public const LINE_LINK_CODE = 'LineLinkCode';
+    // Unset/missing means "enabled" — a bound user who has never touched this toggle should
+    // keep receiving pushes by default, same as how binding itself already implies wanting
+    // notifications. Only an explicit '0' (see Get() callers) turns them off.
+    public const LINE_NOTIFICATIONS_ENABLED = 'LineNotificationsEnabled';
 
     private $preferences = [];
     private $changed = [];

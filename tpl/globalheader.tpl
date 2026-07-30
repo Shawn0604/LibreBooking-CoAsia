@@ -131,19 +131,57 @@
     {if !isset($HideNavBar) || $HideNavBar == false}
     <div class="app-shell">
         <aside class="app-sidebar" id="appSidebar">
+            {* Read the collapsed state before the rest of the sidebar paints, so there's no
+               flash of the expanded rail on reload. Safe as soon as the opening <aside> tag
+               above has been parsed — the element exists even though its children haven't
+               rendered yet. *}
+            <script>
+                (function () {
+                    try {
+                        if (localStorage.getItem('sidebar-collapsed') === '1') {
+                            document.getElementById('appSidebar').classList.add('collapsed');
+                        }
+                    } catch (e) {}
+                })();
+            </script>
             <div class="sidebar-brand">
-                <a href="{$HomeUrl}">
+                <a href="{$HomeUrl}" class="sidebar-brand-logo-full">
                     <img src="{$Path}{$LogoUrl}?{$Version}" alt="{$Title}" class="logo">
+                </a>
+                {* Collapsed rail is only 72px wide — the full wordmark logo above doesn't fit,
+                   so this swaps to the icon-only mark (same file already used as the browser
+                   favicon) instead of shrinking/clipping the wordmark. *}
+                <a href="{$HomeUrl}" class="sidebar-brand-logo-mark">
+                    <img src="{$Path}{$FaviconUrl}?{$Version}" alt="{$Title}" class="logo-mark">
                 </a>
                 {if $CompanyName neq ''}
                     <a class="sidebar-brand-company" href="{$CompanyUrl}">{$CompanyName}</a>
                 {/if}
+                <button type="button" class="sidebar-collapse-toggle" id="sidebarCollapseToggle"
+                    data-label-collapse="{translate key=CollapseSidebar}" data-label-expand="{translate key=ExpandSidebar}"
+                    aria-label="{translate key=CollapseSidebar}" title="{translate key=CollapseSidebar}">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
             </div>
 
+            {* User info is now also the account menu's trigger — clicking it reveals
+               "通知設定" (relocated from the main nav list below, since it's account-level
+               settings, not a day-to-day nav destination). Deliberately does NOT carry the
+               .sidebar-group-toggle class the other collapsible groups use: that class's
+               collapsed-rail rule forces a 36px circle onto the whole element (right, for a
+               plain icon button; wrong here, since .sidebar-user's own children — the 36px
+               avatar circle and the name/chevron — already have their own correct collapsed
+               treatment). Interactivity (hover, chevron rotation) is instead given its own
+               small dedicated rules in coasia-theme.css, scoped to .sidebar-user directly. *}
             {if isset($LoggedIn) && $LoggedIn && !empty($UserName)}
-                <div class="sidebar-user">
+                <button type="button" class="sidebar-user" data-bs-toggle="collapse" data-bs-target="#sidebarAccount"
+                    aria-expanded="false" aria-controls="sidebarAccount">
                     <span class="sidebar-user-avatar">{$UserName|truncate:1:''|upper}</span>
                     <span class="sidebar-user-name">{$UserName|escape}</span>
+                    <i class="bi bi-chevron-right sidebar-chevron"></i>
+                </button>
+                <div class="collapse sidebar-submenu sidebar-account-submenu" id="sidebarAccount">
+                    <a id="navNotification" class="sidebar-sublink" href="{$Path}{Pages::NOTIFICATION_PREFERENCES}">{translate key="NotificationPreferences"}</a>
                 </div>
             {/if}
 
@@ -156,13 +194,30 @@
             <div class="collapse sidebar-nav-collapse" id="librebooking-navigation">
                 <nav class="sidebar-nav">
                     {if isset($LoggedIn) && $LoggedIn}
-                        <a class="create-btn" href="{$ScriptUrl}/{Pages::RESERVATION}">
-                            <i class="bi bi-plus-lg"></i>{translate key='NewReservation'}
+                        {* CoAsia: the sidebar's own "+新增預約" button was removed — creating a
+                           reservation now happens in exactly one place, clicking or dragging a
+                           blank slot directly on the calendar (tpl/Overview/overview_fullcalendar.tpl),
+                           instead of two separate entry points to the same quick-create modal. The
+                           feature itself is untouched, only this redundant entry point is gone. *}
+
+                        {* "行事曆首頁" — the one durable way back to the calendar from anywhere else
+                           in the app (notification settings, admin pages, ...), now that the sidebar
+                           no longer has an always-visible "總覽" link of its own. Active state and the
+                           mini-cal below both key off the exact same isset() check
+                           OverviewFullCalendarPresenter is the only presenter that ever sets. *}
+                        <a class="sidebar-link {if isset($PhysicalResources) || isset($VideoResources)}active{/if}"
+                            id="navCalendarHome" href="{$Path}{Pages::OVERVIEW_FULLCALENDAR}"
+                            title="{translate key='CalendarHome'}">
+                            <i class="bi bi-calendar3"></i>{translate key='CalendarHome'}
                         </a>
 
                         {* Mini month calendar — only present when the current page (Overview) has set
                            these vars. Smarty {include} shares the including template's variable scope,
-                           so this works without any page-specific plumbing in Page.php. *}
+                           so this works without any page-specific plumbing in Page.php. The resource
+                           category lists that used to live here (checkboxes for physical/video rooms)
+                           were removed — they were a second, duplicate entry point to the exact same
+                           selection now handled by the toolbar's resource picker dropdown
+                           (tpl/Overview/overview_fullcalendar.tpl), which also covers "全部資源". *}
                         {if isset($PhysicalResources) || isset($VideoResources)}
                             <div class="mini-cal" id="miniCal">
                                 <div class="mini-cal-head">
@@ -176,48 +231,6 @@
                                     <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
                                 </div>
                                 <div class="mini-cal-grid" id="miniCalGrid"></div>
-                            </div>
-
-                            <div class="sidebar-divider"></div>
-
-                            <div id="resourceSidebar">
-                                {if count($PhysicalResources) > 0}
-                                    <div class="sidebar-group" id="navResGroupPhysical">
-                                        <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#resGroupPhysicalList" aria-expanded="true">
-                                            <i class="bi bi-door-open"></i>{translate key='PhysicalRooms'}
-                                            <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
-                                        </button>
-                                        <div class="collapse show sidebar-submenu" id="resGroupPhysicalList">
-                                            {foreach from=$PhysicalResources item=resource}
-                                                <label class="res-check">
-                                                    <input type="checkbox" checked data-resource="{$resource->GetId()}">
-                                                    <span class="res-check-box" style="--check-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                                    <span class="res-check-name">{$resource->GetName()|escape}</span>
-                                                </label>
-                                            {/foreach}
-                                        </div>
-                                    </div>
-                                {/if}
-
-                                {if count($VideoResources) > 0}
-                                    <div class="sidebar-group" id="navResGroupVideo">
-                                        <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
-                                            data-bs-target="#resGroupVideoList" aria-expanded="true">
-                                            <i class="bi bi-camera-video"></i>{translate key='VideoConferenceResources'}
-                                            <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
-                                        </button>
-                                        <div class="collapse show sidebar-submenu" id="resGroupVideoList">
-                                            {foreach from=$VideoResources item=resource}
-                                                <label class="res-check">
-                                                    <input type="checkbox" checked data-resource="{$resource->GetId()}">
-                                                    <span class="res-check-box" style="--check-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                                    <span class="res-check-name">{$resource->GetName()|escape}</span>
-                                                </label>
-                                            {/foreach}
-                                        </div>
-                                    </div>
-                                {/if}
                             </div>
 
                             <div class="sidebar-divider"></div>
@@ -253,12 +266,22 @@
                            via the logo and the mini calendar above, so a redundant "總覽" link isn't needed.
                            Everything else in the old "Schedule" group is hidden below but still there
                            (`{if false}`) if it's needed later. *}
+
+                        {* CoAsia P2: dropped the sidebar's own "我的會議" entry — the Overview
+                           toolbar's 全體／只看我的 scope tabs (tpl/Overview/overview_fullcalendar.tpl)
+                           already filter the main calendar to "just mine", so this was a second,
+                           separate entry point to the same idea. my-meetings.php itself is untouched
+                           (still reachable directly) in case it's wanted back; remove `{if false}` to
+                           restore the nav link. *}
+                        {if false}
                         <a class="sidebar-link" id="navMyMeetings" href="{$Path}{Pages::MY_MEETINGS}">
                             <i class="bi bi-calendar-check"></i>{translate key="MyMeetings"}
                         </a>
-                        <a class="sidebar-link" id="navNotification" href="{$Path}{Pages::NOTIFICATION_PREFERENCES}">
-                            <i class="bi bi-bell"></i>{translate key="NotificationPreferences"}
-                        </a>
+                        {/if}
+
+                        {* CoAsia: 通知設定 moved to the user-info dropdown above (#sidebarAccount) —
+                           it's account-level settings, not a day-to-day nav destination, so it no
+                           longer needs its own always-visible row here. *}
 
                         {if false}
                         <div class="sidebar-group" id="navScheduleDropdown">
@@ -468,6 +491,77 @@
                     {/if}
                 </div>
             </div>
+
+            {* Desktop sidebar collapse — icon-only rail to give the calendar more width.
+               Kept as one script here (rather than a shared site-wide file) since the toggle
+               button and every id it touches live in this same template. *}
+            <script>
+                (function () {
+                    var sidebar = document.getElementById('appSidebar');
+                    var toggle = document.getElementById('sidebarCollapseToggle');
+                    if (!sidebar || !toggle) {
+                        return;
+                    }
+
+                    function notifyLayoutChanged() {
+                        // FullCalendar (Web/scripts/overview_fullcalendar.js) listens for the
+                        // window 'resize' event by default (handleWindowResize) and re-measures
+                        // its container's width from it — a synthetic dispatch here is enough to
+                        // make it recompute, no direct reference to the calendar instance needed.
+                        // Harmless no-op on any page that doesn't have a calendar.
+                        window.dispatchEvent(new Event('resize'));
+                    }
+
+                    function applyLabel() {
+                        var collapsed = sidebar.classList.contains('collapsed');
+                        var label = collapsed ? toggle.getAttribute('data-label-expand') : toggle.getAttribute('data-label-collapse');
+                        toggle.setAttribute('aria-label', label);
+                        toggle.setAttribute('title', label);
+                        toggle.setAttribute('aria-expanded', String(!collapsed));
+                    }
+
+                    function setCollapsed(collapsed) {
+                        sidebar.classList.toggle('collapsed', collapsed);
+                        applyLabel();
+                        try {
+                            localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+                        } catch (e) {}
+                        notifyLayoutChanged();
+                    }
+
+                    applyLabel();
+
+                    sidebar.addEventListener('transitionend', function (e) {
+                        if (e.propertyName === 'width') {
+                            notifyLayoutChanged();
+                        }
+                    });
+
+                    toggle.addEventListener('click', function () {
+                        setCollapsed(!sidebar.classList.contains('collapsed'));
+                    });
+
+                    // A group toggle (e.g. "應用程式管理") only makes sense once the sidebar is
+                    // wide enough to show its submenu — while collapsed, clicking one expands the
+                    // rail first instead of silently opening a submenu no one can see.
+                    var groupToggles = sidebar.querySelectorAll('.sidebar-group-toggle');
+                    for (var i = 0; i < groupToggles.length; i++) {
+                        groupToggles[i].addEventListener('click', function (e) {
+                            if (!sidebar.classList.contains('collapsed')) {
+                                return;
+                            }
+                            e.preventDefault();
+                            e.stopPropagation();
+                            var targetSelector = this.getAttribute('data-bs-target');
+                            setCollapsed(false);
+                            var targetEl = targetSelector ? document.querySelector(targetSelector) : null;
+                            if (targetEl && window.bootstrap) {
+                                window.bootstrap.Collapse.getOrCreateInstance(targetEl, { toggle: false }).show();
+                            }
+                        });
+                    }
+                })();
+            </script>
         </aside>
 
         <div class="app-content">
