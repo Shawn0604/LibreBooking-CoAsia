@@ -1,4 +1,4 @@
-{include file='globalheader.tpl'}
+{include file='globalheader.tpl' HideNavBar=true}
 <div id="forgotbox" class="mx-auto col-md-6 col-12 mt-4">
 	{if $Enabled}
 

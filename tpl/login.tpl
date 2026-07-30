@@ -1,4 +1,4 @@
-{include file='globalheader.tpl'}
+{include file='globalheader.tpl' HideNavBar=true}
 
 <div id="page-login">
 

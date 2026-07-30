@@ -1,4 +1,4 @@
-{include file='globalheader.tpl' Validator=true}
+{include file='globalheader.tpl' Validator=true HideNavBar=true}
 
 <div id="page-register">
 
