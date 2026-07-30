@@ -711,3 +711,409 @@ PASS - Scenario 9: exception mid-transaction leaves no partial data and releases
 - 60 秒的「processing 視為卡死」門檻與 idempotency 的 3 次重試上限都是經驗值，沒有經過正式的壓力測試調校。
 
 以上 8 項完成後，現在可以確認：在本輪已列出的保護範圍內（22.3），系統不會因為併發請求而重複預約或互相悄悄覆蓋；22.4／22.8 列出的範圍則仍是已知、明確標示的缺口，尚未受到本輪保護。
+
+### 22.9 修正：4.1 升級腳本沒有寫入 dbversion，且 ALTER TABLE 不是冪等的
+
+上一版只手動套用了 `schema.sql` 到 dev DB，沒有補 `data.sql`，導致 `dbversion` 表仍停在 4.0。實際追查兩套會重跑升級腳本的機制後發現，這會造成兩個不同的問題：
+
+- **`Presenters/Install/Installer.php`（網頁安裝／升級精靈用的路徑）**：`Upgrade()` 會拿 `dbversion` 目前最大版本號跟每個 upgrade 資料夾名稱比大小，只有資料夾版本號**大於**目前紀錄的版本才會執行；`dbversion` 沒有 4.1 就代表**每次重新整理安裝頁面都會再跑一次 4.1 的 schema.sql／data.sql**。
+- **`phing-tasks/UpgradeDbTask.php`（CI／`build.xml` 的 `upgrade.db` 用的路徑）**：這支完全不看 `dbversion`，每次呼叫都無條件重跑 `upgrades/` 底下**全部**資料夾——CI 的用法是先用 `create-schema.sql` 建一個全新資料庫再跑這支，所以在 CI 情境下不是問題，但只要拿去對一個已經升級過的資料庫重放，就會立刻在更早期、本來就不是冪等寫法的舊版 schema.sql（例如 2.1）上炸掉，這是既有限制、不是本輪新增的問題。
+
+修法：
+
+1. 新增 `database_schema/upgrades/4.1/data.sql`，寫法與 4.0 完全一致的防重複 pattern（`INSERT ... SELECT ... WHERE NOT EXISTS (SELECT 1 FROM dbversion WHERE version_number = 4.1)`）。
+2. `schema.sql` 原本的 `ALTER TABLE reservation_series ADD COLUMN version ...` 改寫成 `database_schema/upgrades/3.0/schema.sql` 已經在用的同一套寫法——先用 `information_schema.COLUMNS` 查欄位存不存在，用動態 SQL（`PREPARE`/`EXECUTE`/`DEALLOCATE`）決定要不要真的執行 `ALTER TABLE`。原因：實際對 MySQL 8.0.46 測試過，`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` 是語法錯誤（MariaDB 支援、MySQL 不支援），這點 3.0 的程式碼註解已經寫得很清楚，這次只是沒有照著用。
+
+驗證（對真實 dev DB 操作，非模擬）：
+
+- 先手動把 dev DB 復原到「乾淨的 4.0」（`ALTER TABLE reservation_series DROP COLUMN version; DROP TABLE reservation_requests;`，`dbversion` 本來就還停在 4.0）。
+- 直接套用新的 `schema.sql` + `data.sql`：`version` 欄位出現、`reservation_requests` 表出現、`dbversion` 出現一筆 4.1。
+- **重新套用同一組 `schema.sql` + `data.sql`**：兩次都沒有任何錯誤；`dbversion` 裡 `version_number = 4.1` 剛好 1 筆（沒有重複插入）；`version` 欄位在 `information_schema.COLUMNS` 裡剛好 1 筆（沒有重複／衝突）。
+- 另外直接呼叫真正的 `Presenters/Install/Installer.php`：`GetVersion()` 正確回傳 `'4.1'`；`Upgrade()` 執行 0 支腳本（4.1 資料夾被正確跳過，不會重跑）。
+- PHPUnit 全數 1718 項測試在這個真實 DB 狀態下重新跑過，全過。
+
+現在對 `database_schema/upgrades/4.1/` 的升級腳本可以確認：安裝精靈重新整理不會再重複執行 4.1 的 schema／data；兩個檔案本身也都對「被重新套用一次」是安全的（不會噴錯、不會重複寫入）。
+
+## 23. P2：整體 UI 與操作邏輯一致（側邊欄收合、通知設定改版、登入頁去導覽、視覺規範複查）
+
+使用者指定範圍：這一輪只做「整體 UI 與操作邏輯一致」，不需要跑全專案大量測試，只做與修改相關的基本檢查。五項工作都在 `tpl/globalheader.tpl`（全站共用側邊欄）與周邊頁面完成。
+
+### 23.1 側邊欄收合／展開，行事曆自動重新計算寬度
+
+- 新增 `#sidebarCollapseToggle`（`tpl/globalheader.tpl` 的 `.sidebar-brand` 內，絕對定位在該列右側，不佔用 flex 版位，也不會被 `.app-sidebar` 的 `overflow:hidden` 裁切）。只在桌面寬度（`min-width:992px`）顯示——手機寬度已經有既有的 `.sidebar-toggler`（漢堡按鈕）負責同一件事，兩者的顯示區間互斥，不會同時出現。
+- 收合狀態存在 `localStorage`（`sidebar-collapsed`），並在 `<aside id="appSidebar">` 開始標籤後立刻插入一段小 script 讀取套用，避免整頁刷新時先看到展開再收合的閃爍。
+- 收合時的文字隱藏用既有的 CSS cascade 技巧：文字是圖示旁邊的純文字節點、沒有自己的包裹元素可以選取，於是靠 `.sidebar-link i:first-child`（已存在、選擇器更精確）蓋掉新加的 `.app-sidebar.collapsed .sidebar-link{font-size:0}`——圖示保留原本大小，文字因為沒有自己的覆寫值而跟著父層變成 0。同一招也用在 `.create-btn`。迷你月曆、資源勾選清單、分隔線、子選單、版本徽章在收合時整個隱藏（螢幕太窄放不下，且和其他收合式側邊欄慣例一致）。
+- 點擊已收合狀態下的群組展開鈕（例如「應用程式管理」）會先展開整條側邊欄，再用 Bootstrap 的 `Collapse.getOrCreateInstance(...).show()` 補開該子選單，而不是在 72px 寬的窄軌裡悄悄展開一個看不到的子選單。
+- 行事曆重新計算寬度：沒有直接持有 FullCalendar 實例（`overview_fullcalendar.js` 是另一支獨立載入的頁面腳本），改成在切換收合狀態、以及側邊欄 `width` transition 結束時，`window.dispatchEvent(new Event('resize'))`。FullCalendar 6 預設 `handleWindowResize:true`，本來就監聽 window 的 `resize` 事件並據此呼叫內部的 `updateSize()`；派送一個合成事件足以觸發同一條路徑，其他沒有行事曆的頁面上這個 dispatch 也只是無害的 no-op。
+
+### 23.2 移除側邊欄重複的「我的會議」入口
+
+- Overview 頁工具列已有「全體／只看我的」（`ReservationScopeAll`/`ReservationScopeMine`，`tpl/Overview/overview_fullcalendar.tpl`）可以直接在主行事曆篩選，側邊欄原本另外有一個連到 `my-meetings.php`（議程列表頁）的「我的會議」連結，是同一個需求的第二個入口。
+- 依既有慣例用 `{if false}` 包起來並附註說明（不是刪除整段程式），`my-meetings.php` 頁面本身沒有動，仍可透過網址直接開啟；之後如果要恢復，把 `{if false}` 拿掉即可。
+
+### 23.3 通知設定頁改版
+
+- `tpl/MyAccount/notification-preferences.tpl` 全面重寫，改用 `my-meetings.tpl`/`overview_fullcalendar.tpl` 已經在用的「`.shell` + `.page-head` + 白底圓角卡片＋陰影」版型，新增 `Web/css/notification-preferences.css`（比照 `Web/css/my-meetings.css` 的檔頭寫法：只認 `--primary`/`--bs-border-radius-lg`/`--bs-box-shadow`/`--gcal-border` 這些站台共用 token，不依賴只有 Overview 頁才有載入的 `overview_fullcalendar.css` 私有變數）。
+- 表單欄位名稱／id（`{ReservationEvent::Created}` 等）完全沒變，`Pages/NotificationPreferencesPage.php`／`Presenters/NotificationPreferencesPresenter.php` 不需要也沒有修改。
+- 六個通知項目原本各自搭配一個重複的「電郵給我」小標籤；改版拿掉那個逐項重複的標籤（保留 `visually-hidden` 版本給螢幕報讀器），改成一個圖示＋一句話取代，靠section 標題「電子郵件通知」統一交代這些都是 email 開關。
+- 把難懂的中文說法換成看得懂的敘述（`lang/zh_tw.php`）：
+  - `ReservationCreatedPreference`：「當我建立一個預約 或 一個預約已經為我建立」→「有新的預約建立（包含由他人代我建立）」
+  - `ReservationUpdatedPreference`：原文其實複製貼上打錯字，寫的是「建立」不是「更新」（「當我建立一個預約 或 一個預約已經為我更新」）→「我的預約內容有異動，例如時間或地點被更改」
+  - `ReservationDeletedPreference`：「當我刪除一個預約 或 一個預約已經為我刪除」→「我的預約被取消或刪除」
+  - `ReservationApprovalPreference`：「當我的待審批預約獲得批准」→「我送出的預約申請通過審核」
+  - 順手發現 `ReservationParticipationActivityPreference`／`ReservationSeriesEndingPreference` 這兩個既有的通知項目**在 `zh_tw.php` 裡從來沒有翻譯過**（只有 `en_us.php` 有），中文介面上這兩列原本會是空字串或英文 fallback。這次一併補上：「有人加入或退出我的預約」／「我的定期預約系列即將到期結束」。
+  - 新增 `EmailNotifications`（區塊標題）、`NotificationPreferencesIntro`（副標）兩個新翻譯鍵，中英文都有。
+
+### 23.4 登入頁（含註冊、忘記密碼）不再顯示主系統側邊欄
+
+- `tpl/login.tpl`／`tpl/register.tpl`／`tpl/forgot_pwd.tpl` 原本 `{include file='globalheader.tpl'}` 沒有帶 `HideNavBar=true`，等於這三頁在沒有登入的狀態下仍然會渲染完整的 `.app-sidebar`（logo、"登入" 連結、若剛好有殘留的 session 資源清單等）。這幾頁只有在**未登入**時才會被渲染到——`LoginPresenter::PageLoad()` 一開始就檢查 `IsLoggedIn()`，是的話直接 `_Redirect()` 離開，不會走到畫面渲染——所以這三頁一律加上 `HideNavBar=true` 是安全的，不會有「已登入卻看不到側邊欄」的情形。
+- 沿用專案裡既有、已經在用的同一個模式（`tpl/ResourceDisplay/resource-display-login.tpl` 等頁面本來就是這樣做），`globalheader.tpl` 在 `HideNavBar=true` 時渲染 `.app-content.app-content-bare`，不含 `.app-shell`／`.app-sidebar`，沒有另外寫新的 CSS。
+
+### 23.5 複查「查看詳情／更多選項／新增·編輯預約」視覺規範
+
+- 逐一讀了 `Web/css/overview_fullcalendar.css` 裡事件卡片（`.ep-*`）、刪除確認對話框（`.del-*`）、Drawer（`.reservation-*`/`.rd-*`）的按鈕、表單、間距、圓角、顏色定義：全部走同一組 `#page-overview-fc` 作用域下的共用 token（`--primary`/`--danger`/`--text-primary`/`--text-secondary`/`--control-radius`/`--dialog-radius`/`--icon-button-size`），按鈕一律是 100px 全圓角的實心（`--primary`/`--danger`）或文字按鈕，表單欄位一律 `--control-radius`（10px）＋ `--border`，是先前那一輪（COASIA-CHANGES.md §20–21）就刻意建立好的共用系統，這次沒有發現落漆的地方，不需要改動。
+- 額外確認了「更多選項」（`#qcMoreOptions`，Bootstrap `.link-primary`）沒有脫離這套色彩系統：`Web/css/librebooking.css` 已經把 `.link-primary` 覆寫成 `color: var(--primary) !important`，而不是 Bootstrap 預設的藍色，所以這顆連結顏色跟「查看詳情」（`.ep-link-btn`，直接用 `var(--primary)`）是同一個顏色，沒有分岔。
+
+### 23.6 基本檢查方式
+
+沒有跑全專案 PHPUnit（使用者明確指定這輪不需要）。改成寫一支一次性的 smoke-test 腳本，直接用專案自己的 `SmartyPage`／`translate` 外掛把這次改動或新增的 5 支 `.tpl`（`login.tpl`／`register.tpl`／`forgot_pwd.tpl`／`MyAccount/notification-preferences.tpl`／`globalheader.tpl`，含 `LoggedIn=true`＋admin 權限的情境）各自 `fetch()` 編譯＋渲染一次，全部成功且沒有例外；另外把渲染結果存檔比對，確認「我的會議」連結（`navMyMeetings`）確實從輸出中消失、收合按鈕（`sidebarCollapseToggle`）確實出現在輸出裡。`lang/en_us.php`／`lang/zh_tw.php` 另外過了 `php -l`。跑完後清掉暫存腳本與 `tpl_c/` 裡這幾支模板的舊編譯快取（本機開發環境的既有陷阱：不清 `tpl_c/` 舊編譯結果會繼續生效）。
+
+### 23.7 已知限制／建議下一輪處理
+
+- 這次的「基本檢查」主要停在 Smarty 編譯＋渲染層級（沒有現成的開發帳密可以在自動化腳本裡登入）；實際的滑鼠互動、收合動畫、行事曆寬度是否真的補滿，是使用者事後在自己瀏覽器裡實測才發現／確認的（見 23.8）。
+- 舊版 `reservation.php`（classic 表單，目前只作為 Drawer「更多選項」裡進階欄位——參與者、提醒、自訂欄位——的落地頁）沒有被納入這輪視覺規範複查範圍；`ep-`/`rd-`/`del-` 這套新 token 系統目前只覆蓋 Drawer／事件卡片／刪除對話框，舊表單本身仍是 Bootstrap 預設樣式。
+
+### 23.8 使用者實測回饋：收合狀態的小 logo、以及一個新發現的快取陷阱
+
+使用者在瀏覽器裡實際登入操作後回報兩件事：
+
+1. **收合後的側邊欄小 logo**：72px 窄軌裡原本繼續放完整的「CoAsia」文字版 logo（`$LogoUrl`），太寬、觀感不佳。使用者指定改用既有的三角形品牌標記（就是 `Web/custom-favicon.png`，也就是瀏覽器分頁圖示那個，見 §17/§18 一帶的 favicon 修改記錄）。修法：`tpl/globalheader.tpl` 的 `.sidebar-brand` 內同時放兩個 `<a>`（`.sidebar-brand-logo-full` 用 `$LogoUrl`、`.sidebar-brand-logo-mark` 用既有的 `$FaviconUrl` 變數，不是另外複製一份圖檔或寫死路徑），`Web/css/coasia-theme.css` 用 `@media (min-width:992px) { .app-sidebar.collapsed .sidebar-brand-logo-full{display:none} .app-sidebar.collapsed .sidebar-brand-logo-mark{display:inline-flex} }` 切換顯示，展開時维持原本的完整 wordmark。
+2. **通知設定頁翻譯顯示異常**：畫面上卡片標題／副標題顯示成「?」，`ReservationParticipationActivityPreference`／`ReservationSeriesEndingPreference` 兩列還是英文，即使 `lang/zh_tw.php`／`lang/en_us.php` 檔案內容本身是對的。追查後發現是本機環境的**第三個快取陷阱**（見 [[project-coasia-dev-gotchas]] 已經補上）：容器的 PHP `opcache.validate_timestamps=Off`，`.php` 檔案存檔後不會自動生效，要 `docker compose -f docker-compose.dev.yml restart app` 才會真正載入新內容。「?」是 `Resources::GetString()` 對「完全找不到這個 key」的既定回傳值（全新加的 `EmailNotifications`／`NotificationPreferencesIntro` 在 opcache 還沒重載時，新舊兩個語言檔都沒有這個 key）；英文則是因為 `zh_tw` 這個類別本身 `extends en_us`（`lang/zh_tw.php` 開頭 `require_once('en_us.php'); class zh_tw extends en_us`），舊版 zh_tw 缺這兩個 key、但舊版 en_us 已經有，自然照英文顯示。重啟容器後，直接用一支獨立腳本讀取 `zh_tw` 類別的 `Strings` 屬性重新確認過，六個新／改的翻譯鍵全部正確顯示繁體中文。
+
+## 24. SMTP 改接公司內部郵件伺服器（取代 Gmail 個人帳號）
+
+使用者提供公司內部 SMTP Relay（已用 PowerShell 驗證過可以正常寄信）：`10.1.3.140:25`，內網 open relay，不需要帳密／TLS，寄件人固定 `coasiaerp@coasia.com`（顯示名稱「擎亞會議室預約系統」）。取代先前 §14 一帶提到、記在 `COASIA-GOLIVE-CHECKLIST.md`「應該處理」清單裡的 Gmail 個人帳號（`smtp.gmail.com:587`＋`shawn_tsai@gm.coasia.com` App 密碼）寄信方式。
+
+### 24.1 改的地方
+
+只改了本機 `config/config.php`（`.gitignore` 排除，不會進版控，跟先前 Gmail 帳密的處理方式一致）：
+- `phpmailer` 區塊：`smtp.host`→`10.1.3.140`、`smtp.port`→`25`、`smtp.secure`→空字串（不是 `'tls'`／`'ssl'`）、`smtp.autotls`→`false`、`smtp.auth`→`false`、`smtp.username`/`smtp.password`→空字串。
+- `email` 區塊：`default.from.address`→`coasiaerp@coasia.com`、`default.from.name`→「擎亞會議室預約系統」。
+- 這兩個區塊分別對應 `lib/Config/ConfigKeys.php` 的 `phpmailer.*`／`email.default.from.*`，實際組裝 `PHPMailer` 物件的地方是 `lib/Email/EmailService.php`，兩者是唯一的寄信路徑，本次沒有另外新增或繞過的路徑。
+
+### 24.2 驗證
+
+`config.php` 也是 `.php` 檔，同樣會撞到上面 23.8 提到的 opcache 快取陷阱——改完先 `docker compose -f docker-compose.dev.yml restart app`，再用 `Configuration::Instance()->GetKey(...)` 讀出全部七個相關設定值，確認跟改的內容完全一致（沒有殘留舊的 Gmail 設定），才繼續往下驗證：
+
+- 直接用 `PHPMailer` 手動組一封信寄到 `10.1.3.140:25`（同 host/port/no-auth/no-TLS），`send()` 回傳成功。
+- 另外寫一個實作 `IEmailMessage` 的最小類別，直接呼叫專案自己的 `EmailService`（`Presenters`/`lib/Application/Reservation/Notification/*` 實際寄確認信/提醒信時用的同一支類別，不是另外繞過），讓它自己從 `Configuration::Instance()` 讀設定、組 `PHPMailer`、寄出——同樣沒有拋出例外；應用程式的 error log（`config.php` 設定的 log level 是 `error`，`EmailService` 寄信失敗會呼叫 `Log::Error`）在寄信前後沒有出現任何新的錯誤紀錄，確認不是「呼叫成功但其實內部吞掉例外」的假陽性。
+- 沒有真的透過網頁畫面跑一次完整的「建立預約 → 收到確認信」流程（那需要登入操作，這次沒有可用的開發帳密）——`Task 2`（確認信）／`Task 3`（提醒信）本身的寄信邏輯這次沒有改動，只換了底層 SMTP 設定，兩支測試已經確認同一組設定＋同一支 `EmailService` 可以正常把信送出去，可信度足夠，但如果要 100% 閉環建議之後找機會實際跑一次真的預約流程再收一次信確認。
+
+### 24.3 順手更新的文件
+
+`COASIA-GOLIVE-CHECKLIST.md`「應該處理」清單裡原本標記「SMTP 綁在個人 Gmail 帳號」的項目，已經改標成已解決並記錄新設定，不用等下一輪整理才更新。
+
+## 25. 重新設計 CoAsia 預約通知信 + 修正 ICS 附件的一批真實 RFC 5545 錯誤
+
+使用者要求重新設計五種預約狀態通知信（預約成功／已更新／已取消／等待審核／審核結果），統一寄件身分為 `CoAsia Booking <booking@coasia.com>`，並修正 ICS 附件的檔名、UID、SEQUENCE、METHOD、時區問題。這輪只動了 email 相關的 PHP／模板／少量 domain 欄位，沒有動預約寫入本身的邏輯。
+
+### 25.1 起點稽核：這些「已知問題」哪些是真的
+
+動手改之前先逐一確認使用者列的每個 ICS 問題是否真的存在於目前程式碼裡，而不是照單全收：
+
+- **檔名 `reservation.ics.ics`**：程式碼裡沒找到會產生雙副檔名的路徑（`ReservationEmailMessage::PopulateIcsAttachment()` 原本固定用字串 `'reservation.ics'`，`PHPMailer::addStringAttachment()` 也不會自己加副檔名）。判斷這可能是某些郵件閘道／防毒掃描會對「看起來像泛用附件」的檔名自行加上偵測到的副檔名，不確定確切成因，但無論原因為何，防禦性修法都一樣：改成「先剝掉任何既有的 `.ics` 結尾、再固定加一次」的建構方式（`ReservationEmailMessage::BuildIcsFileName()`），而且順便把每封信的附件檔名從固定的 `reservation.ics` 改成帶參考編號的 `reservation-{referenceNumber}.ics`，不同預約不會撞名。
+- **UID 是否每次都變**：追查 `UID:{$reservation->ReferenceNumber}&{$UID}`（`tpl/Export/ical.tpl`）用的參考編號，`Domain/Reservation.php` 只在**第一次建立**時呼叫 `ReferenceNumberGenerator::Generate()`，之後載入既有預約（`ReservationRepository::LoadByReferenceNumber()`）用的是資料庫裡已經存好的同一個參考編號，不會重新產生——這部分**其實已經是對的**，這次沒有改 UID 的產生邏輯本身，只是把它從模板裡的一次性拼接，順手做成可以在下面兩點驗證裡重複測試的東西。
+- **SEQUENCE 固定是 0**：**確認是真的**——`tpl/Export/ical.tpl` 原本寫死 `SEQUENCE:0`，不管建立幾次、更新幾次都一樣，這正是 Outlook／Google Calendar 有時候不會把「更新信」當成同一顆事件的更新、而是當成另一封不明訊息或乾脆忽略的典型成因之一。
+- **METHOD 永遠是 REQUEST，取消也一樣**：**確認是真的**——`tpl/Export/ical.tpl` 原本整份都是 `METHOD:REQUEST`，`ReservationDeletedEmail` 寄出的取消信附件跟建立信附件用的是同一個 `PopulateIcsAttachment()`，沒有分支。
+- **時區不正確**：**確認是真的，而且是這批問題裡最根本的一個**——見 25.2。
+
+### 25.2 真正的根因：DTSTAMP／CREATED／LAST-MODIFIED 被貼上錯誤的時區標籤
+
+`lib/Common/Date.php` 的 `Format($format)` 只是把物件目前帶的時區原樣印出來，**不會自己做任何轉換**；`Resources::$systemDateKeys['ical'] = 'Ymd\THis\Z'` 這個格式字串裡的 `\Z` 只是一個**字面上**要印出來的字元 `Z`，不是「請印出真正的 UTC」的指令。也就是說，呼叫端如果沒有先呼叫 `->ToUtc()`，印出來的時間會是物件當下的時區（不管是什麼），但結尾照樣硬貼一個代表 UTC 的 `Z`。
+
+`DTSTART`/`DTEND` 本來就有在呼叫端（`ReservationEmailMessage::PopulateIcsAttachment()`）先 `->ToUTC()` 過，所以一直是對的。但 `CREATED`／`DTSTAMP`／`LAST-MODIFIED` 這三個全部源自同一個 `iCalendarReservationView` 建構子裡的 `DateCreated` 欄位——而 email 這個路徑呼叫 `ReservationItemView` 建構子時，對應 `DateCreated` 的那個位置傳的是 `null`（這個 20 個參數的建構子本來就沒有 `DateCreated` 這個參數，是後續才靠公開屬性直接指定的慣例，這條路徑上沒有人這樣做），於是 `iCalendarReservationView` 的建構子退回 `else` 分支用 `Date::Now()`——**伺服器本機時區**（本專案設定是 `Asia/Taipei`，UTC+8），沒有轉 UTC，卻被印成帶 `Z` 的格式，等於每一封信附件裡的 `DTSTAMP`／`CREATED`／`LAST-MODIFIED` 都比真正的 UTC 時間**多了 8 小時**還宣稱自己是 UTC。
+
+這正是使用者說「時區不對，Outlook／Google Calendar 會產生重複會議」最直接的成因——`DTSTAMP` 是行事曆軟體判斷「這是不是同一封邀請的較新版本」的關鍵欄位之一，一個離譜偏移、而且在同一個 UID 的多封信之間看起來幾乎沒有實質推進的 `DTSTAMP`，很容易讓客戶端判斷失準（誤判成同一份訊息的重送、或乾脆各自獨立處理）。
+
+**修法**（`lib/Application/Schedule/iCalendarReservationView.php`）：
+- `DateCreated`／`DateEnd`／`DateStart`／`LastModified` 統一在建構子裡補上 `->ToUtc()`（對於原本就已經是 UTC 的來源——凡是經 `Date::FromDatabase()` 讀出來的都已經是 UTC，見該方法自己 `Date::Parse($databaseValue, 'UTC')` 的寫法——這是無副作用的 no-op，`Date::ToTimezone()` 目標時區跟目前相同時直接回傳 `Copy()`；只有這次 `Date::Now()` 的分支是真正需要修正的情形）。
+- 新增 `DtStamp` 屬性，**永遠**是 `Date::Now()->ToUtc()`，語意上跟 `CREATED`（預約真正的建立時間）分開——RFC 5545 對 `DTSTAMP` 的定義是「這份 iCalendar 訊息本身是什麼時候產生的」，不是「這個事件本身是什麼時候建立的」；每一封新寄出的通知信（不管是建立、更新、取消）都應該有自己當下的 `DTSTAMP`，而不是重複使用預約最初建立時的舊時間戳記。
+
+### 25.3 SEQUENCE：接上既有的 `reservation_series.version`（P0 樂觀鎖欄位）
+
+沒有另外設計一套計數機制，直接重用 P0 併發安全那輪（COASIA-CHANGES.md §22.5）已經建好的 `reservation_series.version`——語意上完全對得上：新建立是 0，每次成功更新／刪除都遞增，正好符合 iCalendar `SEQUENCE` 「同一個 UID 底下，每一版遞增」的定義。
+
+- `Domain/ReservationSeries.php`：`Version()`／`WithVersion()` 從 `ExistingReservationSeries` 移到共用的基底類別（`ExistingReservationSeries` 原本各自宣告一份，`ReservationSeries`（全新、尚未寫入的預約）原本完全沒有）——這樣「建立信」跟「更新信」的 ICS 附件可以用同一套機制取得版本號，不用分別處理兩種情境。
+- `Domain/Access/ReservationRepository.php`：`Update()`（一般更新）跟 `DeleteSeriesEventCommand::Execute()`（刪除／取消）在樂觀鎖檢查通過、確認真的寫進資料庫後，補上 `$reservationSeries->WithVersion($reservationSeries->ExpectedVersion() + 1)`，讓記憶體裡的物件立刻反映剛寫入的新版本號——這是必要的一步：通知信是在 `ReservationHandler::Handle()` 裡緊接著同一個物件、在 `Persist()` 成功之後才組出來的，如果不補這一行，讀到的會是「這次寫入之前」的舊版本號，等於 `SEQUENCE` 完全沒有真的推進。
+- `Domain/ReservationItemView.php`：新增 `$Version` 公開屬性（同一套「呼叫端事後指定」慣例，比照既有的 `$Attributes`/`$UserPreferences`），`ReservationEmailMessage::PopulateIcsAttachment()` 寄信前指定 `$rv->Version = $this->reservationSeries->Version();`。
+
+### 25.4 METHOD／STATUS：取消信改用 `METHOD:CANCEL`
+
+- `iCalendarReservationView` 建構子新增 `$method` 參數（預設 `'REQUEST'`），並依此計算 `$Status`（`METHOD:CANCEL` 時強制 `STATUS:CANCELLED`，不再看 `IsPending`）。
+- `ReservationEmailMessage` 新增可覆寫的 `GetIcsMethod()`（預設回傳 `'REQUEST'`），`PopulateIcsAttachment()` 呼叫這個方法決定要不要用 `CANCEL`。`ReservationDeletedEmail`／`ReservationDeletedEmailAdmin`（後者是走另一條 `ReservationCreatedEmailAdmin` 血緣、本來就沒有 ICS 附件，只是也用同一份共用模板顯示取消狀態）覆寫回傳 `'CANCEL'`。
+- `tpl/Export/ical.tpl`：`SEQUENCE:0` 改成 `SEQUENCE:{$reservation->Sequence}`；`STATUS:` 改成直接印 `{$reservation->Status}`（原本是 `{if $reservation->IsPending}TENTATIVE{else}CONFIRMED{/if}` 這種模板端判斷，現在邏輯統一搬到 PHP 端算好）；`METHOD:` 從整份寫死的 `REQUEST` 改成先用 `{assign}` 從 `$Reservations[0]->Method` 算出 `$CalendarMethod`，再輸出 `METHOD:{$CalendarMethod}`。
+    - **這裡踩到一個真正會炸的模板 bug，是寫測試才抓到的**：一開始直接寫 `METHOD:{if ...}{$Reservations[0]->Method}{else}REQUEST{/if}`（跟 `PRODID:...` 各自一行），跑起來後 `METHOD:` 那行會跟下一行的 `PRODID:` 黏在同一行輸出成 `METHOD:REQUESTPRODID:-//LibreBooking...`——一份少了換行的 ICS，會被行事曆軟體整份判讀失敗，比原本「永遠是 REQUEST」的舊 bug 還嚴重。改成先用一整行只有 `{assign}` 的敘述把方法算進一個變數，`METHOD:{$CalendarMethod}` 這行本身只剩單純的「字面文字＋一個變數」，問題就消失了。25.6 的測試腳本後來一直留著、每次改完都重跑，就是為了不要讓這類東西又悄悄回歸。
+
+### 25.5 五種狀態信的內容與寄件身分
+
+- `lib/Email/Messages/ReservationCreatedEmail.php` / `ReservationUpdatedEmail.php` / `ReservationDeletedEmail.php` / `ReservationApprovedEmail.php`：各自的 `PopulateTemplate()` 設定一個 `$Status`（`created`／`pending`／`updated`／`cancelled`／`approved`），`created` 跟 `pending` 由同一支 `ReservationCreatedEmail` 依 `RequiresApproval()` 動態決定，不是分成兩支類別。
+- **更新信的差異列表**：`Domain/ExistingReservationSeries.php` 新增 `SnapshotForChangeDetection()`／`GetChangeSummary()`——`ReservationRepository::Load()`（`LoadByReferenceNumber()`／`LoadById()`／Drawer 走的 `UpdateReservationPersistenceService::LoadByReferenceNumber()` 全部經過這一個方法）在物件完整讀出、**還沒被任何呼叫端的 `Update()`/`UpdateDuration()` 動過**的當下，立刻拍一張標題／說明／資源／時間的快照；之後不管是哪個呼叫端改了什麼欄位，`GetChangeSummary()` 都能在通知信組信的當下比對「快照 vs 目前值」算出差異，不需要每個更新入口自己各自記錄前後值。`ReservationUpdatedEmail::PopulateTemplate()` 讀出這份差異、把時間範圍格式化成跟信件其他地方一致的日期格式，`Set('Changes', ...)`。
+- **寄件身分**：`config/config.php` 的 `email.default.from.address`／`default.from.name` 改成 `booking@coasia.com`／`CoAsia Booking`（取代 §24 才剛設的 `coasiaerp@coasia.com`）。`ReservationEmailMessage` 沒有覆寫 `ReplyTo()`，繼承 `EmailMessage::ReplyTo() => From()`，而 `ReservationEmailMessage::From()` 回傳的是實際預約人的信箱——所以收件人看到的寄件人是統一品牌帳號，但按「回覆」還是會回到真正經手這筆預約的人，不是黑洞信箱。
+- **視覺風格**：新增共用模板 `tpl/Email/reservation-notification-body.tpl`，`lang/en_us/ReservationCreated.tpl`（Created／Updated／Approved 共用）與 `lang/en_us/ReservationDeleted.tpl`（Cancelled）都只是 `{include}` 這一份共用檔案，靠 `$Status` 切換徽章文字／顏色與該狀態專屬的區塊（差異列表、取消原因），不是四份互相複製、容易日後各自長歪的檔案。配色直接沿用這次工程已經在其他地方用過的 token（不是另外發明新色票）：主色 `#1a3f73`（`coasia-theme.css` 的 `--primary`）、待審核徽章 `#a5562f`/`#fbeee0`（跟 `Web/css/my-meetings.css` 的 `.meeting-pending` 完全一樣的顏色）、取消徽章 `#c5221f`/`#fbe9e7`（跟 `overview_fullcalendar.css` 的 `--danger`／delete 按鈕 hover 底色一致）。按鈕統一只保留「查看預約」＋「加入視訊會議」（取消狀態底下強制不顯示加入會議按鈕，即使該預約原本有視訊資源），拿掉舊版模板裡的「加入行事曆」／「加入 Google 日曆」兩顆按鈕——這兩顆本來就是 ICS 附件已經內建、大多數行事曆 App 收到附件會直接跳出「加入行事曆」提示的重複功能，這次 ICS 本身的正確性已經修好了，不需要再靠額外按鈕頂替。
+- **中文字串**：延續 §2 已經定調的作法（email 內文不走 `{translate}`，直接寫死繁體中文——因為 guest／未登入邀請對象沒有帳號語言設定可以依賴，一定會 fallback 到系統預設語言，寫死才能保證所有收件人都看到中文），連帶把四個 Subject 行翻譯鍵也從英文改成中文（`lang/en_us.php`）：原本這四行完全沒被前一輪的「email 內文中文化」處理到，之前寄出的信標題其實是英文、內文才是中文，這次一併修掉，另外也修掉一個原本埋在裡面的錯字——`ReservationUpdatedEmail::Subject()` 原本誤用 `ReservationUpdatedAdminSubjectWithResource`（給管理員版本用的鍵），不是給一般使用者的 `ReservationUpdatedSubjectWithResource`。
+
+### 25.6 「只能在成功寫入後寄出」——稽核既有架構，沒有新增機制
+
+檢查後確認這件事**已經是既有架構的一部分**，不需要新增程式碼：`ReservationHandler::Handle()`（`lib/Application/Reservation/ReservationHandler.php`）在 `$this->notificationService->Notify($reservationSeries)` 前面明確用註解寫著「Only after the transaction has committed and the resource lock released」，`Notify()` 只在 `$result`（驗證通過**且** `Persist()`／`Commit()` 都成功）為真時才會呼叫；驗證失敗或寫入拋例外都會 `Rollback()` 並在 `Notify()` 之前 return／rethrow。重送保護則是 P0-C 的 idempotency（§22.6）：`ReservationSavePresenter::HandleReservation()` 對於 `AlreadySucceededOutcome()`（同一個 `requestId` 先前已經成功過）直接回放舊的參考編號並 `return`，**完全不會**呼叫 `$this->handler->Handle()`，自然也不會再呼叫一次 `Notify()`——雙擊或網路重送不會造成重複通知信。
+
+### 25.7 基本檢查方式
+
+同樣沒有跑全專案 PHPUnit。寫了三支一次性腳本（用完即刪、`tpl_c/` 也清過）：
+
+1. **`tpl/Export/ical.tpl` 隔離測試**：繞過 `iCalendarReservationView` 的建構子直接餵一個帶齊所有公開屬性的假物件進 `CalendarExportDisplay::Render()`（原因見下方「已知限制」），依序驗證：同一個參考編號在「建立→更新→取消」三次呼叫之間 `UID` 不變、`SEQUENCE` 依序是 `0→1→2`、建立/更新是 `METHOD:REQUEST`、取消是 `METHOD:CANCEL`＋`STATUS:CANCELLED`、`DTSTART` 正確轉成 UTC（`14:00 Asia/Taipei` 輸出 `06:00Z`）、`DTSTAMP` 跟腳本執行當下真正的 UTC 時間差在 2 分鐘內（而不是差 8 小時）——全部通過，也是這一輪抓到 25.4 那個 METHOD／PRODID 黏行 bug 的地方。
+2. **Email 內文模板測試**：直接用 `SmartyPage::fetch()` 對五種狀態（含帶／不帶視訊資源、帶更新差異、帶取消原因）各跑一次，斷言徽章文字、視訊按鈕的顯示/隱藏邏輯（尤其是「取消狀態即使原本有視訊資源也不能顯示加入按鈕」這條)、差異區塊內容都符合預期——全部通過。
+3. **完整信件包裝測試**：`emailheader.tpl` + 內文 + `emailfooter.tpl` 三段組起來檢查是不是合法的 `<html>...</html>`，且新增的 `coasia-email-card` responsive class 有正確輸出。
+
+另外對所有這輪改動的 `.php` 檔跑過 `php -l`，全部通過。`config.php` 改動後有照 §23.8 記錄的 opcache 陷阱重啟過容器。
+
+### 25.8 已知限制
+
+- 沒有實際透過網頁畫面走一次「建立／編輯／刪除預約 → 收到通知信」的完整流程（沒有可用的開發帳密）。25.7 的測試都是繞過 UI、直接對「信件組裝」這一層下手，可信度足夠但不是端對端驗證。
+- `iCalendarReservationView` 的建構子本身（`PluginManager::Instance()->LoadExport()`／`SlotLabelFactory`）沒有辦法在這次的簡化腳本環境裡直接跑起來（`PluginManager`／`Log` 相關的初始化在缺少完整 app bootstrap 的情況下會卡住，不是這次改動造成的、也不在這次改動範圍內），所以 25.7 的第一支測試改成繞過建構子、直接驗證 `ical.tpl` 這一層——`iCalendarReservationView` 建構子裡「把 `$res->Version` 讀進 `$this->Sequence`、呼叫 `->ToUtc()`」這幾行邏輯本身很單純，已經逐行複查過，但沒有透過自動化腳本重新驗證這幾行的執行結果，建議之後有機會用完整的 app 環境（例如透過真的網頁請求）再補一次端對端確認。
+- `ReservationShareEmail`（分享預約給某個信箱的功能）也共用同一份新模板，但沒有設定 `$Status`，會顯示預設的「預約成功」徽章——嚴格來說這個情境不是「你剛完成了一筆預約」，用詞不完全貼切，但影響很小（這是一個很少用到的次要功能），這次沒有另外處理。
+- 沒有「審核被拒絕」的通知信——現有系統本來就沒有這個通知類型（只有核准會寄信，拒絕沒有對應的 email class／觸發點），這次是重新設計既有信件內容與 ICS 正確性，不包含新增拒絕通知這個新功能，維持原狀。
+- 這次沒有動 admin 版本的通知信模板本身（`lang/en_us/ReservationCreatedAdmin.tpl` 走完全不同的模板檔案），只把 admin 版的四行 Subject 翻譯鍵一併中文化；`ReservationDeletedEmailAdmin` 因為剛好共用 `ReservationDeleted.tpl` 才連帶套用了新版視覺與 `$Status`。
+
+## 26. Active Directory 登入整合正式啟用
+
+延續 §14（當時標記「進行中，尚未完成」）——這次真正把 AD 驗證接上、跑過完整測試，並在過程中發現、修掉兩個真正會影響上線後可用性的問題（一個是這個 fork 既有的 vendor plugin 邏輯漏洞，一個是我自己這次改動意外造成的測試回歸）。
+
+### 26.1 設定變更
+
+- `config/config.php`（gitignored，不進版控）：`plugins.authentication` 從空字串改成 `'ActiveDirectory'`。`registration.allow.self.registration` 本來就是 `true`，沒有動——公開註冊走另一個獨立的 plugin slot（`plugins.postregistration`），跟驗證方式無關，不會因為切到 AD 就被關掉。
+- `plugins/Authentication/ActiveDirectory/ActiveDirectory.config.php`（gitignored，不進版控）：
+  - `port`：389 → 636
+  - `use.ssl`：`'false'` → `'true'`
+  - `username`：`'COASIA\robot_co'` → `'robot_co'`——這個修正是必要的：`adLDAP.php::connect()` 實際綁定時是 `ldap_bind($adminUsername . $accountSuffix, ...)`，也就是程式自己會把 `account.suffix`（`@coasia.com.tw`）接到 `username` 後面；填 `COASIA\robot_co` 會變成 `COASIA\robot_co@coasia.com.tw` 這種不合法的綁定格式，改成單純的 `robot_co` 才會正確組成 `robot_co@coasia.com.tw`。
+  - 其餘（`domain.controllers`／`basedn`／`version`／`account.suffix`／`database.auth.when.ldap.user.not.found`／`attribute.mapping`／`required.groups`／`sync.groups`／`use.sso`／`prevent.clean.username`）本來就已經照使用者規格設定好，這次沒有再動；密碼欄位完全沒有讀取內容以外的操作，這份報告、之前任何一次終端機輸出、以及所有 git 追蹤都不會出現密碼本身（該檔案本來就在 `.gitignore` 的 `**/*.config.php` 規則內）。
+
+### 26.2 Docker：新增 bcmath，重建 image
+
+`Dockerfile.dev` 的 `docker-php-ext-install` 加入 `bcmath`（不需要額外的 `docker-php-ext-configure`，是內建無外部函式庫依賴的擴充套件）。`docker compose -f docker-compose.dev.yml build app` 重建、`up -d app` 換上新 image。驗證：
+
+```
+ldap=yes
+bcmath=yes
+```
+
+### 26.3 連線測試：LDAPS（636）目前連不通，但 LDAP（389）完全正常——這是需要 IT／網路排查的既有問題，不是這次設定錯誤
+
+从 app container 對三台 DC 分別測試，結果一致且可重現：
+
+| 測試方式 | dc6 | dc7 | DC3 |
+|---|---|---|---|
+| DNS 解析 | OK（10.1.3.126） | OK（10.1.3.125） | OK（10.1.3.130） |
+| TCP 636（純連線，不含 TLS） | OK（6ms） | OK（5ms） | OK（6ms） |
+| TLS 636（`openssl s_client`，含關閉憑證驗證重試、強制 TLS1.2 重試） | **失敗**：`unexpected eof while reading`（TCP 三方交握成功、送出 ClientHello 後對方直接斷線，沒有任何 ServerHello 回應） | 同左 | 同左 |
+| PHP `ldap` extension，`ldaps://` 匿名 bind | **失敗**：`Can't contact LDAP server` | — | — |
+| TCP 389（純連線） | OK | OK | OK |
+| PHP `ldap` extension，明文 389 匿名 bind | **成功**（`ldap_bind` 回傳 `true`，`ldap_error` 為 `Success`） | — | — |
+
+結論：DNS、路由、防火牆對「一般 TCP 連線」跟「明文 LDAP 協定」都沒有問題（389 完全可用，包含真正的 LDAP bind），問題精準地卡在「636 埠位的 TLS 交握本身」——TCP 交握成功、送出 ClientHello 後對方直接關閉連線，不像是憑證問題（關閉憑證驗證一樣失敗），比較像是路徑上有防火牆／資安設備專門過濾了 636 的加密流量、或是這幾台 DC 的 LDAPS 服務本身設定有問題。這是**這次測試環境（本機 Docker Desktop）當下連不到**，不代表設定錯誤，也不代表正式環境（如果部署位置或網路路徑不同）一定連不到——但上線前必須請 IT／網路權責人員確認 636 是否真的對這個來源開放，否則即使設定完全正確，AD 登入還是不會動。設定本身維持照使用者規格用 636＋SSL（沒有為了讓這次測試方便就擅自降級成明文 389，那是資安層級的決定，不是我可以自己決定的）。
+
+### 26.4 修掉一個 vendor plugin 的真實邏輯漏洞：LDAP 連線本身失敗時，完全不會 fallback 到資料庫
+
+在 26.3 那個連線失敗的狀態下，實際呼叫一次 `ActiveDirectory::Validate()` 意外發現：**不管 `database.auth.when.ldap.user.not.found` 設定成什麼，只要 LDAP 的『服務帳號綁定』這一步本身失敗（連不上、或 `robot_co` 密碼錯誤、或像現在這樣 TLS 交握失敗），整個登入請求會被未捕捉的 `adLDAPException`直接炸掉，完全不會走到 fallback 邏輯**——換句話說，只要 AD 連不上，包含完全不是 AD 帳號、只在本機資料庫驗證的既有管理員／測試帳號，也會一起登入不了。
+
+追查後發現原因：`plugins/Authentication/ActiveDirectory/ActiveDirectory.php::Validate()` 原本的寫法假設 `AdLdapWrapper::Connect()` 連線失敗時會乖乖回傳 `false`，但實際上 `adLDAP.php::connect()`（vendor 進來的第三方 library）在**服務帳號綁定**失敗時是直接 `throw new adLDAPException(...)`，這個例外會一路往上炸穿 `AdLdapWrapper::Connect()`（它自己的 catch 區塊也是 `catch (Exception $ex) { throw($ex); }`，等於沒有真的處理），最後在 `Validate()` 裡完全沒有 try/catch 保護。這個「連線失敗直接丟例外」跟 `Validate()` 後半段「**個別使用者**認證失敗時才會檢查 `RetryAgainstDatabase()` 走 DB fallback」是兩條完全不同的路徑——後者原本就是對的（有 fallback），前者（連線本身失敗）完全沒有 fallback，是這次才發現的既有缺陷。
+
+**修法**（`plugins/Authentication/ActiveDirectory/ActiveDirectory.php`）：把 `$this->ldap->Connect()` 包進 try/catch，連線失敗（不管是回傳 `false` 還是拋例外）都視為同一種情況，一樣去檢查 `RetryAgainstDatabase()`（也就是 `database.auth.when.ldap.user.not.found`）決定要不要退回資料庫驗證，不再無條件往上炸例外。`RetryAgainstDatabase()` 設成 `false`（沒有要 fallback）時的行為完全沒變，仍然會拋例外——這不是放寬安全性，只是讓「AD 整組連不上」這個情境，真正達到使用者要求的「保留資料庫登入 fallback」，而不是名義上設定了卻在這個情境下完全沒作用。
+
+修完後直接對著目前這個真實連不通的環境重新測試（`shawn2` 帳號、故意打錯密碼；一個不存在的使用者名稱），兩種情況都正確回傳 `false`（沒有例外、也沒有錯誤地讓錯密碼登入成功），證實 fallback 路徑真的會被執行到，而不是被例外擋住。
+
+### 26.5 帳號與權限：稽核既有資料，沒有動任何一筆
+
+檢查目前資料庫（`users`／`groups`／`group_roles`／`user_groups`）的結論——**這次沒有執行任何 DB 寫入**，純粹稽核：
+
+- `users` 表目前只有 3 個帳號：`user`（user@example.com）、**`shawn.admin`（shawn_tsai@coasia.com，user_id=2）**、`shawn2`（shawn901011@gmail.com）。
+- **`shawn.admin` 這個 username 已經跟 AD 的 sAMAccountName 命名慣例（firstname.lastname）完全吻合**，而且已經是 `Application Administrators`（group_id=2）的成員（`user_groups` 表可查）。`group_roles` 表確認 `group_id=2 → role_id=2`，對應 `RoleLevel::APPLICATION_ADMIN`——這是純粹的群組授權機制（`Domain/User.php::IsInRole()`／`AuthorizationService::IsApplicationAdministrator()`），全專案搜尋過，沒有任何地方用寫死的 username 字串判斷管理員身分。
+- `CheckUserExistenceCommand` 的 SQL 是 `WHERE (username = @username) OR (email = @email)`——**只要 username 對得上就算「帳號已存在」**，不需要 email 也對得上。也就是說：只要 AD 那邊 `shawn.admin` 的 sAMAccountName 真的是 `shawn.admin`（這點需要跟 IT／AD 管理端確認一次，這裡沒有辦法反查真正的 AD 屬性），第一次用 AD 登入時，`Registration::Synchronize()` 會判定「username 已存在」→ 走**更新**既有 user_id=2 這筆資料（`UpdateUserFromLdapCommand`），不會建立新帳號、不會動到 user_id、不會動到既有預約或 `Application Administrators` 群組成員資格（`sync.groups=false`，這條路徑完全不會被觸發，見下方）。
+  - 唯一會被同步覆蓋的是 email／姓名／電話／單位／職稱這幾個基本欄位（例如 email 有可能從 `shawn_tsai@coasia.com` 被 AD 的 `mail` 屬性覆蓋成別的值）——這是同步機制**設計上就該發生**的行為，不是資料損毀，但如果不希望 email 被覆蓋，需要在 AD 那邊確認 `shawn.admin` 帳號的 `mail` 屬性設定，或者接受這個變化。
+- `sync.groups=false` 確認過會讓 `AdLdapWrapper::GetLdapUser()`（`plugins/Authentication/ActiveDirectory/AdLdapWrapper.php:108`）完全不去查 AD 群組、直接回傳 `null`，`Registration::Synchronize()` 那邊 `GetUserGroups()` 收到 `null` 就整段跳過群組同步——`shawn.admin` 現有的 `Application Administrators` 成員資格因此**保證不會**被 AD 登入同步動到。
+- `required.groups` 留空 → `ActiveDirectoryOptions::HasRequiredGroups()` 回傳 `false` → 完全跳過群組白名單檢查，任何 AD 認證成功的使用者都能登入（符合需求：不是只有 bind account 能登入，bind account 本來就只是拿來查詢 AD 用的服務帳號，從來不會、也不需要自己登入系統）。
+- `user`／`shawn2` 這兩個帳號的 username 不像真實 AD 帳號命名（測試用途），如果 AD 裡真的沒有對應帳號，LDAP 認證會失敗，26.4 修好的 fallback 機制會讓他們繼續照原本的資料庫密碼登入，不受影響。
+
+**結論：不需要任何帳號更名或資料搬移方案**——現有 `shawn.admin` 剛好與預期的 AD 命名一致，且已經正確歸屬在群組式的 Application Administrator 角色下。唯一需要人工確認的是「AD 裡這個人的 sAMAccountName 是否真的逐字是 `shawn.admin`」，這點請 IT／AD 管理端核對；如果 AD 端用的是別的命名（例如 `sadmin`、`shawn_admin`……），需要另外討論怎麼處理，而不是現在就動資料庫。
+
+### 26.6 測試
+
+- 目標 test 檔（`tests/Plugins/Authentication/ActiveDirectory/ActiveDirectoryTest.php`、`tests/Application/Authentication/AuthenticationTest.php`）：17/17 通過。
+- **全專案 PHPUnit（1720 個測試）**：第一次跑出 3 個 Failure＋5 個 Error——追查後全部都是**這次工作階段稍早的 §25 email 通知信改動**造成的既有測試回歸（跟 AD 完全無關，但既然發現了就一起修掉，不留著一個「已完成」卻其實壞掉的功能）：
+  - §25 新增的 `ExistingReservationSeries::SnapshotForChangeDetection()`／`ReservationRepository::Update()`／`DeleteSeriesEventCommand::Execute()` 裡的 `WithVersion()` 呼叫，讓三個既有測試（`ReservationRepositoryTest` 的 `testLoadByIdFullyHydratesReservationSeriesObject`／`testChangingOnlySharedInformationForFullSeriesJustUpdatesSeriesTable`／`testDeleteSeries`）的假設不再成立——分別是「比對物件缺少新欄位」跟「在呼叫 `Update()`/`Delete()` 之後才讀 `ExpectedVersion()`，讀到的已經是版本號被我的新程式碼遞增過的值」。修法：讓比對用的 fixture 也呼叫一次 `SnapshotForChangeDetection()`；把讀取 `ExpectedVersion()` 的時機提前到呼叫 `Update()`/`Delete()` 之前。三個都是調整測試本身以符合新的（有意的）行為，不是回退程式邏輯。
+  - §25 給 `iCalendarReservationView` 加上的 `->ToUtc()`（`DateEnd`/`DateStart`）沒有像 `DateCreated` 一樣做 null 檢查，`CalendarExportPresenterTest` 裡 5 個只測 Organizer 邏輯、故意不設定日期的既有測試因此壞掉（`Call to a member function ToUtc() on null`）。修法：比照 `DateCreated` 補上同樣的 null 檢查。
+  - 全部修完後重新跑過全專案：**1720 個測試、0 Failure、0 Error**（剩下 11 Warning／6 Deprecation／1 Notice／1 Skipped 都是修改前就存在、跟這次任何一次改動無關的既有項目）。
+- HTTP 層基本檢查：登入頁（`Web/index.php`）、註冊頁（`Web/register.php`）在新設定下都正常回應 200、頁面內容正常（註冊表單還在，確認公開註冊沒有被關掉）。
+- 沒有辦法在這個環境對「真的 AD 帳號」跑一次成功登入的端對端測試——原因是 26.3 那個 LDAPS 連線問題，且沒有可用的真實 AD 使用者密碼可以測試。已驗證的是：程式邏輯本身正確（class 正確載入、連線失敗時正確 fallback、群組/角色資料在 DB 裡已經正確）。真正的「AD 使用者登入成功並自動建立/同步帳號」「`shawn.admin` 用 AD 登入後仍保有管理員權限」這兩項，需要等 26.3 的網路問題解決、且有一個真實 AD 帳號可以測試後才能做。
+
+### 26.7 尚待人工處理的事項
+
+1. **請 IT／網路權責人員確認 636（LDAPS）對這個部署來源是否真的開放**——見 26.3，389 完全正常、636 的 TLS 交握直接被中斷，方向是防火牆／資安設備或 DC 的 LDAPS 服務設定，不是這次的程式或設定問題。
+2. **確認 AD 裡 `shawn.admin`（Email: shawn_tsai@coasia.com）這個人的 sAMAccountName 是否逐字是 `shawn.admin`**——如果是，不需要做任何資料庫異動，第一次 AD 登入會自動接上現有帳號並保留現有的 Application Administrator 權限；如果 AD 端用的是別的命名，需要先討論帳號對應方式，見 26.5。
+3. **`username: robot_co` 目前只是測試用的 bind service account**，正式環境上線前應改用 IT 建立的專用唯讀服務帳號（例如 `svc_librebooking`），沿用同樣的填法（只填 `svc_librebooking`，不要加 `COASIA\` 前綴）。
+4. 636 連線問題解決後，建議實際找一個真實 AD 帳號測試一次完整登入流程（首次登入自動建立/同步帳號、`shawn.admin` 登入後台確認還有管理員權限、既有本機帳號在 AD 找不到時仍可用原密碼登入），這幾項在這次的環境裡沒有辦法端對端驗證。
+
+## 27. ⚠️ 暫時方案：AD 改用明文 LDAP（389），等 IT 更新 DC 憑證/TLS 後必須換回 636
+
+使用者從自己那邊確認了 §26.3 那個 636 連不上的根本原因：**現有三台 DC 的 LDAPS 只支援 TLS 1.0，而且憑證已過期**——這點跟 §26.3 觀察到的「TCP 連得上、TLS 交握直接被斷線」完全吻合（現代 OpenSSL 對已過期憑證／TLS 1.0 通常會直接拒絕或中斷，不會給出明確的憑證錯誤訊息，這也是為什麼連關掉憑證驗證都還是失敗）。使用者另外驗證過 StartTLS（在 389 埠位上升級加密）三台也都失敗，只有純明文 389 bind 三台全部成功。在 DC 端的憑證／TLS 版本問題解決之前，636/SSL 這條路完全走不通。
+
+**這是使用者明確指示的暫時相容方案，不是我自行決定的降級**——加密與否是資安層級的判斷，不是這次工作可以自己拿主意的事，只有在使用者確認現有設備限制、明確要求切回 389 的情況下才照做。
+
+### 27.1 設定變更
+
+`plugins/Authentication/ActiveDirectory/ActiveDirectory.config.php`（gitignored）：
+- `port`：636 → **389**
+- `use.ssl`：`'true'` → **`'false'`**
+- 其餘全部維持 §26 設定的值不變：`database.auth.when.ldap.user.not.found=true`（DB fallback 保留）、`required.groups=''`（空白）、`sync.groups=false`、`use.sso=false`、`username='robot_co'`、`account.suffix='@coasia.com.tw'`、`domain.controllers`／`basedn`／`version`／`attribute.mapping`／`prevent.clean.username` 都沒有動。
+- 兩個變更點都加了明確的程式碼註解標註「TEMPORARY」，並指向這一節，避免以後有人忘記這是暫時方案。
+
+### 27.2 這個暫時方案代表什麼風險，需要使用者知情
+
+改成明文 LDAP 之後，`robot_co`（未來是 `svc_librebooking`）這個服務帳號的密碼，在 app container 到三台 DC 之間的網路路徑上是**明碼傳輸**、沒有加密——只要這段路徑侷限在公司內網（沒有經過不受信任的網段），風險是可控的，這也是使用者自己權衡後做的決定；但如果之後部署位置或網路路徑改變（例如上雲、跨機房），必須重新評估這個假設是否還成立。**這個設定不應該在正式上線後一直維持**，必須排入請 IT 更新 DC 憑證＋開啟 TLS 1.2 的待辦，解決後把 `port` 改回 `636`、`use.ssl` 改回 `'true'`（§26.3/§27 的註解都已經留好還原步驟）。
+
+### 27.3 驗證
+
+- 設定檔 `php -l` 通過。
+- 重啟 app container（`config.php`／`*.config.php` 都是 `.php`，一樣會撞 opcache 快取陷阱，見 memory 裡記過的既有陷阱，這次有照著做）。
+- 透過真正的 `PluginManager::LoadAuthentication()` → `ActiveDirectory::Validate()` 呼叫鏈（不是繞過的原始 socket 測試）驗證：
+  - 一個不存在的使用者名稱、一個存在的本機帳號（`shawn.admin`）＋故意打錯的密碼，兩者都乾淨地回傳 `false`，**沒有**再出現 §26.4 那種「LDAP 連線失敗」的例外或 log。
+  - 對照 app log（`/var/log/librebooking/log/`）：這次的失敗紀錄只有 `Failed user authentication for <username>`（`lib/Application/Authentication/Authentication.php:103`，正常的「帳密不符」訊息），**沒有** `adLDAPException` 或 `could not connect/bind to LDAP` 這類連線層級的錯誤——證實 389 這次是真的連線成功，走到了「驗證這個帳密對不對」的正常判斷，而不是連線失敗才被 fallback 接住。
+  - `tests/Plugins/Authentication/ActiveDirectory/ActiveDirectoryTest.php` + `tests/Application/Authentication/AuthenticationTest.php`：17/17 通過。
+- **沒有驗證到的部分**（需要使用者或有權限的人親自測試，我這邊沒有、也不該取得任何真實 AD 使用者的密碼）：
+  - 一般 AD 使用者第一次登入，是否真的自動建立本機帳號、屬性（姓名/信箱/電話等）是否正確從 AD 帶入。
+  - `shawn.admin` 用 AD 密碼登入後，後台是否仍顯示 Application Administrator 權限（§26.5 已經確認資料庫端的群組歸屬不會被同步覆蓋，但沒有實際登入畫面驗證過）。
+  - 建議：請使用者（或任一位有真實 AD 帳號的人）直接在瀏覽器 `http://localhost:8080/Web/index.php` 試登入一次，我可以在**不需要知道密碼**的前提下，事後從資料庫比對 `users`/`user_groups` 表的變化（登入前 `user_id` 1/2/4 這三筆，登入後如果多一筆新帳號、且新帳號屬性跟 AD 資料吻合，就代表首次同步正常）確認結果。
+
+### 27.4 使用者實測：AD 登入端對端成功，但撞到一個真正的 null 安全性 bug 擋住登入後的導頁
+
+使用者實際用 `shawn.admin` 的 AD 密碼登入，畫面上直接噴出 PHP 警告文字，看起來像登入失敗；但重新整理後卻正常進到系統——這個「重新整理就好了」是關鍵線索，指向「登入其實成功了，只是登入成功後的重新導向（redirect）被什麼東西擋住」，不是驗證失敗。
+
+**根因**：`plugins/Authentication/ActiveDirectory/ActiveDirectoryUser.php:25` 原本寫 `strtolower($this->Get($entry, 'mail'))`——如果這個 AD 帳號的 `mail` 屬性剛好沒有值（`Get()` 回傳 `null`），`strtolower(null)` 在 PHP 8.1+ 是 deprecated（不是 fatal error，只是警告）。但這個開發環境的 `display_errors` 是開著的，這行警告文字會被直接印到 HTTP 回應本文裡——而這個印出動作發生在 `Pages/Page.php:201` 呼叫 `header('Location: ...')`（登入成功後導向總覽頁）**之前**，PHP 的規則是「本文只要開始輸出，就不能再送出 HTTP header」，所以緊接著跳出第二個警告「Cannot modify header information - headers already sent」，導向失敗，使用者卡在一頁全是警告文字的畫面——但**帳號早就在跳出警告之前就已經正確建立/更新、session 也已經寫入**，這就是為什麼重新整理网页（帶著剛剛拿到的 session）就直接進去了。
+
+**修法**：`$this->mail = strtolower($this->Get($entry, 'mail') ?? '');`——`mail` 屬性缺值時就存成空字串，不再讓一個「AD 帳號沒填 mail」這種正常會發生的情況去撞壞整個登入導頁。只改這一行，`fname`/`lname`/`phone`/`institution`/`title` 這幾個欄位沒有觸發同樣的錯誤（沒有被傳進任何要求字串型別的函式），這次沒有一併改。
+
+**從資料庫直接確認的實測結果**（登入前後比對 `users`／`user_groups`，全程沒有經手任何密碼）：
+
+- `shawn.admin`（user_id=2）的 `last_modified` 更新到使用者剛剛登入的時間點，`fname`/`lname` 被 AD 資料同步覆蓋——確認 AD 登入真的觸發了 `Registration::Synchronize()`，走的是**更新既有帳號**這條路，不是新建。
+- **`group_id=2`（Application Administrators）membership 完整保留**——這是最關鍵的一項確認：`sync.groups=false` 確實如預期保護了既有管理員權限，AD 登入沒有把 `shawn.admin` 的管理員身分洗掉。
+- 資料庫裡同時多了兩筆全新帳號：`robot_co`（user_id=7，看起來是有人也拿 bind service account 的密碼登入過）跟 `mark_li`（user_id=8，一個先前系統裡完全沒有的真實同事帳號）——兩筆都是 `date_created` = `last_modified`（首次建立)，且都正確落在 `group_id=5`（一般員工預設群組），不是 admin 群組——**這直接證實「AD 使用者第一次登入自動建立帳號」跟「新帳號預設是一般使用者、不是管理員」這兩項需求都正常運作**，且不需要任何人工介入。
+
+至此，AD 登入整合的四項核心行為（一般帳密登入、既有本機管理員 fallback、AD 使用者首次登入自動建立、既有管理員權限在 AD 登入後保留）全部都有實測證據支持，不再只是程式邏輯推導。已經重啟 app container 讓這個修正生效。
+
+## 28. 總覽頂部工具列改版：資源選單取代實體／視訊分頁 + Ghost Button 視覺
+
+依照使用者提供的最新示意圖，重新設計 `tpl/Overview/overview_fullcalendar.tpl` 的頂部工具列，把原本三組獨立的分頁群組（實體／視訊資源分頁、全體／只看我的分頁、日／週／月分頁）收斂成單行三欄式版面，並把「選哪個資源」這件事從三個重複入口（頂部分頁 + 側欄 checkbox 清單）收斂成一個。
+
+### 28.1 版面結構
+
+`.cal-toolbar` 改成 `display:grid; grid-template-columns:1fr auto 1fr` 三欄：
+- **左欄**：資源選擇器（`●上海 Shanghai ▾`），無框樣式，觸發按鈕含色點＋名稱＋chevron。
+- **中欄**：`今天 ‹ 2026年7月 ›`，靠 grid 的 `auto` 欄真正置中，不受左右欄內容寬度影響（純 flex 只會置中在兩側「之間」，欄寬不對稱時會偏移；grid 的獨立 `auto` 軌道才是真正的頁面水平中心）。
+- **右欄**：「只看我的」開關（滑動式 toggle，取代原本的分頁按鈕）＋「月 ▾」檢視選單。
+
+移除原本 `<h1>{translate key="Overview"}<span class="fc-proto-badge">FullCalendar prototype</span></h1>`——這個工具列現在是唯一、正式的總覽介面，不再是拿來跟舊版手刻格線比較的「prototype」。
+
+### 28.2 資源選擇器（新元件）
+
+`#resourcePicker`：觸發按鈕 + 下拉面板，面板內含：
+- 搜尋框（即時過濾，比對資源名稱文字，大小寫不敏感）。
+- 「全部資源」（`AllResources` 翻譯字串，本來就存在，沒有新增 key）——這是全新能力：以前這個頁面永遠只顯示「當下分類的其中一個資源」，現在可以選擇不過濾資源、把所有資源的預約疊在同一個行事曆上看。
+- 實體會議室／視訊會議兩個分類區塊（沿用 `OverviewFullCalendarPresenter` 既有的 `$PhysicalResources`/`$VideoResources`/`$ResourceColors`——分類邏輯本身沒有變，只是呈現位置從頂部分頁搬進這個下拉選單），每個資源列顯示色點 + 名稱 + 目前選中打勾。
+- 找不到符合的資源時顯示「找不到符合的資源」（新增 `NoMatchesFound`/`SearchResources` 翻譯字串）。
+
+切換資源後行事曆用 `calendar.refetchEvents()` 立即重新拉取，並把選擇寫入 `localStorage`（key `overview-fc-selected-resource`）——重新整理或下次造訪都會回到使用者最後選的那個資源／「全部資源」；如果存的資源 id 已經不存在（例如資源被刪除），會安全地退回「全部資源」而不是報錯。
+
+### 28.3 側欄同步移除重複入口
+
+`tpl/globalheader.tpl` 的 `#resourceSidebar`（含 `#navResGroupPhysical`/`#navResGroupVideo` 兩個 checkbox 分類清單）整段移除，只保留迷你月曆（`#miniCal`）——這份清單原本跟頂部分頁做的是同一件事（選資源），現在唯一入口是左上角的資源選擇器。側欄本身的「新增預約」／通知／管理等連結不受影響。
+
+### 28.4 JS 狀態模型改寫（`Web/scripts/overview_fullcalendar.js`）
+
+原本的 `activeCalCategory`（分類）+ `checkedResourceIds()`（哪些 checkbox 打勾）雙軌狀態，換成單一 `selectedResourceId`（字串，具體資源 id 或 `"all"` 特殊值）；`events()` 的過濾條件、`defaultResourceId()`（快速建立預約時要塞哪個資源）都改讀這個單一狀態。`categoryOf()` 保留不動——這是**唯一**在資源分類邏輯上沒有改變的部分，因為預約 Drawer（`setDrawerCategory()`）自己有一套獨立、不相關的分類分頁（`activeResourceCategory`），還是要靠 `categoryOf()` 判斷一個資源屬於實體還是視訊；這次改的只是頂部工具列的資源「選擇」邏輯，不是資源的分類邏輯本身。
+
+「只看我的」從按鈕分頁換成 `<input type="checkbox">` + `change` 事件驅動的滑動開關；日／週／月從分頁群組換成下拉選單（沿用資源選擇器同一套 open/close/outside-click-to-close 機制）。
+
+### 28.5 驗證
+
+- `php -l` 通過兩個新增翻譯字串所在的 `lang/en_us.php`／`lang/zh_tw.php`。
+- `node -c` 通過整份改寫後的 `overview_fullcalendar.js`（純語法檢查，不是執行期驗證）。
+- 清除 `tpl_c/` 裡這兩個模板的舊編譯快取（`globalheader.tpl`／`overview_fullcalendar.tpl`），避免撞到 Smarty 編譯快取陷阱。
+- 用獨立 PHP 腳本（跟 `tests/autoload.php` 一樣的 bootstrap 方式，`FakeBookableResource`/`FakeConfig` 等假資料，不碰真實資料庫、不需要登入）把兩個模板單獨 `fetch()` 一次，確認：Smarty 編譯/渲染都沒有拋例外或警告；新工具列的十個關鍵元素 id（`resourcePickerTrigger`/`resourcePickerPanel`/`resourcePickerSearch`/`fcMineOnlyToggle`/`viewPickerTrigger`/`viewPickerPanel`/`fcTodayBtn`/`fcPrevBtn`/`fcNextBtn`/`fcMonthLabel`）都有渲染出來；資源選擇器面板裡每個假資源都各自對應一列、`data-resource-id` 正確、「全部資源」列跟分類標籤都在；舊的 `fcCategoryTabs`/`fcScopeTabs`/`fcViewTabs`/`<h1>`「總覽」/「FullCalendar prototype」都確認不再出現；側欄的 `resourceSidebar`/`navResGroupPhysical`/`navResGroupVideo` 確認移除、`miniCal`/`miniCalGrid` 確認還在；`window.overviewFullCalendarOpts` 裡新增的 `resourceColors` 跟既有的 `resourceNames` 都正確對應假資源 id。腳本與其產生的編譯快取事後都已清除。
+- **沒有驗證到的部分**（這個環境沒有可用的登入方式，無法在真瀏覽器裡實測互動）：下拉選單實際點擊開合、搜尋框即時過濾、切換資源後行事曆真的重新抓取事件、`localStorage` 記住選擇並在下次載入還原、「只看我的」開關切換效果——這些都只驗證了「標記/元素存在、JS 沒有語法錯誤」，沒有驗證「點下去真的動」。建議之後有機會登入時實際操作一次頂部工具列（切換資源／開關/檢視），確認互動行為符合預期。
+
+### 28.6 使用者實測回饋後的三項微調
+
+使用者實際看過畫面後回報三點：
+
+1. **月份標籤格式跳動**：週視圖跨月時原本會顯示「7月－8月」這種範圍格式，換月時標籤長度變化導致置中的整個工具列跟著挪動位置。改成 `formatMonthLabel()` 永遠只回傳單一月份（「Y年n月」），週視圖用該週「星期三」（起始日+3天）當基準日決定要顯示哪個月——多數天數落在哪個月，標籤就是那個月，不再有雙月範圍格式。
+2. **「全部資源」不需要，預設改成上海會議室**：整個 `ALL_RESOURCES` 概念（含下拉選單裡的「全部資源」按鈕、`selectedResourceId==='all'` 分支、`events()` 過濾邏輯裡的特殊處理）全部移除——選擇永遠是「剛好一個具體資源」。新增 `defaultShanghaiResourceId()`：用資源名稱比對 `/上海|shanghai/i`（實際資料是 emoji 國旗＋英文城市名，例如 `🇨🇳 Shanghai`，沒有中文城市名，已經對照真實 DB 資料確認過），找不到才退回第一個實體資源。`localStorage` 記住的選擇一樣有效，只是預設值從「全部資源」改成「上海」。
+3. **工具列字體偏小、想保留邊框**：`.ghost-btn`（資源選單／今天／檢視選單三顆按鈕共用的樣式）字體從 13px 加大到 14.5px、月份標籤 17px 加大到 18px；並把原本移除的邊框加回來（`border:1px solid var(--bs-border-color)`），但刻意排除左右箭頭這兩顆圓形圖示按鈕——維持跟 App 其他地方（迷你月曆導覽、事件卡片圖示按鈕）一致的「純圖示按鈕不加框」慣例。
+
+驗證：`node -c` 通過改寫後的 JS；重新整理過的 Smarty 編譯快取後用 `node -e` 單獨跑 `formatMonthLabel()` 邏輯本身（帶入「跨月週」「純月週」「月視圖」三種日期），確認輸出都是預期的單一月份字串。
+
+## 29. 側邊欄大改版（新增預約/通知設定移出主導覽）+ 通知設定頁重寫（Email 單一開關 + LINE 綁定/測試通知）
+
+使用者提供 LINE 官方帳號 `@883belmh` 的加好友 QR Code 圖片，要求把通知設定頁從「6 個 Email 事件開關 + 獨立更新按鈕」簡化成「Email／LINE 兩張卡片、改一下就自動存檔」，並把側邊欄的「新增預約」「通知設定」移出主導覽、改成行事曆首頁按鈕 + 使用者選單。
+
+### 29.1 意外發現：LINE 推播的後端骨架其實早就存在
+
+深入研究前先做了一輪全面搜尋，發現這個專案（看 `COASIA-CHANGES.md` §13/§19 就知道，是這個工作階段開始**之前**的既有工作）已經有相當完整的 LINE 通知後端：
+
+- `lib/Line/LineService.php`／`ILineService`：透過 LINE Messaging API 的 push/reply。
+- `Presenters/Line/LineWebhookPresenter.php` + `Web/line-webhook.php`：使用者傳「六位數綁定代碼」給官方帳號，webhook 用 `X-Line-Signature` HMAC 驗證後，把使用者的 LINE userId 綁到系統帳號（`UserPreferences::LINE_USER_ID`）；同一個 LINE 身分重新綁定到別的帳號時，會先把舊帳號解綁（見 §19 的殭屍綁定修復）。
+- `lib/Application/Reservation/Notification/OwnerLineNotification.php`：預約建立成功時推播一則訊息（`AddReservationNotificationService` 已經把它接進通知清單）。
+- `Jobs/sendreminders.php`：既有的提醒 cron（`GET_REMINDER_NOTICES` SQL 已經用 `status_id<>2` 排除已刪除的預約——「提醒前必須確認預約仍有效」這項需求其實已經滿足，這次沒有再改）——同時寄 Email 跟 LINE 提醒，且天然是**逐場**（per-instance）觸發，符合「每場會議仍各提醒一次」。
+- `NotificationPreferencesPresenter`/`Page` 已經有綁定代碼產生、加好友連結、解除綁定的邏輯。
+
+換句話說，這次真正要新增的只有：LINE 專屬的通知開關（獨立於「是否已綁定」）、測試通知、把 Email 6 顆開關收成 1 顆、QR Code、還有側邊欄調整——不是從零開始做 LINE 整合。
+
+### 29.2 QR Code：沒辦法照搬使用者貼的圖，改成後端即時產生
+
+使用者在聊天室直接貼了一張 QR Code 圖片，但這個環境沒有工具可以把聊天室裡貼的圖片存成檔案（沒有可用的檔案路徑）——不是「不想做」，是真的拿不到那張圖的原始位元組。
+
+解法：這個專案本來就有 `bacon/qr-code`（`vendor/bacon/bacon-qr-code`，`Presenters/Admin/ManageResourcesPresenter.php` 的資源 QR code 功能已經在用），改成**後端即時產生**一張功能等價的 QR code——編碼同一個 `https://line.me/R/ti/p/{LINE_OFFICIAL_ACCOUNT_ID}` 加好友連結，用 `GDLibRenderer` + `Writer::writeString()` 直接產生 PNG bytes，base64 內嵌成 `data:image/png;base64,...`，不寫檔案、每次載入都重新產生（反正是官方帳號的固定 QR，不含任何使用者個資，沒有快取的必要，改天 config 裡的官方帳號 ID 換了也不會有一張過期的 QR 圖卡在磁碟上）。掃出來的目的地跟使用者那張圖完全一樣（同一個官方帳號），只是不是同一份 PNG 位元組。
+
+### 29.3 通知設定頁重寫
+
+`Presenters/NotificationPreferencesPresenter.php` 拆成兩個類別：
+
+- `NotificationPreferencesService`：純邏輯（不依賴任何顯示介面），六個 Email 事件開關收成 `AllEmailEventsEnabled()`/`SaveEmailPreference()` 一組方法（顯示時「全部六個都開」才顯示為「開」；存檔時一次把六個 `ChangeEmailPreference()` 全部設成同一個值）；LINE 狀態統一在 `ComputeLineState()` 算好（未啟用／已綁定／未綁定三種分支），未綁定分支裡順便把 QR code 產生好。
+- `NotificationPreferencesPresenter`：原本的顯示邏輯，改成呼叫 `NotificationPreferencesService`。
+
+新增 `Domain/Values/UserPreferences::LINE_NOTIFICATIONS_ENABLED`（沒設定＝預設開啟，只有明確存 `'0'` 才算關閉，這樣「剛綁定，還沒碰過這顆開關」的使用者不會突然收不到通知）；`Domain/User.php` 新增 `WantsLineNotifications()`/`ChangeLineNotificationsPreference()`，並把這個開關接進 `OwnerLineNotification.php`（建立通知）跟 `Jobs/sendreminders.php`（兩處提醒推播）——三個推播點都同時檢查「有沒有綁定」跟「這顆開關有沒有開」。
+
+**架構決定：整頁改成「唯讀顯示 + 純 ajax 存檔」，拿掉舊版的表單 POST/reload 流程**——這個頁面原本靠 `Actions::SAVE` 按鈕整頁 POST 重新整理；「改一下就自動存檔」這個需求本質上已經取代了那個流程，索性整個拿掉（不是保留兩條並行邏輯），改成兩支新的 ajax 端點：
+
+- `Web/ajax/notification_preferences_save.php`（`action=email|lineNotifications|lineUnlink`）：存檔後直接把 `NotificationPreferencesService::BuildStateArray()` 整包最新狀態用 JSON 回傳，前端不用整頁重新整理就能同步 UI（唯一例外是解除綁定——解除綁定後要換成完全不同的「未綁定」卡片內容，直接用 `window.location.reload()` 換頁比在 JS 裡手刻一份跟 .tpl 重複的 DOM 划算）。
+- `Web/ajax/line_test_notification.php`：推一則測試訊息給目前綁定的 LINE 帳號。
+
+兩支端點都照抄專案既有的 `Pages/Ajax/ChangeLanguagePage.php` 寫法（`SecurePage` + 顯式呼叫 `EnforceCSRFCheck()` + `SetJson()`），不是自己發明一套新的 ajax 慣例。
+
+`tpl/MyAccount/notification-preferences.tpl` 改成兩張卡片：Email 卡只剩一顆「接收 Email 通知」開關＋說明文字；LINE 卡未綁定時顯示 QR code＋加好友按鈕＋「開始綁定」區塊（含綁定代碼），已綁定時顯示綠色狀態＋LINE 通知開關＋測試通知／解除綁定按鈕。存檔成功用 `tpl/globalfooter.tpl` 既有的 toast 機制（`window.showToastById()`，跟語言切換共用的同一套）顯示提示，不再是整頁重新整理後的橫幅。
+
+### 29.4 側邊欄調整
+
+`tpl/globalheader.tpl`：
+
+- 移除側邊欄的「+新增預約」按鈕（連同 `overview_fullcalendar.js` 裡對應的、從此永遠不會被觸發的點擊處理器，以及 `coasia-theme.css`／`overview_fullcalendar.css` 裡的 `.create-btn` 樣式，一併清掉——新增預約現在只有一個入口：直接在行事曆上點擊或拖曳空白時段）。
+- 移除主導覽裡的「通知設定」連結，改把 `.sidebar-user`（使用者頭像／姓名列）變成可點擊的帳號選單觸發器（`data-bs-toggle="collapse"`），展開後顯示「通知設定」。**刻意不套用 `.sidebar-group-toggle` class**：那個 class 在收合模式下有一條規則會把整個元素強制縮成 36px 圓形圖示鈕（對純圖示按鈕是對的，但 `.sidebar-user` 底下的頭像圓圈跟姓名/箭頭本來就各自有自己收合時的處理方式，套上去會整個跑版）——改成幫 `.sidebar-user` 單獨寫幾條小規則（hover、chevron 旋轉），不共用那個 class。
+- 新增「行事曆首頁」連結（`Pages::OVERVIEW_FULLCALENDAR`），位置在使用者資訊區塊之後、迷你月曆之前；active 狀態直接複用既有的 `isset($PhysicalResources) || isset($VideoResources)` 判斷式（本來就是「目前是不是總覽頁」唯一可靠的既有訊號，跟迷你月曆是不是要顯示用的是同一條判斷）；收合狀態下靠原生 `title` 屬性提供 tooltip，沒有另外寫 JS/CSS tooltip 元件。
+- 最終側邊欄順序：Logo／收合按鈕 → 使用者資訊（帳號選單） → 行事曆首頁 → （總覽頁專屬的迷你月曆） → 管理功能（有權限才顯示） → 底部系統設定／登出，符合需求裡列的五層順序。
+
+### 29.5 驗證
+
+- `php -l` 通過全部 14 個新增／修改的 PHP 檔案；`node -c` 通過新增的 `Web/scripts/notification-preferences.js` 與修改後的 `overview_fullcalendar.js`。
+- 既有 LINE 相關 PHPUnit 測試（`tests/Presenters/Line/`、`tests/lib/Line/`，共 13 個測試）全數通過，確認沒有因為改 `Domain/User.php`／`UserPreferences.php` 而破壞既有的綁定流程。
+- 跑了一次全專案 PHPUnit（1720 個測試，0 錯誤、0 失敗，跟本次工作階段稍早記錄的基準一致）——`Domain/User.php` 是全站幾乎每個角落都會用到的核心類別，這次只用**新增**方法／一行 `require_once` 的方式擴充，沒有改動任何既有方法的簽章或行為，但既然改的是這麼核心的檔案，還是選擇多花點時間跑一次全套測試而不是只跑局部。
+- 用獨立 PHP 腳本（`tests/autoload.php` 一樣的 bootstrap 方式）把 `globalheader.tpl` 跟 `notification-preferences.tpl`（未綁定／已綁定兩種狀態各測一次）分別 `fetch()`，確認：Smarty 編譯/渲染都沒有拋例外；`.create-btn` 確認移除、`navCalendarHome`／`sidebarAccount`／帳號選單裡的 `navNotification` 都正確渲染；未綁定狀態下 QR code data URI、加好友按鈕、開始綁定區塊、綁定代碼都有渲染，且測試通知按鈕正確**不**出現；已綁定狀態下綠色狀態、LINE 通知開關、測試通知／解除綁定按鈕都有渲染，且未綁定專屬的 QR 區塊正確**不**出現。
+- 另外寫了一支獨立腳本，用這個專案既有的測試假物件（`TestReservationSeries`、`RepeatWeekly`、`FakeUser` 等）真的組出一個「每週三重複」的預約系列，呼叫 `OwnerLineCreatedNotification::Notify()`，攔截實際要推播出去的文字內容，確認格式正確（含重複頻率、場次數、最後一場日期），不是只憑程式碼邏輯推導。
+- **沒有驗證到的部分**（這個環境沒有可用的登入方式，無法在真瀏覽器裡實測）：帳號選單實際點擊展開/收合、Email／LINE 開關點下去真的送出 ajax 並顯示 toast、測試通知按鈕真的收到 LINE 訊息、解除綁定後頁面真的重新整理顯示新的 QR/代碼、收合側欄時「行事曆首頁」的 tooltip 實際顯示效果。建議之後有機會登入時實測一輪：切換 Email／LINE 開關看 toast 有沒有跳出來、點測試通知看手機有沒有收到、解除綁定再重新走一次 QR 加好友＋傳代碼的完整綁定流程。

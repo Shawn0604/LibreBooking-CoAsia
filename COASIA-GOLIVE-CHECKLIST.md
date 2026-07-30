@@ -39,10 +39,10 @@ LDAP 簡單驗證（`ldap_bind()`）一直回傳 `Invalid credentials`（code 49
 
 ## 🟡 應該處理（重要，但不會卡上線）
 
-### SMTP 寄信帳號目前綁在個人帳號上
-~~原本這裡寫「還在用 mailpit 假信箱」是舊資訊，已過時~~——實際查過 `config/config.php`，現在已經是接真的 Gmail SMTP（`smtp.gmail.com:587`，TLS），帳號是 `shawn_tsai@gm.coasia.com`，已經能真的寄出確認信/提醒信，這項不算阻塞項。
+### ~~SMTP 寄信帳號目前綁在個人帳號上~~ 已解決
+~~原本這裡寫「還在用 mailpit 假信箱」是舊資訊，已過時~~——~~實際查過 `config/config.php`，現在已經是接真的 Gmail SMTP（`smtp.gmail.com:587`，TLS），帳號是 `shawn_tsai@gm.coasia.com`~~。
 
-比較值得留意的是：目前用的是**個人帳號 + App 密碼**當系統寄信來源，長期來看有點脆弱——帳號密碼或兩步驟驗證設定變動時 App 密碼可能失效、Gmail 單一帳號每日寄信有額度上限、且帳號歸屬跟著個人職務走不太合適給「全公司系統」用。之後有空的話可以考慮換成共用的服務帳號，或改走公司自己的郵件伺服器／正式的交易型郵件服務（SendGrid、Amazon SES 之類），但目前這樣能動、不急著換。
+已改接公司內部 SMTP Relay（`config/config.php` 的 `phpmailer`／`email` 區塊）：Host `10.1.3.140:25`，內網 open relay，不需要帳密／TLS（`smtp.auth`/`smtp.autotls` 皆為 `false`，`smtp.secure` 為空字串），寄件人固定為 `coasiaerp@coasia.com`（顯示名稱「擎亞會議室預約系統」），不再掛在任何個人帳號底下。已用兩種方式驗證過：(1) 直接建構一支走 `PHPMailer` 的腳本連到 `10.1.3.140:25` 寄出，成功；(2) 直接呼叫專案自己的 `EmailService`（正式預約確認信/提醒信真正會用到的同一支類別）搭配 `Configuration::Instance()` 讀出的設定值寄出，同樣成功、應用程式的 error log 沒有出現任何寄信失敗紀錄。這項已經不是待辦，之前提到的「換成共用服務帳號／公司郵件伺服器」建議已經照做。
 
 ### 資源權限政策要跟業務單位確認
 目前「全體員工」群組是**全部 12 個資源都開放給所有人預約**（含高爾夫球室等特殊資源）——這是用來解決權限漏洞的技術方案（讓新帳號、AD 帳號自動繼承權限），但「哪些資源該限定特定部門」是業務決策。建議上線前跟相關主管確認一輪；要限制的話後台「ManageGroups」就能直接調整，不需要改程式碼。
