@@ -179,7 +179,7 @@ img.logo {
   }
 
   /* Every tappable circle in the collapsed rail — nav links, the group toggles, the user
-     avatar, the create button — shares one fixed 44×44 diameter so the rail reads as one
+     avatar, the create button — shares one fixed 44×44 hit box so the rail reads as one
      consistent row of icon buttons instead of a mix of sizes. The collapse/expand toggle
      itself is deliberately NOT in this list — it keeps its own smaller, distinct circular
      control (see .sidebar-collapse-toggle below) whether the sidebar is expanded or
@@ -194,6 +194,22 @@ img.logo {
     margin-inline: 0;
     border-radius: 50%;
     box-sizing: border-box;
+  }
+
+  /* .sidebar-link/.sidebar-group-toggle only ever paint their circle on hover/focus/active
+     (transparent at rest — see the plain .sidebar-link rule below), so at rest all you see
+     is their small icon glyph floating in a 44px box. .sidebar-user-avatar and .create-btn
+     paint a *permanent* solid color across that whole 44px box, which reads as a visibly
+     bigger, heavier shape sitting next to the icon-only buttons even though the hit box is
+     identical — same box, very different amount of "ink". Shrinking just the painted circle
+     to 36px (keeping the outer 44px slot, and centering, unchanged, so alignment/spacing with
+     the rest of the rail doesn't move) brings their visual weight back in line with the
+     icon-only buttons instead of dominating the rail. */
+  .app-sidebar.collapsed .sidebar-user-avatar,
+  .app-sidebar.collapsed .create-btn {
+    width: 36px;
+    height: 36px;
+    min-height: 36px;
   }
 
   .app-sidebar.collapsed .sidebar-brand {
