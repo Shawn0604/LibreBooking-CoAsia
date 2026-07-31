@@ -133,7 +133,7 @@ class OverviewFullCalendarEventsPresenter
 
             $canViewDetails = $this->privacyFilter->CanViewDetails($userSession, $reservation, $reservation->UserId);
             if ($canViewDetails) {
-                $title = !empty($reservation->Title) ? $reservation->Title : '未命名預約';
+                $title = !empty($reservation->Title) ? $reservation->Title : Resources::GetInstance()->GetString('NoReservationTitle');
                 $ownerName = (string)$reservation->GetUserName();
             } else {
                 // Same privacy rule Domain/Access-level consumers already respect

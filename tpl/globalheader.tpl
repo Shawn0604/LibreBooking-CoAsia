@@ -148,7 +148,7 @@
                 <a href="{$HomeUrl}" class="sidebar-brand-logo-full">
                     <img src="{$Path}{$LogoUrl}?{$Version}" alt="{$Title}" class="logo">
                 </a>
-                {* Collapsed rail is only 72px wide — the full wordmark logo above doesn't fit,
+                {* Collapsed rail is only 85px wide — the full wordmark logo above doesn't fit,
                    so this swaps to the icon-only mark (same file already used as the browser
                    favicon) instead of shrinking/clipping the wordmark. *}
                 <a href="{$HomeUrl}" class="sidebar-brand-logo-mark">
@@ -164,24 +164,17 @@
                 </button>
             </div>
 
-            {* User info is now also the account menu's trigger — clicking it reveals
-               "通知設定" (relocated from the main nav list below, since it's account-level
-               settings, not a day-to-day nav destination). Deliberately does NOT carry the
-               .sidebar-group-toggle class the other collapsible groups use: that class's
-               collapsed-rail rule forces a 36px circle onto the whole element (right, for a
-               plain icon button; wrong here, since .sidebar-user's own children — the 36px
-               avatar circle and the name/chevron — already have their own correct collapsed
-               treatment). Interactivity (hover, chevron rotation) is instead given its own
-               small dedicated rules in coasia-theme.css, scoped to .sidebar-user directly. *}
+            {* Plain static display, not a button/collapse-trigger — it used to expand an
+               account-menu dropdown (first 通知設定, later the light/dark appearance switcher),
+               but both have since moved out or been removed, leaving nothing left to reveal.
+               No .sidebar-group-toggle class here either, for the same reason as before: that
+               class's collapsed-rail rule forces a 44px circle onto the whole element, which is
+               wrong for a row whose own children (the avatar circle, the name) already have
+               their own correct collapsed treatment. *}
             {if isset($LoggedIn) && $LoggedIn && !empty($UserName)}
-                <button type="button" class="sidebar-user" data-bs-toggle="collapse" data-bs-target="#sidebarAccount"
-                    aria-expanded="false" aria-controls="sidebarAccount">
+                <div class="sidebar-user">
                     <span class="sidebar-user-avatar">{$UserName|truncate:1:''|upper}</span>
                     <span class="sidebar-user-name">{$UserName|escape}</span>
-                    <i class="bi bi-chevron-right sidebar-chevron"></i>
-                </button>
-                <div class="collapse sidebar-submenu sidebar-account-submenu" id="sidebarAccount">
-                    <a id="navNotification" class="sidebar-sublink" href="{$Path}{Pages::NOTIFICATION_PREFERENCES}">{translate key="NotificationPreferences"}</a>
                 </div>
             {/if}
 
@@ -194,11 +187,20 @@
             <div class="collapse sidebar-nav-collapse" id="librebooking-navigation">
                 <nav class="sidebar-nav">
                     {if isset($LoggedIn) && $LoggedIn}
-                        {* CoAsia: the sidebar's own "+新增預約" button was removed — creating a
-                           reservation now happens in exactly one place, clicking or dragging a
-                           blank slot directly on the calendar (tpl/Overview/overview_fullcalendar.tpl),
-                           instead of two separate entry points to the same quick-create modal. The
-                           feature itself is untouched, only this redundant entry point is gone. *}
+                        {* Restored — an earlier round (COASIA-CHANGES §29) removed this in favor of
+                           create-only-via-calendar-click/drag, on the theory that the sidebar button
+                           was a redundant second entry point. Brought back at its original size/shape
+                           this round; the calendar click/drag path is untouched and still works the
+                           same, this is just a second way in again. #sidebarCreateBtn's own click
+                           handler (bottom of this template) opens the SAME quick-create modal that
+                           click/drag opens, via a small hook overview_fullcalendar.js exposes
+                           (window.overviewFullCalendarOpenQuickCreate) — falling back to this href
+                           (the classic reservation.php form) on any page that doesn't have that hook,
+                           i.e. anywhere other than the calendar page itself. *}
+                        <a class="create-btn" id="sidebarCreateBtn" href="{$Path}{Pages::RESERVATION}"
+                            title="{translate key='NewReservation'}">
+                            <i class="bi bi-plus-lg"></i>{translate key='NewReservation'}
+                        </a>
 
                         {* "行事曆首頁" — the one durable way back to the calendar from anywhere else
                            in the app (notification settings, admin pages, ...), now that the sidebar
@@ -209,6 +211,15 @@
                             id="navCalendarHome" href="{$Path}{Pages::OVERVIEW_FULLCALENDAR}"
                             title="{translate key='CalendarHome'}">
                             <i class="bi bi-calendar3"></i>{translate key='CalendarHome'}
+                        </a>
+
+                        {* Top-level now (was previously tucked inside the account-menu dropdown under
+                           the user info row) — same .sidebar-link component as 行事曆首頁 immediately
+                           above, so row height/icon column/text start/hover/active are all identical
+                           by construction, not by separately matching numbers. *}
+                        <a class="sidebar-link" id="navNotification" href="{$Path}{Pages::NOTIFICATION_PREFERENCES}"
+                            title="{translate key='NotificationPreferences'}">
+                            <i class="bi bi-bell"></i>{translate key='NotificationPreferences'}
                         </a>
 
                         {* Mini month calendar — only present when the current page (Overview) has set
@@ -504,11 +515,18 @@
                     }
 
                     function notifyLayoutChanged() {
-                        // FullCalendar (Web/scripts/overview_fullcalendar.js) listens for the
-                        // window 'resize' event by default (handleWindowResize) and re-measures
-                        // its container's width from it — a synthetic dispatch here is enough to
-                        // make it recompute, no direct reference to the calendar instance needed.
-                        // Harmless no-op on any page that doesn't have a calendar.
+                        // Web/scripts/overview_fullcalendar.js exposes its live instance as
+                        // window.overviewFullCalendarInstance specifically for this — calling
+                        // updateSize() directly is immediate and unambiguous, rather than relying
+                        // on FullCalendar's own debounced window 'resize' listener to notice.
+                        // Undefined on every other page (and briefly, before that script's own
+                        // render() has run) — both harmless no-ops here.
+                        if (window.overviewFullCalendarInstance) {
+                            window.overviewFullCalendarInstance.updateSize();
+                        }
+                        // Kept alongside the direct call above — other code on the page (or a
+                        // future page) may still depend on the generic window resize signal, and
+                        // dispatching it is harmless on any page without a calendar at all.
                         window.dispatchEvent(new Event('resize'));
                     }
 
@@ -562,6 +580,28 @@
                     }
                 })();
             </script>
+
+            {* "+新增預約" — opens the same quick-create modal the calendar's own click/drag
+               does, via a hook overview_fullcalendar.js exposes only on the calendar page
+               itself. Everywhere else (this button renders site-wide, via this shared
+               template) window.overviewFullCalendarOpenQuickCreate is simply undefined, so the
+               click falls through to the plain href and lands on the classic reservation.php
+               form instead — a real fallback, not a dead end. *}
+            <script>
+                (function () {
+                    var createBtn = document.getElementById('sidebarCreateBtn');
+                    if (!createBtn) {
+                        return;
+                    }
+                    createBtn.addEventListener('click', function (e) {
+                        if (typeof window.overviewFullCalendarOpenQuickCreate === 'function') {
+                            e.preventDefault();
+                            window.overviewFullCalendarOpenQuickCreate();
+                        }
+                    });
+                })();
+            </script>
+
         </aside>
 
         <div class="app-content">

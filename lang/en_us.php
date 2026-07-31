@@ -144,6 +144,7 @@ class en_us extends Language
         $strings['AllResources'] = 'All Resources';
         $strings['SearchResources'] = 'Search resources';
         $strings['NoMatchesFound'] = 'No matches found';
+        $strings['SearchParticipants'] = 'Search by name, username, or email';
         $strings['TakeOffline'] = 'Take Offline';
         $strings['BringOnline'] = 'Bring Online';
         $strings['AddImage'] = 'Add Image';
@@ -959,6 +960,14 @@ class en_us extends Language
         $strings['Overview'] = 'Overview';
         $strings['Weekend'] = 'Weekend';
         $strings['Untitled'] = 'Untitled';
+        $strings['NoReservationTitle'] = '(Untitled)';
+        $strings['AddTitle'] = 'Meeting name';
+        $strings['QuickCreateSubheading'] = 'Quickly create a room reservation';
+        $strings['AddParticipantsAction'] = 'Add participants';
+        $strings['AddDescription'] = 'Add description';
+        $strings['ResourceAvailable'] = 'Available';
+        $strings['ResourceUnavailable'] = 'Not available';
+        $strings['CancelAction'] = 'Cancel';
         $strings['YourReservations'] = 'Your reservations';
         $strings['PhysicalRooms'] = 'Physical Rooms';
         $strings['VideoConferenceResources'] = 'Video Conference';

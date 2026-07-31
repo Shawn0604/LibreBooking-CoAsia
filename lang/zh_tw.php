@@ -145,6 +145,7 @@ class zh_tw extends en_us
         $strings['AllResources'] = '所有資源';
         $strings['SearchResources'] = '搜尋資源';
         $strings['NoMatchesFound'] = '找不到符合的資源';
+        $strings['SearchParticipants'] = '輸入姓名、帳號或 Email';
         $strings['TakeOffline'] = 'Take 離線';
         $strings['BringOnline'] = 'Bring 線上';
         $strings['AddImage'] = '添加圖片';
@@ -543,6 +544,7 @@ class zh_tw extends en_us
         $strings['NoResourcePermission'] = '您沒有權限訪問一個或一個以上的請求.';
         $strings['ConflictingReservationDates'] = '在接下來的日子裡存在有衝突的預約:';
         $strings['StartDateBeforeEndDateRule'] = '開始時間和日期必須早於結束時間和日期';
+        $strings['MultiDayRule'] = '%s 不允許跨日預約，開始與結束時間必須在同一天。';
         $strings['RecurringWithoutTerminationRule'] = '重複封鎖需要設定終止日期。';
         $strings['StartIsInPast'] = '開始時間和日期必須比當前時間晚';
         $strings['EmailDisabled'] = '管理員已經禁止了郵件提醒';
@@ -578,6 +580,14 @@ class zh_tw extends en_us
         $strings['Overview'] = '總覽';
         $strings['Weekend'] = '週末';
         $strings['Untitled'] = '未命名預約';
+        $strings['NoReservationTitle'] = '（無標題）';
+        $strings['AddTitle'] = '新增會議名稱';
+        $strings['QuickCreateSubheading'] = '快速建立會議室預約';
+        $strings['AddParticipantsAction'] = '新增參與者';
+        $strings['AddDescription'] = '新增說明';
+        $strings['ResourceAvailable'] = '此時段可用';
+        $strings['ResourceUnavailable'] = '此時段不可用';
+        $strings['CancelAction'] = '取消';
         $strings['YourReservations'] = '我的預約';
         $strings['PhysicalRooms'] = '實體會議室';
         $strings['VideoConferenceResources'] = '視訊會議';

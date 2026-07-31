@@ -33,6 +33,26 @@
   --reservedPending: #e7c98a;
   --hiliteReservation: #2f8f52;
   --label-text-on-dark: #ffffff;
+
+  /* Single source of truth for both collapse states' widths — every sidebar width, and any
+     future main-content offset math, must read these rather than a hardcoded pixel value. */
+  --sidebar-expanded-width: 285px;
+  --sidebar-collapsed-width: 85px;
+
+  /* CoAsia sidebar palette — light only (the dark CoAsia Blue variant + the light/dark
+     switcher that used to live here were both removed by request; see COASIA-CHANGES.md).
+     Every sidebar rule in this file still reads these --sidebar-* custom properties rather
+     than a literal color, so restoring a second theme later would again be a matter of
+     re-adding a scoped override block, not rewriting every rule that uses them. */
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #15253d;
+  --sidebar-text-secondary: #718096;
+  --sidebar-divider: #e6eaf0;
+  --sidebar-hover: #f3f6fa;
+  --sidebar-active: #e8eef7;
+  --sidebar-focus: #9cb7e2;
+  --sidebar-create-btn-bg: #1f3159;
+  --sidebar-create-btn-text: #ffffff;
 }
 
 /* `css.theme` only accepts a fixed whitelist of names (see ConfigKeys::CSS_THEME),
@@ -91,12 +111,12 @@ img.logo {
 
 .app-sidebar {
   flex-shrink: 0;
-  width: 240px;
+  width: var(--sidebar-expanded-width);
   height: 100vh;
   position: sticky;
   top: 0;
-  background: #fff;
-  color: #3c4043;
+  background: var(--sidebar-bg);
+  color: var(--sidebar-text);
   display: flex;
   flex-direction: column;
   /* This container itself must never scroll or shrink its children to fit — that's what
@@ -105,7 +125,8 @@ img.logo {
      list content is taller than the viewport; everything else here (.sidebar-brand) is
      pinned at a fixed size. */
   overflow: hidden;
-  border-right: 1px solid var(--gcal-border);
+  /* No border — CoAsia Blue against the page's own light background is already a hard,
+     unambiguous edge; a 1px line here would just be redundant decoration. */
 }
 
 @media (min-width: 992px) {
@@ -120,16 +141,19 @@ img.logo {
   }
 
   .app-sidebar.collapsed {
-    width: 72px;
+    width: var(--sidebar-collapsed-width);
   }
 
   /* Text has no wrapper element to hide directly (it's a plain text node next to the
      icon), so this relies on cascade order: `.sidebar-link i:first-child` below already
      sets an explicit font-size that's more specific than this rule, so the icon keeps its
      size while the sibling text — which has nothing of its own to override with — shrinks
-     to nothing. */
+     to nothing. .create-btn (the restored "+新增預約" pill) needs the exact same treatment
+     once collapsed — it's styled separately below since it isn't a .sidebar-link, but
+     collapsing to an icon-only circle works identically. */
   .app-sidebar.collapsed .sidebar-link,
-  .app-sidebar.collapsed .sidebar-group-toggle {
+  .app-sidebar.collapsed .sidebar-group-toggle,
+  .app-sidebar.collapsed .create-btn {
     position: relative;
     font-size: 0;
     justify-content: center;
@@ -143,10 +167,11 @@ img.logo {
      centered "group" leaves the icon itself sitting left of true center. .sidebar-user-avatar
      and .sidebar-collapse-toggle don't have this problem (no trailing text sibling), which is
      why only the nav icons looked off. Taking the icon out of flex flow entirely and centering
-     it directly against the 36px box sidesteps the phantom-sibling width regardless of how
+     it directly against the 44px box sidesteps the phantom-sibling width regardless of how
      wide it computes to be. */
   .app-sidebar.collapsed .sidebar-link i:first-child,
-  .app-sidebar.collapsed .sidebar-group-toggle i:first-child {
+  .app-sidebar.collapsed .sidebar-group-toggle i:first-child,
+  .app-sidebar.collapsed .create-btn i:first-child {
     position: absolute;
     left: 50%;
     top: 50%;
@@ -154,19 +179,18 @@ img.logo {
   }
 
   /* Every tappable circle in the collapsed rail — nav links, the group toggles, the user
-     avatar — shares one fixed diameter so the rail reads as one consistent row of icon
-     buttons instead of a mix of sizes. 36px matches --icon-button-size, the same diameter
-     already used for icon buttons elsewhere in the app (event popover / Drawer, see
-     overview_fullcalendar.css). The collapse/expand toggle itself is deliberately NOT in this
-     list — it should look identical (28px, white circle, bordered) whether the sidebar is
-     expanded or collapsed, only the chevron's rotation changes; see its own rule below
-     instead of unifying it into this size. */
+     avatar, the create button — shares one fixed 44×44 diameter so the rail reads as one
+     consistent row of icon buttons instead of a mix of sizes. The collapse/expand toggle
+     itself is deliberately NOT in this list — it keeps its own smaller, distinct circular
+     control (see .sidebar-collapse-toggle below) whether the sidebar is expanded or
+     collapsed, only the chevron's rotation changes. */
   .app-sidebar.collapsed .sidebar-link,
   .app-sidebar.collapsed .sidebar-group-toggle,
-  .app-sidebar.collapsed .sidebar-user-avatar {
-    width: 36px;
-    height: 36px;
-    min-height: 36px;
+  .app-sidebar.collapsed .sidebar-user-avatar,
+  .app-sidebar.collapsed .create-btn {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
     margin-inline: 0;
     border-radius: 50%;
     box-sizing: border-box;
@@ -238,7 +262,11 @@ img.logo {
 }
 
 /* Brand row is the sidebar's slice of the same 64px header band the page-level
-   toolbar uses (see #page-overview .cal-toolbar) — same height, same border.
+   toolbar uses (see #page-overview .cal-toolbar) — same height, same border. Left at 64px
+   here rather than changing it to the ~78px a later spec mentioned ("沿用原版" — reuse the
+   original) — bumping it would break that shared seam with the toolbar, which lives in
+   Overview-page CSS this round was explicitly scoped to leave alone ("只調整側欄，不要修改
+   行事曆"). Flag if 78px was actually meant as a new target rather than "leave it as-is".
    .app-sidebar is a column flexbox; without an explicit flex-basis/flex-shrink:0 here,
    this row's default flex-shrink:1 let the flex algorithm compress it below 64px (down to
    ~28.7px, observed) whenever the sidebar's total content (nav links + mini-cal + resource
@@ -256,7 +284,7 @@ img.logo {
      anchored to this row) so it never overlaps the company name text. */
   padding: 0 44px 0 16px;
   box-sizing: border-box;
-  border-bottom: 1px solid var(--gcal-border);
+  border-bottom: 1px solid var(--sidebar-divider);
   position: relative;
 }
 
@@ -270,9 +298,17 @@ img.logo {
   display: inline-flex;
 }
 
+/* Width-constrained (not height-constrained like the old logo) so it lands at the exact
+   108px the brand spec calls for regardless of the source file's own pixel dimensions —
+   height is deliberately "auto" so the aspect ratio can never distort. 44px right padding on
+   .sidebar-brand above (unchanged) is more than this 108px + 16px left padding needs before
+   reaching .sidebar-collapse-toggle's reserved zone, so the two never overlap. */
 .sidebar-brand img.logo {
-  height: 28px;
-  width: auto;
+  width: 108px;
+  height: auto;
+  /* Overrides the generic img.logo{max-height:36px} above (shared with e.g. the login page's
+     logo) — that cap would otherwise squash this specific image below its true 108px-wide
+     aspect ratio, which is exactly the distortion "no stretching" rules out. */
   max-height: none;
   flex-shrink: 0;
   display: block;
@@ -295,23 +331,23 @@ img.logo {
   }
 
   /* Collapsed rail keeps only the expand control in the brand row — no logo at all (the mark
-     was tried here first, but at 72px wide next to the toggle it read as visual clutter, not
-     branding). .sidebar-brand-logo-mark stays defined/unused rather than removed, in case a
-     future narrower treatment wants it back. */
+     was tried here first, but even at 84px wide next to the toggle it read as visual clutter,
+     not branding). .sidebar-brand-logo-mark stays defined/unused rather than removed, in case
+     a future narrower treatment wants it back. */
   .app-sidebar.collapsed .sidebar-brand-logo-mark {
     display: none;
   }
 }
 
 .sidebar-brand-company {
-  color: #1c2333;
+  color: var(--sidebar-text-secondary);
   font-weight: 500;
   font-size: 14px;
   text-decoration: none;
 }
 
 .sidebar-brand-company:hover {
-  color: var(--primary);
+  color: var(--sidebar-text);
   text-decoration: underline;
 }
 
@@ -320,60 +356,36 @@ img.logo {
    Deliberately NOT sharing .sidebar-link/.sidebar-group-toggle's rule (see the tpl's own
    comment): that class's collapsed-rail treatment would force this whole row into a 36px
    circle instead of just its avatar child. */
+/* Plain static row now — no button semantics, no hover/focus affordance, nothing to click.
+   Used to be the account menu's trigger (first for 通知設定, later the light/dark switcher);
+   both have since moved out or been removed, so this is just a display of who's logged in. */
 .sidebar-user {
   display: flex;
   align-items: center;
   gap: 12px;
   width: 100%;
   padding: 24px 16px 0;
-  border: none;
-  background: transparent;
-  border-radius: var(--bs-border-radius, 0.6rem);
-  font: inherit;
-  text-align: left;
   color: inherit;
-  cursor: pointer;
-}
-
-.sidebar-user:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-}
-
-.sidebar-user .sidebar-chevron {
-  margin-left: auto;
-  flex-shrink: 0;
-}
-
-.sidebar-user[aria-expanded="true"] .sidebar-chevron {
-  transform: rotate(90deg);
-}
-
-/* .sidebar-submenu's own base rule (further down this file) sets padding-left:20px — this
-   combined selector needs the extra specificity to win regardless of source order, since the
-   account menu sits outside .sidebar-nav (no 12px container inset to align with) and instead
-   needs to match .sidebar-user's own 16px inset directly above it. */
-.sidebar-submenu.sidebar-account-submenu {
-  padding: 4px 16px 0;
 }
 
 .sidebar-user-avatar {
   flex-shrink: 0;
-  width: 32px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--reservedMine, #d3202a);
   color: #fff;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
 }
 
 .sidebar-user-name {
   font-size: 13px;
   font-weight: 500;
-  color: #1c2333;
+  color: var(--sidebar-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -391,17 +403,23 @@ img.logo {
   height: 28px;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--gcal-border);
+  border: 1px solid var(--sidebar-divider);
   border-radius: 50%;
-  background: #fff;
-  color: #6c7488;
+  background: transparent;
+  color: var(--sidebar-text);
   cursor: pointer;
   z-index: 2;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
 .sidebar-collapse-toggle:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  color: var(--primary);
+  background: var(--sidebar-hover);
+  border-color: var(--sidebar-divider);
+}
+
+.sidebar-collapse-toggle:focus-visible {
+  outline: 2px solid var(--sidebar-focus);
+  outline-offset: 2px;
 }
 
 .sidebar-collapse-toggle i {
@@ -434,8 +452,8 @@ img.logo {
   margin: 12px 16px 0;
   border: none;
   border-radius: 50%;
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  color: #4b5165;
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
 }
 
 .sidebar-toggler i {
@@ -463,7 +481,7 @@ img.logo {
 }
 
 #librebooking-navigation.sidebar-nav-collapse:hover {
-  scrollbar-color: #c7cbd6 transparent;
+  scrollbar-color: var(--sidebar-text-secondary) transparent;
 }
 
 #librebooking-navigation.sidebar-nav-collapse::-webkit-scrollbar {
@@ -476,7 +494,7 @@ img.logo {
 }
 
 #librebooking-navigation.sidebar-nav-collapse:hover::-webkit-scrollbar-thumb {
-  background: #c7cbd6;
+  background: var(--sidebar-text-secondary);
 }
 
 .sidebar-nav {
@@ -486,13 +504,64 @@ img.logo {
   padding: 24px 12px 0;
 }
 
+/* Restored "+新增預約" pill — removed entirely in an earlier round (COASIA-CHANGES §29) once
+   the calendar's own click/drag-to-create became the only entry point, brought back here at
+   its original size/shape (pre-removal CSS, git history) rather than re-invented. Filled
+   (not the transparent-until-hover .sidebar-link treatment) — --sidebar-create-btn-bg/-text
+   are their own tokens (set alongside the rest of the --sidebar-* palette above) rather than
+   just reusing --sidebar-bg/-text directly, deliberately the OPPOSITE of those two so this
+   one control still reads as a distinct call-to-action rather than blending into the rail. */
+.create-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+  height: var(--gcal-control-height);
+  padding: 0 16px;
+  border-radius: 100px;
+  background: var(--sidebar-create-btn-bg);
+  color: var(--sidebar-create-btn-text);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: filter 0.14s ease;
+}
+
+.create-btn:hover {
+  filter: brightness(0.94);
+  color: var(--sidebar-create-btn-text);
+}
+
+.create-btn:focus-visible {
+  outline: 2px solid var(--sidebar-focus);
+  outline-offset: 2px;
+}
+
+.create-btn i {
+  font-size: var(--gcal-icon-size);
+  color: var(--sidebar-create-btn-text);
+}
+
+/* Previously an unstyled empty <div> (0 height, no rule anywhere gave it a visible line) —
+   real styling added here since the brand spec calls out a dedicated divider color and this
+   element (between the mini-cal and the rest of the nav, see globalheader.tpl) is exactly
+   what it's for. */
+.sidebar-divider {
+  height: 1px;
+  margin: 16px 12px;
+  background: var(--sidebar-divider);
+}
+
 .sidebar-footer {
   margin-top: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 24px 12px 24px;
-  border-top: 1px solid var(--gcal-border);
+  border-top: 1px solid var(--sidebar-divider);
 }
 
 .sidebar-link,
@@ -507,7 +576,7 @@ img.logo {
   border: none;
   background: transparent;
   border-radius: var(--bs-border-radius, 0.6rem);
-  color: #3c4043;
+  color: var(--sidebar-text);
   font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -522,35 +591,45 @@ img.logo {
   width: var(--gcal-icon-size);
   text-align: center;
   flex-shrink: 0;
-  color: #6c7488;
+  color: var(--sidebar-text);
 }
 
 .sidebar-link:hover,
 .sidebar-group-toggle:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  color: var(--primary);
+  background: var(--sidebar-hover);
+}
+
+.sidebar-link:focus-visible,
+.sidebar-group-toggle:focus-visible {
+  outline: 2px solid var(--sidebar-focus);
+  outline-offset: -2px;
 }
 
 .sidebar-link:active,
 .sidebar-group-toggle:active {
-  background: color-mix(in oklab, var(--primary) 12%, white);
+  background: var(--sidebar-active);
 }
 
-/* "行事曆首頁" is the only top-level .sidebar-link with a persistent active state (the
-   admin/config groups highlight via their own [aria-expanded] chevron rotation instead,
-   since being "open" isn't the same thing as being "the current page"). */
-.sidebar-link.active {
-  background: color-mix(in oklab, var(--primary) 10%, white);
-  color: var(--primary);
-}
-
+/* "行事曆首頁" is the only top-level .sidebar-link with a persistent "this is the current
+   page" state (the admin/config groups highlight via their own [aria-expanded] chevron
+   rotation instead, since being "open" isn't the same thing as being "the current page").
+   Deliberately NO permanent background — a filled background here reads as "this button is
+   being pressed right now" even when no one's touching it. The current-page signal is the
+   accent-colored icon/text instead; background only ever appears on a genuine :hover/:active
+   interaction (the plain .sidebar-link rules above), same as every other nav row. */
+.sidebar-link.active,
 .sidebar-link.active i:first-child {
-  color: var(--primary);
+  color: var(--sidebar-create-btn-bg, #1f3159);
 }
 
 .sidebar-link#navSignOut,
 .sidebar-link#navLogIn {
-  color: #6c7488;
+  color: var(--sidebar-text-secondary);
+}
+
+.sidebar-link#navSignOut i:first-child,
+.sidebar-link#navLogIn i:first-child {
+  color: var(--sidebar-text-secondary);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -562,7 +641,7 @@ img.logo {
 
 .sidebar-chevron {
   font-size: 11px;
-  color: #9aa1b3;
+  color: var(--sidebar-text-secondary);
   transition: transform 0.15s ease;
 }
 
@@ -591,7 +670,7 @@ img.logo {
   padding: 0 10px;
   box-sizing: border-box;
   border-radius: var(--bs-border-radius-sm);
-  color: #6c7488;
+  color: var(--sidebar-text-secondary);
   font-size: 13px;
   font-weight: 400;
   text-decoration: none;
@@ -599,8 +678,13 @@ img.logo {
 
 .sidebar-sublink:hover,
 .sidebar-sublink.active {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  color: var(--primary);
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+
+.sidebar-sublink:focus-visible {
+  outline: 2px solid var(--sidebar-focus);
+  outline-offset: -2px;
 }
 
 @media (max-width: 991.98px) {

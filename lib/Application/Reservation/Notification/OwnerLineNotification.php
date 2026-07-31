@@ -35,6 +35,7 @@ class OwnerLineCreatedNotification implements IReservationNotification
         }
         $start = $currentInstance->StartDate()->ToTimezone($timezone);
         $end = $currentInstance->EndDate()->ToTimezone($timezone);
+        $title = !empty($reservationSeries->Title()) ? $reservationSeries->Title() : Resources::GetInstance()->GetString('NoReservationTitle');
 
         // Recurring series creation still fires this Notify() call exactly ONCE (the caller,
         // AddReservationNotificationService, notifies per-series not per-instance) — the
@@ -61,7 +62,7 @@ class OwnerLineCreatedNotification implements IReservationNotification
             $repeatLabel = Resources::GetInstance()->GetString($repeatLabelKey);
 
             $text = Resources::GetInstance()->GetString('LineReservationSeriesCreatedMessage', [
-                $reservationSeries->Title(),
+                $title,
                 $reservationSeries->Resource()->GetName(),
                 $start->Format('Y-m-d H:i'),
                 $end->Format('H:i'),
@@ -71,7 +72,7 @@ class OwnerLineCreatedNotification implements IReservationNotification
             ]);
         } else {
             $text = Resources::GetInstance()->GetString('LineReservationCreatedMessage', [
-                $reservationSeries->Title(),
+                $title,
                 $reservationSeries->Resource()->GetName(),
                 $start->Format('Y-m-d H:i'),
                 $end->Format('H:i'),

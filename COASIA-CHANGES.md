@@ -1117,3 +1117,490 @@ bcmath=yes
 - 用獨立 PHP 腳本（`tests/autoload.php` 一樣的 bootstrap 方式）把 `globalheader.tpl` 跟 `notification-preferences.tpl`（未綁定／已綁定兩種狀態各測一次）分別 `fetch()`，確認：Smarty 編譯/渲染都沒有拋例外；`.create-btn` 確認移除、`navCalendarHome`／`sidebarAccount`／帳號選單裡的 `navNotification` 都正確渲染；未綁定狀態下 QR code data URI、加好友按鈕、開始綁定區塊、綁定代碼都有渲染，且測試通知按鈕正確**不**出現；已綁定狀態下綠色狀態、LINE 通知開關、測試通知／解除綁定按鈕都有渲染，且未綁定專屬的 QR 區塊正確**不**出現。
 - 另外寫了一支獨立腳本，用這個專案既有的測試假物件（`TestReservationSeries`、`RepeatWeekly`、`FakeUser` 等）真的組出一個「每週三重複」的預約系列，呼叫 `OwnerLineCreatedNotification::Notify()`，攔截實際要推播出去的文字內容，確認格式正確（含重複頻率、場次數、最後一場日期），不是只憑程式碼邏輯推導。
 - **沒有驗證到的部分**（這個環境沒有可用的登入方式，無法在真瀏覽器裡實測）：帳號選單實際點擊展開/收合、Email／LINE 開關點下去真的送出 ajax 並顯示 toast、測試通知按鈕真的收到 LINE 訊息、解除綁定後頁面真的重新整理顯示新的 QR/代碼、收合側欄時「行事曆首頁」的 tooltip 實際顯示效果。建議之後有機會登入時實測一輪：切換 Email／LINE 開關看 toast 有沒有跳出來、點測試通知看手機有沒有收到、解除綁定再重新走一次 QR 加好友＋傳代碼的完整綁定流程。
+
+## 30. Hover／active 對比修復三件套：側邊欄「行事曆首頁」永久灰底、行事曆事件 hover 被強制變綠、全站按鈕 hover 對比不足
+
+使用者回報「行事曆首頁」按鈕點擊後背景一直是灰的，收合／展開側邊欄都一樣。我先在本機（`docker-compose.dev.yml`，`mark_li` 帳號）用 Claude Browser 工具實際登入重現：一開始以為是 `.sidebar-collapse-toggle`（收合鈕本身）的 `:hover`/`:focus` 沒清乾淨，但實測發現那顆鈕的 CSS 邏輯其實正確（滑鼠移開就會變回白色）——真正卡住的是旁邊的「行事曆首頁」`.sidebar-link`。使用者接著自己查出真正根因並直接給出三處要修的程式碼／檔案／行號。
+
+### 30.1 「行事曆首頁」永久灰底
+
+根因：`tpl/globalheader.tpl:208` 只要目前在總覽頁（`isset($PhysicalResources) || isset($VideoResources)`）就永久加上 `active` class，`Web/css/coasia-theme.css` 原本的 `.sidebar-link.active` 規則把這個 class 綁了一個常駐背景色（`color-mix(in oklab, var(--primary) 10%, white)`）——不是 hover/focus 卡住，是「目前頁面」這個狀態本身就在畫背景。
+
+修法（`Web/css/coasia-theme.css`）：`.sidebar-link.active` 改成 `background: transparent`，只留深藍文字/圖示（`color: var(--primary)`）；另外補一條 `.sidebar-link.active:hover`（3 個 class 疊加，specificity 比 `.sidebar-link.active` 高，不管收合或展開都適用同一份規則）在 hover 時才顯示 `var(--bs-tertiary-bg, #f1f2f6)` 淡灰。收合/展開兩種狀態共用同一份 CSS，沒有另外的 `.app-sidebar.collapsed` 覆寫規則，行為一致。
+
+### 30.2 行事曆事件 hover 被強制變綠
+
+根因：`Web/css/librebooking.css:759` 有一條全站共用、帶 `!important` 的 `.fc-event:hover { background-color: color-mix(in srgb, var(--hiliteReservation) 85%, #fff 15%) !important; }`——不管事件原本是上海的綠色、新加坡的藍紫色，hover 一律被強制染成同一個綠色。這條規則是舊版 `overview.tpl` 也在用的共用規則，不能直接刪，怕動到別的頁面。
+
+修法：不動 `librebooking.css`，改在新版 FullCalendar 頁面做 scoped override。
+
+- `Web/scripts/overview_fullcalendar.js`：`eventDidMount` 把每個事件自己的 `info.event.backgroundColor`／`borderColor` 寫進該事件元素的 CSS 變數 `--event-base-bg`／`--event-base-border`。
+- `Web/css/overview_fullcalendar.css`：新增 `#fullcalendarRoot .fc-event:hover`，用 `color-mix(in oklab, var(--event-base-bg) 86%, black 14%)` 把「事件自己的顏色」加深，而不是換成固定色。因為多了 `#fullcalendarRoot` 這個 ID selector，specificity 比 `librebooking.css` 那條全域規則高，就算兩邊都有 `!important` 也是這條贏（ID 一定贏純 class 組合，跟 `!important` 的 tie-break 無關）。日/週/月三種檢視共用同一個 `.fc-event` 元素跟同一條規則，不用分開處理。
+
+### 30.3 全站按鈕 hover 對比不足 + 補 `:focus-visible`
+
+使用者列的清單：資源選擇器、今天、檢視選單、左右箭頭（`.ghost-btn` 系列）、側邊欄連結、Drawer／事件卡片的圖示鈕、Drawer 的主要儲存鈕、刪除鈕。原本一律用 `var(--bs-tertiary-bg, #f1f2f6)` 當 hover 底色，跟頁面背景太接近，滑過去幾乎看不出來。
+
+改法統一成「往 `--primary` 混色」而不是灰色：
+
+- `Web/css/overview_fullcalendar.css`：`#page-overview-fc .ghost-btn`（涵蓋資源選擇器/今天/檢視選單/左右箭頭圓鈕，因為這些元件本來就共用 `.ghost-btn` class）新增 `#page-overview-fc button:not(:disabled):not(.reservation-icon-button):not(.reservation-primary-button):not(.reservation-btn-text):hover` 等三選一組合規則，hover 變成 `color-mix(in oklab, var(--primary) 14%, white)` 底 + `color-mix(in oklab, var(--primary) 45%, white)` 邊框；同時補 `:focus-visible` 外框，`:not(:disabled)`／`:not(.disabled)` 避免停用按鈕也套 hover。**特別排除** `.reservation-icon-button`／`.reservation-primary-button`／`.reservation-btn-text` 三個 class——這三個是 `<button>` 元素，如果不排除，`#page-overview-fc button:hover` 這條帶 ID 的規則 specificity 會直接蓋掉它們各自原本更講究的 hover（藍色主鈕會被換成跟其他按鈕一樣的淡藍、紅色刪除鈕會被換成藍色），所以另外分開處理。
+- 同一支檔案：`.reservation-icon-button:hover` 改成 `color-mix(in oklab, var(--primary) 12%, white)` 淡藍底；`.reservation-icon-button-danger:hover`（刪除鈕）維持原本的 `#fbe9e7` 淡紅底＋`var(--danger)` 紅字不動（順序排在 `.reservation-icon-button:hover` 後面，equal specificity 靠 source order 覆蓋回紅色）；`.reservation-btn-text:hover`（取消／新增日期等文字鈕）比照淡藍；`.reservation-primary-button:hover`（Drawer 唯一的實心深藍主鈕）原本是 `filter: brightness(0.92)`，改成 `color-mix(in oklab, var(--primary) 85%, black 15%)` 往黑混、明確變成更深的藍（原本那組淡藍/淡紅的「往白混」公式如果套用在這顆本來就是實心 `--primary` 底色的鈕上，會變得更淺而不是更深，方向相反，所以主鈕另外用「往黑混」）。
+- `Web/css/coasia-theme.css`：`.sidebar-link:hover`／`.sidebar-group-toggle:hover`／`.sidebar-link.active:hover`／`.sidebar-collapse-toggle:hover` 一併從 `var(--bs-tertiary-bg)` 改成同一套 `color-mix(in oklab, var(--primary) 14%, white)` 公式，並各自補上 `:focus-visible`（側邊欄用 `outline-offset: -2px` 內縮，避免被 `.app-sidebar` 邊界裁掉；其餘用 `+2px` 外擴，因為這些按鈕四周有留白）。
+- Transition 統一補到 120–160ms 區間（`.ghost-btn`/`.reservation-icon-button`/`.reservation-btn-text`/`.reservation-primary-button` 都用 0.14s，`.sidebar-link` 原本就是 0.12s，維持不動），沒有動到任何 `scale()`（本來就沒有按鈕用 scale 做 hover，不用特別移除）。
+
+### 30.4 驗證
+
+`docker ps` 確認 dev 容器（`librebooking-coasia-app-1`）本來就在跑，直接用 Claude Browser 工具登入 `mark_li` 帳號實測，不用額外啟動服務：
+
+- 側邊欄「行事曆首頁」：重新整理後直接讀 `getComputedStyle`，靜止狀態 `background-color` 確認是 `rgba(0,0,0,0)`（透明）、文字顏色是 `--primary` 深藍——常駐灰底已經沒有了。
+- 行事曆事件：`eventDidMount` 有正確把 `--event-base-bg`/`--event-base-border` 寫進事件元素的 inline style，讀出來的值（如上海會議室 `#b6d9c7`/`#0b8043`）跟該事件實際渲染的 `background-color` 一致；三份 CSS/JS 檔案存回伺服器後用 `fetch()` 直接抓線上 served 的 `coasia-theme.css` 內容比對，跟磁碟上的原始碼逐字相符，排除瀏覽器快取到舊版的可能。
+- `document.styleSheets` 確認兩支改過的 CSS 檔仍能正常解析出上百條規則（沒有語法錯誤把整個 stylesheet 弄壞），頁面 console 沒有任何錯誤訊息。
+
+**沒有驗證到的部分**：hover 狀態下的實際視覺對比（滑鼠移到按鈕上背景真的有沒有變成淡藍色）。Claude Browser 這個工具的分頁沒有被使用者實際「顯示」出來，screenshot 一直回報「the Browser pane is not displayed, so the page is not compositing frames」；用 `element.matches(':hover')`／`document.querySelectorAll(':hover')` 這種不需要畫面合成的方式可以確認滑鼠移上去後 `:hover` 偽類本身真的有觸發，但用 `getComputedStyle()` 去讀「當下算出來的背景色」在這個非顯示狀態的分頁裡不穩定（同一顆按鈕即使用 inline `style="background:red!important"` 強制覆蓋，讀回來仍然是異常的 `oklab(0 0 0 / 0)`，這在真實 CSS 語意下不可能發生，判斷是這個自動化工具本身讀取 computed style 的橋接層在頁面沒有真正合成畫面時的已知限制，不是頁面本身的 bug）。CSS 的 selector specificity／cascade 順序已經用程式碼逐條核對過（`#fullcalendarRoot` 的 ID selector 一定贏 `librebooking.css` 的純 class `!important`；`.sidebar-link.active:hover` 的 3-class specificity 一定贏 `.sidebar-link.active` 的 2-class），邏輯上站得住，但建議使用者之後在自己實際打開的瀏覽器視窗裡再肉眼確認一次三個修復點的 hover 視覺效果。
+
+## 31. 政策變更：所有預約禁止跨日
+
+使用者原本想把快速新增預約的彈窗改成貼近附圖的 Google Calendar 風格（含「跨日」徽章＋天數/小時數摘要、可用性即時檢查、邀請參與者），但看過附圖後直接決定改政策——**所有會議一律不能跨日**，於是這輪範圍縮小成單純的「同一天」限制（附圖裡的「跨日」徽章／時長摘要因此也不需要做了，可用性檢查／邀請參與者這兩個原本待確認範圍的新功能也一併擱置）。
+
+### 31.1 伺服器端：重用既有規則，只是拿掉每個資源自己的開關
+
+`lib/Application/Reservation/Validation/ResourceCrossDayRule.php` 原本就有「開始/結束是否同一天」的檢查，但只在該資源 `GetAllowMultiday()` 為否時才生效——換句話說是**逐資源可設定**的規則，不是全站規則。既然使用者要的是「所有會議」都不行，直接把 `foreach ($reservationSeries->AllResources() as $resource) { if (!$resource->GetAllowMultiday()) {...} }` 這層資源迴圈/開關拿掉，改成不管任何資源的 `AllowMultiday` 設定，一律做同一天檢查。這條規則本來就同時掛在 `PreReservationFactory::GetAddUpdateRuleProcessor()`（新建＋編輯都會跑），而新版 Quick Create／Drawer 的 ajax 端點跟舊版 `reservation.php` 表單本來就共用同一套 `ReservationValidationFactory` → `PreReservationFactory`，所以這一處修改就同時涵蓋所有建立/編輯預約的入口，不用個別修 3 支不同的表單。資源管理頁裡原本用來設定「允許跨日」的欄位/UI 沒有動——現在對跨日檢查沒有作用了，但完整移除牽涉到資料庫欄位／管理頁 UI，超出這次「調整成同一天」的範圍，先保留成閒置欄位。
+
+`lang/zh_tw.php` 原本沒有 `MultiDayRule` 這個 key 的繁中翻譯（會 fallback 顯示 `en_us.php` 的英文，跟 §29.8 提過的翻譯繼承陷阱是同一種情況）——這條規則現在會被觸發得更頻繁，所以順手補上：「%s 不允許跨日預約，開始與結束時間必須在同一天。」
+
+### 31.2 前端：乾脆讓「跨日」在 UI 上不可能發生，不是靠 validation 擋
+
+只在後端擋的話，使用者填完整張表單、按下建立才會看到錯誤，體驗很差。改成 UI 層面直接拿掉「選不同結束日期」這個可能性：
+
+- `tpl/Overview/overview_fullcalendar.tpl`：Quick Create 彈窗原本有 `#qcStartDate` 和 `#qcEndDate` 兩個日期欄位（中間用 `–` 分隔），拿掉 `#qcEndDate`，只留一個日期欄位＋開始/結束兩個時間下拉。Drawer（`更多選項`／編輯用的完整編輯器）原本也是兩排「日期＋時間」（`#rdStartDate`+`#rdStartTime`、`#rdEndDate`+`#rdEndTime`），改成一排日期（新的單一 `#rdDate`）＋一排開始時間–結束時間（中間重用 Quick Create 已經有的 `.qc-time-dash` 分隔線樣式，另外在 `overview_fullcalendar.css` 補了一條 `.reservation-row .qc-time-dash` 讓這個 class 在 Drawer 的排版脈絡下也有顏色/間距，因為它原本只 scope 在 `#quickCreateModal` 底下）。
+- `Web/scripts/overview_fullcalendar.js`：
+  - `pending`（Quick Create 的暫存狀態）跟 Drawer 的 `drawerStartEndValues()` 都改成 `endDate` 永遠等於 `startDate`（`openQuickCreate()`、`#qcStartDate` 的 change handler、`drawerStartEndValues()` 這幾個地方統一），不再有「使用者把結束日期調到比開始日期晚」這條路徑，原本處理這種分歧的程式碼（`refreshTimeUI()` 裡的 `sameDay` 分支、`startPicker` 的 duration-preserve 例外分支）一併刪掉，因為現在永遠是同一天，那些分支已經是死代碼。
+  - 在行事曆格線上拖曳選取時段（`select` callback）原本容許使用者橫跨欄位拖出一個跨日範圍（例如週檢視裡從週三 22:00 拖到週四 02:00）並把兩個日期分別帶進 Quick Create——現在改成偵測到 `info.start`/`info.end` 落在不同日期時，直接把選取範圍收斂回開始那一天的 23:30 結束，不再把跨日的拖曳結果帶進彈窗。
+  - `validateDrawerTimes()` 因為 `startDate`/`endDate` 保證同一天，簡化成只比較時間本身（`v.endTime <= v.startTime`），不用再比較完整的日期+時間字串。
+
+### 31.3 驗證
+
+- `docker exec ... php -l` 確認 `ResourceCrossDayRule.php`／`lang/zh_tw.php` 語法正確。
+- 改完 `.tpl` 忘記先清 `tpl_c/`，第一次重新整理時頁面上 `#qcEndDate`／`#rdStartDate`／`#rdEndDate` 這些理論上已經拿掉的元素竟然還在——[[project-coasia-dev-gotchas]] 提過的老陷阱又踩了一次，`docker exec librebooking-coasia-app-1 sh -c "rm -rf /var/www/html/tpl_c/*"` 清掉編譯快取後重新整理，確認 `qcEndDate`／`rdStartDate`／`rdEndDate` 都已經從 DOM 消失、新的 `rdDate` 存在。
+- 全站 grep 確認程式碼裡沒有任何檔案還在引用 `qcEndDate`／`rdStartDate`／`rdEndDate` 這三個舊 id。
+- 頁面 console 沒有錯誤訊息（`overview_fullcalendar.js` 改動後仍正常解析執行，jQuery handler 有正常註冊，登入/導覽功能照常）。
+- **沒有驗證到的部分**：實際在行事曆上拖曳出一個跨日選取，確認真的會被收斂成同一天結束於 23:30，而不是被擋掉或整個沒反應——這個環境的自動化瀏覽器分頁沒有被「顯示」出來（跟 §30.4 同一個限制），`left_click_drag` 這類需要真實像素座標的手勢動作在沒有先成功 screenshot 的情況下會直接被工具拒絕，嘗試改用 JS 手動 dispatch mousedown/mousemove/mouseup 合成事件也因為滑鼠落點常常對到既有的預約事件卡片而非空白格線，沒能穩定重現。這段 clamp 邏輯本身很單純（純字串日期比較＋條件覆寫），已經逐行看過程式碼確認邏輯正確，但建議使用者實際在自己瀏覽器裡拖一次跨日的時段，確認彈窗跳出來時真的被收斂在同一天、而不是顯示一個奇怪的時間範圍。
+
+## 32. Quick Create 彈窗重構：Grid 版面、單一資源選擇器、參與者導流、統一空標題顯示
+
+使用者上一輪先給了一張 Google Calendar 風格的 Quick Create 彈窗截圖，看過現況後決定「先只做同一天限制」（見 §31）；這輪回頭附上同一張截圖，但這次給的是逐項的 CSS/HTML 規格（不是要求評估），明確要求「直接重構 markup 和 CSS，不要繼續用 margin 或只刪欄位修補」。
+
+### 32.1 Grid 版面取代 margin/padding 拼湊
+
+`tpl/Overview/overview_fullcalendar.tpl` 的 `#quickCreateModal` 整塊重寫：每一列統一是 `.qc-grid-row`（`.qc-icon` 32px＋`.qc-content` 1fr 的兩欄 grid），標題列雖然沒有圖示，也放一個空的 `<div aria-hidden="true"></div>` 佔住圖示欄，讓標題底線、日期時間、資源選擇器、參與者、說明欄的左邊界完全對齊（用 `getBoundingClientRect()` 量過，全部 `left:438 right:880`，跟規格要求一致）。叉叉關閉鈕改成 `position:absolute` 完全脫離 grid（`Web/css/overview_fullcalendar.css`），標題輸入框拿掉原本因為要閃避叉叉而加的 `padding-right:40px`。
+
+### 32.2 單一資源選擇器取代分頁籤
+
+拿掉 `#qcResourceTabs`（實體／視訊兩顆分頁籤按鈕）＋舊的 `TimeDropdown` 陽春下拉，改成跟工具列左側「資源選擇器」完全同一套元件（`.resource-picker`／`.resource-picker-trigger`／`.resource-picker-panel`／`.resource-picker-item` 等 class，樣式已經在 `overview_fullcalendar.css` 的 `#page-overview-fc` 範圍內定義好，這個 Modal 本來就是 `#page-overview-fc` 的子孫，直接繼承那套樣式）：一個帶顏色圓點的觸發鈕＋下拉面板裡有搜尋框＋依「實體會議室／視訊會議」分組。因為是彈窗自己的獨立選擇（跟工具列目前正在看哪個會議室的行事曆是兩件事），JS 端另外寫了一份平行的 `initQcResourcePicker()`／`updateQcResourcePickerTrigger()`（`Web/scripts/overview_fullcalendar.js`），操作 `pending.resourceId`、不是工具列那份操作 `selectedResourceId` 的版本；`.qc-resource-picker` 這個外加 class 只覆寫寬度相關的樣式（全寬、44px 高、下拉面板貼齊觸發鈕寬度），其餘全部繼承共用樣式。
+
+**過程中抓到一個真的的 bug**：資源選擇器選單裡點選一個新資源時，一開始只呼叫了 `updateQcResourcePickerTrigger()`（更新標籤/圓點），沒有連帶呼叫 `refreshResourceUI()` 把 `#qcMoreOptions` 的 `href`（純 fallback 用，正常點擊會被 JS 攔截走 Drawer，不會真的照 href 導航）一併更新——用瀏覽器實測「切換資源→檢查更多選項連結」這個流程時抓到 `rid=` 還停在切換前的舊資源，已經改成呼叫完整的 `refreshResourceUI()`。
+
+### 32.3 標題留白、參與者導流、Cancel 文案：翻譯字串盤點
+
+- 標題輸入框 placeholder 從共用的 `NewReservation`（新增預約）改用專門新增的 `AddTitle`（新增標題），避免跟 Drawer 標題欄共用的既有字串混在一起改壞其他地方。
+- 建立後標題為空的顯示，原本三個管道各自用不同的臨時方案（`OverviewFullCalendarEventsPresenter.php` 內寫死中文字面量 `'未命名預約'`、Email／LINE 完全沒有處理，直接把空字串塞進範本），且既有的兩個「無標題」字串（`NoTitleLabel`＝「(沒有標題)」，用在 9 個舊頁面；`Untitled`＝「未命名預約」，只用在舊版 `overview.tpl`／`my-meetings.tpl`）文字都跟使用者這次指定的「（無標題）」不一樣、改任一個既有字串都會連帶影響沒被要求的其他頁面。改成新增一個專用字串 `NoReservationTitle`＝「（無標題）」，只接在使用者明確點名的四個地方：`OverviewFullCalendarEventsPresenter.php`（同時覆蓋行事曆色塊跟事件卡片，因為兩者讀的是同一個 `title` 欄位）、`lib/Email/Messages/ReservationEmailMessage.php`（確認信本文 + ics 附件 SUMMARY，各一處 fallback）、`lib/Email/Messages/ReminderEmail.php`（提醒信）、`lib/Application/Reservation/Notification/OwnerLineNotification.php`（LINE 推播，一般/重複兩種訊息共用同一個算好的 `$title`）。**刻意不改**`Domain/ReservationSeries.php::Title()` 這個 getter 本身——如果在那裡塞入顯示用的假字串，Drawer 編輯既有「無標題」預約時，`rdTitle` 輸入框會被這串假文字填滿而不是維持真正的空白＋placeholder，使用者得先手動刪掉「（無標題）」才能打真正的標題，資料庫裡存的東西也不該包含這段顯示用文字。
+- 「新增參與者」：Quick Create 本來就不能存參與者（只有 Drawer 能，見 §21），這顆按鈕點下去不是無反應的假按鈕，而是把 `buildQuickCreateDraft()`（從原本 `#qcMoreOptions` 的點擊處理常式裡抽出來的共用函式，兩顆按鈕現在共用同一份 draft 組裝邏輯）目前填的內容原封不動帶進 Drawer 的新增模式，跟「更多選項」走的是同一條路。
+- Footer 的「建立」改成「建立預約」（改用既有的 `CreateReservation` 字串鍵，沒有新增字串，也沒有動到別處共用的 `Create` 鍵）；新增的「取消」按鈕本來想直接用既有的 `Cancel` 鍵，但實測發現這個鍵在 zh_tw 裡其實是「退出」（整站沿用同一個鍵，包括叉叉關閉鈕的 `aria-label`），改用另一個既有鍵會連帶影響那些地方——另外新增一個 `CancelAction`＝「取消」專門給這顆按鈕，`.reservation-btn-text`（Drawer 已經在用的次要按鈕樣式）直接重用，沒有另外寫一份新樣式。
+
+### 32.4 驗證
+
+用 Claude Browser 工具實際登入 `mark_li`，這次改用「JS 直接 dispatch mousedown/mouseup 在正確座標」的方式在行事曆空白格上真的觸發 FullCalendar 的 `select` callback（不是只讀程式碼），端到端跑過一輪：
+
+- 點擊空白格 → Quick Create 真的跳出來，日期/時間/資源全部照點擊位置正確帶入（例如點在「上海」欄的 20:00 格，跳出來的彈窗日期=該天、開始=下午8:00、結束=下午8:30、資源標籤=「上海 Shanghai」、圓點顏色=`#0b8043`）。
+- 資源選擇器：點開 → 搜尋「taipei」正確過濾成只剩台北 → 點選後標籤/圓點正確換成台北的藍色、`#qcMoreOptions` 的 href 也正確換成台北的 `rid`（就是上面 32.2 抓到並修掉的那個 bug）。
+- 「新增參與者」：填了標題/說明後點擊，Drawer 正確以新增模式打開，標題、說明、日期、資源全部從 Quick Create 帶過去，Quick Create 彈窗同時關閉。
+- 標題留空、按「建立預約」：`ajax/reservation_save.php` 回 200，行事曆重新抓取事件後，這筆新預約跟原本畫面上其他好幾筆本來就是空標題的舊預約全部顯示「（無標題）」（confirms `OverviewFullCalendarEventsPresenter.php` 的 fallback 對所有空標題事件都生效，不只是新建的這筆）；點開事件卡片一樣顯示「（無標題）」；再點「編輯」進 Drawer，`rdTitle` 這個輸入框的實際 value 讀出來是空字串、不是「（無標題）」這串文字——確認資料庫裡存的還是乾淨的空值，只有顯示層套用了 fallback，跟 32.3 那條「不改 domain getter」的判斷一致。
+- `document.styleSheets`／`php -l`（`OverviewFullCalendarEventsPresenter.php`／`ReservationEmailMessage.php`／`ReminderEmail.php`／`OwnerLineNotification.php`／`lang/zh_tw.php`／`lang/en_us.php`）全部語法正確；全程 console 沒有任何錯誤訊息。
+- 新增的三個翻譯鍵（`NoReservationTitle`／`AddTitle`／`AddParticipantsAction`／`CancelAction`）第一次測試時全部顯示成「?」——不是打字打錯，是 §23.8 記錄過的同一個 opcache 陷阱（`opcache.validate_timestamps=Off`，改 `.php` 檔案存檔後容器不會自動重載），`docker compose -f docker-compose.dev.yml restart app` 重啟後才正確顯示中文；`.tpl` 的部分照樣先清一次 `tpl_c/`（§31.3 才踩過的同一個陷阱，這次沒有再漏）。
+
+**沒有驗證到的部分**：整個彈窗的實際視覺效果（圓角、陰影、圖示對齊的視覺觀感、hover 狀態顏色）——原因跟 §30.4／§31.3 一樣，這個自動化瀏覽器分頁沒有被「顯示」出來，拿不到 screenshot。這次改用 `getBoundingClientRect()` 量過每一列的實際 left/right/width（見 32.1），數字上完全對齊規格要求，但那是「盒模型算對了」的證據，不是「看起來對不對」的證據，建議使用者自己在瀏覽器裡打開看一次實際畫面。
+
+## 33. 側邊欄重新配色：CoAsia Blue 正式品牌色（展開／收合皆適用）
+
+使用者提供正式品牌規格（背景 `#1F3159`、主要文字/圖示白色、次要文字 `#B8C2D6`、分隔線/hover/active 用不同透明度的白、focus 外框 `#9CB7E2`、選中日期維持綠色不變）跟一份新 Logo 檔案，要求側邊欄展開跟收合兩種狀態都改用這套配色，不要漸層。
+
+### 33.1 Logo：新檔案＋新變數，不覆蓋既有的
+
+使用者提供的 `D:\桌面\文件集\Logo\Logo\white.png`（238×78，帶透明背景的白色字標）複製進 `Web/img/custom-logo-white.png`——**沒有**覆蓋掉既有的 `Web/img/custom-logo.png`（那支是 `$LogoUrl` 目前在用的檔案，登入頁、維護頁、以及這個側邊欄以外的地方都靠它，蓋掉會連帶壞掉那些淺色背景頁面）。`Pages/Page.php` 比照 `$LogoUrl` 已經有的 `findCustomFile()` 呼叫方式，另外組一個新變數 `$SidebarLogoUrl`（找 `custom-logo-white.{png,gif,jpg}`，找不到則 fallback 回剛複製的檔案路徑），`tpl/globalheader.tpl` 的 `.sidebar-brand-logo-full` 改吃這個新變數，`$LogoUrl` 本身完全沒動。
+
+### 33.2 CSS：新增一組 `--sidebar-*` token，取代整個側欄原本用的淺色系數值
+
+`Web/css/coasia-theme.css` 的 `:root` 裡新增 7 個變數（`--sidebar-bg`／`--sidebar-text`／`--sidebar-text-secondary`／`--sidebar-divider`／`--sidebar-hover`／`--sidebar-active`／`--sidebar-focus`，數值照使用者給的規格），然後把側欄相關的每一條規則（`.app-sidebar`／`.sidebar-brand`／`.sidebar-brand-company`／`.sidebar-user`／`.sidebar-user-name`／`.sidebar-collapse-toggle`／`.sidebar-toggler`／`.sidebar-footer`／`.sidebar-link`／`.sidebar-group-toggle`／`.sidebar-chevron`／`.sidebar-sublink`／捲軸 thumb 顏色）原本寫死的淺色 hex（`#fff`／`#3c4043`／`#1c2333`／`#6c7488`／`#9aa1b3`／`#4b5165`／`#c7cbd6`）跟 `var(--primary)`／`var(--bs-tertiary-bg)`／`var(--gcal-border)` 全部換成新 token（全站 grep 過一次 `coasia-theme.css`，確認除了跟側欄無關的 `--primary-disabled` 定義本身以外，沒有殘留的舊色值）。`--gcal-today-accent`（迷你月曆選中日期用的綠色）刻意沒有改，維持原樣。
+
+- `.sidebar-link.active`（「行事曆首頁」目前頁面的常駐狀態，§30 剛把它從「常駐灰底」改成「hover 才顯示」）這次再改一次：背景固定用 `--sidebar-active`（半透明白），文字/圖示走 `.sidebar-link` 的白色基礎規則,不用再額外覆寫顏色——是 §30 修的那個 bug 在新配色下的自然延伸,不是走回頭路。
+- `.sidebar-user`（使用者頭像/名稱那顆按鈕）原本就沒有寫 `border`,使用者說的「黑色外框」實際上是瀏覽器對沒設定 `:focus-visible` 的 `<button>` 給的預設黑色 focus 外框——這次補上 `:focus-visible { outline: 2px solid var(--sidebar-focus); }`,順便解決。
+- `.sidebar-divider`（迷你月曆跟下面選單中間那條分隔線的 `<div>`）**原本整個網站都沒有任何一條 CSS 規則真的畫出這條線**（只有收合時 `display:none` 的規則,沒有展開時的樣式),等於一直是個 0 高度的隱形空 div。既然使用者規格明確指定了分隔線顏色,順便把它補上真正的樣式（1px 高、`--sidebar-divider` 色)。
+- 迷你月曆的樣式定義其實不在 `coasia-theme.css`,是在頁面專屬的 `overview_fullcalendar.css`（跟舊版 `overview.css` 有重複的一份,兩個頁面互斥載入,§16 就記錄過這個既有的重複)——這次只改了 `overview_fullcalendar.css` 那份（目前「行事曆首頁」實際在用的頁面),沒有動 `overview.css`——那個頁面的側邊欄現在沒有任何導覽連結指向它,是個孤兒頁面,維持專案既有「不動 overview.css」的慣例。非當月日期用 `color-mix(in oklab, var(--sidebar-text-secondary) 55%, var(--sidebar-bg))` 往深藍背景混,而不是隨便挑一個新的灰階,確保「降低亮度但仍可讀」是從既有色板算出來的,不是憑感覺加一個新色號。
+
+### 33.3 收合寬度：規格要求 80–86px，原本是 72px
+
+`.app-sidebar.collapsed { width: 72px; }` 是既有值,不是這次配色改動本身的一部分,但使用者這次明確要求「寬度約 80–86px」,改成 84px（連帶更新了兩處提到「72px」舊數字的註解,一處在這支 CSS,一處在 `globalheader.tpl`)。收合狀態下每個圖示（收合按鈕/頭像/行事曆首頁/登出）能不能維持同一條水平置中線,靠的是既有的 flex `align-items:center`／`justify-content:center` 規則,不是寫死的 margin 數字,所以寬度改變後不需要另外調整置中邏輯。
+
+### 33.4 展開/收合完成後呼叫 FullCalendar `updateSize()`
+
+原本的機制是 `notifyLayoutChanged()` 只 dispatch 一個合成的 `window resize` 事件,靠 FullCalendar 自己預設開著的 `windowResize` 監聽器去間接偵測並重新量測——這次改成`Web/scripts/overview_fullcalendar.js` 在 `calendar.render()` 之後多存一份 `window.overviewFullCalendarInstance = calendar;`,`notifyLayoutChanged()` 先直接呼叫 `window.overviewFullCalendarInstance.updateSize()`（如果存在的話),原本的合成 resize 事件保留不動（其他程式碼可能還依賴這個通用信號,留著無害)。在沒有行事曆的其他頁面上,`window.overviewFullCalendarInstance` 是 `undefined`,這段程式碼原本就有 guard,維持「在沒有行事曆的頁面上是無害 no-op」這個既有性質。
+
+### 33.5 驗證
+
+用 Claude Browser 工具登入 `mark_li` 實測,這次過程中遇到（也解開了）一個新的環境限定假象：切換收合狀態後量 `#appSidebar` 的寬度,`classList` 正確顯示 `collapsed`、CSS 規則本身用 `element.matches()` 直接確認過確實命中,但 `getBoundingClientRect().width` 一直讀回原本展開的 240px,像是規則完全沒生效。逐步排除了「規則被覆寫」「有更高 specificity 的規則」等可能性後,直接把 `transition` 強制設成 `none` 重新量一次,寬度立刻正確變成收合值——證實這是 §30/§31 那個「分頁沒有被顯示、不合成畫面」限制的另一種表現形式：**CSS transition 在沒有真正跑合成/繪製流程的分頁裡永遠不會真的播放完成**,量到的一直是動畫「起點」而不是「終點」的數值,不是側欄程式碼本身有問題。之後所有牽涉到收合/展開寬度變化的測試,都先注入一段 `* { transition: none !important; }` 跳過動畫,直接量測最終狀態:
+
+- 展開狀態：`getComputedStyle(#appSidebar).backgroundColor` = `rgb(31, 49, 89)`（即 `#1F3159`,精確符合)。新 Logo 正確載入,顯示尺寸 `120×39.3px`（跟原始 238:78 比例完全吻合,沒有被全站共用的 `img.logo{max-height:36px}` 規則意外壓扁——這是過程中抓到的第二個真的 bug,已經在 `.sidebar-brand img.logo` 補上 `max-height:none` 覆寫掉那條全站規則)。Logo 右邊界（136px）跟收合按鈕左邊界（200px）之間有 64px 淨空,不重疊。迷你月曆文字/選中日期分別讀到白色跟原本的綠色 `rgb(52,168,83)`,分隔線 `rgba(255,255,255,0.12)` 高度 1px。
+- 收合狀態：寬度確認 84px；收合按鈕、頭像、「行事曆首頁」圖示、「登出」圖示四個元素的水平中心點全部落在同一個 x 座標（42px,正好是 84÷2),Logo／使用者名稱／迷你月曆的 `display` 都正確變成 `none`。
+- 切換收合/展開時 monkey-patch `window.overviewFullCalendarInstance.updateSize`,確認點擊收合按鈕會真的呼叫到它。
+- `localStorage.getItem('sidebar-collapsed')` 在重新整理後正確維持上次的值（這段機制是既有的、這次沒有改動,只是確認沒有被連帶弄壞)。
+- `php -l` 確認 `Pages/Page.php` 語法正確；全程 console 沒有任何錯誤訊息。
+
+**沒有驗證到的部分**：跟前幾輪一樣,實際的視覺觀感（新 Logo 在深藍底上好不好看、白色文字/圖示的對比度讀起來是否舒服、圓角跟間距的視覺節奏)沒辦法用 screenshot 確認,只驗證了色值/尺寸/DOM 結構在數字上符合規格。也沒有跑「更多選項」相關的任何檢查（使用者這輪明確說暫時不處理),以及使用者要求的「只檢查側欄展開/收合/重新整理/行事曆尺寸」以外的功能（例如通知設定子選單、admin 專屬選單的視覺)沒有特別花時間逐一肉眼核對,只確認了色值 token 有正確套用到那些規則上。
+
+## 34. 側欄再改一輪：固定尺寸變數化、恢復「＋新增預約」、通知設定移出帳號選單、淺色/深藍雙主題
+
+使用者這次給了一份更完整的規格,把 §33 那輪「只做深藍一種配色」的側欄，改成「淺色/深藍兩套可切換的配色」，同時要求固定尺寸（用兩個 CSS 變數）、恢復先前拿掉的「＋新增預約」按鈕、把通知設定從帳號選單搬到側欄主列表。明確限定「這次只調整側欄，不要修改行事曆與預約邏輯」。
+
+### 34.1 尺寸變數化
+
+`Web/css/coasia-theme.css` 的 `:root` 新增 `--sidebar-expanded-width: 285px`／`--sidebar-collapsed-width: 85px`，`.app-sidebar`／`.app-sidebar.collapsed` 的 `width` 改成讀這兩個變數（原本分別是 240px／84px，84px 又是 §33 那輪從最早的 72px 改來的）。全站 grep 過 `calc(`／`240px` 的使用，確認除了 `.app-sidebar` 自己的寬度以外，沒有其他地方（含 `.app-content` 的主內容偏移）用固定數字或 calc() 算過側欄寬度——`.app-content{flex:1}` 本來就是純 flexbox 自動吃剩餘空間，沒有另外寫死的偏移量需要改。收合狀態下所有圖示按鈕（收合鈕、頭像、新增預約、行事曆首頁、通知設定、登出）尺寸從 36px 統一改成 44px，比對半徑後六個元素水平中心點都落在同一個 x 座標，符合「所有圖示水平置中、間距一致」。Logo 顯示寬度從 §33 的 120px 改成 108px（`height:auto` 維持比例不變，同一條 `max-height:none` 覆寫全站 `img.logo{max-height:36px}` 規則的作法沿用）。
+
+Header／brand row 高度**維持原本的 64px，沒有改成規格提到的「約78px」**——這是一個判斷取捨：這個 64px 跟主畫面行事曆工具列（`overview_fullcalendar.css` 的 `.cal-toolbar`）共用同一條高度基準線做視覺對齊，改側欄這邊的高度會連帶讓兩者的橫向接縫對不齊，而使用者這次明確限定「只調整側欄，不要修改行事曆」——調整工具列去配合新高度會超出這次範圍。把「沿用原版」理解成「維持現狀不改」而不是「換成新的 78px 目標值」。如果使用者原意就是要真的改成 78px（連帶也要調整行事曆工具列），麻煩明確說一聲，下一輪再一起處理兩邊。
+
+### 34.2 恢復「＋新增預約」
+
+`git show` 挖出這顆按鈕在 §29 被拿掉前的原始 CSS（`.create-btn`：`height:var(--gcal-control-height)`即40px、`border-radius:100px` 膠囊、`padding:0 16px`、`width:100%` 沿用 `.sidebar-nav` 既有的 12px 左右內縮，這幾點都照抄，不是憑印象重新設計。唯一的差異：舊版顏色寫死 `background:var(--primary); color:#fff`；這次改成讀 `--sidebar-create-btn-bg`/`-text` 這兩個新 token（隨淺色/深藍主題切換，兩個顏色互換——淺色側欄深藍底白字、深藍側欄白底深藍字，正好符合使用者這次規格給的顏色）。
+
+行為上刻意**沒有**照抄舊版直接連到 `reservation.php` 的行為——使用者這次明確要求「點擊後開啟目前同一個快速預約 Modal」。這顆按鈕本身活在 `globalheader.tpl`（全站共用），但 Quick Create Modal 只存在於行事曆首頁自己的頁面，兩者需要一座橋：`Web/scripts/overview_fullcalendar.js` 在 `calendar.render()` 之後多曝露一個 `window.overviewFullCalendarOpenQuickCreate` 函式（預設值＝今天、目前選定的資源、無條件捨去到下一個半小時整點——跟在行事曆空白處點一下會產生的輸入完全同一套），globalheader.tpl 的按鈕點擊時先檢查這個函式存不存在：存在就呼叫它並 `preventDefault()`；不存在（也就是在行事曆首頁以外的任何頁面點這顆按鈕）就讓原本的 `href="{$Path}{Pages::RESERVATION}"` 正常導航過去——等於保留了舊版「連到經典表單」的行為，只是變成「沒有快速建立彈窗時的 fallback」，不是唯一路徑。這是這次唯一碰到 `overview_fullcalendar.js` 的地方，其餘行事曆/預約邏輯完全沒動。
+
+### 34.3 通知設定移出帳號選單
+
+`#navNotification` 從帳號選單的 `#sidebarAccount` 子選單搬到主導覽，緊接在「行事曆首頁」後面，**共用同一個 `.sidebar-link` class**（不是另外寫一份長得很像的樣式）——列高/圖示欄寬/文字起點/字級/hover/active 全部自動保證一致，不需要另外比對數字。圖示用 `bi-bell`。帳號選單原本只有這一條連結，搬走之後改成只放新的淺色/深藍切換器（見 34.4），符合「帳號選單只新增這個外觀設定」。
+
+### 34.4 淺色／深藍雙主題
+
+把 §33 那輪定義在 `:root` 的單一組 `--sidebar-*` token，改成兩組分別掛在 `.app-sidebar.sidebar-theme-light` 跟 `.app-sidebar.sidebar-theme-dark` 底下（數值照使用者這次分別給的規格）——除了背景色本身，其餘所有引用 `var(--sidebar-bg)`／`var(--sidebar-text)` 等等的既有規則完全不用重寫，切換 class 就會整組換膚。額外加了 `--sidebar-create-btn-bg`/`-text` 兩個 token（給 34.2 的新增預約按鈕用，兩個主題故意跟主背景反色，讓這顆按鈕在任何一種主題下都還是視覺上最突出的那個）。
+
+Logo 也是兩張圖同時放在 markup 裡（`.logo-theme-light` 用既有的 `$LogoUrl`／彩色 CoAsia logo，`.logo-theme-dark` 用 §33 已經複製好的 `$SidebarLogoUrl`／白色 logo），靠 `.app-sidebar.sidebar-theme-light .logo-theme-light{display:block}` 這類 CSS 規則二選一顯示，全程沒有用 JS 去改 `img.src`。帳號選單裡的切換器是一個真正的 segmented control（`.sidebar-theme-switcher-control` 當作淺灰/半透明白的軌道，`.sidebar-theme-option.active` 用 `--sidebar-active` 這個 token 當作選中底色——特別留意過不能直接用 `--sidebar-bg` 當選中底色，深色主題下 `--sidebar-bg` 本身就是側欄背景色，選中的那顆按鈕會直接融進背景裡看不見，改用 `--sidebar-active`（半透明白疊加）在兩種主題下都能穩定「比軌道亮」)。
+
+`localStorage` 存取比照既有的收合狀態機制：`<aside>` 標籤內第一段 `<script>` 在任何內容渲染前就讀出 `sidebar-theme` 值並把對應 class 加到 `#appSidebar` 上（沒有記錄時不加任何 class，直接落回 `coasia-theme.css` 把 `.app-sidebar`／`.app-sidebar.sidebar-theme-light` 兩個選擇器綁在一起的預設值——也就是規格要求的「沒有紀錄時預設淺色」)；底部另一段 `<script>` 負責點擊切換＋寫回 `localStorage`＋同步兩顆按鈕的 `.active`/`aria-pressed`。全程只用 `classList.toggle()`，沒有任何一行手動寫 `element.style.xxx = ...`。
+
+### 34.5 驗證
+
+用 Claude Browser 工具登入 `mark_li`，比照 §33 學到的教訓，一開始就先注入 `* { transition: none !important; }` 跳過這個分頁量不到的動畫過渡：
+
+- 展開＋淺色（無 localStorage 記錄的預設狀態）：`sidebarClass` 正確只帶 `sidebar-theme-light`；寬度 285px；背景 `rgb(255,255,255)`；「新增預約」／「行事曆首頁」／「通知設定」三個橫向導覽項目的 `left`/`right`/`height` 完全相等（`left:12 right:263 height:40`），證實共用同一個元件、不是分別調出來的數字；「新增預約」背景 `rgb(31,49,89)` 文字白色（符合淺色側欄規格）；頭像 38×38；彩色 Logo 顯示、白色 Logo 隱藏，Logo 渲染尺寸 108×36，跟來源檔案 591:197 的真實比例換算完全吻合（無壓扁）。
+- 點擊深藍選項：`sidebarClass` 換成只帶 `sidebar-theme-dark`；背景變 `rgb(31,49,89)`；「新增預約」背景/文字反色成白底深藍字；兩張 Logo 顯示狀態互換；`localStorage.getItem('sidebar-theme')` 存成 `'dark'`；兩顆切換鈕的 `.active`/`aria-pressed` 正確互斥切換。重新整理後（不用再點一次）維持深藍，證實 pre-paint script 生效。
+- 收合＋深藍：寬度 85px（精確符合）；收合鈕/頭像/新增預約/行事曆首頁/通知設定/登出六個元素的水平中心點全部是同一個 x 座標（43px，即 85÷2 四捨五入）；頭像/新增預約/行事曆首頁圖示尺寸全部 44×44；Logo／使用者名稱／迷你月曆的 `display` 都變成 `none`；「新增預約」跟「通知設定」的 `title` 屬性都有正確文字（原生瀏覽器 tooltip 靠這個，沒有另外做 tooltip 元件）。
+- 點擊「新增預約」：實際觸發 `window.overviewFullCalendarOpenQuickCreate()`，Quick Create Modal 真的打開，日期/時間/資源正確帶入「今天、目前時間無條件進位到下個半小時整點、目前選定的資源」。
+- 全站 grep 確認 `id="navNotification"` 不會在實際渲染的 DOM 裡重複出現（帳號選單裡搬走了；`tpl` 裡另一個同名 id 落在既有的 `{if false}` 死代碼區塊裡，本來就不會渲染，不是這次改動造成的重複)。
+- `php -l` 確認兩支語言檔語法正確；全程 console 沒有任何錯誤訊息。
+
+**沒有驗證到的部分**：實際視覺觀感（兩種主題切換時的過場動畫、色彩對比讀起來舒不舒服）一樣拿不到 screenshot，只驗證了色值/尺寸/DOM 結構在數字上符合規格；也沒有測試新增預約按鈕在「行事曆首頁以外的頁面」點擊時，fallback 導向 `reservation.php` 的路徑（邏輯上這段沒有依賴任何 `window.overviewFullCalendarOpenQuickCreate` 判斷式以外的東西，但沒有實際切到別的頁面點一次確認）。
+
+## 35. 側欄只留淺色版本，拿掉深藍側欄跟外觀切換功能
+
+§34 才剛做完淺色/深藍雙主題，使用者這次直接要求整組拿掉，只留淺色。範圍是徹底移除，不是先隱藏開關——把 §34 新增的東西逐一清乾淨：
+
+- `Web/css/coasia-theme.css`：`.app-sidebar.sidebar-theme-light`／`.app-sidebar.sidebar-theme-dark` 兩組 `--sidebar-*` token 合併回 `:root` 一組（淺色那組數值），移除深藍那組；`.logo-theme-light`/`-dark` 的顯示切換規則拿掉，`.sidebar-brand img.logo` 改回單純 `display:block`；整段 `.sidebar-theme-switcher-label`／`.sidebar-theme-switcher-control`／`.sidebar-theme-option` 相關規則刪除；`.sidebar-user`／`.sidebar-user:hover`／`.sidebar-user:focus-visible`／`.sidebar-user .sidebar-chevron`／`.sidebar-user[aria-expanded]` 這些原本因為它是「帳號選單觸發鈕」而存在的互動樣式，也一併拿掉（原因見下）。
+- `tpl/globalheader.tpl`：拿掉 `<aside>` 開頭那段讀 `localStorage.getItem('sidebar-theme')` 的 pre-paint script；Logo 從兩張圖（`$LogoUrl`＋`$SidebarLogoUrl`）改回一張（`$LogoUrl`）；帳號選單的 segmented control 整塊移除。移除之後 `#sidebarAccount` 這個子選單裡面**已經沒有任何內容**（§34.3 已經把通知設定移出去、這次又拿掉外觀切換，等於裡面空了）——沒有留一個「點了展開卻是空的」下拉，直接把 `.sidebar-user` 從「帶 `data-bs-toggle="collapse"` 的可點擊 `<button>`」改成純顯示用的 `<div>`（拿掉 chevron 圖示、拿掉 `#sidebarAccount` 整個 `<div>`、拿掉底部負責同步兩顆按鈕狀態＋寫 localStorage 的那段 `<script>`）。頭像/名字現在單純顯示「目前登入的是誰」，不能點。
+- `Pages/Page.php`：`$SidebarLogoUrl` 這個 Smarty 變數指派整段刪除（不再有任何地方讀它）。
+- `Web/img/custom-logo-white.png`：這個檔案（§33 從使用者提供的來源複製進來的白色 Logo）刪除——已經沒有任何程式碼引用，留著只是死檔案。
+- `lang/zh_tw.php`／`lang/en_us.php`：`SidebarAppearance`／`SidebarThemeLight`／`SidebarThemeDark` 三個翻譯鍵移除（§34 新增、現在沒有任何地方 `{translate}` 它們）。
+
+全站 grep 過 `sidebar-theme`／`SidebarLogoUrl`／`SidebarAppearance`／`logo-theme`／`custom-logo-white` 這些字串，確認除了 `COASIA-CHANGES.md`（歷史記錄本來就該留著）以外，只剩 `coasia-theme.css` 裡兩處刻意保留、語意不同的東西：`--sidebar-create-btn-bg`/`-text`（§34.2 恢復的「新增預約」按鈕自己的專屬底色/文字色 token，跟「淺色/深藍雙主題」是兩回事，繼續用淺色那組固定值)，順手把附近一句提到「兩個主題」的舊註解改成不再提「主題」。
+
+### 35.1 驗證
+
+沿用 §34 學到的做法，先注入 `* { transition: none !important; }` 避開這個分頁的動畫量測限制，用 Claude Browser 工具登入 `mark_li` 實測：
+
+- `#appSidebar` 的 `className` 只剩 `app-sidebar`（沒有任何 `sidebar-theme-*` class），背景色固定讀回 `rgb(255,255,255)`。
+- `.sidebar-user` 的 tagName 是 `DIV`（不是 `BUTTON`），沒有 `data-bs-toggle` 屬性；`document.querySelector('.sidebar-theme-switcher, #sidebarThemeLight, #sidebarThemeDark')` 跟 `document.getElementById('sidebarAccount')` 都回傳 `null`／不存在。
+- `.sidebar-brand img.logo` 現在只有 1 個（不是 2 個），`display:block`。
+- 「新增預約」背景/文字仍然正確（`rgb(31,49,89)` 底、白字、文字「新增預約」）——確認拿掉主題切換沒有連帶改壞這顆按鈕本身的樣式。
+- 收合狀態：寬度仍然精確 85px，收合鈕/頭像/新增預約/行事曆首頁/通知設定/登出六個元素的水平中心點依然全部落在同一個 x（43px），Logo/使用者名稱該隱藏的都正確隱藏——確認拿掉帳號選單的可點擊行為沒有連帶弄壞收合狀態的置中邏輯。
+- `php -l` 確認 `Pages/Page.php`／兩支語言檔語法正確；全程 console 沒有任何錯誤訊息。
+
+**沒有驗證到的部分**：一樣沒有實際視覺（screenshot）可看，只驗證了 DOM 結構/色值/尺寸在數字上正確；也沒有特別去重新整理頁面確認「以前存過 `sidebar-theme=dark` 的舊 localStorage 值」會不會造成任何殘留影響——目前的 pre-paint script 已經整段刪除，所以就算瀏覽器裡還留著這個舊的 localStorage key，也不會再被讀取或用到，理論上無害，但沒有特地拿一個帶著舊值的分頁實測過。
+
+## 36. Quick Create 逐項對照修正：拿掉「不重複」、資源靠左、真實可用性查詢、日期顯示格式、間距與底線行為
+
+使用者拿確認過的示意圖跟目前畫面逐項比對，回報 8 個明確差異，並附上正確的內容順序、對齊方式、尺寸數字。這輪不是重新設計，是照著給的差異清單逐條修，包含一個要動到後端的項目（可用性查詢）。
+
+### 36.1 移除「不重複」
+
+`tpl/Overview/overview_fullcalendar.tpl` 的 Quick Create 直接拿掉 `bi-arrow-repeat` 那整個 `.qc-grid-row`（連同它綁的 `DoesNotRepeat` 字串顯示，§32 加的）。重複規則本來就只有 Drawer 的 `#rdRepeatType` 下拉在真正處理，這裡的「不重複」只是顯示用的靜態文字，拿掉不影響任何功能——符合使用者這輪重申的「快速預約永遠建立單次預約，重複設定只放在更多選項 Drawer」。日期時間列後面現在直接接資源選擇列。
+
+### 36.2 資源名稱靠左（真的 bug，不是視覺調整）
+
+根因找到了：`#quickCreateModal .qc-resource-picker .resource-picker-trigger` 這條 §32 加的規則用了 `justify-content: space-between`，但 `.resource-picker-label`（共用元件的既有規則）本身沒有 `flex-grow`，維持自己文字的自然寬度——三個 flex 子項（圓點／文字／箭頭）在 `space-between` 下會被等間距撐開，文字短的時候看起來就像被「置中」在圓點跟箭頭中間，不是真的置中對齊，是 flex 版面配置的副作用。修法：拿掉 `justify-content:space-between`，改成幫 `.resource-picker-label`（僅限 `#quickCreateModal` 範圍內覆寫，不影響工具列自己的資源選擇器）加 `flex:1 1 auto; text-align:left;`——文字自然占滿中間所有剩餘空間、靠左，箭頭被推到最右邊。
+
+### 36.3 新增「此時段可用／不可用」——真的查資料庫，不是寫死
+
+這是這輪唯一牽涉後端的項目。追出既有的預約衝突判斷邏輯：儲存時真正擋衝突的是 `ResourceAvailabilityRule` → `ReservationConflictIdentifier` → `ResourceAvailability`，最底層其實就是呼叫 `Domain\Access\ReservationViewRepository::GetReservations()` / `GetBlackoutsWithin()` 查詢資料庫，不需要一整個 `ReservationSeries` 物件才能查。照這個發現新增一支輕量、唯讀的 ajax 端點：
+
+- `Web/ajax/overview_fullcalendar_availability.php`（三行載入器，照抄 `overview_fullcalendar_events.php` 的既有慣例）
+- `Pages/Ajax/OverviewFullCalendarAvailabilityPage.php`：讀 `resourceId`／`start`／`end` 三個 querystring，直接呼叫 `ReservationViewRepository::GetReservations()` + `GetBlackoutsWithin()`，回傳 `{"available": true/false}`。Quick Create 只會建立全新的單次預約，沒有「排除自己這筆」的編輯情境要處理。
+
+前端（`Web/scripts/overview_fullcalendar.js`）在 `refreshTimeUI()`（日期/時間變動）跟 `refreshResourceUI()`（資源變動）結尾都呼叫 `scheduleAvailabilityCheck()`——300ms debounce，避免使用者連續點時間下拉時打好幾次 request；`checkAvailability()` 實際發 request 時把當下的 resourceId/start/end 記下來，回應回來時比對「現在的 `pending` 狀態還是不是發 request當下那個」，不是的話直接丟棄——避免使用者手速快、舊的回應比新的晚到時蓋掉畫面上正確的新狀態。畫面上綠色打勾／紅色叉叉圖示用 class 切換（`.bi-check-circle-fill`/`.bi-x-circle-fill`），沒有用 CSS content 硬幹字型 glyph 那種脆弱寫法。
+
+### 36.4 日期改用自訂格式顯示，不是原生 `<input type="date">` 的樣子
+
+瀏覽器不允許直接改寫原生 `<input type="date">` 顯示出來的文字格式。做法：底下還是一個真的 `<input type="date">`（保留鍵盤輸入、原生選擇器、無障礙語意），只是把它自己的文字設成 `color:transparent`；上面疊一個 `pointer-events:none` 的 `<span id="qcStartDateDisplay">`，用 JS 算出「7月30日（四）」這種格式蓋在上面——`pointer-events:none` 是關鍵，點擊會穿透這層文字直接命中下面的真實 input，不會攔截互動。`formatQcDateLabel()`（`overview_fullcalendar.js`）重用既有的 `WEEKDAY_LABELS`／`weekdayLabel()`，每次 `refreshTimeUI()` 執行時（涵蓋開窗、切換日期、切換時間全部三種情境）都會重新算一次，不會跟 `pending.startDate` 脫節。
+
+### 36.5 間距、Modal 尺寸、標題底線
+
+`Web/css/overview_fullcalendar.css` 逐一對照數字改：`.modal-dialog` 560px→520px（加 `width:calc(100% - 32px)` 讓窄螢幕也不會頂到邊）；`.modal-body` padding 56/32/20→44/28/18；`.qc-grid-row` padding 10px 0→8px 0、column-gap 20→18px；`.qc-time-edit` 的欄寬比例 `150px/96/16/96`→`160px/92/14/92`、gap 12→10px。`.modal-content` 本來就沒有設固定 `height`/`min-height`（§32 已經是內容自然撐開），這輪沒有東西要拿掉，補了一句註解說明這是刻意維持的狀態。標題底線：原本無條件 `2px solid var(--primary)`，改成預設 `1px solid #D9E0EA`、只有 `:focus` 時才變 `2px solid #1F3159`（同時把 `padding-bottom` 從 8px 微調到 7px，抵銷邊框從 1px 變 2px 多出來的 1px，避免 focus 那一刻底下內容跳動 1px）。
+
+過程中另外抓到一個 footer 高度對不上規格的小 bug：Bootstrap 5 的 `.modal-footer` 預設會給每個直接子元素（按鈕/連結）各邊加 4px margin（`--bs-modal-footer-gap` 機制，設計給「沒有自訂 padding 的 footer」用的），跟這裡自己控制的 `14px 24px` padding疊加後，footer 實測高度到 76.5px，超出規格要求的 68–72px。修法：`#quickCreateModal .modal-footer > * { margin: 0; }` 把 Bootstrap 那份 margin 歸零，改用 footer 自己的 `padding` + 新增的 `gap:12px` 控制間距，量出來變成 68.5px，落在範圍內。
+
+「新增參與者」顏色從 `#6c7488`（灰）改成 `#1f3159`（跟深藍側欄同一個品牌色調），加上左側 `+` 圖示、hover 變暗一階＋底線、`:focus-visible` 外框。說明欄位 placeholder 從 `Description`（"說明"）改成新增的 `AddDescription` 鍵（"新增說明"）。
+
+### 36.6 驗證
+
+用 Claude Browser 工具登入 `mark_li`，這次因為新增了真正打後端的可用性查詢，額外做了「切換到一個確定沒人訂的時段，確認狀態真的從不可用翻成可用」這一步，不只是檢查 DOM 結構：
+
+- 開啟 Quick Create（點側欄「新增預約」），確認畫面上完全沒有「不重複」這一列；`.modal-body > .qc-grid-row` 依序是：標題（無圖示）→ `bi-clock`（日期時間）→ `bi-building`（資源，含可用性）→ `bi-people`（參與者）→ `bi-text-left`（說明）——跟規格要求的順序完全一致。
+- 資源選擇器量測：trigger 寬 412px，圓點在 469-477px，文字從 483px 一路占到 830px（347px 寬，`text-align:left`），箭頭在 836-847px——文字確實靠左並吃滿剩餘空間，不是擠在中間。
+- 可用性查詢：一開始選到的時段（今天、上海會議室）顯示「此時段不可用」（紅字＋叉叉）；改選到當天晚上 11 點這種明顯沒人訂的時段後，重新查詢，正確變成「此時段可用」（綠字＋打勾），且 Network 分頁確認每次真的送出 `overview_fullcalendar_availability.php?resourceId=...&start=...&end=...` 並收到 200——證實是動態查詢而非寫死。
+- 日期顯示：`#qcStartDate` 底層 input 的 `value` 是標準 `2026-07-31` 格式，但畫面上 `#qcStartDateDisplay` 顯示的是「7月31日（五）」，兩者分離、互不干擾。
+- Modal 尺寸：`.modal-dialog` 寬度精確 520px；`.modal-body` padding 讀回 `44px 28px 18px`；一般列（非標題列）的 `padding` 讀回 `8px 0px`、`column-gap` 讀回 `18px`。
+- 標題底線：靜止狀態讀回 `rgb(217,224,234) 1px`（即 `#D9E0EA`）；`:focus` 偽類本身在這個分頁裡量不準（跟本輪對話前面幾次 hover/transition 環境限制同一個成因——`document.activeElement` 正確指向該欄位，但 CSS `:focus` pseudo-class 的比對結果讀不出來），改用強制套用同一組 CSS 值的方式驗證，確認 `border-bottom` 數值本身是對的（`rgb(31,49,89) 2px`，即 `#1F3159`）。
+- Footer：`border-top` 讀回 `1px solid rgb(230,234,240)`（即 `#E6EAF0`）；高度量測 68.5px，落在規格的 68–72px 區間；「更多選項」在左（398-454px），「取消」「建立預約」在右且順序正確（700-762px、774-868px）。
+- 「新增參與者」文字顏色讀回 `rgb(31,49,89)`；說明欄位 placeholder 讀回「新增說明」。
+- `php -l` 確認兩支新的後端檔案（`Pages/Ajax/OverviewFullCalendarAvailabilityPage.php`／`Web/ajax/overview_fullcalendar_availability.php`）語法正確；全程 console 沒有任何錯誤訊息。
+
+補測了「切換不同資源、同一時段」這條路徑（先前以為沒測到）：從上海切到台北，`qcResourcePickerLabel` 正確變成「台北 Taipei」，`qcAvailabilityLabel` 重新查詢後顯示「此時段可用」，Network 分頁確認確實多打了一次 `resourceId=1`（台北）、時段不變的請求並收到 200——`refreshResourceUI()` 觸發 `scheduleAvailabilityCheck()` 這條路徑也驗證過了。
+
+**沒有驗證到的部分**：跟以往一樣沒有實際視覺 screenshot，只驗證了數字/DOM/網路請求層面的正確性；沒有測試在較差網路延遲下 debounce／過期回應丟棄機制的實際效果，只確認了程式碼邏輯與正常網路狀況下的行為。
+
+## 37. 「更多選項」Drawer 套用同一套設計概念
+
+使用者：「同樣的概念請重新設計更多選項」——延續 §36 剛套用在 Quick Create 上的設計語言，這次輪到「更多選項」開啟的完整編輯器（Reservation Drawer，`tpl/Overview/overview_fullcalendar.tpl` 的 `#reservationDrawer`）。
+
+這輪範圍判斷：Drawer 原本的 `.reservation-row`（flex + 固定寬度圖示）本來就已經達成跟 Quick Create 新版 `.qc-grid-row` 相同的「圖示欄對齊、內容共用左邊界」效果，只是實作機制不同（flex 固定寬度 vs. CSS grid），沒有必要為了機制一致而重寫——真正跟「同樣的概念」有明顯落差、值得動的，是這幾個具體項目：
+
+### 37.1 資源選擇器：從分頁籤＋原生 `<select>` 換成同一套搜尋式元件
+
+Drawer 原本的資源選擇是「實體/視訊分頁籤 + 原生 `<select>`」——正是 Quick Create 自己在 §32 淘汰掉的舊設計。這次把它換成跟 Quick Create／工具列同一套 `.resource-picker` 元件（圓點＋名稱＋箭頭，搜尋＋分組下拉），JS 端新增 `drawerResourceId`（平行於 Quick Create 的 `pending.resourceId`，Drawer 本來就沒有一個統一的 `pending`-like 物件，所以維持獨立變數，符合這個檔案既有的「不同元件各自管理自己狀態」慣例）、`initRdResourcePicker()`／`updateRdResourcePickerTrigger()`／`setDrawerResource()`，取代舊的 `setDrawerCategory()`／`populateDrawerResourceOptions()`／分頁籤點擊處理常式。
+
+`#rdResource` 從可見的 `<select>`改成隱藏的 `<input type="hidden">`，由新的資源選擇器同步寫入——這樣 `buildCreateBody()`／`buildEditBody()` 原本讀 `$('#rdResource').val()` 的程式碼完全不用改，把改動範圍限制在「選資源」這一小塊，不去動送出邏輯。順手修正資源標籤置中的同一個 bug（§36.2 在 Quick Create 那邊發現的成因——`justify-content:space-between` 讓沒有 `flex-grow` 的文字視覺上被夾在圓點和箭頭中間），這裡直接補上跟 Quick Create 一樣的 `flex:1 1 auto; text-align:left;`。
+
+### 37.2 新增「此時段可用」——並補上 Quick Create 沒有的「排除自己」
+
+Drawer 原本完全沒有可用性提示。這次直接重用 §36.3 建的 `ajax/overview_fullcalendar_availability.php`，但過程中發現一個 Quick Create 用不到、Drawer 卻一定會踩到的洞：**編輯一筆已存在的預約時，那筆預約自己就佔用著那個時段**，如果查詢邏輯不排除它自己，畫面永遠會顯示「此時段不可用」，即使實際上完全沒有衝突。
+
+修法：`OverviewFullCalendarAvailabilityPage.php` 新增一個可選的 `excludeReferenceNumber` 參數，查到的 `$reservations` 陣列先用 `array_filter` 排除掉這個參考編號再判斷是否為空；JS 端 `checkResourceAvailability()` 多一個可選參數，Drawer 的 `checkDrawerAvailability()` 只在 `drawerState.mode === 'edit'` 時傳入 `drawerState.referenceNumber`（`drawerState` 在進入編輯模式時已經同步設定好，早於非同步載入預約資料的那段程式碼跑完，時序上沒有問題）；Quick Create 那邊完全不用改——它永遠是建立全新預約，沒有「排除自己」這個情境，`checkResourceAvailability()` 呼叫時就不傳這個參數。
+
+順手把原本寫死在 Quick Create 範圍內的 `checkAvailability()`／`scheduleAvailabilityCheck()` 拆成一個共用的 `checkResourceAvailability()`（純函式：resourceId／時間範圍／即時查詢當下狀態的回呼／結果回呼／可選的排除編號）＋`renderAvailability()`（更新圖示/文字），Quick Create 跟 Drawer 各自留一層薄薄的 wrapper（`checkAvailability()`／`checkDrawerAvailability()`）去讀自己的狀態來源。這次算是踩過先前「兩個獨立資源選擇器故意不共用實作」的既有慣例邊界——查可用性這段邏輯份量比較大、兩邊幾乎一模一樣，值得真的共用，跟資源選擇器那種「UI 元件各自獨立」的情況不同。
+
+### 37.3 日期改用自訂格式顯示
+
+比照 §36.4 的做法：`#rdDate` 底下還是真的 `<input type="date">`，文字設成透明，上面疊一個 `pointer-events:none` 的 `#rdDateDisplay` 顯示「7月30日（四）」。共用同一個格式化函式——順手把原本叫 `formatQcDateLabel()` 的函式改名成 `formatDateLabel()`（拿掉不再準確的 "Qc" 字首，因為現在两邊都在用）。視覺上沒有照搬 Quick Create 那種緊湊膠囊樣式，而是延續 Drawer 自己既有的「有邊框欄位」語言（跟 `.reservation-field` 一致），只是套用同一種「透明 input + 疊字」技術，不是照搬視覺樣式。
+
+### 37.4 標題底線顏色對齊
+
+`.rd-title-input` 原本用的是通用的 `var(--border)`／`var(--primary)` token（分別是 `#e4e7ee`／`#1a3f73`），跟 Quick Create 這次明確指定的 `#D9E0EA`／`#1F3159` 很接近但不是同一組數字。既然使用者要求「同樣的概念」，這裡直接改成跟 Quick Create 完全一樣的精確色號，而不是繼續用通用 token——兩個「同概念」的標題欄位現在是像素級一致，不只是色調相近。
+
+### 37.5 驗證
+
+用 Claude Browser 工具登入 `mark_li` 實測，這輪特別做了完整的建立→編輯→儲存端到端流程（不只是檢查 DOM）：
+
+- 從 Quick Create 帶著標題/說明點「更多選項」開啟 Drawer：資料正確帶入（標題、說明、日期顯示「7月31日（五）」、資源標籤「上海 Shanghai」），且 Drawer 一開啟就自動查了一次可用性（`#rdCategoryTabs` 已確認從 DOM 消失）。
+- 資源選擇器：搜尋切換到台北，隱藏欄位 `#rdResource` 跟顯示標籤都正確同步，且觸發了新一次的可用性查詢（Network 分頁確認 `resourceId=1` 的請求，跟原本 `resourceId=2` 的請求都拿到 200）；量測 trigger/label/chevron 位置，確認文字靠左、箭頭在最右（跟 §36.2 同一組驗證方式）。
+- 完整建立流程：從 Quick Create 開 Drawer → 選台北 → 按「建立預約」→ 實際檢查行事曆（切換工具列資源篩選到台北）確認新預約真的出現在台北的行事曆上，標題正確——證實隱藏欄位同步機制沒有把送出邏輯弄壞。
+- 可用性自我排除：點開這筆剛建立的預約進入編輯模式，一開始因為忘記重啟容器（同一個 opcache 陷阱又踩了一次，這次是編輯 `OverviewFullCalendarAvailabilityPage.php` 之後沒有立刻重啟）量到「此時段不可用」——加了暫時的除錯欄位、重啟容器、直接用 `fetch()` 打端點確認 `excludeReferenceNumber` 真的有把自己排除掉（`available:true`、`debugReservationRefs:[]`）後，拿掉除錯欄位、重新測過一次 Drawer 介面，確認「此時段可用」正確顯示，不是「編輯自己也顯示不可用」這種假陽性。
+- 完整編輯流程：修改標題後按「儲存」，第一次在一筆**這次工作階段稍早建立的**舊測試預約上遇到「Not authorized to edit this reservation.」——另外用一筆全新建立的預約重新測過一次完整的建立→編輯→儲存，正確成功（`{"success":true,"errors":[]}`，Drawer 正確關閉），確認那次「未授權」是舊測試資料/session 殘留狀態造成的雜訊，不是這輪改動的迴歸——這次改動完全沒有碰任何權限/授權相關的程式碼。
+- 標題底線：比照 §36 的驗證方式（強制套用同一組 CSS class 而非依賴這個分頁量不準的 `:focus` 偽類），確認靜止 `rgb(217,224,234) 1px`、focus 強制值 `rgb(31,49,89) 2px`，跟 Quick Create 完全一致。
+- `php -l` 確認 `OverviewFullCalendarAvailabilityPage.php` 語法正確；全程 console 沒有任何錯誤訊息。
+
+補測了重複規則區塊：切換 `#rdRepeatType` 到「每週」，正確展開星期選擇器跟結束日期兩列、無 console 錯誤——這塊本來就沒有動到，確認沒有被連帶弄壞。
+
+**沒有驗證到的部分**：一樣沒有實際視覺 screenshot；參與者/訪客/附件/自訂欄位這幾個唯讀摘要區塊（本來就只在載入「已有資料」的既有預約時才會顯示內容）沒有特地找一筆有這些資料的預約來核對渲染，這些區塊的 markup/邏輯這次完全沒有觸碰，理論上不受影響。
+
+## 38. Quick Create 微調：大標題、24 小時制、按鈕字型
+
+使用者附上目前畫面截圖，確認整體 Modal 尺寸/版面已經接近，只列了 8 項要調整的細節，明確要求「不要重做整個 Modal」——這輪範圍嚴格限制在這 8 項，沒有動其他已經確認過的部分。
+
+- 標題輸入框正上方新增真正的 `<h2 class="qc-heading">`（22px／600）＋副標 `<p class="qc-subheading">`（"快速建立會議室預約"），`#quickCreateModal` 的 `aria-labelledby` 從原本指向那個看不見的 `<label>` 改成指向這個新的可見標題——一個對話框的無障礙名稱本來就該指向真正的標題文字，不是一個使用者根本看不到的輸入框標籤；原本的隱藏 `<label>` 留著（`id` 從 `quickCreateModalLabel` 改成 `qcTitleLabel` 避免跟新標題的 id 混淆），繼續當作 `#qcTitle` 這個輸入框自己的無障礙名稱。
+- 標題輸入框 placeholder 沿用既有的 `AddTitle` 翻譯鍵，只改它的字串內容（"新增標題"→"新增會議名稱"）——這個鍵目前只有這一個輸入框在用（Drawer 的標題欄位用的是另一個 `NewReservation` 鍵），改值不會波及其他地方。沒有另外加一個看得見的「會議名稱」欄位標籤（使用者第 4 點明確要求不要）。
+- 關閉叉叉本來就是 `position:absolute`、獨立於標題/輸入框的版面之外（§32 就是這樣設計的），這次沒有额外改動，量測確認新標題的容器寬度沒有因為叉叉而縮窄。
+- 時間格式：`formatTimeLabel()`（`Web/scripts/overview_fullcalendar.js`）原本是 12 小時制＋「上午/下午」前綴，改成單純 24 小時制 `HH:MM`。這個函式是共用的——不只 Quick Create 的時間下拉，Drawer 的 `#rdStartTime`/`#rdEndTime` 兩個 `<select>` 選項、事件卡片的時間範圍顯示（`#epTime`）全部一起變成 24 小時制，符合使用者「統一使用」的用字，不是只改 Quick Create 這一處、其他地方還留著舊格式。拿掉「上午/下午」前綴後文字變更短，日期／開始時間／分隔線／結束時間同一列不換行這件事更穩，原本 §36 就已經是同一個 CSS grid 列，這次沒有再改版面。
+- 「建立預約」按鈕：`Web/css/overview_fullcalendar.css` 新增 `#quickCreateModal #qcSave { font-family: inherit; font-weight: 600; }`——量出來這顆按鈕原本的字型渲染跟頁面本文的 `--bs-body-font-family`（Roboto/Hind/新細明體那組疊字）不是同一個，猜測是 Bootstrap 的 `.btn` 重置沒有把 `<button>` 的字型完全繼承回頁面本文字型（部分瀏覽器對 `<button>` 預設用系統 UI 字型），這裡直接用一條明確、範圍夠窄的規則蓋掉，不去改全站共用的 `.btn` 規則。
+
+### 38.1 驗證
+
+用 Claude Browser 工具登入 `mark_li` 實測：
+
+- 標題文字/字級/字重讀回 `新增預約`／`22px`／`600`；副標文字讀回 `快速建立會議室預約`；輸入框 `placeholder` 讀回 `新增會議名稱`。
+- `#quickCreateModal label:not(.visually-hidden)` 查詢結果是空陣列——確認沒有多出一個看得見的欄位標籤。
+- 日期欄位跟開始時間 pill 的 `getBoundingClientRect().top` 幾乎完全一致（誤差 <2px）——確認同一列、沒有換行。
+- 開始/結束時間 pill 文字讀回 `12:00`／`12:30`（無上午/下午前綴）；切到 Drawer 後 `#rdStartTime` 的前三個選項讀回 `00:00`／`00:30`／`01:00`，確認共用格式化函式後兩邊一致。
+- `getComputedStyle(#qcSave).fontFamily` 跟 `getComputedStyle(document.body).fontFamily` 逐字元比對完全相同；`fontWeight` 讀回 `600`。
+- `#quickCreateModal` 的 `aria-labelledby` 屬性讀回 `quickCreateModalHeading`（新標題的 id），不是原本的隱藏 label id。
+- 全程 console 沒有任何錯誤訊息。
+
+**沒有驗證到的部分**：一樣沒有實際視覺 screenshot，只能確認數字/文字/DOM 屬性層面的正確性，沒辦法親眼確認新標題在視覺上跟叉叉、留白的實際觀感是否符合使用者原本附圖的比例感。
+
+## 39. 標題列的空白圖示欄補上圖示
+
+§38 新增大標題時，標題輸入框那一列的圖示欄還是原本 `.qc-title-row` 專用的空白 `<div aria-hidden="true"></div>`（純粹用來佔位置對齊，故意不放圖示）。這次直接把它換成跟其他列一樣的 `<div class="qc-icon"><i class="bi bi-card-heading"></i></div>`——重用同一個 `.qc-icon` class，不用額外寫樣式就自動跟時鐘／建築／人群圖示同尺寸同顏色。圖示選用 `bi-card-heading`（標題/名稱語意），跟已經用掉的 `bi-clock`（時間）／`bi-building`（資源）／`bi-people`（參與者）／`bi-text-left`（說明）不重複。
+
+量測確認標題圖示（`bi-card-heading`）跟時鐘/建築/人群三個圖示的 `font-size`／`color`／實際渲染寬高／左邊界座標完全一致（`20px`／`rgb(108,116,136)`／`20×30px`／`left:408px`，四個圖示逐一比對數字相同）。全程 console 沒有任何錯誤訊息。
+
+## 40. 「行事曆首頁」目前頁面不再有常駐的按下去背景
+
+使用者回報：側欄「行事曆首頁」在自己就是目前頁面時，一直維持著 hover／點擊那種「按下去」的背景，沒有實際點擊卻一直看起來像被按著。追到 `Web/css/coasia-theme.css` 的 `.sidebar-link.active { background: var(--sidebar-active); }`——這是 §33 那輪使用者當時明確要求的「使用 Active 背景」規格（跟更早之前 §30 修過的「同一個 bug」不是同一次事故，是後來的雙主題大改版又重新加回常駐背景），現在使用者回頭要求拿掉這個常駐感。
+
+修法：拿掉 `.sidebar-link.active` 的 `background`（連同專門為它寫的 `.sidebar-link.active:hover` 覆寫規則一併刪除），改成只把文字/圖示上色成品牌深藍 `var(--sidebar-create-btn-bg, #1f3159)`（也就是「新增預約」按鈕已經在用的同一個深藍色，不是另外發明一個新色號）——背景完全交還給既有的通用規則：`.sidebar-link:hover`（真的移過去才有淡色背景）跟 `.sidebar-link:active`（真的按下去那一瞬間才有 Active 濃度背景），跟其他所有側欄項目共用同一套互動語言，「目前頁面」這件事改成只靠文字/圖示顏色辨識，不再佔用「互動反饋」的視覺語彙。
+
+### 40.1 驗證
+
+用 Claude Browser 工具登入 `mark_li` 實測：
+
+- 靜止狀態（沒有任何互動）：`getComputedStyle(#navCalendarHome).backgroundColor` 讀回 `rgba(0,0,0,0)`（透明），文字/圖示顏色讀回 `rgb(31,49,89)`（即 `#1F3159`）——確認常駐背景已經拿掉，但顏色仍然清楚標示「這是目前頁面」。
+- 直接 `fetch()` 抓線上實際 served 的 `coasia-theme.css` 內容比對，確認 `.sidebar-link.active` 只剩顏色規則，沒有殘留任何 `background`／`.sidebar-link.active:hover` 規則——排除瀏覽器快取到舊版的可能。
+- 全程 console 沒有任何錯誤訊息。
+
+**沒有驗證到的部分**：跟過去幾輪同樣的環境限制，這個分頁沒有被顯示、也沒辦法可靠測 `:hover`／`:active` 偽類的即時渲染結果，只能透過讀取「哪些 CSS 規則實際存在、選中哪個元素」來間接確認邏輯正確，沒辦法用滑鼠移過去/按下去親眼確認實際觀感。
+
+## 41. 修正「此時段可用」誤判前一場會議剛結束的時段為衝突
+
+使用者回報：有一場會議 15:30 結束，卻沒辦法預約 15:30-16:00——系統把「結束時間＝下一筆的開始時間」這種緊接在一起、實際上沒有重疊的情況判斷成衝突。
+
+追查後確認問題出在 §36 新增的 `Pages/Ajax/OverviewFullCalendarAvailabilityPage.php`，不是實際送出預約時真正在把關的邏輯（`ResourceAvailabilityRule`／`ReservationConflictIdentifier`）——那條路徑本來就是對的，這次也用 Claude Browser 工具實際跑了一次「訂 14:00-14:30，再訂緊接著的 14:30-15:00，都在同一個資源上」，兩筆都成功存進資料庫，證實**真正建立預約從頭到尾沒有被這個 bug 擋過**，使用者會「沒辦法預約」比較可能是因為看到 Quick Create 上顯示「此時段不可用」而不敢送出、或以為系統真的會擋。
+
+根因：`ReservationViewRepository::GetReservations()` 底層的 SQL（`lib/Database/Commands/Queries.php` 的 `$DATE_FRAGMENT`）故意用寬鬆的 `>=`/`<=` 區間比對先把「這段時間窗口內*可能*相關」的預約整批撈出來，效能考量，不是最終判斷——真正判斷「有沒有真的重疊」是後面 `IReservedItemView::BufferedTimes()->Overlaps()`（`DateRange::Overlaps()`，這個方法本身就有明確排除「首尾剛好相接」的邏輯：`!$this->GetBegin()->Equals($dateRange->GetEnd()) && !$this->GetEnd()->Equals($dateRange->GetBegin())`）這一步做的，兩段式設計。§36 寫可用性查詢端點時，只做了第一階段（撈出候選清單），直接把「清單是否為空」當作「有沒有衝突」，漏掉了第二階段的精確判斷——15:30 結束的會議，被 15:30-16:00 這個查詢窗口的寬鬆 SQL 撈進候選清單，但兩者其實完全不重疊，卻被誤判成「不可用」。
+
+修法：`OverviewFullCalendarAvailabilityPage.php` 撈出候選清單後，多一層 `array_filter`，用 `$item->BufferedTimes()->Overlaps($requestedRange)` 重新精確篩選一次——跟真正存檔時用的是同一個方法，不是自己另外寫一套判斷邏輯，確保這個提示指示燈跟真正的送出結果永遠一致。順手把 `$blackouts`（停用時段）也套用同一層精確篩選——原本也是只看「候選清單是否為空」，同一種寬鬆-vs-精確的落差，一併修正。
+
+### 41.1 驗證
+
+用 Claude Browser 工具登入 `mark_li`，這次除了看 API 回應，還真的走了一次完整流程：
+
+- 建立「邊界測試A」14:00-14:30，「邊界測試B」14:30-15:00，同一個資源（台北）——兩筆都成功存檔（Modal 都正確關閉、沒有錯誤訊息），直接查行事曆事件 API 確認兩筆資料庫紀錄都存在、時間完全緊接（`14:00→14:30`、`14:30→15:00`）。
+- 開第二個 Quick Create、時間設成 14:30-15:00（緊接在第一筆後面）時，畫面上「此時段可用」正確顯示（修好之前這裡會顯示「此時段不可用」）。
+- 直接打端點測邊界情況：`13:30-14:00`（結束時間＝邊界測試A 的開始時間）回傳 `available:true`；`13:45-14:15`（真的重疊 14:00-14:30 那段）回傳 `available:false`——確認「首尾剛好相接」跟「真的重疊」這兩種情況現在有正確分開判斷，不是修過頭變成什麼都算可用。
+- `php -l` 確認語法正確；全程 console 沒有任何錯誤訊息。
+
+**沒有驗證到的部分**：沒有測試「resource 設定了緩衝時間（buffer time）」這種情況下的行為——`BufferedTimes()` 本來就有處理這個（有設定緩衝時間的資源，首尾相接的時段還是會被緩衝時間擋下來，這是預期行為，不是這次的 bug），但這個 dev 環境目前測試用的資源沒有設定緩衝時間，沒有實際驗證過那條路徑。
+
+## 42. 下拉選單開啟時，觸發按鈕不該還套一圈明顯的 focus 藍框
+
+使用者附了兩張截圖：Quick Create 的結束時間下拉打開時、資源選擇器下拉打開時，觸發用的按鈕（時間 pill／資源選擇器 trigger）外面都多了一圈很明顯的深藍色外框，看起來像是「按鈕還被按著」的樣子。
+
+根因：`#page-overview-fc button:focus-visible` 這條通用規則（`Web/css/overview_fullcalendar.css`）幫整個頁面所有按鈕都加了 `outline: 2px solid var(--primary)`——這本身是之前為了鍵盤可及性特別加的（"所有可點擊項目需要明顯 hover 和鍵盤 focus 狀態"）。但這些下拉選單的觸發按鈕本身已經有一條 `[aria-expanded="true"]` 專屬的「開啟中」樣式（換底色、換邊框色、換文字色），點開後瀏覽器又把這個按鈕判定成 `:focus-visible`（不少瀏覽器對 `<button>` 元素本身就算滑鼠點擊也會顯示 focus 樣式，不是只有鍵盤導覽才會），兩層樣式疊在一起，才會變成「已經換色的按鈕外面又多包一圈粗藍框」這種視覺上很像 bug 的效果。
+
+修法：新增一條更精確的規則，只在 `[aria-expanded="true"]` 這個「下拉已經打開」的狀態下，把 `:focus-visible` 的外框拿掉（`outline:none`）——因為開啟狀態本身的換色已經是足夠清楚的「這是目前操作中的按鈕」提示，不需要再疊一圈外框。屬性選擇器要求 `aria-expanded` 剛好等於 `"true"`，沒有這個屬性或值是 `"false"` 的按鈕完全不受影響，一般用 Tab 鍵導覽到其他按鈕（沒有下拉、不會展開）時，原本的 focus 外框機制原封不動，鍵盤可及性沒有被這次改動犧牲掉。
+
+因為是通用規則（`#page-overview-fc button[aria-expanded="true"]:focus-visible`，沒有寫死 class），時間 pill（`.qc-time-pill`）、Quick Create／Drawer／工具列三處的資源選擇器 trigger、檢視選單、都是同一條規則一次涵蓋，不用個別修。
+
+### 42.1 驗證
+
+用 Claude Browser 工具登入 `mark_li` 實測：
+
+- 開啟 Quick Create 的資源選擇器，確認 `aria-expanded="true"`；掃描 `overview_fullcalendar.css` 所有含 `outline` 的規則，用「拿掉 `:focus-visible` 後的結構」個別比對這個按鈕是否符合選擇器，確認新舊兩條規則都命中同一個元素——新規則（`button[aria-expanded="true"]:focus-visible`，specificity 比舊規則多一個屬性選擇器）specificity 更高，不管程式碼寫在檔案的哪個位置都會贏，`outline` 最終算出來是 `none`。
+- 時間 pill（`#qcStartPill`）同樣方式確認：本身是 `<button>`，開啟時 `aria-expanded="true"`，符合同一條通用規則，不用另外為 `.qc-time-pill` 寫一條專屬規則。
+- 全程 console 沒有任何錯誤訊息。
+
+**沒有驗證到的部分**：這個環境沒辦法可靠重現「滑鼠真的點下去」觸發的 `:focus-visible` 即時渲染結果（過去好幾輪都有記錄這個限制），這次改用「比對 CSS 規則的 specificity 邏輯」取代肉眼看渲染結果，邏輯上站得住，但沒有像使用者截圖那樣親眼確認藍框真的消失了。
+
+## 43. CoAsia 員工預建帳號匯入（AD 登入前預先建立可搜尋的帳號）
+
+使用者提供 HR/AD 匯出的 `사용자목록2026-07-31_142216.xls`，要求讓從未登入過系統的 AD 員工也能立即被搜尋、加入會議參與者，第一次真的用 AD 登入時再自動接上這筆預建帳號，不能產生第二筆。
+
+### 43.1 資料來源跟使用者原本假設的欄位對不上，先澄清才動工
+
+實際用 Python/xlrd 讀出 Excel 的真實欄位後，發現跟使用者原始需求描述的欄位對應（Email→username、Office→組織資料）完全對不上：這份匯出**完全沒有 Email 欄位、也沒有 Office（實體地點）欄位**。實際欄位是：號碼、名字（常常是「原文姓名(英文名)」但格式不一致）、ID（AD 登入帳號，如 `ds.shin`）、Department path（完整部門路徑）、一個沒有標題文字的部門代碼欄、所屬（部門路徑最後一段）、職位、人員編號、Office Phone、手機號碼。而且是「一人一部門列」的匯出格式，同一人常常因為身兼多部門而出現在好幾列（例如 Jeff Cui 出現 2 次、Cassidy Chen 出現 3 次）。
+
+在寫任何 migration/程式碼之前，先用 `AskUserQuestion` 跟使用者確認三個關鍵、會影響 schema 設計且有實際後果（寄錯邀請信、資料被錯誤覆蓋）的決策，而不是自己猜：
+1. **Email 怎麼組出來**——沒有 Email 欄位，只有 ID。比對現有 DB 裡唯一已知的真人帳號 `shawn.admin`（真實 email `shawn_tsai@coasia.com`）發現這份 Excel 裡蔡尚峰（Shawn Tsai）那一列的 ID 剛好就是 `shawn_tsai`，強烈佐證 `email = {ID}@coasia.com`（注意跟 AD 登入本身用的 LDAP bind suffix `@coasia.com.tw`——`plugins/Authentication/ActiveDirectory/ActiveDirectory.config.php` 裡的 `account.suffix`——是不同網域，一個是登入用的 UPN suffix，一個才是真正收信的信箱網域）。使用者確認採用這個推論。
+2. **Office 欄位怎麼處理**——確認來源真的沒有這個欄位後，使用者選擇乾脆不生造一個 Office 欄位，只保留 Department path／所屬／職位／人員編號。
+3. **同一人多列怎麼合併**——使用者選擇「串接所有不重複的 Department path」而不是只留第一筆或最後一筆。
+
+事後在真的跑過 `--dry-run` 之後，用 DB 裡既有的 `mark_li`（username=`mark_li`，email=`mark_li@coasia.com`）反向驗證了 `{ID}@coasia.com` 這個推論完全正確——這筆在 Excel 裡也存在（ID=`mark_li`），程式正確判定成「已存在、只更新」而不是新建。
+
+### 43.2 Schema：`database_schema/upgrades/4.2/`
+
+- `schema.sql`：`users` 新增可空的 `ad_object_guid VARCHAR(64)`＋唯一索引，用信通樣既有的 `information_schema.COLUMNS`／`STATISTICS` guard 模式（MySQL 8 不支援 `ADD COLUMN IF NOT EXISTS`，且 `phing-tasks/UpgradeDbTask.php` 每次都會整個重跑 upgrades 目錄）。這個欄位目前匯入程式跟現有的 AD 登入同步流程（`plugins/Authentication/ActiveDirectory`）都不會去寫——來源 Excel 沒有 objectGUID，真的要接上即時 LDAP 讀取的話會動到正式在跑的登入路徑，範圍已經超出這次「先專注完成匯入」的要求，先把欄位留著、明確記在 comment 裡當作已知的後續項目。
+- `data.sql`：在 `custom_attributes`（`attribute_category=2`／USER）guarded 新增 5 個欄位：Employee ID、Chinese Name、Korean Name、Department Paths（多行）、AD Managed Account（checkbox）。全部 `admin_only=1`——這些都是 HR 來源、每次重跑匯入都會被刷新，不應該讓員工自己在個人資料表單裡改掉跟 HR 對不上。`custom_attribute_id` 是 auto-increment，匯入程式在執行期用 label 去查 id，不寫死數字，跨環境安全。
+- 已經在 dev DB（`librebooking-coasia-db-1`）跑過兩次確認 idempotent：第二次重跑 `custom_attributes`／`dbversion` 都沒有重複新增。
+
+### 43.3 `Jobs/import-coasia-employees.php`
+
+新增 composer 依賴 `phpoffice/phpspreadsheet`（這個專案原本完全沒有能讀 .xls 的套件；`composer require` 確認沒有已知安全漏洞）——因為公司每隔一段時間就會重新匯出這份名單（`D:\Downloads` 底下已經有 06-08、07-15、07-31 三份），直接讓 Job 吃 `.xls` 比每次手動轉 CSV 更貼近實際會怎麼被使用。
+
+核心邏輯刻意**沒有**直接呼叫既有的 `Registration::Synchronize()`（AD 登入本來在用的 create-or-update API）——雖然那支 API 表面上正是「找不到就建立、找到就更新」，但深入看了它的 `Register()`／`Synchronize()` 之後發現兩個跟這次需求衝突的地方：(1) 找到既有帳號時一定會呼叫 `notificationStrategy->NotifyAccountCreated()`／一律可覆寫密碼雜湊，直接拿來對 100+ 筆匯入會寄一堆通知信、也可能動到不該動的密碼欄位；(2) 找到既有帳號的分支完全沒有處理自訂屬性（custom attributes）——只有全新建立的分支才會呼叫 `ChangeCustomAttributes()`，代表既有員工（例如 `mark_li`）的部門/員工編號/中英韓名這些欄位永遠不會被這條路徑更新到。所以改成直接用 `UserRepository`／`User` domain object 手刻 create-or-update，複用同一個 `Queries::CHECK_USER_EXISTENCE`（username OR email 比對）當作判斷依據，但精確控制只更新姓名／組織／職位／自訂屬性，完全不碰密碼、狀態、群組權限。
+
+安全重跑／不降權既有帳號的具體作法：
+- 判斷新增 vs 更新：`UserRepository::UserExists($email, $username)`——比對到就 `LoadById()` 整包讀出來檢查「username 跟 email 是不是兩個都真的對得上」，只要有一個對不上就整筆跳過丟進「衝突」清單、不猜、不動，留給人工判斷。這條路徑在真實資料上抓到一個活生生的案例：Excel 裡蔡尚峰算出來的 username 是 `shawn_tsai`，但 DB 現有帳號是 `shawn.admin`（email 一樣），程式正確判定成衝突並跳過，沒有誤觸這個現有的 Application Administrator 帳號。
+- 更新既有帳號時只呼叫 `ChangeName()`／`ChangeAttributes()`（保留原本 phone，只換 organization/position）／`ChangeCustomAttributes()`，從頭到尾不呼叫 `ChangeEmailAddress()`／`ChangeUsername()`／任何跟 `user_groups`／狀態相關的方法——`UserRepository::Update()` 送出的 `UpdateUserCommand` 是把整個 User 物件現在的欄位值整包寫回去，只要程式沒去動密碼/狀態/群組相關的 private 欄位，這些值就會原封不動跟著 `Load()` 進來的值一起寫回去，不會被意外重置。
+- 新建帳號：`User::Create()` 預設 `status_id = ACTIVE`（不是 `CreatePending`），因為 `Pages/Ajax/AutoCompletePage.php::GetUsers()` 對一般（非管理員）使用者的參與者搜尋只查 `status_id = ACTIVE`，沒有查 `lastlogin`——確認了「從未登入」不是問題，「狀態不是 ACTIVE」才是；密碼用 `random_bytes(32)` 產生、雜湊後丟棄明文，不留、不共用，滿足「不建立共用或預設密碼」。
+- `UserRepository::Add()` 會自動把新帳號加進 `groups.isdefault=1` 的預設群組（這是全站任何一種註冊都會發生的既有行為，不是這次新加的邏輯），匯入程式完全沒有主動指定任何群組，更不會給 IT 部門員工預設管理員權限。
+
+報告內容涵蓋需求列出的每一項（Excel 總筆數／可新增數／已存在或更新數／缺少必要欄位／衝突／重複員工編號），另外多加了兩個從真實資料裡發現、值得讓人看一眼但不阻擋匯入的清單：「Name 欄位跟 ID 欄位完全相同」的疑似系統/服務帳號（抓到 `tw.foundry`／`erpuser`／`hr`／`tw_scan`／`pham_lee`／`sapien`／`cn_scan`／`oversea_scan` 共 8 筆——這個 heuristic 正確地沒有誤傷同樣掛在「Dummy」部門底下、但是真人的 `mark_li`／`stella_hsieh`），跟「抽不出英文姓名、退回用原文姓名或 ID 當顯示名稱」的 6 筆（`eyssiy`／`jy_kim`／`sean.joo`／`hazel.kim`／`emma_choi`／`safeworkplace`）。`--apply` 支援 `--exclude=id1,id2,...`，讓使用者看完 dry-run 報告後自己決定要不要排除特定帳號，而不是由程式自己猜哪些是「不該匯入」的。
+
+### 43.4 使用者決定：排除整個 Dummy 部門，shawn_tsai 先跳過，其餘 apply
+
+看過 dry-run 報告後，使用者的決定是：不要建立 Dummy 部門，Dummy 底下所有帳號都先排除；`shawn_tsai` 那筆衝突先跳過；其餘直接 apply。
+
+「排除 Dummy 部門」原本的「Name 欄位與 ID 欄位相同」heuristic 抓不全——它抓到 8 個明顯的系統帳號（`tw.foundry`／`erpuser`／`hr`／`tw_scan`／`pham_lee`／`sapien`／`cn_scan`／`oversea_scan`），但漏掉 `mark_li`（「李宗憲(Mark Li)」≠「mark_li」）、`stella_hsieh`（「Stella Hsieh」≠「stella_hsieh」，大小寫/底線不同）、`kimi.jin`（「金英旭(kimi.jin)」≠「kimi.jin」）——這三個雖然名字跟 ID 不同，但部門路徑一樣是純 `Dummy`。所以另外加了一條獨立規則 `IsAllDummyDepartment()`：一個人合併後的 Department path 列表，如果**每一筆**的最外層節點都是 `Dummy`，整個人排除（不建立也不更新），跟原本「Name 欄位與 ID 欄位相同」的 heuristic 分開判斷、各自獨立回報。套用後：Dummy 部門排除數＝10（含 `mark_li`／`stella_hsieh`），可新增數從 121 降到 112，已存在／更新數從 1 降到 0（因為原本那 1 筆「更新」正是 `mark_li`）。`shawn_tsai` 本來就是「衝突」分類、`--apply` 本來就不會動它，不需要額外處理。
+
+### 43.5 Apply 時發現並修掉一個嚴重 bug：`Pages` class 沒有 require，錯誤還被吞掉
+
+第一次真的執行 `--apply` 時，程式印完 dry-run 報告後就整個停住，`=== Apply Results ===` 完全沒出現，`SELECT COUNT(*) FROM users` 確認 0 筆寫入、也沒有任何 exit code 非 0 或錯誤訊息——一開始完全看不出卡在哪。
+
+加上逐筆 debug log 後追到：`User::Create()`（`Domain/User.php`）的第 9 個參數 `$homepageId` 預設值是 `Pages::DEFAULT_HOMEPAGE_ID`，但這支 Job 從沒有 `require` 過定義 `Pages` 這個 class 的 `Pages/Pages.php`——PHP 對「找不到 class」丟的是 `Error`（更精確地說是 `\Error`），不是 `Exception`，而我原本每筆的 `catch (Exception $ex)` 只抓 `Exception` 沒有抓 `Error`，所以這個致命錯誤沒有被任何一層 catch 住，直接讓整支 script 中止在第一筆使用者身上，而且沒有印出任何看得到的錯誤（容器 PHP 設定 `display_errors` 沒開）。修法：(1) `Pages/Pages.php` 本身沒有任何依賴、單純是一組常數 class，直接補上這行 require；(2) 把每一筆 create/update 迴圈裡的 `catch (Exception $ex)` 全部改成 `catch (Throwable $ex)`（外層 `main()` 的 try/catch 也一併改），這樣以後任何一筆資料觸發任何種類的致命錯誤，都只會讓那一筆進「錯誤」清單，不會讓整支批次匯入靜默中止在第一筆。修好後先重新用 `--dry-run` 確認報告數字沒變，才真的執行 `--apply`。
+
+### 43.6 Apply 結果
+
+第一次 `--apply`：新增 112、更新 0、錯誤 0，`users` 表從 2 筆變成 114 筆。緊接著重跑第二次 `--apply` 驗證安全重跑：新增 0、更新 112、錯誤 0，`users` 表仍然是 114 筆——確認同一批人不會被重複建立。
+
+抽查驗證：
+- `shawn.admin`（user_id=2）密碼雜湊／`Application Administrators` 群組完全沒變（這筆本來就在衝突清單，從頭到尾沒被寫入過）。
+- `mark_li`（user_id=8）密碼雜湊沒變（這筆這次被 Dummy 規則排除，同樣沒被寫入）。
+- 新建的 112 筆全部 `status_id=1`（ACTIVE）——對照 `Pages/Ajax/AutoCompletePage.php` 的搜尋邏輯，這代表一般（非管理員）使用者現在就能透過「新增參與者」搜尋框搜到這些從未登入過的員工。
+- 抽查 `ds.shin`：`organization`="President"、`position`="社長"、自訂屬性 Employee ID="CZ2014011"、Chinese Name="申東洙"、Korean Name=""（空，正確——這個人是中文名）、Department Paths="President"、AD Managed Account="1"。
+- 新建帳號（如 `ds.shin`）只被加進非管理員的預設群組「全體員工」，沒有任何一筆被加進 `Application Administrators` 或其他管理群組——包含 IT 部門的員工（`mars_huang`／`joe_zhong`／`lucia_huang` 等）也不例外。
+
+**沒有做的部分**：沒有把 AD 登入路徑（`plugins/Authentication/ActiveDirectory`）改成會即時抓/寫 `ad_object_guid`——範圍評估後認為那是動到正式登入邏輯的獨立工作，跟這次「先完成匯入」的優先順序衝突，只留了欄位當作已知的後續項目。也沒有重做參與者搜尋/新增 UI，也沒有另外用瀏覽器實測「新增參與者」畫面——確認 `Pages/Ajax/AutoCompletePage.php`／`Web/scripts/reservation.js` 本來就是送真正的整數 `user_id`（不是 email），且新帳號的 `status_id` 已經在 SQL 層級確認符合搜尋條件，依照使用者「不要跑大量無關測試」的要求沒有再另外做 UI 端到端驗證。
+
+## 44. 「新增參與者」真正落地：Drawer 加上參與者搜尋＋chip，Quick Create 只負責轉交＋聚焦
+
+使用者回報：§37/§39 之前的說法（"Quick Create 本來就不能存參與者，所以按鈕直接轉交給 Drawer"）掩蓋了一個事實——轉交過去的 Drawer 那邊，參與者區塊本來就只有 §37 從 `data.participants` 畫出來的**唯讀**摘要（`#rdParticipantsSummary`／`#rdParticipantsList`），從頭到尾沒有搜尋框、沒有新增按鈕，`buildCreateBody()` 也從來沒有送過 `participantList[]`——所以整條路徑上沒有任何一個環節真的能加參與者，是道地的假功能。
+
+這次要求明確只針對「建立預約時」，所以刻意把範圍切成：**Create 模式**（Quick Create 的「新增參與者」／「更多選項」開出來的 Drawer）拿到全新的搜尋＋chip 編輯器；**Edit 模式**（點開一筆已存在的預約）維持原本的唯讀摘要，完全沒動——沒有做出「看起來可以編輯、存檔卻默默沒生效」的另一個假功能。
+
+### 44.1 參與者搜尋元件
+
+`tpl/Overview/overview_fullcalendar.tpl` 在原本唯讀的 `#rdParticipantsSummary` 前面新增一個獨立的 `#rdParticipantsEditor` 區塊（預設 `d-none`，只在 `openReservationDrawer()` 的 create 分支才 `removeClass`），包含：一個一直顯示的搜尋輸入框（不是像 `.resource-picker` 那樣的「點了才展開」觸發鈕，因為搜尋沒有一個能收合回去的「目前值」）＋輸入時彈出的結果下拉，跟一列可移除的 `.reservation-chip`（複用 §37 `renderRepeatCustomDatesList()` 那組「chip + `btn-close`」pattern，不是另外發明一套）。
+
+`overview_fullcalendar.js` 新增的邏輯（`renderParticipantChips()`／`addParticipant()`／`runParticipantSearch()`／`renderParticipantSearchResults()`）：輸入框 250ms debounce 後打 `ajax/autocomplete.php?type=user&term=...`——這正是 `Web/scripts/reservation.js`（舊版經典表單）本來就在用的同一支 `Pages/Ajax/AutoCompletePage.php::GetUsers()` 端點，不是另外寫一套搜尋邏輯；回傳結果按 `Id`（真正的 `users.user_id`）存進 `rdParticipants` 陣列，已選過的人從下拉結果裡濾掉避免選兩次。回應回來時比對輸入框當下的值是否還等於發出請求當下的字串，不一致就整包丟棄——避免打字很快時，一個較慢的舊回應蓋掉使用者已經在看的新結果。
+
+CSS（`Web/css/overview_fullcalendar.css`）新增 `.participant-search*` 一組規則，視覺語彙照抄 `.resource-picker-search`／`.resource-picker-panel`／`.resource-picker-item`／`.resource-picker-empty`（同一批圓角/陰影/hover 底色 token），只是把「點擊展開的觸發鈕」換成「一直開著的輸入框」。
+
+### 44.2 送出真正的 `user_id`
+
+`buildCreateBody()` 在既有欄位後面，把 `rdParticipants` 陣列逐一 `body.append('participantList[]', p.id)`——`p.id` 是搜尋結果的 `Id`（`AutocompleteUser::$Id`，即 `users.user_id`），從頭到尾沒有經手過 email。伺服器端完全沒改：`Pages/Ajax/ReservationSavePage.php::GetParticipants()` 讀 `$_POST['participantList']`（PHP 對重複 `name[]` 欄位的標準陣列收集行為）、`ReservationSavePresenter.php` 呼叫 `ChangeParticipants($participantIds)`——這條路徑本來就存在、本來就吃整數 `user_id`，這次只是終於有東西真的送過去。
+
+### 44.3 Quick Create「新增參與者」：轉交＋自動聚焦
+
+`openReservationDrawer()` 新增一個可選的 `options.focusSelector`：等 Bootstrap Modal 的 `shown.bs.modal`（動畫真的播完，不是 `.show()` 呼叫完當下——那時候元素可能還沒吃得到 focus）才把焦點移過去。Quick Create 的 `#qcAddParticipants` 點擊處理常式改成呼叫 `openReservationDrawer({ mode: 'create', draft: draft, focusSelector: '#rdParticipantSearchInput' })`；旁邊的「更多選項」按鈕（`#qcMoreOptions`）完全沒改，沒有傳這個參數，維持原本沒有自動聚焦的行為——兩顆按鈕現在真的不一樣，不是文字不同、行為相同的兩顆按鈕。
+
+### 44.4 途中修掉的一個環境問題：`AutoCompleteType` class 沒被載入
+
+第一次套用後整頁變成 500 錯誤（`錯誤／未知錯誤`），查 container log 抓到 `Error: Class "AutoCompleteType" not found in .../tpl_c/....file_overview_fullcalendar.tpl.php:727`——這個 class 定義在 `Pages/Ajax/AutoCompletePage.php` 裡，`tpl/Reservation/create.tpl` 那邊能直接用 `{AutoCompleteType::User}` 是因為經典預約表單的 Page/Presenter 鏈路本來就會載入到那支檔案，但 `Pages/OverviewFullCalendarPage.php` 從來沒有這個依賴。修法：在 `Pages/OverviewFullCalendarPage.php` 頂端補一行 `require_once(ROOT_DIR . 'Pages/Ajax/AutoCompletePage.php')`——先確認過這支檔案裡沒有會跟既有 class 衝突的重複宣告（`AutocompleteUser`／`AutoCompleteType`／`XAutocompleteUser` 都是這支檔案獨有，唯一共用的 `FullName` 只是「使用」`Domain/Values/FullName.php` 的既有類別，不是重新宣告），確認安全後才加這行，而不是用字串硬寫 `type=user` 繞過去。
+
+### 44.5 驗證
+
+用 Claude Browser 工具登入 `mark_li`（這次因為要走「建立預約」這條真正碰資料庫寫入的路徑，且環境裡沒有任何已知密碼可用，先跟使用者確認過，由使用者提供了 `mark_li` 的密碼，才進行登入，沒有自己重設任何帳號密碼），做了完整的端到端流程，不只是看 DOM：
+
+- Quick Create 點「新增參與者」→ Drawer 開啟後 `document.activeElement.id` 直接讀回 `rdParticipantSearchInput`，確認自動聚焦真的生效，不是猜測。
+- 在參與者搜尋框輸入 `ds.shin`（這次匯入的員工之一，先前從未登入過）：Network 分頁確認確實打了 `GET ajax/autocomplete.php?type=user&term=ds.shin` 拿到 200，下拉結果正確顯示「DS／ds.shin@coasia.com」——證實剛匯入、還沒登入過的員工，現在真的能被搜到。換一次測試改輸入部分字串 `shin`（測子字串比對），同樣正確命中同一人。
+- 點下拉結果：chip 正確出現「DS」＋可見的 Remove 按鈕，搜尋框清空、下拉關閉、焦點回到搜尋框（方便連續加人）。
+- 填標題、不動日期時間欄位（維持 Quick Create 帶過來的當下時段），送出建立：Network 確認 `POST ajax/reservation_save.php` 回 200。直接查 `reservation_series`／`reservation_instances`／`reservation_users` 三張表確認新建的預約（`series_id=121`）底下 `reservation_users` 有兩筆：`user_id=8`（`mark_li`，等級 1＝建立者）跟 `user_id=9`（`ds.shin`，等級 2＝參與者）——`user_id=9` 正是資料庫裡 `ds.shin` 真正的主鍵，不是字串化的 email，證實 `participantList[]` 全程都在傳真正的 `user_id`。
+- 測試過程中先用 `form_input` 直接改 Drawer 的時間 `<select>` 觸發過一次「開始時間和日期不正確」的伺服器端驗證錯誤——花時間確認過這是自動化工具繞過真實使用者互動改 `<select>` 值時的既有落差（跟這次改動的程式碼無關，`drawerStartEndValues()`／`buildCreateBody()` 的日期時間欄位這輪完全沒有觸碰），改用「不動時間欄位、維持 Quick Create 帶過來的預設時段」重測一次後正確存檔成功，排除了誤判。
+- 驗證完後透過既有的 `ajax/reservation_delete.php` 端點（不是直接下 SQL DELETE）刪除測試預約，確認資料庫裡該預約 `status_id` 正確變成 `2`（Deleted，這個 app 本來就是軟刪除，不是這次改動造成的）；額外查證 `mark_li` 帳號本身的 `email`／`status_id` 全程沒有被這輪測試動到。
+- `php -l` 確認 `Pages/OverviewFullCalendarPage.php` 語法正確；`node --check` 確認 `overview_fullcalendar.js` 語法正確（這個環境沒有內建的 JS 執行/瀏覽器 lint 工具鏈，用 Node 的語法檢查頂替）。
+
+**沒有驗證到的部分**：一樣沒有實際視覺 screenshot（這個環境的 screenshot 工具本身逾時失敗，全程改用 DOM/Network 層級的資料驗證，跟過去幾輪同樣的限制）；沒有測試「同時輸入很快、連續打字觸發多次搜尋」下 debounce／過期回應丟棄機制在真實網路延遲下的行為，只確認了程式碼邏輯本身；沒有測試 Edit 模式（點開已存在預約）—— 這次刻意沒有改動那條路徑，維持原本的唯讀摘要顯示；沒有測試選了很多參與者（10+ 人）時 chip 換行／搜尋結果捲動的視覺呈現。

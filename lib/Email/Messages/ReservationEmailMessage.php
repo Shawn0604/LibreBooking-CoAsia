@@ -108,7 +108,7 @@ abstract class ReservationEmailMessage extends EmailMessage
             $this->Set('ResourceImage', $resourceImage);
         }
 
-        $this->Set('Title', $this->reservationSeries->Title());
+        $this->Set('Title', !empty($this->reservationSeries->Title()) ? $this->reservationSeries->Title() : Resources::GetInstance()->GetString('NoReservationTitle'));
         $this->Set('Description', $this->reservationSeries->Description());
 
         $repeatVariables = $context->GetRecurrenceInstances($this->timezone);
@@ -207,7 +207,7 @@ abstract class ReservationEmailMessage extends EmailMessage
             $this->reservationSeries->Resource()->GetResourceId(),
             $currentInstance->ReservationId(),
             null,
-            $this->reservationSeries->Title(),
+            !empty($this->reservationSeries->Title()) ? $this->reservationSeries->Title() : Resources::GetInstance()->GetString('NoReservationTitle'),
             $this->reservationSeries->Description(),
             $this->reservationSeries->ScheduleId(),
             $this->reservationOwner->FirstName(),

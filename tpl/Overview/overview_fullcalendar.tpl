@@ -108,51 +108,139 @@
         <div id="fcNowDot" class="d-none"></div>
     </div>
 
-    <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-hidden="true" aria-labelledby="quickCreateModalLabel">
+    {* Every row (including the title, whose icon column is deliberately empty) shares the
+       same .qc-grid-row: 32px icon column + content column — that's what keeps the title
+       underline, date/time, resource picker, participants link, and description textarea all
+       starting at the exact same left edge instead of the title (no icon) drifting 20px+32px
+       left of everything below it. *}
+    <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-hidden="true" aria-labelledby="quickCreateModalHeading">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <button type="button" class="btn-close qc-close" data-bs-dismiss="modal" aria-label="{translate key='Cancel'}"></button>
                 <div class="modal-body">
-                    <label for="qcTitle" class="visually-hidden" id="quickCreateModalLabel">{translate key='NewReservation'}</label>
-                    <input type="text" class="qc-title" id="qcTitle" placeholder="{translate key='NewReservation'}" autocomplete="off">
+                    {* The dialog's own accessible name (aria-labelledby above) now points here
+                       instead of the hidden input label below — a real heading is a more
+                       correct label for the DIALOG than an input's own hidden <label> ever was. *}
+                    <h2 class="qc-heading" id="quickCreateModalHeading">{translate key='NewReservation'}</h2>
+                    <p class="qc-subheading">{translate key='QuickCreateSubheading'}</p>
 
-                    <div class="qc-row">
-                        <i class="bi bi-clock"></i>
-                        <div class="qc-row-text">
+                    <label for="qcTitle" class="visually-hidden" id="qcTitleLabel">{translate key='NewReservation'}</label>
+
+                    <div class="qc-grid-row qc-title-row">
+                        <div class="qc-icon"><i class="bi bi-card-heading"></i></div>
+                        <input type="text" class="qc-title" id="qcTitle" placeholder="{translate key='AddTitle'}" autocomplete="off">
+                    </div>
+
+                    {* Reservations can't cross midnight (CoAsia policy — see ResourceCrossDayRule.php,
+                       now unconditional for every resource) — one date input covers both start and
+                       end, so there's no UI path to even attempt a different end day. The native
+                       <input type="date"> stays the actual control (keyboard input, native picker,
+                       accessibility) but renders its own text transparent — #qcStartDateDisplay sits
+                       on top showing "7月30日（四）" instead of the input's own locale-dependent ISO-ish
+                       rendering, and is pointer-events:none so clicks still reach the real input
+                       underneath (see overview_fullcalendar.css .qc-date-field). *}
+                    <div class="qc-grid-row">
+                        <div class="qc-icon"><i class="bi bi-clock"></i></div>
+                        <div class="qc-content">
                             <div class="qc-time-edit">
-                                <input type="date" class="qc-date-input" id="qcStartDate">
+                                <div class="qc-date-field">
+                                    <input type="date" class="qc-date-input" id="qcStartDate">
+                                    <span class="qc-date-display" id="qcStartDateDisplay"></span>
+                                </div>
                                 <div class="qc-time-picker" id="qcStartPicker">
                                     <button type="button" class="qc-time-pill" id="qcStartPill" aria-haspopup="listbox" aria-expanded="false"></button>
                                     <div class="qc-time-dropdown" id="qcStartDropdown" role="listbox"></div>
                                 </div>
-                                <span class="qc-time-dash">–</span>
-                                <input type="date" class="qc-date-input" id="qcEndDate">
+                                <span class="qc-time-dash">－</span>
                                 <div class="qc-time-picker" id="qcEndPicker">
                                     <button type="button" class="qc-time-pill" id="qcEndPill" aria-haspopup="listbox" aria-expanded="false"></button>
                                     <div class="qc-time-dropdown" id="qcEndDropdown" role="listbox"></div>
                                 </div>
                             </div>
                             <div class="qc-time-error d-none" id="qcTimeError"></div>
-                            <span class="qc-row-sub">{translate key='DoesNotRepeat'}</span>
                         </div>
                     </div>
-                    <div class="qc-row">
-                        <i class="bi bi-geo-alt"></i>
-                        <div class="qc-row-text">
-                            <div class="qc-resource-tabs" id="qcResourceTabs">
-                                <button type="button" class="qc-resource-tab active" data-category="physical">{translate key='PhysicalRooms'}</button>
-                                <button type="button" class="qc-resource-tab" data-category="video">{translate key='VideoConferenceResources'}</button>
+
+                    {* Single searchable/grouped picker — same component the toolbar's own resource
+                       picker uses (.resource-picker*, styled in overview_fullcalendar.css under
+                       #page-overview-fc, which this modal sits inside), just full-width and with
+                       its own qc-prefixed ids so its selection is independent of which resource the
+                       calendar itself is currently showing. Replaces the old physical/video tab
+                       pair + plain dropdown — category is now just a section heading inside the one
+                       dropdown instead of two separate top-level controls. *}
+                    <div class="qc-grid-row">
+                        <div class="qc-icon"><i class="bi bi-building"></i></div>
+                        <div class="qc-content">
+                            <div class="resource-picker qc-resource-picker" id="qcResourcePicker">
+                                <button type="button" class="ghost-btn resource-picker-trigger" id="qcResourcePickerTrigger"
+                                    aria-haspopup="listbox" aria-expanded="false">
+                                    <span class="resource-picker-dot" id="qcResourcePickerDot" style="display:none;"></span>
+                                    <span class="resource-picker-label" id="qcResourcePickerLabel"></span>
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+                                <div class="resource-picker-panel" id="qcResourcePickerPanel">
+                                    <div class="resource-picker-search">
+                                        <i class="bi bi-search"></i>
+                                        <input type="text" id="qcResourcePickerSearch" placeholder="{translate key='SearchResources'}" autocomplete="off">
+                                    </div>
+                                    <div class="resource-picker-list" id="qcResourcePickerList">
+                                        {if count($PhysicalResources) > 0}
+                                            <div class="resource-picker-section-label" data-section="physical">{translate key='PhysicalRooms'}</div>
+                                            {foreach from=$PhysicalResources item=resource}
+                                                <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="physical">
+                                                    <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                                    <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                                    <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                                </button>
+                                            {/foreach}
+                                        {/if}
+                                        {if count($VideoResources) > 0}
+                                            <div class="resource-picker-section-label" data-section="video">{translate key='VideoConferenceResources'}</div>
+                                            {foreach from=$VideoResources item=resource}
+                                                <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="video">
+                                                    <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                                    <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                                    <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                                </button>
+                                            {/foreach}
+                                        {/if}
+                                        <div class="resource-picker-empty d-none" id="qcResourcePickerEmpty">{translate key='NoMatchesFound'}</div>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="qc-resource-picker" id="qcResourcePicker">
-                                <button type="button" class="qc-time-pill" id="qcResourcePill" aria-haspopup="listbox" aria-expanded="false"></button>
-                                <div class="qc-time-dropdown" id="qcResourceDropdown" role="listbox"></div>
+                            {* Re-queried via ajax/overview_fullcalendar_availability.php on every
+                               date/time/resource change (Web/scripts/overview_fullcalendar.js) —
+                               never a hardcoded/static state. *}
+                            <div class="qc-availability" id="qcAvailability">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <span id="qcAvailabilityLabel"></span>
                             </div>
                         </div>
                     </div>
-                    <div class="qc-row qc-row-top">
-                        <i class="bi bi-text-left"></i>
-                        <div class="qc-row-text">
-                            <textarea id="qcDescription" class="qc-description" rows="2" placeholder="{translate key='Description'}"></textarea>
+
+                    {* Participant search + editable chip list, built directly into Quick Create
+                       (see COASIA-CHANGES.md §45 — supersedes the earlier §44 "hands off to the
+                       Drawer" placeholder). Same shared picker (createParticipantPicker() in
+                       overview_fullcalendar.js) and same dedicated search endpoint as the
+                       Drawer's own participant editor below. *}
+                    <div class="qc-grid-row qc-grid-row-top">
+                        <div class="qc-icon"><i class="bi bi-people"></i></div>
+                        <div class="qc-content">
+                            <div class="participant-search" id="qcParticipantSearch">
+                                <div class="participant-search-input-wrap">
+                                    <i class="bi bi-search"></i>
+                                    <input type="text" id="qcParticipantSearchInput" placeholder="{translate key='SearchParticipants'}" autocomplete="off">
+                                </div>
+                                <div class="participant-search-results d-none" id="qcParticipantSearchResults"></div>
+                            </div>
+                            <div class="rd-chip-list qc-participant-chip-list d-none" id="qcParticipantChipList"></div>
+                        </div>
+                    </div>
+
+                    <div class="qc-grid-row qc-grid-row-top">
+                        <div class="qc-icon"><i class="bi bi-text-left"></i></div>
+                        <div class="qc-content">
+                            <textarea id="qcDescription" class="qc-description" rows="2" placeholder="{translate key='AddDescription'}"></textarea>
                         </div>
                     </div>
 
@@ -160,7 +248,8 @@
                 </div>
                 <div class="modal-footer">
                     <a href="#" id="qcMoreOptions" class="link-primary me-auto">{translate key='MoreOptions'}</a>
-                    <button type="button" class="btn btn-primary" id="qcSave">{translate key='Create'}</button>
+                    <button type="button" class="reservation-btn-text" id="qcCancel" data-bs-dismiss="modal">{translate key='CancelAction'}</button>
+                    <button type="button" class="btn btn-primary" id="qcSave">{translate key='CreateReservation'}</button>
                 </div>
             </div>
         </div>
@@ -283,15 +372,25 @@
                             <input type="text" class="reservation-field rd-title-input" id="rdTitle" placeholder="{translate key='NewReservation'}">
                         </div>
 
+                        {* Reservations can't cross midnight (CoAsia policy — see ResourceCrossDayRule.php,
+                           now unconditional for every resource) — one date input covers both start and
+                           end, so there's no UI path to even attempt a different end day. *}
+                        {* Same transparent-input-plus-overlay technique as Quick Create's #qcStartDate
+                           (see .qc-date-field's own comment) — a real <input type="date"> stays the
+                           actual control, #rdDateDisplay shows "7月30日（四）" instead of its native
+                           locale-dependent rendering. *}
                         <div class="reservation-section">
                             <div class="reservation-row">
                                 <i class="bi bi-calendar3"></i>
-                                <input type="date" class="reservation-field" id="rdStartDate">
-                                <select class="reservation-select" id="rdStartTime"></select>
+                                <div class="rd-date-field">
+                                    <input type="date" class="reservation-field" id="rdDate">
+                                    <span class="rd-date-display" id="rdDateDisplay"></span>
+                                </div>
                             </div>
                             <div class="reservation-row">
-                                <i class="bi bi-calendar3 rd-row-spacer-icon"></i>
-                                <input type="date" class="reservation-field" id="rdEndDate">
+                                <i class="bi bi-clock rd-row-spacer-icon"></i>
+                                <select class="reservation-select" id="rdStartTime"></select>
+                                <span class="qc-time-dash">–</span>
                                 <select class="reservation-select" id="rdEndTime"></select>
                             </div>
                             <div class="rd-time-error d-none" id="rdTimeError"></div>
@@ -357,18 +456,62 @@
                             <div class="rd-time-error d-none" id="rdRepeatError"></div>
                         </div>
 
+                        {* Same searchable/grouped resource picker as Quick Create's #qcResourcePicker
+                           (see its own comment) — reuses the shared .resource-picker* component rather
+                           than the old physical/video tab pair + plain <select>, plus the same
+                           "此時段可用" indicator underneath, re-queried from
+                           ajax/overview_fullcalendar_availability.php on every date/time/resource
+                           change. drawerResourceId (overview_fullcalendar.js) is the actual state —
+                           #rdResource below is a hidden field kept in sync purely so
+                           buildCreateBody()/buildEditBody() can go on reading it exactly as before. *}
                         <div class="reservation-section">
                             <div class="reservation-row">
                                 <i class="bi bi-geo-alt"></i>
-                                <div class="rd-category-tabs" id="rdCategoryTabs">
-                                    <button type="button" class="rd-category-tab active" data-category="physical">{translate key='PhysicalRooms'}</button>
-                                    <button type="button" class="rd-category-tab" data-category="video">{translate key='VideoConferenceResources'}</button>
+                                <div class="reservation-row-fill">
+                                    <div class="resource-picker rd-resource-picker" id="rdResourcePicker">
+                                        <button type="button" class="ghost-btn resource-picker-trigger" id="rdResourcePickerTrigger"
+                                            aria-haspopup="listbox" aria-expanded="false">
+                                            <span class="resource-picker-dot" id="rdResourcePickerDot" style="display:none;"></span>
+                                            <span class="resource-picker-label" id="rdResourcePickerLabel"></span>
+                                            <i class="bi bi-chevron-down"></i>
+                                        </button>
+                                        <div class="resource-picker-panel" id="rdResourcePickerPanel">
+                                            <div class="resource-picker-search">
+                                                <i class="bi bi-search"></i>
+                                                <input type="text" id="rdResourcePickerSearch" placeholder="{translate key='SearchResources'}" autocomplete="off">
+                                            </div>
+                                            <div class="resource-picker-list" id="rdResourcePickerList">
+                                                {if count($PhysicalResources) > 0}
+                                                    <div class="resource-picker-section-label" data-section="physical">{translate key='PhysicalRooms'}</div>
+                                                    {foreach from=$PhysicalResources item=resource}
+                                                        <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="physical">
+                                                            <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                                            <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                                            <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                                        </button>
+                                                    {/foreach}
+                                                {/if}
+                                                {if count($VideoResources) > 0}
+                                                    <div class="resource-picker-section-label" data-section="video">{translate key='VideoConferenceResources'}</div>
+                                                    {foreach from=$VideoResources item=resource}
+                                                        <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="video">
+                                                            <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                                            <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                                            <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                                        </button>
+                                                    {/foreach}
+                                                {/if}
+                                                <div class="resource-picker-empty d-none" id="rdResourcePickerEmpty">{translate key='NoMatchesFound'}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="qc-availability" id="rdAvailability">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        <span id="rdAvailabilityLabel"></span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="reservation-row">
-                                <i class="bi bi-door-open rd-row-spacer-icon"></i>
-                                <select class="reservation-select" id="rdResource"></select>
-                            </div>
+                            <input type="hidden" id="rdResource">
                         </div>
 
                         {* Additional resources / accessories / allow-participation are read-only
@@ -391,6 +534,36 @@
 
                         <div class="reservation-section d-none" id="rdAllowParticipationSummary">
                             <div class="reservation-row"><i class="bi bi-people-fill"></i><span id="rdAllowParticipationText">{translate key='AllowParticipantsToJoin'}</span></div>
+                        </div>
+
+                        {* Participant search + editable chip list — CREATE mode only. Reuses the
+                           exact same search-by-name/username/email endpoint the classic
+                           reservation form already uses (ajax/autocomplete.php?type=user,
+                           Pages/Ajax/AutoCompletePage.php's GetUsers()) and stores real
+                           users.user_id values from the response (u.Id), not emails — those
+                           get sent as participantList[] in buildCreateBody(). Shown/hidden via
+                           JS in openReservationDrawer()/resetDrawerUI(); edit mode keeps using
+                           the read-only #rdParticipantsSummary below instead — managing
+                           participants on an *existing* reservation is a separate, not-yet-
+                           implemented feature, so this editor deliberately doesn't appear there
+                           rather than looking editable and silently doing nothing on save. *}
+                        <div class="reservation-section d-none" id="rdParticipantsEditor">
+                            <div class="reservation-row">
+                                <i class="bi bi-people"></i>
+                                <div class="reservation-row-fill">
+                                    <div class="participant-search" id="rdParticipantSearch">
+                                        <div class="participant-search-input-wrap">
+                                            <i class="bi bi-search"></i>
+                                            <input type="text" id="rdParticipantSearchInput" placeholder="{translate key='SearchParticipants'}" autocomplete="off">
+                                        </div>
+                                        <div class="participant-search-results d-none" id="rdParticipantSearchResults"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="reservation-row reservation-row-top d-none" id="rdParticipantChipsRow">
+                                <i class="bi bi-people rd-row-spacer-icon"></i>
+                                <div class="rd-chip-list" id="rdParticipantChipList"></div>
+                            </div>
                         </div>
 
                         <div class="reservation-section d-none" id="rdParticipantsSummary">
@@ -493,6 +666,13 @@
     window.overviewFullCalendarOpts = {
         reservationUrl: '{$ScriptUrl}/{Pages::RESERVATION}',
         eventsUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_events.php',
+        availabilityUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_availability.php',
+        {* Dedicated CoAsia endpoint (not the shared ajax/autocomplete.php) — matches Chinese/
+           Korean name, English name, username/employee ID, and email (Pages/Ajax/
+           OverviewFullCalendarParticipantSearchPage.php), and returns the richer fields the
+           search-result rows below display. Only the "term" querystring param is appended at
+           call time. *}
+        participantSearchUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_participant_search.php?term=',
         saveUrl: '{$ScriptUrl}/ajax/reservation_save.php',
         reservationDataUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_reservation.php',
         {* Deliberately NOT ajax/reservation_update.php — see OverviewFullCalendarReservationUpdatePresenter's
@@ -525,7 +705,10 @@
             repeatCustomDateRequired: '{translate key='RepeatCustomDateRequired'|escape:'javascript'}',
             minutes: '{translate key='minutes'|escape:'javascript'}',
             hours: '{translate key='hours'|escape:'javascript'}',
-            days: '{translate key='days'|escape:'javascript'}'
+            days: '{translate key='days'|escape:'javascript'}',
+            resourceAvailable: '{translate key='ResourceAvailable'|escape:'javascript'}',
+            resourceUnavailable: '{translate key='ResourceUnavailable'|escape:'javascript'}',
+            noMatchesFound: '{translate key='NoMatchesFound'|escape:'javascript'}'
         },
         resourceNames: {
             {foreach from=$PhysicalResources item=resource name=physicalNames}

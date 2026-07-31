@@ -194,6 +194,22 @@ $(function () {
         return y + '-' + m + '-' + d;
     }
 
+    // "2026-07-30" -> "7月30日（四）" — both Quick Create's date field and the Drawer's own
+    // overlay this on top of a real (but text-transparent) <input type="date">, since a
+    // native date input's own displayed text can't be reformatted directly (see
+    // .qc-date-display/.rd-date-display in overview_fullcalendar.css).
+    function formatDateLabel(isoDate) {
+        if (!isoDate) {
+            return '';
+        }
+        var parts = isoDate.split('-');
+        var y = parseInt(parts[0], 10);
+        var m = parseInt(parts[1], 10);
+        var d = parseInt(parts[2], 10);
+        var date = new Date(Date.UTC(y, m - 1, d));
+        return m + '月' + d + '日（' + weekdayLabel(date) + '）';
+    }
+
     // Always a single "Y年n月" — never a "7月－8月"-style range. A week view's visible range
     // can span two months; rather than growing the label to cover both (which changed the
     // label's width/length depending on the exact week, making the whole centered toolbar
@@ -365,7 +381,11 @@ $(function () {
     // mousedown/mousemove/mouseup pixel-math drag implementation. ----
     var $modalEl = $('#quickCreateModal');
     var quickCreateModal = $modalEl.length && window.bootstrap ? new bootstrap.Modal($modalEl[0]) : null;
-    var pending = null; // { resourceId, startDate, endDate, beginMinutes, endMinutes } — beginMinutes/endMinutes are each 0-1439 within their OWN date; a cross-day reservation has endDate > startDate, not endMinutes > 1440.
+    // { resourceId, startDate, endDate, beginMinutes, endMinutes } — startDate/endDate are
+    // always equal (reservations can't cross midnight, see ResourceCrossDayRule.php); kept as
+    // two keys rather than one so moreOptionsUrl()/buildCreateBody() etc don't need special-
+    // casing versus the Drawer's own startDate/endDate pair.
+    var pending = null;
 
     $modalEl.find('.qc-close').on('click', function () {
         if (quickCreateModal) {
@@ -379,15 +399,13 @@ $(function () {
         return pad(h) + ':' + pad(m) + ':00';
     }
 
+    // 24-hour "HH:MM", zero-padded, no 上午/下午 — used everywhere a time gets displayed
+    // (Quick Create's pills, the Drawer's time selects, the event popover's time range) so
+    // it reads the same way across the whole page.
     function formatTimeLabel(minutes) {
         var h = Math.floor(minutes / 60) % 24;
         var m = minutes % 60;
-        var period = h < 12 ? '上午' : '下午';
-        var h12 = h % 12;
-        if (h12 === 0) {
-            h12 = 12;
-        }
-        return period + h12 + ':' + pad(m);
+        return pad(h) + ':' + pad(m);
     }
 
     function formatDuration(minutes) {
@@ -453,16 +471,10 @@ $(function () {
     $(document).on('click', closeAllDropdowns);
 
     var startPicker = TimeDropdown('#qcStartPill', '#qcStartDropdown', function (minutes) {
-        // Preserve the current duration when nudging the start time, but only when start/end
-        // are still the same calendar day — once the end date is a later day, its time is
-        // independent of the start time and shouldn't be dragged along.
-        if (pending.startDate === pending.endDate) {
-            var duration = Math.max(30, pending.endMinutes - pending.beginMinutes);
-            pending.beginMinutes = minutes;
-            pending.endMinutes = Math.min(24 * 60 - 30, minutes + duration);
-        } else {
-            pending.beginMinutes = minutes;
-        }
+        // Preserve the current duration when nudging the start time.
+        var duration = Math.max(30, pending.endMinutes - pending.beginMinutes);
+        pending.beginMinutes = minutes;
+        pending.endMinutes = Math.min(24 * 60 - 30, minutes + duration);
         refreshTimeUI();
     });
     var endPicker = TimeDropdown('#qcEndPill', '#qcEndDropdown', function (minutes) {
@@ -473,17 +485,13 @@ $(function () {
 
     function refreshTimeUI() {
         // Full 00:00-23:30 range, no artificial duration cap (previously capped at +8 hours).
-        // Same-day end time must be strictly after the start time; once the end date is a
-        // later day, the end time is free to be anything — a genuine cross-midnight range
-        // (e.g. 22:00 -> next day 02:00) is expressed via the separate end DATE input, not by
-        // letting minutes run past 1440.
-        var sameDay = pending.startDate === pending.endDate;
-        var minEndMinutes = sameDay ? pending.beginMinutes + 30 : 0;
-        // A date-input change (or a start-time change that pushes past the old end time) can
-        // leave pending.endMinutes stale/invalid for the now-current start/end date pair (e.g.
-        // switching the end date back to match the start date after picking an end time that
-        // only made sense cross-day) — snap it back into range rather than silently submitting
-        // an end time that's actually before the start time on the same day.
+        // End time must always be strictly after the start time — reservations can't cross
+        // midnight (ResourceCrossDayRule.php), so there's no "later day" case to special-case
+        // here any more.
+        var minEndMinutes = pending.beginMinutes + 30;
+        // A start-time change that pushes past the old end time can leave pending.endMinutes
+        // stale/invalid — snap it back into range rather than silently submitting an end time
+        // that's actually before the start time.
         if (pending.endMinutes < minEndMinutes) {
             pending.endMinutes = minEndMinutes;
         }
@@ -502,57 +510,217 @@ $(function () {
 
         var endOptions = [];
         for (var e = minEndMinutes; e <= 24 * 60 - 30; e += 30) {
-            var label = formatTimeLabel(e);
-            if (sameDay) {
-                label += '（' + formatDuration(e - pending.beginMinutes) + '）';
-            }
+            var label = formatTimeLabel(e) + '（' + formatDuration(e - pending.beginMinutes) + '）';
             endOptions.push({ minutes: e, label: label });
         }
         endPicker.render(endOptions, pending.endMinutes);
 
         $('#qcTimeError').addClass('d-none').empty();
 
+        $('#qcStartDateDisplay').text(formatDateLabel(pending.startDate));
         $('#qcMoreOptions').attr('href', moreOptionsUrl());
+        scheduleAvailabilityCheck();
+    }
+
+    // Shared by Quick Create (#qcAvailability) and the Drawer (#rdAvailability) — both need
+    // exactly the same "query, then only apply the response if nothing's moved on since"
+    // logic, just reading their state from different places (a shared `pending` object here,
+    // a handful of Drawer DOM fields there). requestTracker is called at resolve time (not
+    // captured up front) so it always reflects whatever's actually showing right now — that's
+    // what lets a stale, late-arriving response recognize itself as stale and get discarded
+    // instead of overwriting a newer one.
+    function checkResourceAvailability(resourceId, startDateTime, endDateTime, requestTracker, onResult, excludeReferenceNumber) {
+        if (!resourceId || !startDateTime || !endDateTime) {
+            return;
+        }
+        var requestKey = resourceId + '|' + startDateTime + '|' + endDateTime;
+        var url = opts.availabilityUrl
+            + '?resourceId=' + encodeURIComponent(resourceId)
+            + '&start=' + encodeURIComponent(startDateTime)
+            + '&end=' + encodeURIComponent(endDateTime);
+        if (excludeReferenceNumber) {
+            // Editing an existing reservation would otherwise always see its own current slot
+            // as a "conflict" and report itself unavailable — irrelevant for Quick Create,
+            // which never passes this (it only ever creates new reservations).
+            url += '&excludeReferenceNumber=' + encodeURIComponent(excludeReferenceNumber);
+        }
+
+        fetch(url, { credentials: 'same-origin' })
+            .then(function (response) { return response.ok ? response.json() : null; })
+            .then(function (json) {
+                if (!json || requestTracker() !== requestKey) {
+                    return;
+                }
+                onResult(json.available);
+            })
+            .catch(function () {
+                // Silently leave whatever the availability line was already showing — a failed
+                // check isn't worth surfacing as a hard error in a quick-create/edit popup, and
+                // the save itself still re-validates server-side regardless.
+            });
+    }
+
+    function renderAvailability($container, available) {
+        var $icon = $container.find('i');
+        $container.toggleClass('unavailable', !available);
+        $icon.toggleClass('bi-check-circle-fill', available);
+        $icon.toggleClass('bi-x-circle-fill', !available);
+        $container.find('span').text(available ? opts.translations.resourceAvailable : opts.translations.resourceUnavailable);
+    }
+
+    // Debounced — a user stepping through the time dropdown or typing in the date field can
+    // fire refreshTimeUI() several times in quick succession; only the last one within 300ms
+    // actually hits the server, same principle as any type-ahead search box.
+    var qcAvailabilityTimer = null;
+    function scheduleAvailabilityCheck() {
+        if (qcAvailabilityTimer) {
+            clearTimeout(qcAvailabilityTimer);
+        }
+        qcAvailabilityTimer = setTimeout(checkAvailability, 300);
+    }
+
+    function checkAvailability() {
+        if (!pending || !pending.resourceId) {
+            return;
+        }
+        checkResourceAvailability(
+            pending.resourceId,
+            pending.startDate + ' ' + minutesToHHMMSS(pending.beginMinutes),
+            pending.endDate + ' ' + minutesToHHMMSS(pending.endMinutes),
+            function () {
+                return pending
+                    ? pending.resourceId + '|' + pending.startDate + ' ' + minutesToHHMMSS(pending.beginMinutes)
+                        + '|' + pending.endDate + ' ' + minutesToHHMMSS(pending.endMinutes)
+                    : null;
+            },
+            function (available) { renderAvailability($('#qcAvailability'), available); }
+        );
+    }
+
+    var drawerAvailabilityTimer = null;
+    function scheduleDrawerAvailabilityCheck() {
+        if (drawerAvailabilityTimer) {
+            clearTimeout(drawerAvailabilityTimer);
+        }
+        drawerAvailabilityTimer = setTimeout(checkDrawerAvailability, 300);
+    }
+
+    function checkDrawerAvailability() {
+        var resourceId = drawerResourceId;
+        var date = $('#rdDate').val();
+        var startTime = $('#rdStartTime').val();
+        var endTime = $('#rdEndTime').val();
+        if (!resourceId || !date || !startTime || !endTime) {
+            return;
+        }
+        checkResourceAvailability(
+            resourceId,
+            date + ' ' + startTime,
+            date + ' ' + endTime,
+            function () {
+                var r = drawerResourceId;
+                var d = $('#rdDate').val();
+                var s = $('#rdStartTime').val();
+                var e = $('#rdEndTime').val();
+                return r + '|' + d + ' ' + s + '|' + d + ' ' + e;
+            },
+            function (available) { renderAvailability($('#rdAvailability'), available); },
+            drawerState && drawerState.mode === 'edit' ? drawerState.referenceNumber : null
+        );
     }
 
     function resourceNameFor(resourceId) {
         return (opts.resourceNames || {})[resourceId] || '';
     }
 
+    // activeResourceCategory is also read by openReservationDrawer() (further down) as the
+    // Drawer's own default category when its draft has no specific resourceId yet — keep
+    // updating it here even though the tab pair that used to drive it is gone.
     var activeResourceCategory = 'physical';
-    var resourcePicker = TimeDropdown('#qcResourcePill', '#qcResourceDropdown', function (resourceId) {
-        pending.resourceId = resourceId;
-        refreshResourceUI();
-    });
-    allDropdownClosers.push(resourcePicker.close);
 
-    function refreshResourceUI() {
-        $('#qcResourcePill').text(resourceNameFor(pending.resourceId));
-        $('#qcResourceTabs .qc-resource-tab').each(function () {
-            $(this).toggleClass('active', $(this).data('category') === activeResourceCategory);
-        });
+    // Same searchable/grouped picker component the toolbar's own resource picker uses
+    // (.resource-picker*, styled under #page-overview-fc in overview_fullcalendar.css — this
+    // modal is a descendant of it) — a second, independent instance keyed off
+    // pending.resourceId instead of the toolbar's selectedResourceId, since picking a resource
+    // for the reservation being drafted has nothing to do with which resource the calendar
+    // itself is currently showing.
+    function updateQcResourcePickerTrigger() {
+        var $items = $('#qcResourcePickerList .resource-picker-item');
+        $items.removeClass('selected');
+        $items.filter('[data-resource-id="' + pending.resourceId + '"]').addClass('selected');
 
-        var groups = opts.resourceGroups || { physical: [], video: [] };
-        var list = groups[activeResourceCategory] || [];
-        var options = list.map(function (r) { return { minutes: r.id, label: r.name }; });
-        // TimeDropdown's option objects are keyed on `minutes` generically — reused here for resource ids.
-        resourcePicker.render(options, pending.resourceId);
+        var $dot = $('#qcResourcePickerDot');
+        var color = (opts.resourceColors || {})[pending.resourceId];
+        $dot.toggle(!!color);
+        $dot.get(0).style.setProperty('--dot-color', color || '');
 
-        $('#qcMoreOptions').attr('href', moreOptionsUrl());
+        $('#qcResourcePickerLabel').text(resourceNameFor(pending.resourceId));
     }
 
-    $('#qcResourceTabs .qc-resource-tab').on('click', function () {
-        var category = $(this).data('category');
-        if (category === activeResourceCategory) {
-            return;
+    function initQcResourcePicker() {
+        var $picker = $('#qcResourcePicker');
+        var $trigger = $('#qcResourcePickerTrigger');
+        var $panel = $('#qcResourcePickerPanel');
+        var $search = $('#qcResourcePickerSearch');
+
+        function open() {
+            closeAllDropdowns();
+            $picker.addClass('open');
+            $trigger.attr('aria-expanded', 'true');
+            $search.val('').trigger('input');
+            setTimeout(function () { $search.trigger('focus'); }, 0);
         }
-        activeResourceCategory = category;
-        var list = (opts.resourceGroups || {})[category] || [];
-        if (list.length) {
-            pending.resourceId = list[0].id;
+        function close() {
+            $picker.removeClass('open');
+            $trigger.attr('aria-expanded', 'false');
         }
-        refreshResourceUI();
-    });
+        allDropdownClosers.push(close);
+
+        $trigger.on('click', function (e) {
+            e.stopPropagation();
+            if ($picker.hasClass('open')) {
+                close();
+            } else {
+                open();
+            }
+        });
+        $panel.on('click', function (e) { e.stopPropagation(); });
+        $panel.on('click', '.resource-picker-item', function () {
+            pending.resourceId = String($(this).data('resource-id'));
+            activeResourceCategory = categoryOf(pending.resourceId);
+            // refreshResourceUI() (not just updateQcResourcePickerTrigger() directly) — it also
+            // re-points #qcMoreOptions' href at the newly picked resource, so a middle-click/
+            // open-in-new-tab on "更多選項" right after switching resources doesn't land on the
+            // stale one (the JS-intercepted normal click path already reads pending.resourceId
+            // fresh regardless, but the raw href needs its own update for that fallback case).
+            refreshResourceUI();
+            close();
+        });
+
+        $search.on('input', function () {
+            var term = $(this).val().trim().toLowerCase();
+            var anyVisible = { physical: false, video: false };
+            $('#qcResourcePickerList .resource-picker-item[data-section]').each(function () {
+                var label = $(this).find('.resource-picker-item-label').text().toLowerCase();
+                var match = label.indexOf(term) !== -1;
+                $(this).toggleClass('d-none', !match);
+                if (match) {
+                    anyVisible[$(this).data('section')] = true;
+                }
+            });
+            $('#qcResourcePickerList .resource-picker-section-label').each(function () {
+                $(this).toggleClass('d-none', !anyVisible[$(this).data('section')]);
+            });
+            $('#qcResourcePickerEmpty').toggleClass('d-none', anyVisible.physical || anyVisible.video);
+        });
+    }
+    initQcResourcePicker();
+
+    function refreshResourceUI() {
+        updateQcResourcePickerTrigger();
+        $('#qcMoreOptions').attr('href', moreOptionsUrl());
+        scheduleAvailabilityCheck();
+    }
 
     function moreOptionsUrl() {
         return opts.reservationUrl +
@@ -562,46 +730,35 @@ $(function () {
     }
 
     function openQuickCreate(p) {
+        // endDate always mirrors startDate here regardless of what the caller passed —
+        // reservations can't cross midnight (ResourceCrossDayRule.php), and there's no end-
+        // date input in the modal any more for it to diverge through.
         var startDate = p.startDate || p.date;
-        var endDate = p.endDate || p.date;
         if (!quickCreateModal) {
             window.location = opts.reservationUrl +
-                '?rid=' + encodeURIComponent(p.resourceId) + '&sd=' + startDate + '+' + p.beginTime + '&ed=' + endDate + '+' + p.endTime;
+                '?rid=' + encodeURIComponent(p.resourceId) + '&sd=' + startDate + '+' + p.beginTime + '&ed=' + startDate + '+' + p.endTime;
             return; // no Bootstrap JS available — fall back to the full form
         }
         var beginMinutes = parseInt(p.beginTime.slice(0, 2), 10) * 60 + parseInt(p.beginTime.slice(3, 5), 10);
         var endMinutes = parseInt(p.endTime.slice(0, 2), 10) * 60 + parseInt(p.endTime.slice(3, 5), 10);
-        pending = { resourceId: p.resourceId, startDate: startDate, endDate: endDate, beginMinutes: beginMinutes, endMinutes: endMinutes };
+        pending = { resourceId: p.resourceId, startDate: startDate, endDate: startDate, beginMinutes: beginMinutes, endMinutes: endMinutes };
         activeResourceCategory = categoryOf(p.resourceId);
 
         $('#qcTitle').val('');
         $('#qcDescription').val('');
         $('#qcStartDate').val(startDate);
-        $('#qcEndDate').val(endDate);
         $('#qcError').addClass('d-none').empty();
         $('#qcTimeError').addClass('d-none').empty();
         refreshTimeUI();
         refreshResourceUI();
+        qcParticipantPicker.reset();
         quickCreateModal.show();
         setTimeout(function () { $('#qcTitle').trigger('focus'); }, 200);
     }
 
-    // Keep the end date from ever landing before the start date — bump it forward instead of
-    // silently accepting an invalid range, same principle as the Drawer's own date fields.
     $('#qcStartDate').on('change', function () {
         pending.startDate = $(this).val();
-        if (pending.endDate < pending.startDate) {
-            pending.endDate = pending.startDate;
-            $('#qcEndDate').val(pending.endDate);
-        }
-        refreshTimeUI();
-    });
-    $('#qcEndDate').on('change', function () {
-        pending.endDate = $(this).val();
-        if (pending.startDate > pending.endDate) {
-            pending.startDate = pending.endDate;
-            $('#qcStartDate').val(pending.startDate);
-        }
+        pending.endDate = pending.startDate;
         refreshTimeUI();
     });
 
@@ -793,47 +950,118 @@ $(function () {
         $select.val(value);
     }
 
-    function populateDrawerResourceOptions(category, selectedResourceId) {
+    // Same searchable/grouped picker component as Quick Create's #qcResourcePicker (see its
+    // own initQcResourcePicker() comment) — replaces the old physical/video tab pair + plain
+    // <select>. drawerResourceId is the actual state; #rdResource (a hidden input now, was
+    // the visible <select>) is kept in sync purely so buildCreateBody()/buildEditBody() can
+    // go on reading $('#rdResource').val() exactly as before, untouched.
+    var drawerResourceId = null;
+
+    function updateRdResourcePickerTrigger() {
+        var $items = $('#rdResourcePickerList .resource-picker-item');
+        $items.removeClass('selected');
+        $items.filter('[data-resource-id="' + drawerResourceId + '"]').addClass('selected');
+
+        var $dot = $('#rdResourcePickerDot');
+        var color = (opts.resourceColors || {})[drawerResourceId];
+        $dot.toggle(!!color);
+        $dot.get(0).style.setProperty('--dot-color', color || '');
+
+        $('#rdResourcePickerLabel').text(resourceNameFor(drawerResourceId));
+        $('#rdResource').val(drawerResourceId || '');
+    }
+
+    // selectedResourceId == null (a brand new reservation with no resource picked yet, e.g.
+    // opened from the sidebar's "+新增預約" with no calendar context) falls back to the first
+    // physical resource, then the first video one — same fallback order
+    // populateDrawerResourceOptions() used before.
+    function setDrawerResource(selectedResourceId) {
         var groups = opts.resourceGroups || { physical: [], video: [] };
-        var list = groups[category] || [];
-        var $select = $('#rdResource').empty();
-        list.forEach(function (r) {
-            $select.append($('<option>').val(String(r.id)).text(r.name));
-        });
-        if (selectedResourceId != null) {
-            $select.val(String(selectedResourceId));
-        } else if (list.length) {
-            $select.val(String(list[0].id));
+        if (selectedResourceId == null) {
+            var firstPhysical = groups.physical && groups.physical[0];
+            var firstVideo = groups.video && groups.video[0];
+            selectedResourceId = firstPhysical ? firstPhysical.id : (firstVideo ? firstVideo.id : null);
         }
+        drawerResourceId = selectedResourceId != null ? String(selectedResourceId) : null;
+        activeResourceCategory = drawerResourceId ? categoryOf(drawerResourceId) : activeResourceCategory;
+        updateRdResourcePickerTrigger();
+        scheduleDrawerAvailabilityCheck();
     }
 
-    function setDrawerCategory(category, selectedResourceId) {
-        $('#rdCategoryTabs .rd-category-tab').each(function () {
-            $(this).toggleClass('active', $(this).data('category') === category);
+    function initRdResourcePicker() {
+        var $picker = $('#rdResourcePicker');
+        var $trigger = $('#rdResourcePickerTrigger');
+        var $panel = $('#rdResourcePickerPanel');
+        var $search = $('#rdResourcePickerSearch');
+
+        function open() {
+            closeAllDropdowns();
+            $picker.addClass('open');
+            $trigger.attr('aria-expanded', 'true');
+            $search.val('').trigger('input');
+            setTimeout(function () { $search.trigger('focus'); }, 0);
+        }
+        function close() {
+            $picker.removeClass('open');
+            $trigger.attr('aria-expanded', 'false');
+        }
+        allDropdownClosers.push(close);
+
+        $trigger.on('click', function (e) {
+            e.stopPropagation();
+            if ($trigger.prop('disabled')) {
+                return;
+            }
+            if ($picker.hasClass('open')) {
+                close();
+            } else {
+                open();
+            }
         });
-        populateDrawerResourceOptions(category, selectedResourceId);
-    }
-
-    $('#rdCategoryTabs .rd-category-tab').on('click', function () {
-        var category = $(this).data('category');
-        if (!$(this).hasClass('active')) {
-            setDrawerCategory(category, null);
+        $panel.on('click', function (e) { e.stopPropagation(); });
+        $panel.on('click', '.resource-picker-item', function () {
+            setDrawerResource(String($(this).data('resource-id')));
             drawerDirty = true;
-        }
+            close();
+        });
+
+        $search.on('input', function () {
+            var term = $(this).val().trim().toLowerCase();
+            var anyVisible = { physical: false, video: false };
+            $('#rdResourcePickerList .resource-picker-item[data-section]').each(function () {
+                var label = $(this).find('.resource-picker-item-label').text().toLowerCase();
+                var match = label.indexOf(term) !== -1;
+                $(this).toggleClass('d-none', !match);
+                if (match) {
+                    anyVisible[$(this).data('section')] = true;
+                }
+            });
+            $('#rdResourcePickerList .resource-picker-section-label').each(function () {
+                $(this).toggleClass('d-none', !anyVisible[$(this).data('section')]);
+            });
+            $('#rdResourcePickerEmpty').toggleClass('d-none', anyVisible.physical || anyVisible.video);
+        });
+    }
+    initRdResourcePicker();
+
+    ['#rdTitle', '#rdDescription', '#rdDate', '#rdStartTime', '#rdEndTime'].forEach(function (sel) {
+        $(sel).on('input change', function () { drawerDirty = true; });
     });
 
-    ['#rdTitle', '#rdDescription', '#rdStartDate', '#rdStartTime', '#rdEndDate', '#rdEndTime', '#rdResource'].forEach(function (sel) {
-        $(sel).on('input change', function () { drawerDirty = true; });
+    $('#rdDate, #rdStartTime, #rdEndTime').on('change', function () {
+        $('#rdDateDisplay').text(formatDateLabel($('#rdDate').val()));
+        scheduleDrawerAvailabilityCheck();
     });
 
     function resetDrawerUI() {
         $('#rdTitle').val('').prop('disabled', false);
         $('#rdDescription').val('').prop('disabled', false);
-        $('#rdStartDate, #rdEndDate').prop('disabled', false);
-        $('#rdStartTime, #rdEndTime, #rdResource').prop('disabled', false);
-        $('#rdCategoryTabs .rd-category-tab').prop('disabled', false);
-        $('#rdAdditionalResourcesSummary, #rdAccessoriesSummary, #rdAllowParticipationSummary, #rdParticipantsSummary, #rdGuestsSummary, #rdRemindersSummary, #rdAttributesSummary, #rdAttachmentsSummary').addClass('d-none');
+        $('#rdDate').prop('disabled', false);
+        $('#rdStartTime, #rdEndTime').prop('disabled', false);
+        $('#rdResourcePickerTrigger').prop('disabled', false);
+        $('#rdAdditionalResourcesSummary, #rdAccessoriesSummary, #rdAllowParticipationSummary, #rdParticipantsSummary, #rdParticipantsEditor, #rdGuestsSummary, #rdRemindersSummary, #rdAttributesSummary, #rdAttachmentsSummary').addClass('d-none');
         $('#rdAdditionalResourcesList, #rdAccessoriesList, #rdParticipantsList, #rdGuestsList, #rdAttributesList, #rdAttachmentsList').empty();
+        rdParticipantPicker.reset();
 
         $('#rdRepeatType').val('none').prop('disabled', false);
         $('#rdRepeatInterval').val('1').prop('disabled', false);
@@ -920,21 +1148,186 @@ $(function () {
         $('#rdRepeatCustomDateInput').val('');
     });
 
+    // ---- Participant search — shared between Quick Create and the Drawer (both need the
+    // identical debounced-search/dropdown/removable-chip behavior, so this is a single
+    // factory instantiated twice below rather than two near-duplicate copies — same reasoning
+    // as the shared checkResourceAvailability() for the availability indicator). Searches
+    // ajax/overview_fullcalendar_participant_search.php (Chinese/Korean/English name,
+    // username/employee ID, email) and stores each result's real Id (users.user_id) —
+    // buildCreateBody()/#qcSave's body below send those as participantList[], never emails.
+    // Chip rendering reuses the same chip/remove-button pattern as
+    // renderRepeatCustomDatesList() above. ----
+
+    var PARTICIPANT_AVATAR_PALETTE = [
+        { bg: '#dbeafe', fg: '#1e40af' },
+        { bg: '#dcfce7', fg: '#166534' },
+        { bg: '#ede9fe', fg: '#5b21b6' },
+        { bg: '#fef3c7', fg: '#92400e' },
+        { bg: '#fce7f3', fg: '#9d174d' },
+        { bg: '#e0f2fe', fg: '#075985' },
+    ];
+
+    function participantAvatarColors(id) {
+        return PARTICIPANT_AVATAR_PALETTE[Math.abs(id) % PARTICIPANT_AVATAR_PALETTE.length];
+    }
+
+    function participantInitials(name) {
+        var source = (name || '').trim();
+        if (!source) {
+            return '?';
+        }
+        var parts = source.split(/\s+/).filter(Boolean);
+        if (parts.length >= 2) {
+            return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+        }
+        return source.slice(0, 2).toUpperCase();
+    }
+
+    function createParticipantPicker(ids) {
+        var participants = []; // {id, label, englishName}[] — label is what the chip shows
+        var searchTimer = null;
+
+        function render() {
+            var $list = $(ids.chipList).empty();
+            participants.forEach(function (p) {
+                var $chip = $('<span class="reservation-chip"></span>').text(p.label);
+                $('<button type="button" class="btn-close btn-close-white" style="font-size:8px" aria-label="Remove"></button>')
+                    .on('click', function () {
+                        participants = participants.filter(function (x) { return x.id !== p.id; });
+                        render();
+                        drawerDirty = true;
+                    })
+                    .appendTo($chip);
+                $list.append($chip);
+            });
+            $(ids.chipsRow || ids.chipList).toggleClass('d-none', participants.length === 0);
+        }
+
+        function closeResults() {
+            $(ids.results).addClass('d-none').empty();
+        }
+
+        function add(user) {
+            if (participants.some(function (p) { return p.id === user.Id; })) {
+                return;
+            }
+            var label = (user.ChineseName ? user.ChineseName + ' ' : '') + (user.EnglishName || user.Username || '');
+            participants.push({ id: user.Id, label: label.trim() || user.Email });
+            render();
+            drawerDirty = true;
+            closeResults();
+            $(ids.input).val('').trigger('focus');
+        }
+
+        function renderResults(results) {
+            var $panel = $(ids.results).empty();
+            var selectedIds = participants.map(function (p) { return p.id; });
+            var visible = results.filter(function (u) { return selectedIds.indexOf(u.Id) === -1; });
+
+            if (visible.length === 0) {
+                $('<div class="participant-search-empty"></div>').text(opts.translations.noMatchesFound).appendTo($panel);
+            } else {
+                visible.forEach(function (u) {
+                    var colors = participantAvatarColors(u.Id);
+                    var $item = $('<button type="button" class="participant-search-item"></button>');
+                    $('<span class="participant-search-item-avatar"></span>')
+                        .text(participantInitials(u.EnglishName || u.Username))
+                        .css({ backgroundColor: colors.bg, color: colors.fg })
+                        .appendTo($item);
+                    var $name = $('<span class="participant-search-item-name"></span>');
+                    if (u.ChineseName) {
+                        $('<span class="participant-search-item-chinese"></span>').text(u.ChineseName).appendTo($name);
+                    }
+                    $('<span class="participant-search-item-english"></span>').text(u.EnglishName || u.Username).appendTo($name);
+                    $name.appendTo($item);
+                    $('<span class="participant-search-item-dept"></span>').text(u.Organization || '').appendTo($item);
+                    $('<span class="participant-search-item-email"></span>').text(u.Email || '').appendTo($item);
+                    $item.on('click', function () { add(u); }).appendTo($panel);
+                });
+            }
+            $panel.removeClass('d-none');
+        }
+
+        function runSearch(term) {
+            fetch(opts.participantSearchUrl + encodeURIComponent(term), { credentials: 'same-origin' })
+                .then(function (res) { return res.json(); })
+                .then(function (results) {
+                    // Stale-response guard: only render if the input still holds what we
+                    // searched for — a slower earlier request finishing after a faster later
+                    // one must not clobber the results the user is currently looking at.
+                    if ($(ids.input).val().trim() === term) {
+                        renderResults(results || []);
+                    }
+                })
+                .catch(function () {
+                    // Silent failure is acceptable here — user can just keep typing or retry.
+                });
+        }
+
+        $(ids.input).on('input', function () {
+            clearTimeout(searchTimer);
+            var term = $(this).val().trim();
+            if (term.length === 0) {
+                closeResults();
+                return;
+            }
+            searchTimer = setTimeout(function () { runSearch(term); }, 250);
+        });
+
+        $(ids.input).on('focus', function () {
+            var term = $(this).val().trim();
+            if (term.length > 0) {
+                runSearch(term);
+            }
+        });
+
+        $(document).on('click', function (e) {
+            if (!$(e.target).closest(ids.wrapper).length) {
+                closeResults();
+            }
+        });
+
+        return {
+            reset: function (initial) {
+                participants = (initial || []).slice();
+                render();
+                $(ids.input).val('');
+                closeResults();
+            },
+            getParticipants: function () {
+                return participants.slice();
+            },
+        };
+    }
+
+    var qcParticipantPicker = createParticipantPicker({
+        input: '#qcParticipantSearchInput',
+        results: '#qcParticipantSearchResults',
+        chipList: '#qcParticipantChipList',
+        wrapper: '#qcParticipantSearch',
+    });
+    var rdParticipantPicker = createParticipantPicker({
+        input: '#rdParticipantSearchInput',
+        results: '#rdParticipantSearchResults',
+        chipList: '#rdParticipantChipList',
+        chipsRow: '#rdParticipantChipsRow',
+        wrapper: '#rdParticipantSearch',
+    });
+
     function populateDrawerFromData(data) {
         var canEdit = !!data.canEdit;
 
         $('#rdTitle').val(data.title || '').prop('disabled', !canEdit);
         $('#rdDescription').val(data.description || '').prop('disabled', !canEdit);
-        $('#rdStartDate').val(data.startDate).prop('disabled', !canEdit);
-        $('#rdEndDate').val(data.endDate).prop('disabled', !canEdit);
+        $('#rdDate').val(data.startDate).prop('disabled', !canEdit);
+        $('#rdDateDisplay').text(formatDateLabel(data.startDate));
         $('#rdStartTime, #rdEndTime').prop('disabled', !canEdit);
         buildTimeSelectOptions($('#rdStartTime'));
         buildTimeSelectOptions($('#rdEndTime'));
         ensureTimeOption($('#rdStartTime'), data.startTime);
         ensureTimeOption($('#rdEndTime'), data.endTime);
-        $('#rdResource').prop('disabled', !canEdit);
-        $('#rdCategoryTabs .rd-category-tab').prop('disabled', !canEdit);
-        setDrawerCategory(categoryOf(data.resourceId), data.resourceId);
+        $('#rdResourcePickerTrigger').prop('disabled', !canEdit);
+        setDrawerResource(data.resourceId);
 
         var $additionalResourcesList = $('#rdAdditionalResourcesList').empty();
         if ((data.additionalResourceIds || []).length > 0) {
@@ -1094,9 +1487,15 @@ $(function () {
             ensureTimeOption($('#rdEndTime'), draft.endTime);
             $('#rdTitle').val(draft.title || '');
             $('#rdDescription').val(draft.description || '');
-            $('#rdStartDate').val(draft.startDate || draft.date || '');
-            $('#rdEndDate').val(draft.endDate || draft.date || '');
-            setDrawerCategory(draft.resourceId ? categoryOf(draft.resourceId) : activeResourceCategory, draft.resourceId);
+            $('#rdDate').val(draft.startDate || draft.date || '');
+            $('#rdDateDisplay').text(formatDateLabel(draft.startDate || draft.date || ''));
+            $('#rdResourcePickerTrigger').prop('disabled', false);
+            setDrawerResource(draft.resourceId);
+            $('#rdParticipantsEditor').removeClass('d-none');
+            // Carries over whatever was already picked in Quick Create (buildQuickCreateDraft()
+            // below), same as title/description/date/time/resource already do — "更多選項"
+            // shouldn't silently drop participants someone already added.
+            rdParticipantPicker.reset(draft.participants);
             drawerDirty = false;
             return;
         }
@@ -1180,11 +1579,15 @@ $(function () {
     // — see the Drawer's opening comment for why. Neither path reimplements validation,
     // conflict checking, permissions, or notifications. ----
 
+    // startDate/endDate are always the same value now (one #rdDate field, no cross-day UI —
+    // see ResourceCrossDayRule.php) — both keys are kept so buildCreateBody()/buildEditBody()
+    // below don't need their own beginDate/endDate special-casing.
     function drawerStartEndValues() {
+        var date = $('#rdDate').val();
         return {
-            startDate: $('#rdStartDate').val(),
+            startDate: date,
             startTime: $('#rdStartTime').val(),
-            endDate: $('#rdEndDate').val(),
+            endDate: date,
             endTime: $('#rdEndTime').val(),
         };
     }
@@ -1192,14 +1595,10 @@ $(function () {
     function validateDrawerTimes() {
         var v = drawerStartEndValues();
         $('#rdTimeError').addClass('d-none').empty();
-        if (!v.startDate || !v.startTime || !v.endDate || !v.endTime) {
+        if (!v.startDate || !v.startTime || !v.endTime) {
             return true; // let the backend's own required-field validation handle blanks
         }
-        // Plain string comparison works here since both are zero-padded ISO-ish
-        // (YYYY-MM-DD / HH:MM:SS) — correctly orders across day boundaries too.
-        var start = v.startDate + ' ' + v.startTime;
-        var end = v.endDate + ' ' + v.endTime;
-        if (end <= start) {
+        if (v.endTime <= v.startTime) {
             $('#rdTimeError').removeClass('d-none').text(opts.translations.endBeforeStart);
             return false;
         }
@@ -1261,6 +1660,13 @@ $(function () {
         body.set('endDate', v.endDate);
         body.set('endPeriod', v.endTime);
         appendRepeatFields(body);
+        // Real users.user_id values (see the shared participant picker above) — never emails.
+        // ReservationSavePage::GetParticipants() (Pages/Ajax/ReservationSavePage.php) reads
+        // this as $_POST['participantList'], PHP's normal array-form-field collection for a
+        // repeated 'name[]' key, exactly like the classic reservation form already sends it.
+        rdParticipantPicker.getParticipants().forEach(function (p) {
+            body.append('participantList[]', p.id);
+        });
         if (drawerState.requestId) {
             body.set('requestId', drawerState.requestId);
         }
@@ -1435,11 +1841,8 @@ $(function () {
         submitReservationSave(scope);
     });
 
-    // "更多選項" no longer navigates away — it opens the same Drawer in create mode,
-    // carrying over whatever the user already typed into the quick-create popup.
-    $('#qcMoreOptions').on('click', function (e) {
-        e.preventDefault();
-        var draft = {
+    function buildQuickCreateDraft() {
+        return {
             title: $('#qcTitle').val(),
             description: $('#qcDescription').val(),
             startDate: pending ? pending.startDate : '',
@@ -1447,7 +1850,15 @@ $(function () {
             beginTime: pending ? minutesToHHMMSS(pending.beginMinutes) : '',
             endTime: pending ? minutesToHHMMSS(pending.endMinutes) : '',
             resourceId: pending ? pending.resourceId : null,
+            participants: qcParticipantPicker.getParticipants(),
         };
+    }
+
+    // "更多選項" no longer navigates away — it opens the same Drawer in create mode,
+    // carrying over whatever the user already typed into the quick-create popup.
+    $('#qcMoreOptions').on('click', function (e) {
+        e.preventDefault();
+        var draft = buildQuickCreateDraft();
         if (quickCreateModal) {
             quickCreateModal.hide();
         }
@@ -1587,16 +1998,25 @@ $(function () {
                 });
                 return;
             }
-            // info.start/info.end are each read independently here (including their OWN date,
-            // not just time-of-day) — a drag that crosses midnight (e.g. 7/30 22:00 -> 7/31
-            // 02:00) previously collapsed to a single date taken from info.start alone, silently
-            // discarding info.end's real date and corrupting the selected range.
+            // timeGridWeek lets a drag run sideways across day columns (e.g. Mon 22:00 -> Tue
+            // 02:00) — reservations can't cross midnight (ResourceCrossDayRule.php), so clamp
+            // the selection to the end of the start day instead of carrying info.end's later
+            // date through to the modal.
+            var startDate = isoUTC(info.start);
+            var endDate = isoUTC(info.end);
+            var endHours = info.end.getUTCHours();
+            var endMinutes = info.end.getUTCMinutes();
+            if (endDate !== startDate) {
+                endDate = startDate;
+                endHours = 23;
+                endMinutes = 30;
+            }
             openQuickCreate({
                 resourceId: resourceId,
-                startDate: isoUTC(info.start),
-                endDate: isoUTC(info.end),
+                startDate: startDate,
+                endDate: endDate,
                 beginTime: pad(info.start.getUTCHours()) + ':' + pad(info.start.getUTCMinutes()) + ':00',
-                endTime: pad(info.end.getUTCHours()) + ':' + pad(info.end.getUTCMinutes()) + ':00',
+                endTime: pad(endHours) + ':' + pad(endMinutes) + ':00',
             });
         },
         dayHeaderContent: function (arg) {
@@ -1650,6 +2070,16 @@ $(function () {
             }
 
             return { domNodes: [wrapper] };
+        },
+        // Web/css/librebooking.css's global .fc-event:hover forces every event to the same
+        // --hiliteReservation green (!important, shared with the legacy overview.tpl grid —
+        // not touched here since other pages still rely on it). Stashing each event's own
+        // color on the element itself lets the scoped #fullcalendarRoot .fc-event:hover rule
+        // in overview_fullcalendar.css darken THAT color instead, so Shanghai stays green,
+        // Singapore stays blue/purple, etc.
+        eventDidMount: function (info) {
+            info.el.style.setProperty('--event-base-bg', info.event.backgroundColor);
+            info.el.style.setProperty('--event-base-border', info.event.borderColor);
         },
         datesSet: function (info) {
             // info.start/info.end are the actual RENDERED range, which for month view is
@@ -1766,6 +2196,36 @@ $(function () {
 
     calendar.render();
 
+    // Exposed so tpl/globalheader.tpl's sidebar collapse/expand toggle can call updateSize()
+    // on this exact instance directly once the width transition finishes, instead of only
+    // dispatching a synthetic window 'resize' event and hoping FullCalendar's own debounced
+    // resize listener (windowResize:true, the default) picks it up. Harmless on any other
+    // page — the toggle script guards on this being present before touching it.
+    window.overviewFullCalendarInstance = calendar;
+
+    // Exposed so the sidebar's restored "+新增預約" button (tpl/globalheader.tpl, rendered
+    // site-wide) can open this exact page's quick-create modal instead of only being able to
+    // link to the classic reservation.php form. Defaults to today + the next half-hour slot
+    // on the currently selected resource — the same inputs a blank-slot click on the calendar
+    // itself would produce, just without an actual click to read a date/time/resource from.
+    window.overviewFullCalendarOpenQuickCreate = function () {
+        var resourceId = defaultResourceId();
+        if (!resourceId) {
+            return;
+        }
+        var today = todayIsoInZone(opts.timezone);
+        var now = new Date(nowFakeUtcInZone(opts.timezone));
+        var nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+        var beginMinutes = Math.min(Math.ceil(nowMinutes / 30) * 30, 24 * 60 - 30);
+        openQuickCreate({
+            resourceId: resourceId,
+            startDate: today,
+            endDate: today,
+            beginTime: minutesToHHMMSS(beginMinutes),
+            endTime: minutesToHHMMSS(beginMinutes + 30),
+        });
+    };
+
     // FullCalendar measures its container once at render() time; if that happened before
     // the surrounding flexbox/sidebar had settled into its final size (e.g. web fonts still
     // loading), the header/body columns and the scrollbar-width compensation between them
@@ -1858,6 +2318,9 @@ $(function () {
         body.set('beginPeriod', minutesToHHMMSS(pending.beginMinutes));
         body.set('endDate', pending.endDate);
         body.set('endPeriod', minutesToHHMMSS(pending.endMinutes));
+        qcParticipantPicker.getParticipants().forEach(function (p) {
+            body.append('participantList[]', p.id);
+        });
 
         fetch(opts.saveUrl, {
             method: 'POST',

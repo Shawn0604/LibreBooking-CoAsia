@@ -104,12 +104,47 @@
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
-#page-overview-fc .ghost-btn:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  border-color: var(--bs-border-color, #d6d9e3);
-  color: #3c4043;
+/* #f1f2f6 (the old hover fill) reads almost the same as the page background, so hovering
+   any toolbar control — resource picker, today, view menu, the prev/next arrows — barely
+   registered. A pale tint of --primary instead of a generic gray gives every one of them a
+   clearly visible hover state while staying legible (14%/45% mixes keep it a tint, not a
+   solid fill). button/a[role="button"] are included alongside .ghost-btn so any other plain
+   control added inside this page picks up the same hover language automatically.
+   :not(:disabled)/:not(.disabled) keep a disabled control (e.g. .today-btn.disabled below)
+   inert on hover instead of looking clickable. .reservation-icon-button/-primary-button/
+   -btn-text (Drawer + event popover) are excluded here on purpose — as plain <button>
+   elements inside #page-overview-fc they'd otherwise match this ID-scoped rule, which beats
+   their own unscoped `.reservation-primary-button:hover` etc. on specificity and would flip
+   the filled primary button and the red delete button to this same pale blue. They get their
+   own hover treatment further down instead (search .reservation-icon-button for that
+   section). */
+#page-overview-fc button:not(:disabled):not(.reservation-icon-button):not(.reservation-primary-button):not(.reservation-btn-text):hover,
+#page-overview-fc a[role="button"]:not(.disabled):hover,
+#page-overview-fc .ghost-btn:not(.disabled):hover {
+  background: color-mix(in oklab, var(--primary) 14%, white);
+  border-color: color-mix(in oklab, var(--primary) 45%, white);
+  color: var(--primary);
+}
+
+#page-overview-fc button:focus-visible,
+#page-overview-fc a[role="button"]:focus-visible,
+#page-overview-fc .ghost-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Once a control's own dropdown is open (aria-expanded="true" — resource pickers, the
+   time-of-day pills, view/today menus), its distinct open-state border/background below is
+   already a clear enough "this is the active control" signal on its own. Stacking a thick
+   focus ring on top of that at the same time — which several browsers apply even for a plain
+   mouse click on a <button>, not just keyboard navigation — reads as a heavy, redundant blue
+   halo wrapped around a control that already looks selected, not as extra clarity. */
+#page-overview-fc button[aria-expanded="true"]:focus-visible,
+#page-overview-fc a[role="button"][aria-expanded="true"]:focus-visible {
+  outline: none;
 }
 
 #page-overview-fc .ghost-btn[aria-expanded="true"] {
@@ -331,6 +366,158 @@
 }
 
 #page-overview-fc .resource-picker-empty {
+  padding: 16px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #9aa1b3;
+}
+
+/* ---- Participant search (Quick Create + Drawer, create mode only) — an always-visible
+   search box, not a toggle trigger like .resource-picker above, since there's no single
+   "current value" to collapse down to; a results dropdown appears underneath while typing and
+   closes on selection/blur. Selected people render as removable .reservation-chip pills,
+   reusing the same chip/remove-button pattern already used for custom repeat dates
+   (renderRepeatCustomDatesList() in overview_fullcalendar.js). Shared between both surfaces
+   via createParticipantPicker() — same markup/classes regardless of which one it's in. ---- */
+
+#page-overview-fc .participant-search {
+  position: relative;
+  width: 100%;
+}
+
+/* Spacing under the search box in Quick Create's tighter .qc-content layout — the Drawer
+   doesn't need this since its chip row already has its own .reservation-row padding. */
+#quickCreateModal .qc-participant-chip-list {
+  margin-top: 8px;
+}
+
+#page-overview-fc .participant-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  box-sizing: border-box;
+}
+
+#page-overview-fc .participant-search-input-wrap:focus-within {
+  border-color: var(--primary);
+}
+
+#page-overview-fc .participant-search-input-wrap i {
+  color: #9aa1b3;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+#page-overview-fc .participant-search-input-wrap input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  color: var(--text-primary);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#page-overview-fc .participant-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface, #fff);
+  border-radius: var(--control-radius, 10px);
+  box-shadow: var(--bs-box-shadow);
+  padding: 6px;
+}
+
+/* Row: [avatar initials] [Chinese name + English name] [department] [email] — Chinese name
+   is only present when Domain/User.php's Chinese Name custom attribute has a value (see
+   database_schema/upgrades/4.2), so .participant-search-item-chinese is simply omitted for
+   people who only have an English name (JS only appends it when non-empty). */
+#page-overview-fc .participant-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: var(--bs-border-radius-sm);
+  text-align: left;
+}
+
+#page-overview-fc .participant-search-item:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+#page-overview-fc .participant-search-item-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  /* background-color/color set inline per-row (JS: participantAvatarColors()) */
+}
+
+#page-overview-fc .participant-search-item-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+#page-overview-fc .participant-search-item-chinese {
+  font-size: 13px;
+  color: #3c4043;
+  flex-shrink: 0;
+}
+
+#page-overview-fc .participant-search-item-english {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #3c4043;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#page-overview-fc .participant-search-item-dept {
+  font-size: 12px;
+  color: #9aa1b3;
+  flex-shrink: 0;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+#page-overview-fc .participant-search-item-email {
+  font-size: 12px;
+  color: #9aa1b3;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#page-overview-fc .participant-search-empty {
   padding: 16px 10px;
   text-align: center;
   font-size: 13px;
@@ -700,6 +887,20 @@
   opacity: 0.55;
 }
 
+/* Web/css/librebooking.css has a global .fc-event:hover !important rule (shared with the
+   legacy overview.tpl grid) that forces every event to the same --hiliteReservation green
+   regardless of its own color — left alone there since other pages still depend on it.
+   Scoped to #fullcalendarRoot (higher specificity, same source order wins the !important
+   tie) so THIS calendar instead darkens each event's own color: --event-base-bg/-border are
+   set per-event in eventDidMount (overview_fullcalendar.js) from info.event.backgroundColor/
+   borderColor, so Shanghai (green), Singapore (blue/purple), etc. each stay their own hue
+   and only get a touch darker on hover. Applies in day/week/month view alike since all three
+   render through the same .fc-event element. */
+#fullcalendarRoot .fc-event:hover {
+  background-color: color-mix(in oklab, var(--event-base-bg) 86%, black 14%) !important;
+  border-color: color-mix(in oklab, var(--event-base-border) 78%, black 22%) !important;
+}
+
 /* ---------- Month view: today's date number gets the same green circle badge as the
    mini-calendar/week-view day header (.num .fc-day-today rule above) — FullCalendar's own
    day-of-month number here (.fc-daygrid-day-number) is a completely separate element from
@@ -778,7 +979,7 @@
 .mini-cal-label {
   font-size: 12.5px;
   font-weight: 500;
-  color: #1c2333;
+  color: var(--sidebar-text);
 }
 
 .mini-cal-nav {
@@ -792,7 +993,7 @@
   border: none;
   background: transparent;
   border-radius: 50%;
-  color: #6c7488;
+  color: var(--sidebar-text-secondary);
   font-size: 11px;
   display: inline-flex;
   align-items: center;
@@ -800,8 +1001,14 @@
 }
 
 .mini-cal-nav button:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  color: var(--primary);
+  background: var(--sidebar-hover);
+  color: var(--sidebar-text);
+}
+
+.mini-cal-nav button:focus-visible,
+.mini-cal-grid button:focus-visible {
+  outline: 2px solid var(--sidebar-focus);
+  outline-offset: 1px;
 }
 
 .mini-cal-weekdays,
@@ -813,7 +1020,7 @@
 .mini-cal-weekdays span {
   text-align: center;
   font-size: 10px;
-  color: #9aa1b3;
+  color: var(--sidebar-text-secondary);
   padding-bottom: 4px;
 }
 
@@ -826,18 +1033,23 @@
   margin: 1px auto;
   font-size: 11.5px;
   font-weight: 400;
-  color: #4b5165;
+  color: var(--sidebar-text);
   font-variant-numeric: tabular-nums;
 }
 
 .mini-cal-grid button:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
+  background: var(--sidebar-hover);
 }
 
+/* Dimmed via color-mix toward the sidebar's own background rather than a flat gray — stays
+   readable (still ~55% of full white) while clearly receding behind the current month's
+   dates, on the one background color this button can ever actually sit on. */
 .mini-cal-grid button.outside-month {
-  color: #c7cbd6;
+  color: color-mix(in oklab, var(--sidebar-text-secondary) 55%, var(--sidebar-bg));
 }
 
+/* Selected-date green (--gcal-today-accent) is unchanged — the one color in this sidebar
+   that stays the same regardless of the CoAsia Blue background behind it. */
 .mini-cal-grid button.today {
   color: var(--gcal-today-accent);
   font-weight: 500;
@@ -848,7 +1060,7 @@
    text color makes the row look busier). Flattening the radius so only the Monday/Sunday
    ends stay rounded turns it into one continuous bar instead. */
 .mini-cal-grid button.in-week {
-  background: var(--bs-tertiary-bg, #f1f2f6);
+  background: var(--sidebar-hover);
   border-radius: 4px;
 }
 
@@ -867,20 +1079,40 @@
 }
 
 /* ---------- Quick-create modal + event popover (same booking UX as overview.php) ----------
-   Copied verbatim from Web/css/overview.css, which is off-limits to edit for this
-   prototype — these rules aren't #page-overview-scoped there either, so they apply as-is. */
+   The modal below is a real grid layout now (see .qc-grid-row), not the margin/padding
+   patchwork it started as — every row, including the title (empty icon-column spacer), uses
+   the same 32px-icon + 1fr-content two-column grid so everything lines up on one left edge
+   regardless of which rows do or don't have an icon. */
 
-#quickCreateModal .modal-content {
-  padding: 8px 8px 4px;
+#quickCreateModal .modal-dialog {
+  max-width: 520px;
+  width: calc(100% - 32px);
 }
 
+#quickCreateModal .modal-content {
+  position: relative;
+  padding: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  /* Height comes from content alone — no fixed height/min-height anywhere in this modal,
+     deliberately, so it never shows dead space on a short reservation and never clips a tall
+     one (e.g. resource dropdown open + a validation error showing at once). */
+}
+
+#quickCreateModal .modal-body {
+  padding: 44px 28px 18px;
+}
+
+/* Absolutely positioned and OUTSIDE the grid entirely (not a sibling competing for column
+   space) — the title row's underline can then run the full content width without shortening
+   to dodge it, and the title input itself doesn't need right-padding to avoid overlapping it. */
 #quickCreateModal .qc-close {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 5;
-  width: var(--gcal-control-height);
-  height: var(--gcal-control-height);
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   opacity: 0.65;
 }
@@ -890,22 +1122,79 @@
   opacity: 1;
 }
 
-#quickCreateModal .modal-body {
-  padding: 16px 24px 8px;
+/* A real dialog heading — .qc-close (absolute, top:16/right:16) sits outside this entirely,
+   so neither the heading's nor the title input's width is reduced to dodge it (see .qc-close
+   itself, further up in this section). */
+#quickCreateModal .qc-heading {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: #1c2333;
+  line-height: 1.3;
 }
 
+#quickCreateModal .qc-subheading {
+  margin: 4px 0 20px;
+  font-size: 13px;
+  color: #6c7488;
+}
+
+#quickCreateModal .qc-grid-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 18px;
+  align-items: start;
+  width: 100%;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #3c4043;
+}
+
+#quickCreateModal .qc-grid-row-top {
+  align-items: flex-start;
+}
+
+#quickCreateModal .qc-title-row {
+  padding-bottom: 0;
+}
+
+#quickCreateModal .qc-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  color: #6c7488;
+  font-size: var(--gcal-icon-size);
+}
+
+#quickCreateModal .qc-content {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Underline defaults to a quiet gray and only turns brand-blue on focus — it used to be a
+   permanent 2px --primary line, which read as "this field already has an error/emphasis"
+   even before anyone had touched it. */
 #quickCreateModal .qc-title {
   display: block;
   width: 100%;
+  box-sizing: border-box;
   border: none;
-  border-bottom: 2px solid var(--primary);
+  border-bottom: 1px solid #d9e0ea;
   outline: none;
-  padding: 4px 40px 8px 0;
-  margin-bottom: 12px;
+  padding: 4px 0 8px;
   font-size: 20px;
   font-weight: 400;
   color: #1c2333;
   background: transparent;
+  transition: border-color 0.14s ease;
+}
+
+#quickCreateModal .qc-title:focus {
+  border-bottom: 2px solid #1f3159;
+  /* Compensate the 1px border-width increase so the input's own box (and everything below
+     it) doesn't shift down by a pixel just from focusing. */
+  padding-bottom: 7px;
 }
 
 #quickCreateModal .qc-title::placeholder {
@@ -913,65 +1202,81 @@
   font-weight: 400;
 }
 
-#quickCreateModal .qc-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
-  padding: 10px 0;
-  font-size: 14px;
-  color: #3c4043;
-}
-
-#quickCreateModal .qc-row-top {
-  align-items: flex-start;
-}
-
-#quickCreateModal .qc-row i {
-  color: #6c7488;
-  width: var(--gcal-icon-size);
-  font-size: var(--gcal-icon-size);
-  text-align: center;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-#quickCreateModal .qc-row-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-#quickCreateModal .qc-row-sub {
-  font-size: 12px;
-  color: #6c7488;
-  margin-top: 2px;
-}
-
+/* Fixed-width time columns (not flex-wrap) so "7月30日（四）　11:30－12:00" always reads as one
+   line — including at the modal's own 520px width — instead of the end time wrapping
+   underneath once the date column's content got long. */
 #quickCreateModal .qc-time-edit {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 92px 14px 92px;
+  gap: 10px;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  width: 100%;
 }
 
 #quickCreateModal .qc-time-dash {
   color: #6c7488;
+  text-align: center;
+}
+
+#quickCreateModal .qc-date-field,
+#quickCreateModal .qc-time-picker,
+#quickCreateModal .qc-time-pill {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* A real <input type="date"> underneath (keyboard entry, the browser's own native picker,
+   screen-reader semantics) with its own text made transparent, plus a formatted label
+   (#qcStartDateDisplay, e.g. "7月30日（四）") absolutely positioned on top — pointer-events:none
+   on the label is what lets clicks fall through to the real input below it instead of the
+   label swallowing them. Never reformats/replaces the input itself, since browsers don't
+   allow restyling a native date input's own displayed text. */
+#quickCreateModal .qc-date-field {
+  position: relative;
 }
 
 #quickCreateModal .qc-date-input {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
   border: none;
   border-radius: var(--bs-border-radius-sm);
   background: var(--bs-tertiary-bg, #f1f2f6);
   padding: 4px 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #3c4043;
+  color: transparent;
+}
+
+#quickCreateModal .qc-date-input::-webkit-calendar-picker-indicator {
+  position: relative;
+  z-index: 2;
 }
 
 #quickCreateModal .qc-date-input:focus {
   outline: none;
   background: color-mix(in oklab, var(--primary) 12%, white);
+}
+
+#quickCreateModal .qc-date-input:focus + .qc-date-display {
   color: var(--primary);
+}
+
+#quickCreateModal .qc-date-display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #3c4043;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 #quickCreateModal .qc-time-error {
@@ -980,15 +1285,14 @@
   margin-top: 4px;
 }
 
-#quickCreateModal .qc-time-picker,
-#quickCreateModal .qc-resource-picker {
+#quickCreateModal .qc-time-picker {
   position: relative;
-  display: inline-block;
 }
 
 #quickCreateModal .qc-time-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: space-between;
   gap: 6px;
   border: none;
   border-radius: var(--bs-border-radius-sm);
@@ -1073,47 +1377,140 @@
   font-weight: 500;
 }
 
-#quickCreateModal .qc-resource-tabs {
+/* The resource picker itself reuses .resource-picker/.resource-picker-trigger/-panel/-item
+   etc verbatim — that whole component is already styled under #page-overview-fc (this modal
+   is a descendant of it), including its dropdown, search box, grouped section labels, dot
+   colors, and selected-checkmark state. .qc-resource-picker only overrides the SIZING that's
+   different in a full-width modal row versus the toolbar's auto-width chip: full width
+   instead of a 240px cap, 44px min-height, and a panel that spans the trigger's own width
+   instead of a fixed 280px that would run past a narrow trigger or fall short of a wide one. */
+#quickCreateModal .qc-resource-picker {
+  width: 100%;
+}
+
+#quickCreateModal .qc-resource-picker .resource-picker-trigger {
+  width: 100%;
+  min-height: 44px;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+/* .resource-picker-label has no flex-grow of its own in the base (toolbar-chip) rule — it
+   just sits at its natural text width. Combined with `justify-content:space-between` (the
+   previous approach here) that put EQUAL gaps between dot→label and label→chevron, which
+   visually centers a short label between the two rather than left-aligning it. flex:1 makes
+   the label actually claim the row's remaining space instead, so its own text-align:left
+   holds it flush against the dot with the chevron pushed to the true right edge. */
+#quickCreateModal .qc-resource-picker .resource-picker-label {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+#quickCreateModal .qc-resource-picker .resource-picker-panel {
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+}
+
+/* "此時段可用" / "此時段不可用" — shared by Quick Create (#qcAvailability) and the Drawer
+   (#rdAvailability), re-queried from the server (Web/scripts/overview_fullcalendar.js calls
+   ajax/overview_fullcalendar_availability.php) every time the date, time, or resource
+   changes; never a static/hardcoded string. Not modal-scoped — both live under #page-overview-fc. */
+.qc-availability {
   display: flex;
+  align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--hiliteReservation, #2f8f52);
 }
 
-#quickCreateModal .qc-resource-tab {
-  border: 1px solid var(--bs-border-color, #d6d9e3);
-  border-radius: 100px;
+.qc-availability.unavailable {
+  color: var(--danger, #d93025);
+}
+
+.qc-availability i {
+  font-size: 14px;
+}
+
+/* A live action ("+ 新增參與者"), not a muted hint — #1f3159 at rest (not a gray that only
+   turns blue on hover), so it reads as clickable immediately. */
+#quickCreateModal .qc-add-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  border: none;
   background: transparent;
-  padding: 4px 12px;
-  font-size: 12.5px;
+  padding: 0;
+  font-size: 14px;
   font-weight: 500;
-  color: #6c7488;
+  color: #1f3159;
+  cursor: pointer;
+  transition: color 0.14s ease;
 }
 
-#quickCreateModal .qc-resource-tab.active {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: color-mix(in oklab, var(--primary) 8%, white);
+#quickCreateModal .qc-add-link i {
+  font-size: 13px;
+}
+
+#quickCreateModal .qc-add-link:hover {
+  color: color-mix(in oklab, #1f3159 80%, black);
+  text-decoration: underline;
+}
+
+#quickCreateModal .qc-add-link:focus-visible {
+  outline: 2px solid #1f3159;
+  outline-offset: 2px;
 }
 
 #quickCreateModal .qc-description {
   width: 100%;
-  border: none;
-  outline: none;
-  resize: none;
-  padding: 0;
+  min-height: 76px;
+  box-sizing: border-box;
+  border: 1px solid var(--bs-border-color, #d6d9e3);
+  border-radius: 8px;
+  padding: 12px;
   font-size: 14px;
   font-family: inherit;
   color: #3c4043;
   background: transparent;
+  resize: vertical;
+}
+
+#quickCreateModal .qc-description:focus {
+  outline: none;
+  border-color: var(--primary);
 }
 
 #quickCreateModal .qc-description::placeholder {
   color: #9aa1b3;
 }
 
+/* ~68-72px total: 14px+14px padding + the ~40px buttons inside, nothing more. Bootstrap's
+   own .modal-footer > * rule adds 4px of margin on every side of each child by default
+   (var(--bs-modal-footer-gap), meant for footers with no custom padding of their own) — left
+   in place that pushes this to ~76px including it, so it's zeroed out here in favor of just
+   this rule's own padding + gap controlling the spacing. */
 #quickCreateModal .modal-footer {
-  border-top: none;
-  padding: 12px 24px 16px;
+  border-top: 1px solid #e6eaf0;
+  padding: 14px 24px;
+  gap: 12px;
+}
+
+#quickCreateModal .modal-footer > * {
+  margin: 0;
+}
+
+/* Bootstrap's own .btn doesn't reliably inherit the page's body font in every browser (some
+   fall back to the OS's UI font for <button> specifically) — #qcSave was reading as visibly
+   bolder/a different typeface than the rest of the modal as a result. font-weight:600 here
+   matches the site-wide .btn{font-weight:600} rule (coasia-theme.css) exactly — not heavier,
+   just guaranteed to actually apply on this specific button. */
+#quickCreateModal #qcSave {
+  font-family: inherit;
+  font-weight: 600;
 }
 
 /* ---------- Event quick-view popover ---------- */
@@ -1173,15 +1570,23 @@
   line-height: 1;
   cursor: pointer;
   text-decoration: none;
+  transition: background-color 0.14s ease, color 0.14s ease;
 }
 
 .reservation-icon-button:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  color: var(--text-primary);
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+.reservation-icon-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* Delete stays neutral gray at rest — only turns red (var(--danger)) on hover, so the
-   card isn't shouting "danger" every time it's opened. */
+   card isn't shouting "danger" every time it's opened. Comes after the plain
+   .reservation-icon-button:hover above so its own bg/color win on the shared element
+   (equal specificity, later source order) instead of the generic primary tint. */
 .reservation-icon-button-danger:hover {
   background: #fbe9e7;
   color: var(--danger);
@@ -1562,6 +1967,14 @@
   box-sizing: border-box;
 }
 
+/* Reuses .qc-time-dash (quick-create modal's start–end separator) between the Drawer's own
+   start/end time selects — that class is otherwise scoped to #quickCreateModal, so it needs
+   its own color/sizing here rather than picking one up by accident from the wrong context. */
+.reservation-row .qc-time-dash {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
 textarea.reservation-field {
   height: auto;
   min-height: 44px;
@@ -1576,18 +1989,24 @@ textarea.reservation-field {
   border-color: var(--primary);
 }
 
+/* Same underline concept as Quick Create's #qcTitle (see its own comment) — quiet gray at
+   rest, only turns brand-blue on focus. #d9e0ea/#1f3159 match #qcTitle's exact values
+   (rather than the generic var(--border)/var(--primary) tokens used elsewhere in this file)
+   so the two "same concept" title fields are pixel-identical, not just similarly-themed. */
 .rd-title-input {
   border: none;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #d9e0ea;
   border-radius: 0;
   padding: 0 0 10px;
   font-size: 16px;
   font-weight: 500;
   height: auto;
+  transition: border-color 0.14s ease;
 }
 
 .rd-title-input:focus {
-  border-bottom-color: var(--primary);
+  border-bottom: 2px solid #1f3159;
+  padding-bottom: 9px;
 }
 
 .rd-time-dash {
@@ -1595,28 +2014,74 @@ textarea.reservation-field {
   flex-shrink: 0;
 }
 
-.rd-category-tabs {
-  display: inline-flex;
-  gap: 2px;
-  border: 1px solid var(--border);
-  border-radius: 100px;
-  padding: 3px;
+/* Wraps the resource picker + availability line so both stack in the same flex slot the old
+   plain <select> used to occupy on its own — flex:1 (not the picker itself) is what actually
+   claims the row's remaining width here. */
+.reservation-row-fill {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.rd-category-tab {
-  border: none;
-  background: transparent;
-  border-radius: 100px;
-  padding: 5px 12px;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  cursor: pointer;
+/* Same component as Quick Create's .qc-resource-picker (see its own comment) — full width
+   and 44px-tall instead of the toolbar chip's auto-width/240px cap, and .resource-picker-label
+   gets flex:1+text-align:left for the same reason noted there (space-between alone visually
+   centers a short label between the dot and the chevron instead of left-aligning it). */
+.rd-resource-picker {
+  width: 100%;
 }
 
-.rd-category-tab.active {
-  background: var(--primary);
-  color: #fff;
+.rd-resource-picker .resource-picker-trigger {
+  width: 100%;
+  min-height: 44px;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.rd-resource-picker .resource-picker-label {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.rd-resource-picker .resource-picker-panel {
+  left: 0;
+  right: 0;
+  width: auto;
+  min-width: 0;
+}
+
+/* Same transparent-input-plus-overlay technique as Quick Create's .qc-date-field (see its own
+   comment), styled to match this form's own bordered-field language (.reservation-field)
+   instead of Quick Create's compact pill, since every other field in the Drawer already reads
+   that way. */
+.rd-date-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rd-date-field .reservation-field {
+  width: 100%;
+  color: transparent;
+}
+
+.rd-date-field .reservation-field:focus + .rd-date-display {
+  color: var(--primary);
+}
+
+.rd-date-display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
 }
 
 .reservation-chip {
@@ -1719,11 +2184,17 @@ textarea.reservation-field {
   padding: 10px 18px;
   border-radius: 100px;
   cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
 }
 
 .reservation-btn-text:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  color: var(--text-primary);
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+.reservation-btn-text:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 /* The one and only brand-blue filled action in the Drawer. */
@@ -1739,10 +2210,20 @@ textarea.reservation-field {
   padding: 10px 20px;
   border-radius: 100px;
   cursor: pointer;
+  transition: background-color 0.14s ease;
 }
 
+/* Already a solid --primary fill at rest, so hover needs to mix toward black (a real "darker
+   blue") rather than toward white like every other control's pale tint above — mixing toward
+   white here would have made the button look LIGHTER on hover, the opposite of a pressed/
+   active cue. */
 .reservation-primary-button:hover {
-  filter: brightness(0.92);
+  background: color-mix(in oklab, var(--primary) 85%, black 15%);
+}
+
+.reservation-primary-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .reservation-primary-button:disabled {

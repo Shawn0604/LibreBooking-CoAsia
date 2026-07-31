@@ -34,7 +34,7 @@ abstract class ReminderEmail extends EmailMessage
         $this->Set('StartDate', $this->reminder->StartDate()->ToTimezone($this->reminder->Timezone()));
         $this->Set('EndDate', $this->reminder->EndDate()->ToTimezone($this->reminder->Timezone()));
         $this->Set('ResourceName', $this->reminder->ResourceNames());
-        $this->Set('Title', $this->reminder->Title());
+        $this->Set('Title', !empty($this->reminder->Title()) ? $this->reminder->Title() : Resources::GetInstance()->GetString('NoReservationTitle'));
         $this->Set('Description', $this->reminder->Description());
         $this->Set('ReservationUrl', sprintf(
             '%s?%s=%s',
