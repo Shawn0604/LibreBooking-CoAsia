@@ -64,6 +64,20 @@ abstract class ReservationEmailMessage extends EmailMessage
      */
     abstract protected function GetTemplateName();
 
+    /**
+     * Whether this message's recipient (see To()) is the reservation's own owner, as opposed
+     * to a participant/invitee/guest/admin. Gates whether PopulateTemplate() fetches+includes
+     * video conference host credentials (VideoConferenceHostRepository) -- defaults to false
+     * (secure by default) since most subclasses of this class send to someone OTHER than the
+     * owner (participants, invitees, guests, admins); only the base ReservationCreatedEmail/
+     * ReservationUpdatedEmail/ReservationApprovedEmail/ReservationDeletedEmail (used by
+     * OwnerEmailNotification, which always sends To() the owner) override this to true.
+     */
+    protected function IsRecipientOwner(): bool
+    {
+        return false;
+    }
+
     public function To()
     {
         $address = $this->reservationOwner->EmailAddress();
@@ -140,8 +154,24 @@ abstract class ReservationEmailMessage extends EmailMessage
         $attributeValues = $context->ReservationAttributes();
         $this->Set('Attributes', $attributeValues);
 
-        $videoConferenceResources = $context->VideoConferenceResources();
+        $videoConferenceResources = $context->VideoConferenceResources(includeHostCredentials: $this->IsRecipientOwner());
         $this->Set('VideoConferenceResources', $videoConferenceResources);
+        $this->Set('IsRecipientOwner', $this->IsRecipientOwner());
+
+        // The one video resource, if any, matching this reservation's own primary resource --
+        // drives the "視訊會議"/join-button/host-info section as a single value rather than a
+        // loop, since the redesigned template (COASIA-CHANGES.md, video conference redesign)
+        // shows exactly one video resource's info, not a list. A reservation against a
+        // physical resource leaves this null, which is what keeps that whole section off
+        // physical-room emails without a separate "$IsVideoResource" flag to keep in sync.
+        $primaryVideo = null;
+        foreach ($videoConferenceResources as $videoResource) {
+            if ($videoResource->ResourceId === $this->primaryResource->GetId()) {
+                $primaryVideo = $videoResource;
+                break;
+            }
+        }
+        $this->Set('PrimaryVideo', $primaryVideo);
 
         $createdBy = $context->CreatedBy();
         if ($createdBy != null) {

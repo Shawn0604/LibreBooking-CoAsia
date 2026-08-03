@@ -231,6 +231,7 @@ class FakeReservationUpdatePage extends FakeReservationSavePage implements IRese
     public $existingReferenceNumber = 100;
     public $seriesUpdateScope = SeriesUpdateScope::FullSeries;
     public $removedFileIds = [1, 2, 3];
+    public $expectedVersion = null;
 
     public function __construct()
     {
@@ -245,6 +246,11 @@ class FakeReservationUpdatePage extends FakeReservationSavePage implements IRese
     public function GetSeriesUpdateScope()
     {
         return $this->seriesUpdateScope;
+    }
+
+    public function GetExpectedVersion()
+    {
+        return $this->expectedVersion;
     }
 
     public function GetRemovedAttachmentIds()

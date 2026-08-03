@@ -784,6 +784,15 @@ class ReservationUpdateRequestResponseFacade extends ReservationRequestResponseF
         return $this->updateScope;
     }
 
+    // The web service API has no equivalent request field for this today — returning null
+    // preserves its existing behavior exactly (no optimistic-locking enforcement), same as
+    // before this interface method existed. Only the classic browser form's edit page actually
+    // supplies one.
+    public function GetExpectedVersion()
+    {
+        return null;
+    }
+
     public function GetRemovedAttachmentIds()
     {
         return [];

@@ -1,7 +1,7 @@
 {extends file="Reservation/create.tpl"}
 
 {block name=header}
-    {include file='globalheader.tpl' TitleKey='EditReservationHeading' TitleArgs='' cssFiles='css/schedule.css' printCssFiles='css/reservation.print.css'}
+    {include file='globalheader.tpl' TitleKey='EditReservationHeading' TitleArgs='' cssFiles='css/schedule.css,css/reservation-page.css' printCssFiles='css/reservation.print.css'}
 {/block}
 
 {block name=reservationHeader}
@@ -10,82 +10,28 @@
     {/block}
 
     {block name=submitButtons}
-        <div class="btn-group btn-group-sm btnMore">
-            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"
-                aria-expanded="false">
-                <span class="d-none d-sm-inline"><i class="bi bi-plus-circle-fill me-1"></i>{translate key='More'}</span>
-                <span class="d-sm-none"><i class="bi bi-three-dots-vertical"></i></span>
-            </button>
-            <ul class="dropdown-menu" role="menu">
-                <li>
-                    {assign var=icsUrl value="{$Path}export/{Pages::CALENDAR_EXPORT}?{QueryStringKeys::REFERENCE_NUMBER}={$ReferenceNumber}"}
-                    <a href="{$icsUrl}" download="{$icsUrl}" class="dropdown-item">
-                        <span class="bi bi-calendar3"></span>
-                        {translate key='AddToOutlook'}</a>
-                </li>
-                <li>
-                    <a href="http://www.google.com/calendar/event?action=TEMPLATE&text={$ReservationTitle|escape:'url'}&dates={formatdate date=$StartDate->ToUtc() key=google}/{formatdate date=$EndDate->ToUtc() key=google}&ctz={$StartDate->Timezone()}&details={$Description|escape:'url'}&location={$Resource->Name|escape:'url'}&trp=false&sprop=&sprop=name:"
-                        target="_blank" rel="nofollow" class="dropdown-item">
-                        <span class="bi bi-google"></span>
-                        {translate key='AddToGoogleCalendar'}</a>
-                </li>
-                {if $EmailEnabled}
-                    <li>
-                        <a href="#" class="btnSendEmail dropdown-item">
-                            <span class="bi bi-envelope-fill"></span>
-                            {translate key='Email'}</a>
-                    </li>
-                {/if}
-                <li>
-                    <a href="#" class="btnPrint dropdown-item">
-                        <span class="bi bi-printer"></span>
-                        {translate key='Print'}</a>
-                </li>
-                <li>
-                    <a href="#" class="btnPDF dropdown-item">
-                        <span class="bi bi-filetype-pdf"></span>
-                        PDF</a>
-                </li>
-                <li>
-                    <a class="dropdown-item"
-                        href="{$Path}{Pages::RESERVATION}?{QueryStringKeys::SOURCE_REFERENCE_NUMBER}={$ReferenceNumber}&{QueryStringKeys::REDIRECT}={$ReturnUrl|urlencode}">
-                        <i class="bi bi-files"></i>
-                        {translate key='DuplicateReservation'}</a>
-                </li>
-
-                <li>
-                    <hr class="dropdown-divider">
-                </li>
-                <li>
-                    {if $IsRecurring}
-                        <a href="#" class="delete prompt dropdown-item">
-                            <span class="bi bi-x-lg text-danger remove icon"></span>
-                            {translate key='Delete'}
-                        </a>
-                    {else}
-                        <a href="#" class="triggerDeletePrompt delete prompt-single dropdown-item">
-                            <span class="bi bi-x-lg text-danger remove icon"></span>
-                            {translate key='Delete'}
-                        </a>
-                    {/if}
-                </li>
-            </ul>
-        </div>
-
+        {* The old "More" dropdown's export/email/print/PDF/duplicate links are gone (per the
+           redesign spec) — only Delete survives from that menu, moved to its own icon button.
+           Delete has no separate permission check here (there never was one — edit.tpl is only
+           reachable at all once ReservationAuthorization::CanEdit() already passed server-side,
+           same as before). *}
+        <button type="button" class="rp-icon-btn rp-delete-btn {if $IsRecurring}delete prompt{else}triggerDeletePrompt delete prompt-single{/if}"
+            title="{translate key='Delete'}" aria-label="{translate key='Delete'}">
+            <i class="bi bi-trash"></i>
+        </button>
 
         {if $CheckInRequired && (!$checkinAdminOnly || $CanViewAdmin)}
-            <button type="button" class="btn btn-sm btn-warning btnCheckin"><i class="bi bi-box-arrow-in-right"></i>
+            <button type="button" class="rp-secondary-btn btnCheckin"><i class="bi bi-box-arrow-in-right"></i>
                 {translate key=CheckIn}
                 <span class="autoReleaseButtonMessage" data-autorelease-minutes="{$AutoReleaseMinutes}"> -
                     {translate key=ReleasedIn} <span class="autoReleaseMinutes"></span> {translate key=minutes}</span></button>
         {/if}
         {if $CheckOutRequired && (!$checkoutAdminOnly || $CanViewAdmin)}
-            <button type="button" class="btn btn-sm btn-warning btnCheckout"><i class="bi bi-box-arrow-in-right"></i>
+            <button type="button" class="rp-secondary-btn btnCheckout"><i class="bi bi-box-arrow-in-right"></i>
                 {translate key=CheckOut}</button>
         {/if}
         {if $IsRecurring}
-            <button type="button" class="btn btn-sm btn-primary update prompt">
-                <span class="bi bi-check-circle"></span>
+            <button type="button" class="rp-primary-btn update prompt">
                 {translate key='Update'}
             </button>
             <div class="modal fade" id="updateButtons" tabindex="-1" role="dialog" aria-labelledby="updateButtonsLabel"
@@ -129,8 +75,7 @@
 
         {else}
 
-            <button type="button" class="btn btn-sm btn-primary save update btnEdit">
-                <span class="bi bi-check-circle"></span>
+            <button type="button" class="rp-primary-btn save update btnEdit">
                 {translate key='Update'}
             </button>
         {/if}

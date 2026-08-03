@@ -70,6 +70,16 @@ class ReservationUpdatePresenter implements IReservationUpdatePresenter
     {
         $referenceNumber = $this->page->GetReferenceNumber();
         $existingSeries = $this->persistenceService->LoadByReferenceNumber($referenceNumber);
+
+        // Optimistic-locking: what the client last saw (round-tripped from the hidden
+        // expectedVersion field the edit form rendered with), not whatever LoadByReferenceNumber
+        // just fetched — see ExistingReservationSeries::SetExpectedVersion()'s own comment for
+        // why the two need to differ for this to actually catch a stale edit.
+        $expectedVersion = $this->page->GetExpectedVersion();
+        if ($expectedVersion !== null) {
+            $existingSeries->SetExpectedVersion($expectedVersion);
+        }
+
         $existingSeries->ApplyChangesTo($this->page->GetSeriesUpdateScope());
 
         $resourceId = $this->page->GetResourceId();

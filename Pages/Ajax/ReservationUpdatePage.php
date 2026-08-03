@@ -15,6 +15,13 @@ interface IReservationUpdatePage extends IReservationSavePage
      */
     public function GetSeriesUpdateScope();
 
+    /**
+     * @return int|null the version the client last saw (round-tripped from the hidden
+     *   expectedVersion field the edit form was rendered with) — null/empty means "don't
+     *   enforce", same convention OverviewFullCalendarReservationUpdatePresenter already uses.
+     */
+    public function GetExpectedVersion();
+
     /*
      * @return array|int[]
      */
@@ -56,6 +63,14 @@ class ReservationUpdatePage extends ReservationSavePage implements IReservationU
             } else {
                 $this->Display('Ajax/reservation/save_failed.tpl');
             }
+        } catch (ReservationVersionConflictException $ex) {
+            // Same handling as ReservationDeletePage/OverviewFullCalendarReservationUpdatePage —
+            // never silently overwrite someone else's change, surface it as a normal validation
+            // error the classic form's own #reservation-failed rendering already understands.
+            Log::Debug('ReservationUpdatePage - version conflict: %s', $ex->getMessage());
+            http_response_code(409);
+            $this->SetErrors([Resources::GetInstance()->GetString('ReservationChanged')]);
+            $this->Display('Ajax/reservation/save_failed.tpl');
         } catch (Exception $ex) {
             Log::Error('ReservationUpdatePage - Critical error saving reservation: %s', $ex);
             $this->Display('Ajax/reservation/reservation_error.tpl');
@@ -102,6 +117,15 @@ class ReservationUpdatePage extends ReservationSavePage implements IReservationU
         }
 
         return $scope;
+    }
+
+    public function GetExpectedVersion()
+    {
+        $version = $this->GetForm(FormKeys::EXPECTED_VERSION);
+        if (!is_scalar($version) || $version === '') {
+            return null;
+        }
+        return (int)$version;
     }
 
     public function GetRemovedAttachmentIds()

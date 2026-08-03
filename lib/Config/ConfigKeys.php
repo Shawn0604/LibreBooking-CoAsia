@@ -476,6 +476,23 @@ class ConfigKeys extends AbstractConfigKeys
         'section' => 'line'
     ];
 
+    // Video conference host credentials (Jobs/import-video-conference-resources.php,
+    // Domain/Access/VideoConferenceHostRepository.php) — reservation owners can view a video
+    // resource's shared host login (email/LINE), so the password is encrypted at rest rather
+    // than stored plainly alongside the other resource custom attributes. This key never
+    // appears in git (config/config.php is gitignored) -- losing/rotating it makes every
+    // already-encrypted host_password unreadable, so back it up like any other secret.
+    public const VIDEO_CONFERENCE_HOST_ENCRYPTION_KEY = [
+        'key' => 'reservation.video.conference.host.encryption.key',
+        'type' => 'string',
+        'default' => '',
+        'label' => 'Video Conference Host Credential Encryption Key',
+        'description' => 'Symmetric key used to encrypt/decrypt video conference host account passwords at rest',
+        'config_file_comment' => 'Random key for encrypting video conference host passwords at rest -- generate once, never rotate without a migration plan',
+        'section' => 'reservation',
+        'is_private' => true
+    ];
+
     // Logging
     public const LOGGING_FOLDER = [
         'key' => 'logging.folder',

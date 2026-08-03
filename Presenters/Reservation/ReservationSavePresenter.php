@@ -242,7 +242,7 @@ class ReservationSavePresenter implements IReservationSavePresenter
                 ? $resource->GetAttributeValue($attributeIds[self::ATTRIBUTE_VIDEO_PASSCODE])
                 : null;
 
-            $videoResources[] = new VideoConferenceInfo($resource->GetName(), $url, $meetingId, $passcode);
+            $videoResources[] = new VideoConferenceInfo($resource->GetId(), $resource->GetName(), $url, $meetingId, $passcode);
         }
 
         return $videoResources;

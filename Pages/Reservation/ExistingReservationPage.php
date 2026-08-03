@@ -62,6 +62,14 @@ interface IExistingReservationPage extends IReservationPage
     public function SetSeriesId($seriesId);
 
     /**
+     * @param $version int the version this page loaded the reservation at — round-tripped by
+     *   the classic edit form as expectedVersion on submit so the update path can detect
+     *   someone else having changed it in between (Domain/Access/ReservationRepository.php's
+     *   optimistic-locking check), same mechanism the Overview page's own quick-edit already uses.
+     */
+    public function SetVersion($version);
+
+    /**
      * @param $isRecurring bool
      */
     public function SetIsRecurring($isRecurring);
@@ -250,6 +258,11 @@ class ExistingReservationPage extends ReservationPage implements IExistingReserv
     public function SetSeriesId($seriesId)
     {
         $this->Set('SeriesId', $seriesId);
+    }
+
+    public function SetVersion($version)
+    {
+        $this->Set('Version', $version);
     }
 
     public function SetIsRecurring($isRecurring)

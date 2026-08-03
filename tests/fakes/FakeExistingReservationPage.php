@@ -59,6 +59,10 @@ class FakeExistingReservationPage extends FakePageBase implements IExistingReser
     {
     }
 
+    public function SetVersion($version)
+    {
+    }
+
     public function SetIsRecurring($isRecurring)
     {
     }

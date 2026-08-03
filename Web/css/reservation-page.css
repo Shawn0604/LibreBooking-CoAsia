@@ -1,0 +1,884 @@
+/*
+ * Full reservation page (tpl/Reservation/create.tpl + edit.tpl) — "Quick Create expanded
+ * into a full page". Deliberately mirrors the Overview page's Quick Create modal (see
+ * #quickCreateModal rules in overview_fullcalendar.css) rather than inventing a second
+ * design language: same tokens, same title/description/chip/icon-row treatment. Every field
+ * this file styles keeps its original id/name from create.tpl/edit.tpl/participation.tpl —
+ * this is presentation only, reservation.js/recurrence.js/the reminder script are untouched.
+ *
+ * Local token scope (mirrors #page-overview-fc's own block in overview_fullcalendar.css,
+ * same values, kept separate rather than shared since the two pages don't load the same
+ * stylesheet) — --primary/--bs-border-radius-sm/etc. below are coasia-theme.css's own
+ * global tokens, reused as-is.
+ */
+#page-reservation {
+  --rp-surface: #fff;
+  --rp-surface-muted: #f6f7fb;
+  --rp-border: #e4e7ee;
+  --rp-text: #1c2333;
+  --rp-text-secondary: #6c7488;
+  --rp-accent: #1f3159;
+
+  min-height: calc(100vh - 32px);
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.rp-card {
+  width: 100%;
+  max-width: 860px;
+  min-width: 0;
+  background: var(--rp-surface);
+  border: 1px solid var(--rp-border);
+  border-radius: 16px;
+  box-shadow: var(--bs-box-shadow-sm);
+  padding: 20px 28px 28px;
+  box-sizing: border-box;
+  align-self: flex-start;
+  margin: 16px 0;
+}
+
+@media (max-width: 700px) {
+  .rp-card {
+    padding: 16px;
+  }
+}
+
+/* ---- Top bar: back / title+subtitle / cancel+primary — the only always-visible actions,
+   per the redesign spec ("頂部只保留返回、編輯預約、取消、更新預約"). Delete/check-in/
+   check-out (edit.tpl's submitButtons override) render into .rp-topbar-actions too, but as
+   a small icon button / secondary buttons rather than the old dropdown menu. ---- */
+.rp-topbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rp-border);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.rp-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  color: var(--rp-text);
+  font-size: 18px;
+  cursor: pointer;
+  transition: background-color 0.14s ease;
+}
+
+.rp-back-btn:hover {
+  background: var(--rp-surface-muted);
+}
+
+.rp-topbar-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.rp-heading-title {
+  margin: 0;
+  font-size: 20px;
+  color: var(--rp-text);
+}
+
+.rp-heading-subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--rp-text-secondary);
+}
+
+.rp-reference-number {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--rp-text-secondary);
+}
+
+.rp-reference-number span {
+  font-weight: 500;
+}
+
+.rp-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.rp-cancel-link {
+  border: none;
+  background: transparent;
+  color: var(--rp-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 6px;
+  cursor: pointer;
+}
+
+.rp-cancel-link:hover {
+  color: var(--rp-text);
+}
+
+.rp-primary-btn {
+  border: none;
+  border-radius: var(--bs-border-radius-sm, 8px);
+  background: var(--rp-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 9px 20px;
+  cursor: pointer;
+  transition: filter 0.14s ease;
+}
+
+.rp-primary-btn:hover {
+  filter: brightness(0.94);
+}
+
+.rp-secondary-btn {
+  border: 1px solid var(--rp-border);
+  border-radius: var(--bs-border-radius-sm, 8px);
+  background: #fff8e6;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.rp-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--rp-text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease;
+}
+
+.rp-icon-btn:hover {
+  background: var(--rp-surface-muted);
+}
+
+.rp-delete-btn:hover {
+  background: #fdecec;
+  color: #b3261e;
+}
+
+/* ---- Field rows — icon + content, no boxes/cards around each one (matches the mockup's
+   flat list, not the old bordered form-group blocks). ---- */
+.rp-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.rp-row + .rp-row {
+  border-top: 1px solid var(--rp-border);
+}
+
+.rp-row-icon {
+  flex-shrink: 0;
+  width: 20px;
+  margin-top: 10px;
+  font-size: 18px;
+  color: var(--rp-text-secondary);
+  text-align: center;
+}
+
+/* Same underline concept as Quick Create's #qcTitle — quiet gray at rest, brand-blue only on
+   focus. #d9e0ea/#1f3159 match #qcTitle's exact values so the two "same concept" title
+   fields are pixel-identical, not just similarly themed. */
+.rp-title-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-bottom: 1px solid #d9e0ea;
+  outline: none;
+  padding: 4px 0 8px;
+  margin-top: 6px;
+  font-size: 20px;
+  color: var(--rp-text);
+  background: transparent;
+}
+
+.rp-title-input:focus {
+  border-bottom: 2px solid var(--rp-accent);
+  padding-bottom: 7px;
+}
+
+.rp-title-input::placeholder {
+  color: #9aa1b3;
+  font-weight: 400;
+}
+
+.rp-datetime-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.rp-date-input,
+.rp-time-select {
+  height: 38px;
+  box-sizing: border-box;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--bs-border-radius-sm, 8px);
+  background: #fff;
+  font-size: 14px;
+  color: var(--rp-text);
+  padding: 0 10px;
+}
+
+.rp-date-input:focus,
+.rp-time-select:focus {
+  outline: none;
+  border-color: var(--rp-accent);
+}
+
+.rp-time-dash {
+  color: var(--rp-text-secondary);
+}
+
+.rp-locked-period {
+  font-size: 14px;
+  color: var(--rp-text);
+}
+
+/* ---- Recurrence — RecurrenceDiv.tpl's own markup/ids/classes (#repeatDiv, #repeatOptions,
+   .recur-toggle, .btn-check pills, etc.) are untouched; this only reskins the native
+   Bootstrap controls it renders to match everything else on the page. ---- */
+.rp-recurrence-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.rp-recurrence-wrap .repeat-div .form-group > .d-flex:first-child {
+  margin-bottom: 0 !important;
+}
+
+.rp-recurrence-wrap select.repeat-drop,
+.rp-recurrence-wrap select.repeat-interval-drop,
+.rp-recurrence-wrap input.repeat-termination,
+.rp-recurrence-wrap input#RepeatDate {
+  height: 38px;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--bs-border-radius-sm, 8px);
+  font-size: 14px;
+  color: var(--rp-text);
+}
+
+.rp-recurrence-wrap select.repeat-drop:focus,
+.rp-recurrence-wrap select.repeat-interval-drop:focus,
+.rp-recurrence-wrap input.repeat-termination:focus,
+.rp-recurrence-wrap input#RepeatDate:focus {
+  outline: none;
+  border-color: var(--rp-accent);
+  box-shadow: none;
+}
+
+.rp-recurrence-wrap .repeat-div label.fw-bold {
+  font-size: 13px;
+  color: var(--rp-text-secondary);
+  font-weight: 500 !important;
+}
+
+.rp-recurrence-wrap .btn-check + label.btn {
+  border-color: var(--rp-border);
+  color: var(--rp-text);
+  font-size: 13px;
+}
+
+.rp-recurrence-wrap .btn-check:checked + label.btn {
+  background: var(--rp-accent);
+  border-color: var(--rp-accent);
+  color: #fff;
+}
+
+.rp-recurrence-wrap .repeat-date-list {
+  background: var(--rp-surface-muted) !important;
+  border-color: var(--rp-border) !important;
+}
+
+/* ---- Resource ---- */
+.rp-resource-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.rp-resource-wrap .resourceName {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 100px !important;
+  padding: 6px 14px !important;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ---- Searchable/switchable primary resource picker — same .resource-picker* component/
+   class names as Quick Create's own #qcResourcePicker, values copied from #page-overview-fc's
+   rules in overview_fullcalendar.css (this page doesn't load that stylesheet) so the two read
+   as the same control. .ghost-btn is the picker trigger's base pill-button look. ---- */
+#page-reservation .ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--rp-border);
+  background: transparent;
+  border-radius: 100px;
+  padding: 0 16px;
+  font-size: 14px;
+  color: var(--rp-text);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+#page-reservation .ghost-btn:hover {
+  background: var(--rp-surface-muted);
+  border-color: var(--rp-accent);
+}
+
+#page-reservation .resource-picker {
+  position: relative;
+  min-width: 0;
+  display: inline-block;
+}
+
+#page-reservation .resource-picker-trigger {
+  max-width: 280px;
+}
+
+#page-reservation .resource-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+#page-reservation .resource-picker-trigger .bi-chevron-down {
+  font-size: 11px;
+  color: #9aa1b3;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+#page-reservation .resource-picker.open .resource-picker-trigger .bi-chevron-down {
+  transform: rotate(180deg);
+}
+
+#page-reservation .resource-picker-dot,
+#page-reservation .resource-picker-item .resource-picker-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot-color, #5c6b84);
+  flex-shrink: 0;
+}
+
+#page-reservation .resource-picker-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  min-width: 280px;
+  background: var(--rp-surface);
+  border-radius: var(--bs-border-radius-sm, 8px);
+  box-shadow: var(--bs-box-shadow);
+  padding: 6px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px) scale(0.98);
+  pointer-events: none;
+  transform-origin: top left;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+
+#page-reservation .resource-picker.open .resource-picker-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #page-reservation .resource-picker-panel {
+    transition: none;
+  }
+}
+
+#page-reservation .resource-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-radius: var(--bs-border-radius-sm);
+  background: var(--rp-surface-muted);
+}
+
+#page-reservation .resource-picker-search i {
+  color: #9aa1b3;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+#page-reservation .resource-picker-search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: var(--rp-text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#page-reservation .resource-picker-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+#page-reservation .resource-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: var(--bs-border-radius-sm);
+  font-size: 13.5px;
+  color: var(--rp-text);
+  text-align: left;
+  white-space: nowrap;
+}
+
+#page-reservation .resource-picker-item:hover {
+  background: var(--rp-surface-muted);
+}
+
+#page-reservation .resource-picker-item.selected {
+  color: var(--rp-accent);
+  font-weight: 500;
+}
+
+#page-reservation .resource-picker-check {
+  width: 16px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--rp-accent);
+  visibility: hidden;
+}
+
+#page-reservation .resource-picker-item.selected .resource-picker-check {
+  visibility: visible;
+}
+
+#page-reservation .resource-picker-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+#page-reservation .resource-picker-empty {
+  padding: 16px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #9aa1b3;
+}
+
+/* ---- Live availability indicator — same visual language as Quick Create's own
+   #qcAvailability (green check / red x + text). ---- */
+.rp-availability {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #1e7e34;
+}
+
+.rp-availability i {
+  font-size: 14px;
+}
+
+.rp-availability.unavailable {
+  color: #b3261e;
+}
+
+/* ---- Participants — the EXACT same component as Quick Create's own participant picker:
+   same class names (.participant-search*), same createParticipantPicker() factory
+   (Web/scripts/participant-picker.js), same search endpoint. Values below are copied from
+   #page-overview-fc's rules in overview_fullcalendar.css so the two read as pixel-identical,
+   just re-scoped to #page-reservation since the two pages don't share a stylesheet. ---- */
+.rp-participants-wrap {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+#page-reservation .participant-search {
+  position: relative;
+  width: 100%;
+}
+
+#page-reservation .participant-search-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--bs-border-radius-sm, 8px);
+  background: var(--rp-surface);
+  box-sizing: border-box;
+}
+
+#page-reservation .participant-search-input-wrap:focus-within {
+  border-color: var(--rp-accent);
+}
+
+#page-reservation .participant-search-input-wrap i {
+  color: #9aa1b3;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+#page-reservation .participant-search-input-wrap input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 14px;
+  color: var(--rp-text);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+#page-reservation .participant-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--rp-surface);
+  border-radius: var(--bs-border-radius-sm, 8px);
+  box-shadow: var(--bs-box-shadow);
+  padding: 6px;
+}
+
+#page-reservation .participant-search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  border-radius: var(--bs-border-radius-sm);
+  text-align: left;
+}
+
+#page-reservation .participant-search-item:hover {
+  background: var(--rp-surface-muted);
+}
+
+#page-reservation .participant-search-item-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+#page-reservation .participant-search-item-name {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+#page-reservation .participant-search-item-chinese {
+  font-size: 13px;
+  color: #3c4043;
+  flex-shrink: 0;
+}
+
+#page-reservation .participant-search-item-english {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #3c4043;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#page-reservation .participant-search-item-dept {
+  font-size: 12px;
+  color: #9aa1b3;
+  flex-shrink: 0;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+#page-reservation .participant-search-item-email {
+  font-size: 12px;
+  color: #9aa1b3;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#page-reservation .participant-search-empty {
+  padding: 16px 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #9aa1b3;
+}
+
+#page-reservation .rp-participant-badge {
+  flex-shrink: 0;
+}
+
+.rp-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.rp-chip-list:empty {
+  margin-top: 0;
+}
+
+/* Same class/markup participant-picker.js (and Quick Create) render for every chip —
+   .reservation-chip itself lives in overview_fullcalendar.css, which this page doesn't load,
+   so it's restated here with the identical values rather than duplicating the whole file. */
+.reservation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--rp-surface-muted);
+  border-radius: 100px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--rp-text);
+}
+
+.rp-description {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-top: 4px;
+  width: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--bs-border-radius-sm, 8px);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--rp-text);
+  resize: vertical;
+}
+
+.rp-description:focus {
+  outline: none;
+  border-color: var(--rp-accent);
+}
+
+.rp-description::placeholder {
+  color: #9aa1b3;
+}
+
+.rp-divider {
+  height: 1px;
+  background: var(--rp-border);
+  margin: 4px 0 8px;
+}
+
+/* ---- Bottom collapsible rows (Reminders / Attachments / Other Settings) — plain <details>,
+   same pattern already used elsewhere on this exact page (the old .moreOptions block) and
+   on the Overview page (details.moreOptions in coasia-theme.css). ---- */
+.rp-collapsible-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.rp-collapse-row {
+  border-top: 1px solid var(--rp-border);
+}
+
+.rp-collapse-row:last-child {
+  border-bottom: 1px solid var(--rp-border);
+}
+
+.rp-collapse-row summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.rp-collapse-row summary::-webkit-details-marker {
+  display: none;
+}
+
+.rp-collapse-row .rp-row-icon {
+  margin-top: 0;
+}
+
+.rp-collapse-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--rp-text);
+}
+
+.rp-collapse-hint {
+  font-size: 13px;
+  color: var(--rp-text-secondary);
+  flex: 1 1 auto;
+}
+
+.rp-chevron {
+  flex-shrink: 0;
+  color: var(--rp-text-secondary);
+  font-size: 13px;
+  transition: transform 0.15s ease;
+}
+
+.rp-collapse-row[open] .rp-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-chevron {
+    transition: none;
+  }
+}
+
+.rp-collapse-body {
+  padding: 0 0 16px 32px;
+}
+
+.rp-collapse-action {
+  color: var(--rp-accent);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.rp-collapse-action:hover {
+  text-decoration: underline;
+}
+
+.rp-reminder-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rp-reminder-row:last-child {
+  margin-bottom: 0;
+}
+
+.rp-reminder-number,
+.rp-reminder-select {
+  height: 32px;
+  border: 1px solid var(--rp-border);
+  border-radius: var(--bs-border-radius-sm, 8px);
+  font-size: 13px;
+  padding: 0 8px;
+}
+
+.rp-reminder-row .reminderLabel {
+  font-size: 13px;
+  color: var(--rp-text-secondary);
+}
+
+.rp-attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rp-file-input {
+  font-size: 13px;
+}
+
+.rp-subrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.rp-subrow-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rp-text);
+  margin: 0;
+}
+
+.rp-subrow-block {
+  margin-bottom: 16px;
+}
+
+.rp-subrow-block:last-child {
+  margin-bottom: 0;
+}
+
+/* invitees.tpl renders inside .rp-subrow-block unstyled by default (it's the classic
+   Bootstrap look) — nudged just enough to read as part of the same list instead of visually
+   clashing, without a full second restyle of that feature. */
+.rp-subrow-block .form-control,
+.rp-subrow-block .form-select {
+  font-size: 13px;
+}

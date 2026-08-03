@@ -1604,3 +1604,76 @@ CSS（`Web/css/overview_fullcalendar.css`）新增 `.participant-search*` 一組
 - `php -l` 確認 `Pages/OverviewFullCalendarPage.php` 語法正確；`node --check` 確認 `overview_fullcalendar.js` 語法正確（這個環境沒有內建的 JS 執行/瀏覽器 lint 工具鏈，用 Node 的語法檢查頂替）。
 
 **沒有驗證到的部分**：一樣沒有實際視覺 screenshot（這個環境的 screenshot 工具本身逾時失敗，全程改用 DOM/Network 層級的資料驗證，跟過去幾輪同樣的限制）；沒有測試「同時輸入很快、連續打字觸發多次搜尋」下 debounce／過期回應丟棄機制在真實網路延遲下的行為，只確認了程式碼邏輯本身；沒有測試 Edit 模式（點開已存在預約）—— 這次刻意沒有改動那條路徑，維持原本的唯讀摘要顯示；沒有測試選了很多參與者（10+ 人）時 chip 換行／搜尋結果捲動的視覺呈現。
+
+## 45. 登入頁重新設計（CoAsia Blue 極簡風格）
+
+依照提供的 mockup，把 `tpl/login.tpl` 從原本的預設 LibreBooking 登入畫面改成 Google Calendar 風格的極簡版面：CoAsia Blue（`rgb(31, 49, 89)`）主色、置中卡片、移除「記住我」以外的次要欄位（原本畫面上的語言切換、註冊連結等視覺雜訊依 mockup 精簡）。改動集中在 `tpl/login.tpl` 與 `Web/css/coasia-theme.css`，後端登入邏輯（`Pages/LoginPage.php`／驗證流程）完全沒有更動，純視覺重製。
+
+## 46. 「更多選項」全頁化：從 Drawer 快速編輯改成完整預約頁 + 5 項修正
+
+Quick Create 的「更多選項」原本開的是 §37 那個 Drawer（右側滑出面板），這次要求改成導到完整的經典預約頁（`reservation.php`），理由是 Drawer 空間有限，複雜欄位（附件、提醒、重複規則細節等）在裡面很難操作。
+
+### 46.1 資料轉交與返回狀態
+
+Quick Create 已經填好的欄位（標題、日期時間、資源、參與者、說明）透過 `sessionStorage`（不是 URL query string，避免特殊字元跟長度限制）轉交給 `reservation.php`，該頁載入時讀取並帶入表單初始值。從完整預約頁按「取消」或送出成功後導回月曆，會恢復導出前的檢視狀態（哪個月份/週、Mine Only 篩選等），同樣透過 `sessionStorage` 存讀，而非重新導回月曆首頁重置畫面。
+
+新增未儲存變更警告：使用者在完整預約頁動過欄位後，若嘗試離開（瀏覽器返回、關閉分頁），跳出 `beforeunload` 確認對話框，避免手滑遺失剛填的內容。
+
+`tpl/Overview/overview_fullcalendar.tpl` 移除了整個 Drawer 相關 HTML／`overview_fullcalendar.js` 移除對應的 Drawer 開合/資料綁定邏輯——不是關閉入口而已，是整套 Drawer create 流程直接拔掉，`#qcMoreOptions` 改成單純的分頁跳轉。
+
+### 46.2 完整預約頁視覺重製
+
+`tpl/Reservation/create.tpl` 依照第二份 mockup 大改：Quick Create 風格的圖示列（icon-row）排列各欄位、760–900px 置中卡片，拿掉舊版經典表單裡的 Owner／Users 選擇器（這條路線本來就沒有代訂功能，見 §46.3）、View Availability 連結、重複出現的儲存按鈕。新增 `Web/css/reservation-page.css` 承載這版樣式，重用 Quick Create 既有的 `.resource-picker*`／`.participant-search*` class 名稱與視覺語彙，而非另外發明一套。`tpl/Reservation/edit.tpl` 的 `submitButtons` 區塊同步簡化，拿掉舊有的匯出/寄信/列印/PDF/複製下拉選單，只留 Check-in／Check-out／刪除／更新。
+
+### 46.3 五項具體修正
+
+1. **完整保留 Quick Create 帶過來的欄位**：標題／日期時間／資源／參與者／說明五項全部正確帶入完整預約頁的對應欄位，不再是只轉頁不轉資料。
+2. **參與者搜尋共用 Quick Create 邏輯**：把 §37/§44 的參與者搜尋邏輯抽成獨立檔案 `Web/scripts/participant-picker.js`（`createParticipantPicker` factory），Quick Create 與完整預約頁（`tpl/Reservation/participation.tpl` 重寫後）現在呼叫同一份程式碼、打同一支 `ajax/autocomplete.php?type=user` 端點，因此中英文姓名／帳號／Email／員工編號都能搜到（`AutoCompletePage::GetUsers()` 本來就支援這些欄位比對，這次只是讓完整頁也用得到同一支）。抽出共用檔後 `tpl/Overview/overview_fullcalendar.tpl` 需要多載入一個 `{jsfile src="participant-picker.js"}`——第一次套用時漏了清 `overview_fullcalendar.tpl` 的 Smarty 編譯快取，導致瀏覽器主控台噴 `createParticipantPicker is not defined`，清快取後修正。
+3. **資源改成可搜尋、可切換**：完整預約頁的資源欄位從唯讀顯示改成跟 Quick Create 一樣的 `.resource-picker` 下拉，切換資源後會重新打可用性查詢。**已知限制**：查過 dev 資料庫，CoAsia 目前 12 個資源分屬 12 個不同的 schedule，每個 schedule 剛好只有 1 個資源（`SELECT schedule_id, COUNT(*) FROM resources GROUP BY schedule_id` 全部等於 1），代表這個下拉選單目前實際上永遠只會顯示 1 個選項——除非之後有需求要做「跨 schedule 切換資源」的更大改動，這次沒有動這塊，只是把元件做對。
+4. **標題欄位**：placeholder 改成「新增會議名稱」，空白送出時後端／模板統一顯示為「（無標題）」（`NoReservationTitle` 語言字串，跟既有 Quick Create 行為一致）。
+5. **補回 `requestId`／`expectedVersion`**：完整預約頁的建立流程原本完全沒有 idempotency／樂觀併發保護（這兩項本來只有已拔掉的 Drawer 有）。新增：`ExistingReservationPage`／`ReservationComponentBinder` 補上 `SetVersion()`，`ReservationUpdatePresenter` 送出時帶上 `SetExpectedVersion()`，`Pages/Ajax/ReservationUpdatePage.php` 新增 `catch (ReservationVersionConflictException)` 回傳 HTTP 409。過程中發現前端 jQuery Form Plugin 的 `ajaxSubmit` 只有在成功時 (`success` callback) 才會把回應內容灌回 `target`，故意送一個過期的 `expectedVersion` 觸發 409 後，畫面上 `#result` 完全沒反應——因為 `ajaxOptions` 原本沒定義 `error` callback。修正：補上 `error` callback，手動把 `xhr.responseText` 塞進 `#result` 並呼叫既有的 `reservation.showResponse()`，之後重測確認 409 會正確顯示錯誤訊息。
+
+## 47. 全站主要字體統一為 Noto Sans TC
+
+原本各頁面字體混雜（新細明體／Roboto／Hind 視哪條 CSS 規則先套用而定）。改成單一字體堆疊：`'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', Arial, sans-serif`（`Web/css/coasia-theme.css` 的 `--bs-body-font-family`），Windows／macOS 上即使 Noto Sans TC webfont 沒載入成功，也會退回對應 OS 原生的正體中文字體而不是新細明體。字重統一：一般內容 400（瀏覽器/Bootstrap 預設，沒有每處重新宣告）、操作元件（按鈕／表單標籤／導覽連結）500、標題 h1–h6 600。
+
+## 48. Email／LINE 通知版面重新設計 + 視訊會議主持人資訊整合
+
+依照提供的 mockup 重新設計預約通知信與 LINE 通知的版面，並串接視訊會議資源的主持人登入資訊（Zoom／Google Meet 的共用主持人帳號密碼），依權限決定誰看得到什麼。
+
+### 48.1 匯入 5 個視訊資源的真實連線資訊
+
+從使用者提供、只存在本機的 `coasia-video-conference-secrets.local.ini`（Zoom TW／CN／Oversea、Google Meet1／2 各自的會議連結／Meeting ID／會議密碼／共用主持人帳號密碼）寫了一支一次性匯入腳本 `Jobs/import-video-conference-resources.php`，比照 §43 的 `--dry-run`／`--apply` 慣例：連結／Meeting ID／密碼寫進既有的 `video_url`／`video_meeting_id`／`video_passcode` 自訂屬性（跟其他資源屬性一樣明文存放，這幾個欄位本來就是要顯示給參與者看的）；主持人帳號密碼則寫進新表 `resource_video_conference_host`（`database_schema/upgrades/4.3/schema.sql`），密碼用 AES-256-CBC 加密後才落地（`lib/Application/Resources/VideoConferenceCredentialEncryption.php`），加解密金鑰放在 `config/config.php`（gitignored，不進 git）新增的 `reservation.video.conference.host.encryption.key`。**全程遵守「不得把帳密寫入原始碼、migration、log、測試快照或 Git」**：匯入腳本的 dry-run／apply 報表只印 `(set)`/`(empty)` 遮罩，從未印出實際帳密；驗證解密是否成功只比對字串長度，沒有印出明文。
+
+匯入時發現一個既有的資料設定問題：`video_url`／`video_meeting_id`／`video_passcode` 這三個自訂屬性原本被限定（透過 `custom_attribute_entities` 表）只套用在 `resource_id=1`（一間實體會議室「台北 Taipei」）——顯然是這幾個屬性剛建立、還只有一個測試資源時留下的設定，從來沒有跟著擴大到後來新增的 5 個真正的視訊資源。`ReservationSavePresenter` 原本顯示預約成功橫幅用的視訊資訊查詢方式繞過了這個限制（直接用屬性 ID 查值，沒經過 `CustomAttribute::AppliesToEntity()` 的資源範圍檢查），所以橫幅本來看起來正常，但這次新寫的 `ReservationEmailTemplateContext::VideoConferenceResources()`（見 48.2）重用了既有、會做範圍檢查的 `Resources()` method，因此對 5 個真實視訊資源全部回傳空陣列。修正：把這三個屬性的 `custom_attribute_entities` 範圍從 `[1]` 改成 `[8,9,10,11,12]`（5 個真正的視訊資源 ID）。
+
+### 48.2 Email 版面
+
+`tpl/Email/reservation-notification-body.tpl`（`ReservationCreatedEmail`／`ReservationUpdatedEmail`／`ReservationApprovedEmail`／`ReservationDeletedEmail` 共用的內文樣板）依 mockup 順序重排：1. 預約狀態 2. 會議名稱 3. 日期與時間 4. 視訊會議資源（或會議室，兩者互斥顯示）5. 預約人 6. 全寬「加入視訊會議」按鈕 7. 全寬「主持人登入資訊」區塊 8. 「查看預約詳情」文字連結。CoAsia 主色 `rgb(31, 49, 89)` 抽成 `$CoasiaPrimary`，跟既有的成功/待審/取消狀態色分開（品牌色跟語意色是兩件事）。
+
+新增 `ReservationEmailTemplateContext::VideoConferenceResources()` 的 `$includeHostCredentials` 參數，以及 `ReservationEmailMessage::IsRecipientOwner()`（預設 `false`，只有確定收件人一定是預約人本人的類別才覆寫成 `true`：`ReservationCreatedEmail`／`UpdatedEmail`／`ApprovedEmail`／`DeletedEmail`；這幾個類別底下會把收件人改成別人的子類別——`GuestDeletedEmail`／`InviteeRemovedEmail`——各自明確覆寫回 `false`，而不是靠「不覆寫就繼承 true」這種容易漏掉的預設）。主持人登入資訊區塊只在 `$IsRecipientOwner` 為真且該資源真的有存主持人帳密時才顯示；參與者／訪客收到的信永遠不會拿到主持人帳密（連解密查詢都不會發生，不是查出來又不顯示）。
+
+套用後發現一個版面 bug：「共用主持人帳號」「主持人登入密碼」這兩個 5～7 個中文字的標籤，比表格原本設定的固定欄寬（90px）還寬，被瀏覽器/信件用戶端硬拆成兩行。修正：拿掉固定寬度，改用 `white-space:nowrap`，讓欄寬依內容自動撐開。
+
+### 48.3 LINE Flex Message
+
+`lib/Line/ILineService.php`／`LineService.php` 新增 `PushFlex()`，發送 LINE 官方的 Flex Message（卡片式版面）而非純文字。`OwnerLineCreatedNotification`（`lib/Application/Reservation/Notification/OwnerLineNotification.php`）重寫，用同一份 `ReservationEmailTemplateContext` 邏輯組出跟 Email 一致順序的 Flex 卡片：狀態／標題／時間／視訊資源或會議室／預約人／加入視訊會議按鈕／主持人登入資訊／查看預約詳情連結。這個通知類別本來就只會推播給預約人本人，跟 Email 的 `IsRecipientOwner` 分流是同一個安全前提。
+
+主持人登入資訊在 LINE 上的呈現方式來回調整了兩次：
+1. 最初做法：卡片裡放一個「主持人登入資訊」按鈕，連到一個新建的、需要登入且限定預約人才能開啟的網頁（`Pages/Reservation/VideoConferenceHostInfoPage.php`）——因為 LINE Flex Message 本身不支援真正的展開/收合互動。
+2. 使用者實際看到效果後改變主意：不要跳出網頁，直接把內容顯示在 LINE 訊息裡即可（畢竟這則訊息本來就只有預約人自己看得到，多一層網頁登入反而增加操作步驟）。改成把 Meeting ID／會議密碼／共用主持人帳號／主持人登入密碼直接排版進 Flex 卡片本體的一個灰底區塊裡。因為方案 1 建的整組網頁（Page class／路由常數／樣板／CSS／對應語言字串）確定不再被任何地方引用，直接整組刪除，沒有留著養蚊子。
+3. 使用者接著發現 Flex Message 裡的文字**無法長按複製**（LINE Flex 卡片的文字元件本來就不支援選取複製，跟一般純文字訊息不同），但主持人帳密是要真的貼進 Zoom/Meet 登入畫面用的。最終做法：卡片本身維持完整排版不變，額外**追加一則純文字訊息**（緊接在卡片後面推播），內容是同樣四項資訊，純文字訊息在 LINE 裡本來就能長按複製，兩則訊息互補（卡片負責好看、純文字負責可複製）。
+
+### 48.4 SMTP 環境切換
+
+過程中把 dev 環境的寄信設定從正式內部 SMTP（`10.1.3.140:25`）暫時改指向本機測試信箱 Mailpit（`mailpit:1025`），避免測試時真的寄信給 `mark_li@coasia.com`／`shawn_tsai@coasia.com` 等真人信箱；驗證完成後已改回正式 SMTP。這只是 `config/config.php`（gitignored）裡的一個值變動，不影響任何進 git 的程式碼。
+
+## 49. 側邊欄圖示排版系統化：拿掉逐項 margin，改成共用格線變數
+
+延續 §34 的收合尺寸統一，這輪把整個側邊欄（展開＋收合）的排版邏輯改成完全由 `Web/css/coasia-theme.css` 頂部幾個 CSS 變數驅動，不再有任何一個項目自己另外設 margin：
+
+- 展開版：`--sidebar-row-padding-left`(20px) + `--sidebar-icon-col`(40px 圖示欄) + `--sidebar-row-gap`(12px)。頭像（縮小成 40×40px，跟其他圖示共用同一個欄寬）、「新增預約」、「行事曆首頁」、「通知設定」、管理相關項目的圖示欄與文字起始位置，全部量測確認落在同一條垂直線上。
+- 收合版：所有項目外層統一 `--sidebar-icon-box`(44px)，容器一律 `display:flex;align-items:center;justify-content:center`，彼此間距統一 `--sidebar-icon-gap`(16px)。拿掉舊版用 `font-size:0` 藏文字＋絕對定位置中圖示的技巧（因為文字是裸文字節點沒有自己的元素可以藏），改成把每個連結的文字包成 `<span class="sidebar-link-label">`（`tpl/globalheader.tpl`），收合時直接 `display:none` 讓它整個退出版面，圖示自然被 flex 置中，不再需要額外的定位技巧。頭像／「新增預約」原本是全 44px 實心圓，使用者看過後覺得偏大，改成外層熱區維持 44px（保持跟其他項目一致的間距與可點擊範圍），但畫出來的圓形用 `padding` + `background-clip:content-box` 內縮成 40px。
+- 頭像原本是側邊欄自己獨立的一個區塊（跟主導覽是分開的兩個 flex 容器，各自的 padding 沒有對齊），這輪把它搬進 `<nav class="sidebar-nav">` 內、變成跟「新增預約」「行事曆首頁」同一個 flex-column 的第一個子項目，這樣它們之間的間距就是同一份 `gap`，而不是分別調兩個容器的 padding 湊出視覺上差不多的數字。**副作用**：頭像原本在手機版是永遠顯示、不受漢堡選單收合影響的獨立區塊，搬進主導覽區塊後，手機版現在會跟其他導覽項目一起被漢堡選單收合/展開控制——如果這個手機版行為變化不是預期中的，需要另外處理。
+
+套用過程中修掉兩個連帶 bug：(1) 頭像原本用 `flex:0 0 40px` 撐開寬度，收合模式只覆寫了 `width:44px` 卻沒覆寫 `flex-basis`，導致寬度依然卡在 40px（flex-basis 在主軸方向的優先權高於 `width`）；(2) 「新增預約」按鈕跟頭像原本用 16px 左右內距，跟其他導覽項目的 12px 不一致，圖示起始位置差了 4px，統一成同一組 `--sidebar-row-padding-*` 變數後對齊。全程用瀏覽器 `getBoundingClientRect()` 直接量測每個圖示的中心點座標／間距，不是肉眼比對——展開版確認所有圖示 X 座標相同、所有文字 X 座標相同；收合版確認所有中心點 X 座標相同（同一條垂直中心線）、任兩個相鄰圖示的中心點垂直距離全部剛好 60px（44px 容器＋16px 間距）。

@@ -38,4 +38,11 @@ class GuestDeletedEmail extends ReservationDeletedEmail
     {
         return 'ReservationInvitation.tpl';
     }
+
+    // Explicit re-override -- see the comment on ReservationDeletedEmail::IsRecipientOwner().
+    // This class's own To() sends to the guest's email, never the owner.
+    protected function IsRecipientOwner(): bool
+    {
+        return false;
+    }
 }

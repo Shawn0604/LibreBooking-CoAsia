@@ -23,4 +23,9 @@ class ReservationCreatedEmail extends ReservationEmailMessage
     {
         return 'ReservationCreated.tpl';
     }
+
+    protected function IsRecipientOwner(): bool
+    {
+        return true;
+    }
 }

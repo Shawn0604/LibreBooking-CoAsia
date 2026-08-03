@@ -22,6 +22,12 @@ class LineService implements ILineService
         $this->send(self::PUSH_URL, ['to' => $lineUserId, 'messages' => [['type' => 'text', 'text' => $text]]], 'push', $lineUserId);
     }
 
+    public function PushFlex($lineUserId, $altText, $contents)
+    {
+        $message = ['type' => 'flex', 'altText' => $altText, 'contents' => $contents];
+        $this->send(self::PUSH_URL, ['to' => $lineUserId, 'messages' => [$message]], 'push-flex', $lineUserId);
+    }
+
     public function Reply($replyToken, $text)
     {
         $this->send(self::REPLY_URL, ['replyToken' => $replyToken, 'messages' => [['type' => 'text', 'text' => $text]]], 'reply', $replyToken);
@@ -50,6 +56,11 @@ class LineService implements ILineService
 class NullLineService implements ILineService
 {
     public function Push($lineUserId, $text)
+    {
+        // no-op
+    }
+
+    public function PushFlex($lineUserId, $altText, $contents)
     {
         // no-op
     }

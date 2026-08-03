@@ -27,3 +27,4 @@ require_once(ROOT_DIR . 'Domain/Access/ReservationWaitlistRepository.php');
 require_once(ROOT_DIR . 'Domain/Access/PaymentRepository.php');
 require_once(ROOT_DIR . 'Domain/Access/CreditRepository.php');
 require_once(ROOT_DIR . 'Domain/Access/TermsOfServiceRepository.php');
+require_once(ROOT_DIR . 'Domain/Access/VideoConferenceHostRepository.php');

@@ -115,11 +115,19 @@ class ReservationEmailTemplateContext
      * Resources whose video_url attribute is set, formatted for the "video conference" email/page section.
      * Reuses Resources() so the RESOURCE-category attribute lookup only happens once per email.
      *
+     * $includeHostCredentials fetches+decrypts the shared host account/password
+     * (VideoConferenceHostRepository, resource_video_conference_host) into the returned
+     * VideoConferenceInfo objects -- pass true ONLY when building content for the reservation
+     * owner (see ReservationEmailMessage::IsRecipientOwner()). Left false (the default) for
+     * every participant/guest-facing caller so the credential is never even read from the
+     * database for those renders, rather than being fetched and then just not displayed.
+     *
      * @return list<VideoConferenceInfo>
      */
-    public function VideoConferenceResources(bool $includeAdminOnly = false): array
+    public function VideoConferenceResources(bool $includeAdminOnly = false, bool $includeHostCredentials = false): array
     {
         $videoResources = [];
+        $hostRepository = $includeHostCredentials ? new VideoConferenceHostRepository() : null;
 
         foreach ($this->Resources($includeAdminOnly) as $resourceData) {
             $url = null;
@@ -142,7 +150,17 @@ class ReservationEmailTemplateContext
             }
 
             if (!empty($url)) {
-                $videoResources[] = new VideoConferenceInfo($resourceData['name'], $url, $meetingId, $passcode);
+                $hostAccount = null;
+                $hostPassword = null;
+                if ($hostRepository !== null) {
+                    $hostCredentials = $hostRepository->GetByResourceId($resourceData['id']);
+                    if ($hostCredentials !== null) {
+                        $hostAccount = $hostCredentials->HostAccount;
+                        $hostPassword = $hostCredentials->HostPassword;
+                    }
+                }
+
+                $videoResources[] = new VideoConferenceInfo($resourceData['id'], $resourceData['name'], $url, $meetingId, $passcode, $hostAccount, $hostPassword);
             }
         }
 

@@ -52,6 +52,7 @@ abstract class ReminderEmail extends EmailMessage
         $videoConferenceResources = [];
         if (!empty($this->reminder->VideoUrl())) {
             $videoConferenceResources[] = new VideoConferenceInfo(
+                null,
                 $this->reminder->ResourceNames(),
                 $this->reminder->VideoUrl(),
                 $this->reminder->VideoMeetingId(),

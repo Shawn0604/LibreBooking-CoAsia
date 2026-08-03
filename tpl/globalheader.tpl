@@ -12,6 +12,14 @@
     {/if}
     <link rel="shortcut icon" href="{$Path}{$FaviconUrl}" />
     <link rel="icon" href="{$Path}{$FaviconUrl}" />
+    {* Site-wide font (coasia-theme.css's --bs-body-font-family) — only the 3 weights actually
+       used anywhere (400 body text, 500 controls, 600 headings) so this stays a light request.
+       Microsoft JhengHei/PingFang TC/Arial in the CSS font stack already cover the OS-native
+       fallback if this fails to load (offline, blocked CDN, etc.) — this just lets Noto Sans TC
+       itself render when it can, rather than only ever falling through. *}
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- JavaScript -->
     {if isset($UseLocalJquery) && $UseLocalJquery}
         {vendor_js src="jquery/3.3.1/jquery-3.3.1.min.js"}
@@ -164,20 +172,6 @@
                 </button>
             </div>
 
-            {* Plain static display, not a button/collapse-trigger — it used to expand an
-               account-menu dropdown (first 通知設定, later the light/dark appearance switcher),
-               but both have since moved out or been removed, leaving nothing left to reveal.
-               No .sidebar-group-toggle class here either, for the same reason as before: that
-               class's collapsed-rail rule forces a 44px circle onto the whole element, which is
-               wrong for a row whose own children (the avatar circle, the name) already have
-               their own correct collapsed treatment. *}
-            {if isset($LoggedIn) && $LoggedIn && !empty($UserName)}
-                <div class="sidebar-user">
-                    <span class="sidebar-user-avatar">{$UserName|truncate:1:''|upper}</span>
-                    <span class="sidebar-user-name">{$UserName|escape}</span>
-                </div>
-            {/if}
-
             <button type="button" class="sidebar-toggler d-lg-none" data-bs-toggle="collapse"
                 data-bs-target="#librebooking-navigation" aria-controls="librebooking-navigation" aria-expanded="false"
                 aria-label="{translate key=ShowHideNavigation}">
@@ -187,6 +181,27 @@
             <div class="collapse sidebar-nav-collapse" id="librebooking-navigation">
                 <nav class="sidebar-nav">
                     {if isset($LoggedIn) && $LoggedIn}
+                        {* Moved here (was previously its own top-level section, a sibling of
+                           #librebooking-navigation) so the avatar is a genuine flex sibling of
+                           create-btn/the nav links, sharing this <nav>'s single `gap` instead of
+                           needing a separate margin/padding hand-tuned to match it — see
+                           .sidebar-nav's own comment in coasia-theme.css for why that previously
+                           produced a visibly bigger gap above the avatar than between every
+                           other pair of icons. Not a button/collapse-trigger — it used to expand
+                           an account-menu dropdown (first 通知設定, later the light/dark
+                           appearance switcher), but both have since moved out or been removed,
+                           leaving nothing left to reveal. No .sidebar-group-toggle class here
+                           either, for the same reason as before: that class's collapsed-rail
+                           rule forces a 44px circle onto the whole element, which is wrong for a
+                           row whose own children (the avatar circle, the name) already have
+                           their own correct collapsed treatment. *}
+                        {if !empty($UserName)}
+                            <div class="sidebar-user">
+                                <span class="sidebar-user-avatar">{$UserName|truncate:1:''|upper}</span>
+                                <span class="sidebar-user-name">{$UserName|escape}</span>
+                            </div>
+                        {/if}
+
                         {* Restored — an earlier round (COASIA-CHANGES §29) removed this in favor of
                            create-only-via-calendar-click/drag, on the theory that the sidebar button
                            was a redundant second entry point. Brought back at its original size/shape
@@ -199,7 +214,7 @@
                            i.e. anywhere other than the calendar page itself. *}
                         <a class="create-btn" id="sidebarCreateBtn" href="{$Path}{Pages::RESERVATION}"
                             title="{translate key='NewReservation'}">
-                            <i class="bi bi-plus-lg"></i>{translate key='NewReservation'}
+                            <i class="bi bi-plus-lg"></i><span class="sidebar-link-label">{translate key='NewReservation'}</span>
                         </a>
 
                         {* "行事曆首頁" — the one durable way back to the calendar from anywhere else
@@ -210,7 +225,7 @@
                         <a class="sidebar-link {if isset($PhysicalResources) || isset($VideoResources)}active{/if}"
                             id="navCalendarHome" href="{$Path}{Pages::OVERVIEW_FULLCALENDAR}"
                             title="{translate key='CalendarHome'}">
-                            <i class="bi bi-calendar3"></i>{translate key='CalendarHome'}
+                            <i class="bi bi-calendar3"></i><span class="sidebar-link-label">{translate key='CalendarHome'}</span>
                         </a>
 
                         {* Top-level now (was previously tucked inside the account-menu dropdown under
@@ -219,7 +234,7 @@
                            by construction, not by separately matching numbers. *}
                         <a class="sidebar-link" id="navNotification" href="{$Path}{Pages::NOTIFICATION_PREFERENCES}"
                             title="{translate key='NotificationPreferences'}">
-                            <i class="bi bi-bell"></i>{translate key='NotificationPreferences'}
+                            <i class="bi bi-bell"></i><span class="sidebar-link-label">{translate key='NotificationPreferences'}</span>
                         </a>
 
                         {* Mini month calendar — only present when the current page (Overview) has set
@@ -329,7 +344,7 @@
                             <div class="sidebar-group" id="navApplicationManagementDropdown">
                                 <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
                                     data-bs-target="#sidebarAppMgmt">
-                                    <i class="bi bi-tools"></i>{translate key="ApplicationManagement"}
+                                    <i class="bi bi-tools"></i><span class="sidebar-link-label">{translate key="ApplicationManagement"}</span>
                                     <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
                                 </button>
                                 <div class="collapse sidebar-submenu" id="sidebarAppMgmt">
@@ -365,7 +380,7 @@
                             <div class="sidebar-group" id="navResponsibilitiesDropdown">
                                 <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
                                     data-bs-target="#sidebarResponsibilities">
-                                    <i class="bi bi-person-badge"></i>{translate key="Responsibilities"}
+                                    <i class="bi bi-person-badge"></i><span class="sidebar-link-label">{translate key="Responsibilities"}</span>
                                     <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
                                 </button>
                                 <div class="collapse sidebar-submenu" id="sidebarResponsibilities">
@@ -411,7 +426,7 @@
                         <div class="sidebar-group" id="navScheduleDropdownPublic">
                             <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
                                 data-bs-target="#sidebarPublicSchedule">
-                                <i class="bi bi-calendar3"></i>{translate key="Schedule"}
+                                <i class="bi bi-calendar3"></i><span class="sidebar-link-label">{translate key="Schedule"}</span>
                                 <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
                             </button>
                             <div class="collapse sidebar-submenu" id="sidebarPublicSchedule">
@@ -429,7 +444,7 @@
                                 data-bs-target="#sidebarConfig">
                                 <i class="bi bi-gear-fill"></i>
                                 <span class="visually-hidden">Configuration</span>
-                                <span>{translate key="ApplicationManagement"}</span>
+                                <span class="sidebar-link-label">{translate key="ApplicationManagement"}</span>
                                 {if isset($ShowNewVersion) && $ShowNewVersion}<span
                                         class="badge badge-new-version new-version"
                                     id="newVersionBadge">{translate key=NewVersion}</span>{/if}
@@ -493,11 +508,11 @@
 
                     {if isset($LoggedIn) && $LoggedIn}
                         <a class="sidebar-link" id="navSignOut" href="{$Path}logout.php">
-                            <i class="bi bi-box-arrow-right"></i>{translate key="SignOut"}
+                            <i class="bi bi-box-arrow-right"></i><span class="sidebar-link-label">{translate key="SignOut"}</span>
                         </a>
                     {else}
                         <a class="sidebar-link" id="navLogIn" href="{$Path}index.php">
-                            <i class="bi bi-box-arrow-in-right"></i>{translate key="LogIn"}
+                            <i class="bi bi-box-arrow-in-right"></i><span class="sidebar-link-label">{translate key="LogIn"}</span>
                         </a>
                     {/if}
                 </div>

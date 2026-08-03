@@ -10,6 +10,11 @@
    account language preference and always fall back to the system default, so this is the only
    way to guarantee every recipient sees Chinese regardless of their own account's language. *}
 
+{* CoAsia primary — rgb(31, 49, 89). Used for the header bar, links, and the "加入視訊會議"
+   button; kept separate from the green/orange/red StatusColor values below, which are
+   semantic (success/pending/cancelled) rather than brand color and stay as-is regardless. *}
+{assign var='CoasiaPrimary' value='#1f3159'}
+
 {if $Status == 'pending'}
     {assign var='StatusLabel' value='等待審核'}
     {assign var='StatusBg' value='#fbeee0'}
@@ -17,7 +22,7 @@
 {elseif $Status == 'updated'}
     {assign var='StatusLabel' value='預約已更新'}
     {assign var='StatusBg' value='#e8eef7'}
-    {assign var='StatusColor' value='#1a3f73'}
+    {assign var='StatusColor' value=$CoasiaPrimary}
 {elseif $Status == 'cancelled'}
     {assign var='StatusLabel' value='預約已取消'}
     {assign var='StatusBg' value='#fbe9e7'}
@@ -36,13 +41,14 @@
 <tr><td align="center">
 <table role="presentation" class="coasia-email-card" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;">
 	<tr>
-		<td class="coasia-email-pad" style="background-color:#1a3f73;padding:20px 28px;">
+		<td class="coasia-email-pad" style="background-color:{$CoasiaPrimary};padding:20px 28px;">
 			<span style="color:#ffffff;font-size:17px;font-weight:700;">CoAsia Booking</span>
 		</td>
 	</tr>
 	<tr>
 		<td class="coasia-email-pad" style="padding:28px;color:#1c2333;">
 
+			{* 1. 預約狀態 *}
 			<table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:18px;">
 				<tr>
 					<td style="background-color:{$StatusBg};border-radius:100px;padding:6px 16px;">
@@ -51,17 +57,38 @@
 				</tr>
 			</table>
 
+			{* 2. 會議名稱 *}
 			<p style="margin:0 0 22px 0;font-size:19px;font-weight:700;color:#1c2333;">{if $Title}{$Title}{else}會議室預約{/if}</p>
 
+			{* $PrimaryVideo is only set (in ReservationEmailMessage::PopulateTemplate()) when the
+			   reservation's own primary resource IS a video conference resource -- a reservation
+			   against a physical room never populates it, which is what keeps this whole section
+			   (through the host-info box below) off physical-room emails without a separate flag. *}
 			<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;line-height:1.9;">
 				<tr>
 					<td width="80" valign="top" style="color:#6c7488;">時間</td>
 					<td>{formatdate date=$StartDate key=reservation_email} － {formatdate date=$EndDate key=reservation_email}</td>
 				</tr>
+				{if $PrimaryVideo}
+				<tr>
+					<td valign="top" style="color:#6c7488;">視訊會議</td>
+					<td>
+						{$PrimaryVideo->ResourceName|escape}
+						{if $PrimaryVideo->MeetingId || $PrimaryVideo->Passcode}
+							<br/><span style="color:#9aa1b3;font-size:12.5px;">
+								{if $PrimaryVideo->MeetingId}Meeting ID：{$PrimaryVideo->MeetingId|escape}{/if}
+								{if $PrimaryVideo->MeetingId && $PrimaryVideo->Passcode}　{/if}
+								{if $PrimaryVideo->Passcode}會議密碼：{$PrimaryVideo->Passcode|escape}{/if}
+							</span>
+						{/if}
+					</td>
+				</tr>
+				{else}
 				<tr>
 					<td valign="top" style="color:#6c7488;">會議室</td>
 					<td>{foreach from=$Resources item=resource name=resourceLoop}{$resource.name|escape}{if $resource.location} ({$resource.location|escape}){/if}{if !$smarty.foreach.resourceLoop.last}、{/if}{/foreach}</td>
 				</tr>
+				{/if}
 				<tr>
 					<td valign="top" style="color:#6c7488;">預約人</td>
 					<td>{$UserName|escape}{if !empty($CreatedBy)}（由 {$CreatedBy} 代為預約）{/if}</td>
@@ -74,17 +101,42 @@
 				{/if}
 			</table>
 
-			{if $VideoConferenceResources|default:array()|count > 0}
-				{foreach from=$VideoConferenceResources item=video}
-					<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;background-color:#e8eef7;border-left:4px solid #1a3f73;border-radius:4px;">
-						<tr><td style="padding:14px 16px;font-size:14px;line-height:1.9;">
-							<strong style="color:#1a3f73;">視訊會議連結</strong><br/>
-							<a href="{$video->Url|escape}" style="color:#1a3f73;word-break:break-all;">{$video->Url|escape}</a><br/>
-							{if $video->MeetingId}會議 ID：{$video->MeetingId|escape}<br/>{/if}
-							{if $video->Passcode}密碼：{$video->Passcode|escape}<br/>{/if}
+			{* 6-7. 加入視訊會議 / 主持人登入資訊 — never shown once the meeting itself is
+			   cancelled, matching the button that already had this same $Status check before
+			   the redesign. *}
+			{if $PrimaryVideo && $Status != 'cancelled'}
+				<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+					<tr>
+						<td style="border-radius:8px;background-color:{$CoasiaPrimary};">
+							<a href="{$PrimaryVideo->Url|escape}" style="display:block;padding:13px 20px;color:#ffffff;font-size:14.5px;font-weight:600;text-decoration:none;text-align:center;">加入視訊會議</a>
+						</td>
+					</tr>
+				</table>
+
+				{if $IsRecipientOwner && ($PrimaryVideo->HostAccount || $PrimaryVideo->HostPassword)}
+					<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border:1px solid #e4e7ee;border-radius:8px;">
+						<tr><td style="padding:14px 16px;">
+							<p style="margin:0 0 10px 0;font-size:13.5px;font-weight:700;color:#1c2333;">
+								<span style="display:inline-block;width:14px;">&#128274;</span> 主持人登入資訊
+							</p>
+							<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:13.5px;line-height:1.9;">
+								{if $PrimaryVideo->MeetingId}
+								<tr><td valign="top" style="color:#6c7488;white-space:nowrap;padding-right:12px;">Meeting ID</td><td>{$PrimaryVideo->MeetingId|escape}</td></tr>
+								{/if}
+								{if $PrimaryVideo->Passcode}
+								<tr><td valign="top" style="color:#6c7488;white-space:nowrap;padding-right:12px;">會議密碼</td><td>{$PrimaryVideo->Passcode|escape}</td></tr>
+								{/if}
+								{if $PrimaryVideo->HostAccount}
+								<tr><td valign="top" style="color:#6c7488;white-space:nowrap;padding-right:12px;">共用主持人帳號</td><td>{$PrimaryVideo->HostAccount|escape}</td></tr>
+								{/if}
+								{if $PrimaryVideo->HostPassword}
+								<tr><td valign="top" style="color:#6c7488;white-space:nowrap;padding-right:12px;">主持人登入密碼</td><td>{$PrimaryVideo->HostPassword|escape}</td></tr>
+								{/if}
+							</table>
+							<p style="margin:10px 0 0 0;font-size:12px;color:#9aa1b3;">僅預約人可查看</p>
 						</td></tr>
 					</table>
-				{/foreach}
+				{/if}
 			{/if}
 
 			{if $Status == 'cancelled'}
@@ -113,7 +165,7 @@
 									<td>
 										<span style="color:#9aa1b3;text-decoration:line-through;">{$change.before}</span>
 										&nbsp;→&nbsp;
-										<span style="color:#1a3f73;font-weight:600;">{$change.after}</span>
+										<span style="color:{$CoasiaPrimary};font-weight:600;">{$change.after}</span>
 									</td>
 								</tr>
 							{/foreach}
@@ -173,19 +225,11 @@
 
 			<p style="margin:24px 0 0 0;font-size:13px;color:#9aa1b3;">參考編號：{$ReferenceNumber}</p>
 
-			<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px;">
-				<tr>
-					<td style="border-radius:100px;background-color:#1a3f73;">
-						<a href="{$ScriptUrl}/{$ReservationUrl}" style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;">查看預約</a>
-					</td>
-					{if $Status != 'cancelled' && $VideoConferenceResources|default:array()|count > 0}
-						<td width="10"></td>
-						<td style="border-radius:100px;background-color:#1e7e34;">
-							<a href="{$VideoConferenceResources[0]->Url|escape}" style="display:inline-block;padding:11px 22px;color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;">加入視訊會議</a>
-						</td>
-					{/if}
-				</tr>
-			</table>
+			{* 8. 查看預約詳情 — plain link, not a button; the two buttons above (加入視訊會議 /
+			   主持人登入資訊) already cover the actions that need pill-button emphasis. *}
+			<p style="margin:16px 0 0 0;">
+				<a href="{$ScriptUrl}/{$ReservationUrl}" style="color:{$CoasiaPrimary};font-size:13.5px;font-weight:600;text-decoration:underline;">查看預約詳情</a>
+			</p>
 		</td>
 	</tr>
 	<tr>

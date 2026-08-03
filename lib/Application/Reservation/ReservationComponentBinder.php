@@ -265,6 +265,7 @@ class ReservationDetailsBinder implements IReservationComponentBinder
         $this->page->SetReferenceNumber($this->reservationView->ReferenceNumber);
         $this->page->SetReservationId($this->reservationView->ReservationId);
         $this->page->SetSeriesId($this->reservationView->SeriesId);
+        $this->page->SetVersion($this->reservationView->Version);
 
         $this->page->SetIsRecurring($this->reservationView->IsRecurring());
         $this->page->SetRepeatType($this->reservationView->RepeatType);

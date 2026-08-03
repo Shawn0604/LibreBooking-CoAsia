@@ -1505,12 +1505,12 @@
 
 /* Bootstrap's own .btn doesn't reliably inherit the page's body font in every browser (some
    fall back to the OS's UI font for <button> specifically) — #qcSave was reading as visibly
-   bolder/a different typeface than the rest of the modal as a result. font-weight:600 here
-   matches the site-wide .btn{font-weight:600} rule (coasia-theme.css) exactly — not heavier,
-   just guaranteed to actually apply on this specific button. */
+   a different typeface than the rest of the modal as a result. font-weight:500 here matches
+   the site-wide .btn{font-weight:500} rule (coasia-theme.css) exactly — just guaranteed to
+   actually apply on this specific button. */
 #quickCreateModal #qcSave {
   font-family: inherit;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* ---------- Event quick-view popover ---------- */

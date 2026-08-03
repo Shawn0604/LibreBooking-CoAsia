@@ -12,7 +12,14 @@
   --bs-border-radius-xl: 1rem;
   --bs-box-shadow: 0 1px 1px rgba(20, 30, 55, 0.04), 0 10px 28px -12px rgba(20, 30, 55, 0.18);
   --bs-box-shadow-sm: 0 1px 2px rgba(20, 30, 55, 0.06);
-  --bs-body-font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Segoe UI', Hind, 'PMingLiU', '新細明體', sans-serif;
+  /* One font, sitewide — was a mix of Roboto/Hind/PMingLiU('新細明體') depending on which
+     rule happened to win the cascade on a given page. Weight tiers used consistently
+     wherever font-weight is set explicitly: 400 body text (browser/Bootstrap default, not
+     re-stated everywhere), 500 interactive controls (.btn below, nav links, form labels),
+     600 headings (h1-h6 below). Microsoft JhengHei/PingFang TC are the OS-native Windows/
+     macOS Traditional Chinese fonts respectively, so the stack still renders correctly even
+     if the Noto Sans TC webfont (globalheader.tpl) fails to load. */
+  --bs-body-font-family: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', Arial, sans-serif;
 
   /* Google Calendar Web (Material 3) reference tokens — used by the sidebar and the
      Overview page's calendar grid so both read as one system, not per-element tweaks. */
@@ -53,6 +60,23 @@
   --sidebar-focus: #9cb7e2;
   --sidebar-create-btn-bg: #1f3159;
   --sidebar-create-btn-text: #ffffff;
+
+  /* One shared row grid for the whole sidebar — expanded and collapsed alike. Every row
+     (avatar, create, nav links, group toggles) reads these same values instead of its own
+     hand-tuned padding/width/gap, so the icon column's left edge, the text's left edge, and
+     the vertical rhythm are identical everywhere by construction. Expanded vs collapsed only
+     ever changes --sidebar-*-width (above) and whether label text is visible/clipped — never
+     these.
+     Expanded: `20px left margin + 40px icon column + 12px gap + text`.
+     Collapsed: every item's own outer box is --sidebar-icon-box (44px), laid out in a single
+     flex column using --sidebar-icon-gap (16px) between items — no per-item margin. */
+  --sidebar-row-padding-left: 20px;
+  --sidebar-row-padding-right: 16px;
+  --sidebar-icon-col: 40px;
+  --sidebar-row-gap: 12px;
+  --sidebar-icon-glyph: 24px;
+  --sidebar-icon-box: 44px;
+  --sidebar-icon-gap: 16px;
 }
 
 /* `css.theme` only accepts a fixed whitelist of names (see ConfigKeys::CSS_THEME),
@@ -90,6 +114,17 @@ body {
 
 .btn {
   border-radius: var(--bs-border-radius);
+  font-weight: 500;
+}
+
+/* Sitewide heading weight — every h1-h6 across every page, so a page-specific stylesheet
+   doesn't need to restate this to stay consistent with the rest of the app. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: 600;
 }
 
@@ -144,43 +179,17 @@ img.logo {
     width: var(--sidebar-collapsed-width);
   }
 
-  /* Text has no wrapper element to hide directly (it's a plain text node next to the
-     icon), so this relies on cascade order: `.sidebar-link i:first-child` below already
-     sets an explicit font-size that's more specific than this rule, so the icon keeps its
-     size while the sibling text — which has nothing of its own to override with — shrinks
-     to nothing. .create-btn (the restored "+新增預約" pill) needs the exact same treatment
-     once collapsed — it's styled separately below since it isn't a .sidebar-link, but
-     collapsing to an icon-only circle works identically. */
-  .app-sidebar.collapsed .sidebar-link,
-  .app-sidebar.collapsed .sidebar-group-toggle,
-  .app-sidebar.collapsed .create-btn {
-    position: relative;
-    font-size: 0;
-    justify-content: center;
-    gap: 0;
-    padding: 0;
+  /* Label text now has a real wrapper element (<span class="sidebar-link-label">, see
+     globalheader.tpl) instead of being a bare text node next to the icon — display:none
+     removes it from layout entirely, so justify-content:center on the row below centers the
+     icon alone, no phantom leftover width and no absolute-position workaround needed. */
+  .app-sidebar.collapsed .sidebar-link-label {
+    display: none !important;
   }
 
-  /* justify-content:center above centers the whole flex *group* (icon + the invisible-but-
-     still-present trailing text node next to it), not the icon by itself — since that phantom
-     text item still occupies its own sliver of layout width even at font-size:0, the visibly
-     centered "group" leaves the icon itself sitting left of true center. .sidebar-user-avatar
-     and .sidebar-collapse-toggle don't have this problem (no trailing text sibling), which is
-     why only the nav icons looked off. Taking the icon out of flex flow entirely and centering
-     it directly against the 44px box sidesteps the phantom-sibling width regardless of how
-     wide it computes to be. */
-  .app-sidebar.collapsed .sidebar-link i:first-child,
-  .app-sidebar.collapsed .sidebar-group-toggle i:first-child,
-  .app-sidebar.collapsed .create-btn i:first-child {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-  }
-
-  /* Every tappable circle in the collapsed rail — nav links, the group toggles, the user
-     avatar, the create button — shares one fixed 44×44 hit box so the rail reads as one
-     consistent row of icon buttons instead of a mix of sizes. The collapse/expand toggle
+  /* Every tappable circle in the collapsed rail — nav links, group toggles, the user avatar,
+     the create button — is exactly --sidebar-icon-box (44px), laid out with plain flex
+     centering (no per-item margin, no absolute positioning). The collapse/expand toggle
      itself is deliberately NOT in this list — it keeps its own smaller, distinct circular
      control (see .sidebar-collapse-toggle below) whether the sidebar is expanded or
      collapsed, only the chevron's rotation changes. */
@@ -188,28 +197,35 @@ img.logo {
   .app-sidebar.collapsed .sidebar-group-toggle,
   .app-sidebar.collapsed .sidebar-user-avatar,
   .app-sidebar.collapsed .create-btn {
-    width: 44px;
-    height: 44px;
-    min-height: 44px;
-    margin-inline: 0;
+    /* .sidebar-user-avatar's base rule sets `flex: 0 0 var(--sidebar-icon-col)` (its 40px
+       expanded-mode column) — flex-basis wins over `width` alone on the main axis of its
+       row-direction parent, so this must reset flex-basis too or the avatar silently stays
+       40px wide here despite `width` below saying 44px. */
+    flex: 0 0 var(--sidebar-icon-box);
+    width: var(--sidebar-icon-box);
+    height: var(--sidebar-icon-box);
+    min-height: var(--sidebar-icon-box);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
     border-radius: 50%;
     box-sizing: border-box;
   }
 
-  /* .sidebar-link/.sidebar-group-toggle only ever paint their circle on hover/focus/active
-     (transparent at rest — see the plain .sidebar-link rule below), so at rest all you see
-     is their small icon glyph floating in a 44px box. .sidebar-user-avatar and .create-btn
-     paint a *permanent* solid color across that whole 44px box, which reads as a visibly
-     bigger, heavier shape sitting next to the icon-only buttons even though the hit box is
-     identical — same box, very different amount of "ink". Shrinking just the painted circle
-     to 36px (keeping the outer 44px slot, and centering, unchanged, so alignment/spacing with
-     the rest of the rail doesn't move) brings their visual weight back in line with the
-     icon-only buttons instead of dominating the rail. */
+  /* Avatar and create-btn paint a *permanent* solid color across their whole box (every other
+     item here only paints on hover/focus/active — see the plain .sidebar-link rule), which
+     reads as a visibly bigger, heavier shape at the full 44px than the icon-only buttons next
+     to it. Insetting the *painted* circle to 40px via padding + background-clip (rather than
+     shrinking the box itself) keeps the outer hit box/flex-item every icon shares at exactly
+     --sidebar-icon-box, 44px, so center-to-center spacing and the icon's own hit target stay
+     uniform across the whole rail regardless of how much of its box each item paints. */
   .app-sidebar.collapsed .sidebar-user-avatar,
   .app-sidebar.collapsed .create-btn {
-    width: 36px;
-    height: 36px;
-    min-height: 36px;
+    padding: 2px;
+    background-clip: content-box;
   }
 
   .app-sidebar.collapsed .sidebar-brand {
@@ -237,15 +253,16 @@ img.logo {
     display: none !important;
   }
 
-  /* .sidebar-nav/.sidebar-footer (each row's stacking column) and .sidebar-user (the avatar's
-     own row) previously kept their expanded-view horizontal padding (12px/16px respectively)
-     in collapsed mode — different padding on each of the three sections meant each one's items
-     centered against a different effective width, so the toggle/avatar landed on a different
-     vertical line than the nav icons/create button/footer icons even though every item itself
-     was already centered *within its own row*. Zeroing inline padding on all three and
-     centering here (align-items for these two column-direction containers; justify-content on
-     .sidebar-user below, which is row-direction) puts every row's centering axis at the same
-     x — the sidebar's true horizontal center — regardless of which section it's in. */
+  /* .sidebar-nav/.sidebar-footer (each row's stacking column) previously kept their
+     expanded-view horizontal padding (12px) in collapsed mode — different padding on each
+     section meant each one's items centered against a different effective width, so icons in
+     one section landed on a different vertical line than another even though every item was
+     already centered *within its own row*. Zeroing inline padding and centering here puts
+     every row's centering axis at the same x — the sidebar's true horizontal center —
+     regardless of which section it's in. .sidebar-nav's own top padding (24px, unchanged) is
+     the "before the first icon" offset, not a between-icon gap, so it's intentionally left
+     alone — every actual icon-to-icon distance comes from `gap` (--sidebar-icon-gap) alone,
+     the same variable .sidebar-footer uses, with no per-item margin anywhere in either list. */
   .app-sidebar.collapsed .sidebar-nav,
   .app-sidebar.collapsed .sidebar-footer {
     padding-inline: 0;
@@ -253,20 +270,25 @@ img.logo {
     box-sizing: border-box;
   }
 
+  /* .sidebar-user is a flex child of .sidebar-nav now (see globalheader.tpl), not its own
+     row-direction section — this only needs to re-center its *own* avatar+name pair
+     horizontally now that the name is hidden, not to size or space the row itself. */
   .app-sidebar.collapsed .sidebar-user {
     padding-inline: 0;
     justify-content: center;
     box-sizing: border-box;
   }
 
-  /* The remaining offset after the fix above turned out not to be padding at all: their common
-     ancestor, #librebooking-navigation.sidebar-nav-collapse, reserves `scrollbar-gutter:stable`
-     (added for the *expanded* sidebar, so an expanding submenu's scrollbar doesn't narrow the
-     usable width — see that rule's own comment) — confirmed by measuring it directly:
-     offsetWidth 71px vs clientWidth 61px, a 10px reservation on the right that isn't there for
-     .sidebar-brand/.sidebar-user (outside this scrolling wrapper), which is exactly why only
-     the nav/footer icons were sitting ~5px left of the toggle/avatar's center. Collapsed mode's
-     content is short enough that this scrollbar accommodation isn't needed. */
+  /* The remaining offset after the fix above turned out not to be padding at all:
+     #librebooking-navigation.sidebar-nav-collapse (the scrolling wrapper around .sidebar-nav/
+     .sidebar-footer, now including .sidebar-user too — see globalheader.tpl) reserves
+     `scrollbar-gutter:stable` (added for the *expanded* sidebar, so an expanding submenu's
+     scrollbar doesn't narrow the usable width — see that rule's own comment) — confirmed by
+     measuring it directly: offsetWidth 71px vs clientWidth 61px, a 10px reservation on the
+     right that isn't there for .sidebar-brand (the only row still outside this scrolling
+     wrapper), which is exactly why the nav/footer/avatar icons were sitting ~5px left of the
+     toggle's center. Collapsed mode's content is short enough that this scrollbar
+     accommodation isn't needed. */
   .app-sidebar.collapsed #librebooking-navigation.sidebar-nav-collapse {
     scrollbar-gutter: auto;
   }
@@ -375,19 +397,27 @@ img.logo {
 /* Plain static row now — no button semantics, no hover/focus affordance, nothing to click.
    Used to be the account menu's trigger (first for 通知設定, later the light/dark switcher);
    both have since moved out or been removed, so this is just a display of who's logged in. */
+/* A flex child of .sidebar-nav (see globalheader.tpl) now, not its own top-level section —
+   no vertical padding of its own, so the only thing controlling its distance from
+   create-btn/the nav links below it is .sidebar-nav's own `gap`, same as every other pair of
+   rows in that list. */
+/* Same row grid as .sidebar-link/.create-btn/.sidebar-group-toggle (shared --sidebar-row-*
+   variables, top of file) — the avatar column and the name text both start at the exact same
+   x as every other row's icon/label, not a value that merely happens to be close. */
 .sidebar-user {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sidebar-row-gap);
   width: 100%;
-  padding: 24px 16px 0;
+  box-sizing: border-box;
+  padding: 0 var(--sidebar-row-padding-right) 0 var(--sidebar-row-padding-left);
   color: inherit;
 }
 
 .sidebar-user-avatar {
-  flex-shrink: 0;
-  width: 38px;
-  height: 38px;
+  flex: 0 0 var(--sidebar-icon-col);
+  width: var(--sidebar-icon-col);
+  height: var(--sidebar-icon-col);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -516,7 +546,9 @@ img.logo {
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  /* Same value, same variable, in both expanded and collapsed layouts — see
+     --sidebar-icon-gap's own comment (top of file) for why this isn't hand-tuned per state. */
+  gap: var(--sidebar-icon-gap);
   padding: 24px 12px 0;
 }
 
@@ -530,11 +562,13 @@ img.logo {
 .create-btn {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--sidebar-row-gap);
   width: 100%;
   box-sizing: border-box;
   height: var(--gcal-control-height);
-  padding: 0 16px;
+  /* Same row grid as .sidebar-link/.sidebar-group-toggle/.sidebar-user — see the
+     --sidebar-row-* variables (top of file) for why this isn't its own hand-tuned value. */
+  padding: 0 var(--sidebar-row-padding-right) 0 var(--sidebar-row-padding-left);
   border-radius: 100px;
   background: var(--sidebar-create-btn-bg);
   color: var(--sidebar-create-btn-text);
@@ -556,8 +590,17 @@ img.logo {
   outline-offset: 2px;
 }
 
+/* Same icon-column box as .sidebar-link/.sidebar-group-toggle's icon (immediately below) —
+   duplicated here rather than merged into that selector list so this keeps its own
+   --sidebar-create-btn-text color instead of inheriting --sidebar-text. */
 .create-btn i {
-  font-size: var(--gcal-icon-size);
+  flex: 0 0 var(--sidebar-icon-col);
+  width: var(--sidebar-icon-col);
+  height: var(--sidebar-icon-col);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--sidebar-icon-glyph);
   color: var(--sidebar-create-btn-text);
 }
 
@@ -575,19 +618,23 @@ img.logo {
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  /* Same --sidebar-icon-gap as .sidebar-nav — settings/sign-out share the exact spacing
+     system the top icon group uses, not a second hand-tuned value that happens to look close. */
+  gap: var(--sidebar-icon-gap);
   padding: 24px 12px 24px;
   border-top: 1px solid var(--sidebar-divider);
 }
 
+/* Same row grid as .create-btn/.sidebar-user above — see the --sidebar-row-* variables (top
+   of file). */
 .sidebar-link,
 .sidebar-group-toggle {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--sidebar-row-gap);
   width: 100%;
   min-height: var(--gcal-control-height);
-  padding: 0 12px;
+  padding: 0 var(--sidebar-row-padding-right) 0 var(--sidebar-row-padding-left);
   box-sizing: border-box;
   border: none;
   background: transparent;
@@ -601,12 +648,19 @@ img.logo {
   transition: background-color 0.12s ease, color 0.12s ease;
 }
 
+/* The icon column itself is a fixed --sidebar-icon-col (40px) box, not the glyph's own
+   intrinsic width — the glyph (--sidebar-icon-glyph, 24px) is centered inside it. This is
+   what makes every row's text start at the exact same x regardless of which Bootstrap icon
+   happens to be wider or narrower than another. */
 .sidebar-link i:first-child,
 .sidebar-group-toggle i:first-child {
-  font-size: var(--gcal-icon-size);
-  width: var(--gcal-icon-size);
-  text-align: center;
-  flex-shrink: 0;
+  flex: 0 0 var(--sidebar-icon-col);
+  width: var(--sidebar-icon-col);
+  height: var(--sidebar-icon-col);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--sidebar-icon-glyph);
   color: var(--sidebar-text);
 }
 
@@ -747,4 +801,229 @@ details.moreOptions summary .bi-chevron-right {
 }
 details.moreOptions[open] summary .bi-chevron-right {
   transform: rotate(90deg);
+}
+
+/* Login page — a small, centered card instead of the old full-width Bootstrap card.
+   position:fixed + inset:0 deliberately escapes #main.container-fluid's own padding/margin
+   (rather than trying to zero those out from here) — this page has no sidebar/topbar to
+   coexist with, so covering the full viewport directly is simpler than fighting an
+   ancestor's box model, and it can't be thrown off by any padding tweaks made there later. */
+#page-login {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 20px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background-color: #f4f6f9;
+  background-image:
+    radial-gradient(circle at 24% 20%, rgba(31, 49, 89, 0.07), transparent 55%),
+    radial-gradient(circle at 82% 78%, rgba(156, 183, 226, 0.12), transparent 55%);
+}
+
+.login-announcements {
+  width: 100%;
+  max-width: 430px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--bs-box-shadow-sm);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  background: #fff;
+  border: 1px solid var(--gcal-border-strong);
+  border-radius: 16px;
+  box-shadow: var(--bs-box-shadow);
+  padding: 36px 32px 24px;
+  box-sizing: border-box;
+}
+
+.login-brand {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.login-logo {
+  width: 120px;
+  height: auto;
+  margin-bottom: 14px;
+}
+
+.login-heading {
+  font-size: 19px;
+  color: var(--sidebar-text);
+  margin: 0 0 4px;
+}
+
+.login-subheading {
+  font-size: 13px;
+  color: var(--sidebar-text-secondary);
+  margin: 0;
+}
+
+.login-alert {
+  background: #fdecec;
+  color: #b3261e;
+  border-radius: var(--bs-border-radius-sm);
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.login-field {
+  margin-bottom: 18px;
+}
+
+.login-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sidebar-text);
+  margin-bottom: 6px;
+}
+
+.login-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px;
+  box-sizing: border-box;
+  border: 1px solid var(--gcal-border-strong);
+  border-radius: var(--bs-border-radius-sm);
+  font-size: 14px;
+  color: var(--sidebar-text);
+  background: #fff;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: var(--sidebar-create-btn-bg);
+  box-shadow: 0 0 0 3px rgba(31, 49, 89, 0.12);
+}
+
+.login-password-wrap {
+  position: relative;
+}
+
+.login-password-wrap .login-input {
+  padding-right: 44px;
+}
+
+.login-password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--sidebar-text-secondary);
+  cursor: pointer;
+}
+
+.login-password-toggle:focus-visible {
+  outline: 2px solid var(--sidebar-focus);
+  outline-offset: -2px;
+  border-radius: var(--bs-border-radius-sm);
+}
+
+.login-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.login-remember {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 0;
+  min-height: auto;
+}
+
+.login-remember .form-check-input {
+  margin: 0;
+  float: none;
+}
+
+.login-remember .form-check-label {
+  font-size: 13px;
+  color: var(--sidebar-text-secondary);
+}
+
+.login-submit {
+  display: block;
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: var(--bs-border-radius);
+  background: var(--sidebar-create-btn-bg);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: filter 0.14s ease;
+}
+
+.login-submit:hover {
+  filter: brightness(0.94);
+}
+
+.login-submit:focus-visible {
+  outline: 2px solid var(--sidebar-focus);
+  outline-offset: 2px;
+}
+
+.login-footer {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--gcal-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.login-footer-brand {
+  font-size: 12px;
+  color: var(--sidebar-text-secondary);
+}
+
+.login-language {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--sidebar-text-secondary);
+}
+
+.login-language-select {
+  border: 1px solid var(--gcal-border-strong);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: var(--sidebar-text-secondary);
+  background: #fff;
+}
+
+.login-language-select:focus-visible {
+  outline: 2px solid var(--sidebar-focus);
+  outline-offset: 1px;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px 20px;
+  }
 }
