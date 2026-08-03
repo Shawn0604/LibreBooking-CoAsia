@@ -1,0 +1,431 @@
+/* Shared visual system for every 管理中心 (Admin Center) page. Loaded automatically whenever
+   $IsAdminPage is set (see Pages/Admin/AdminPage.php + tpl/globalheader.tpl) -- no template
+   needs to remember to opt in.
+
+   This is a real shared layout/component layer, not a color-only reskin: every existing admin
+   page already wraps its content in `<div class="admin-page">` (a hook that had zero CSS
+   attached anywhere before this file), so refining rules scoped under `.admin-page` upgrades
+   every one of the ~25 existing admin pages at once -- card radius/shadow, table density,
+   button shape, form control radius -- without editing their individual HTML. New components
+   (.admin-page-header/.admin-card/.admin-grid/.admin-stat/.admin-list/.admin-warning) are for
+   pages -- like the new 管理總覽 dashboard -- built directly against this system instead of
+   plain Bootstrap defaults.
+
+   Tokens mirror Web/css/overview_fullcalendar.css's #page-overview-fc scope (same values,
+   redeclared here) so anything already built against those names --e.g.
+   .reservation-icon-button/.reservation-primary-button/.reservation-drawer-- looks identical
+   if it's ever reused on an admin page, without those two scopes overlapping or fighting over
+   which one wins. */
+
+.admin-page,
+.admin-side-nav {
+  --surface: #fff;
+  --surface-muted: #f6f7fb;
+  --border: #e4e7ee;
+  --text-primary: #1c2333;
+  --text-secondary: #6c7488;
+  --danger: #c5221f;
+  --dialog-radius: 16px;
+  --control-radius: 10px;
+  --icon-button-size: 36px;
+}
+
+.admin-page {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 24px 28px 40px;
+  box-sizing: border-box;
+}
+
+/* ---------- Secondary nav panel: 管理中心's own persistent left panel, a sibling of
+   .app-sidebar (not nested inside it) and of .app-content -- see tpl/globalheader.tpl for
+   where it's inserted and tpl/Admin/admin-nav.tpl for its contents. Replaces the old design
+   where clicking "管理中心" expanded a deeply-nested dropdown taking over the *entire* main
+   sidebar; now the main sidebar stays exactly as tall as every other page, and the admin
+   category list lives in its own column next to the actual page content instead. ---------- */
+
+.admin-side-nav {
+  flex-shrink: 0;
+  width: 220px;
+  min-height: 100vh;
+  padding: 20px 12px;
+  box-sizing: border-box;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.admin-side-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-side-nav-header i {
+  font-size: 16px;
+  color: var(--primary, #1f3159);
+}
+
+.admin-side-nav-label {
+  padding: 14px 10px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.admin-side-nav-link {
+  display: block;
+  padding: 7px 10px;
+  border-radius: var(--control-radius);
+  font-size: 13.5px;
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.admin-side-nav-link:hover {
+  background: var(--surface-muted);
+}
+
+.admin-side-nav-link.active {
+  background: color-mix(in oklab, var(--primary, #1f3159) 12%, white);
+  color: var(--primary, #1f3159);
+  font-weight: 500;
+}
+
+.admin-side-nav-link-danger,
+.admin-side-nav-link-danger:hover {
+  color: var(--danger);
+}
+
+.admin-side-nav-link-danger:hover {
+  background: rgba(197, 34, 31, 0.08);
+}
+
+@media (max-width: 991.98px) {
+  .admin-side-nav {
+    display: none;
+  }
+}
+
+/* ---------- Page header: title + one primary action, replacing each page's previous
+   ad hoc `.border-bottom.mb-3.clearfix` + floated <h1>/<div class="dropdown"> pairing. ---------- */
+
+.admin-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-page-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Existing pages' own <h1 class="border-bottom mb-3"> (not yet migrated to
+   .admin-page-header) still gets the refined type scale so it doesn't look out of place next
+   to pages that have been migrated. */
+.admin-page h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-page h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ---------- Cards: every existing admin page already uses Bootstrap's plain .card for its
+   filter panel and its list/table panel -- this is the one rule that actually changes their
+   look sitewide, matching the calendar Drawer's rounded/soft-shadow language instead of
+   Bootstrap's default 4px corners + heavy border. ---------- */
+
+.admin-page .card {
+  border: 1px solid var(--border);
+  border-radius: var(--dialog-radius);
+  box-shadow: var(--bs-box-shadow-sm, 0 1px 2px rgba(20, 30, 55, 0.06));
+}
+
+.admin-page .card + .card {
+  margin-top: 16px;
+}
+
+/* New dashboard-style card, used by 管理總覽 and available to any future admin page that
+   wants a widget rather than a full list/table. */
+.admin-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--dialog-radius);
+  box-shadow: var(--bs-box-shadow-sm, 0 1px 2px rgba(20, 30, 55, 0.06));
+  padding: 20px;
+}
+
+.admin-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 14px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* ---------- Stat widgets (今日預約 counts, resource status counts) ---------- */
+
+.admin-stat-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.admin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-stat-value {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.admin-stat-value.admin-stat-available {
+  color: #1e7e34;
+}
+
+.admin-stat-value.admin-stat-unavailable {
+  color: var(--danger);
+}
+
+.admin-stat-label {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+/* ---------- List rows (今日預約 list, 近期使用者 list, unavailable-resource list) ---------- */
+
+.admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--surface-muted);
+  font-size: 13.5px;
+}
+
+.admin-list-item:last-child {
+  border-bottom: none;
+}
+
+.admin-list-item-primary {
+  color: var(--text-primary);
+  font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-list-item-secondary {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  font-size: 12.5px;
+}
+
+.admin-empty {
+  padding: 12px 4px;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+}
+
+/* ---------- Warning banners (系統警告) ---------- */
+
+.admin-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--control-radius);
+  font-size: 13.5px;
+  margin-bottom: 8px;
+}
+
+.admin-warning:last-child {
+  margin-bottom: 0;
+}
+
+.admin-warning-danger {
+  background: #fbe9e7;
+  color: #8a231f;
+}
+
+.admin-warning-warning {
+  background: #fbeee0;
+  color: #a5562f;
+}
+
+.admin-warning-info {
+  background: #e8eef7;
+  color: var(--primary, #1f3159);
+}
+
+/* ---------- Buttons: same class names as the calendar page's toolbar/Drawer components, a
+   parallel scoped copy rather than the exact same CSS rule (that one is hard-scoped under
+   #page-overview-fc, a different page's own id) so both surfaces read as one system without
+   the two stylesheets fighting over which page "owns" the shared class name. ---------- */
+
+.admin-page .ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--gcal-control-height, 40px);
+  box-sizing: border-box;
+  border: 1px solid var(--bs-border-color, #d6d9e3);
+  background: transparent;
+  border-radius: 100px;
+  padding: 0 16px;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: #3c4043;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.admin-page .ghost-btn:not(.disabled):hover {
+  background: color-mix(in oklab, var(--primary) 14%, white);
+  border-color: color-mix(in oklab, var(--primary) 45%, white);
+  color: var(--primary);
+}
+
+.admin-page .ghost-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Bootstrap's .btn-primary is what most admin pages' actual save/create buttons already use --
+   reshaping it (pill, no heavy border) rather than adding a parallel class every existing
+   template would need to adopt one by one. */
+.admin-page .btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  border-radius: 100px;
+  font-weight: 500;
+}
+
+.admin-page .btn-primary:hover,
+.admin-page .btn-primary:focus {
+  background: color-mix(in oklab, var(--primary) 85%, black 15%);
+  border-color: color-mix(in oklab, var(--primary) 85%, black 15%);
+}
+
+/* ---------- Search / filter inputs: same pill-with-icon language as the calendar page's
+   resource picker / participant search, applied here to the existing filter-form
+   .form-control/.form-select every admin list page already has instead of a new markup
+   structure. ---------- */
+
+.admin-page .form-control,
+.admin-page .form-select {
+  border-radius: var(--control-radius);
+  border-color: var(--border);
+}
+
+.admin-page .form-control:focus,
+.admin-page .form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+/* A dedicated pill search box for pages migrated to the new look (icon + borderless input),
+   matching .resource-picker-search/.participant-search-input-wrap's visual language. */
+.admin-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--gcal-control-height, 40px);
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  background: var(--surface);
+  transition: border-color 0.14s ease;
+}
+
+.admin-search:focus-within {
+  border-color: var(--primary);
+}
+
+.admin-search i {
+  color: var(--text-secondary);
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.admin-search input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: var(--text-primary);
+  width: 100%;
+}
+
+/* ---------- Tables: tighter row height + softer header than Bootstrap's table-striped
+   default, matching the calendar page's overall density. ---------- */
+
+.admin-page .table {
+  font-size: 13.5px;
+}
+
+.admin-page .table > thead > tr > th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom-width: 1px;
+}
+
+.admin-page .table > tbody > tr:hover {
+  background-color: var(--surface-muted);
+}

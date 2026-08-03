@@ -107,6 +107,14 @@
         {cssfile src=$CssExtensionFile}
     {/if}
 
+    {* Loaded after the theme file (not via the per-page $cssFiles param) so every admin page
+       picks up the shared component system automatically -- see Pages/Admin/AdminPage.php's
+       Display() override, which is the only place $IsAdminPage gets set. New admin pages don't
+       need to remember to opt in, and the ~25 existing ones didn't need individual edits. *}
+    {if isset($IsAdminPage) && $IsAdminPage}
+        {cssfile src="css/admin.css"}
+    {/if}
+
     {if isset($printCssFiles) && $printCssFiles neq ''}
         {assign var='PrintCssFileList' value=$printCssFiles|split:','}
         {foreach from=$PrintCssFileList item=cssFile}
@@ -237,30 +245,13 @@
                             <i class="bi bi-bell"></i><span class="sidebar-link-label">{translate key='NotificationPreferences'}</span>
                         </a>
 
-                        {* Mini month calendar — only present when the current page (Overview) has set
-                           these vars. Smarty {include} shares the including template's variable scope,
-                           so this works without any page-specific plumbing in Page.php. The resource
-                           category lists that used to live here (checkboxes for physical/video rooms)
-                           were removed — they were a second, duplicate entry point to the exact same
-                           selection now handled by the toolbar's resource picker dropdown
-                           (tpl/Overview/overview_fullcalendar.tpl), which also covers "全部資源". *}
-                        {if isset($PhysicalResources) || isset($VideoResources)}
-                            <div class="mini-cal" id="miniCal">
-                                <div class="mini-cal-head">
-                                    <span class="mini-cal-label" id="miniCalLabel"></span>
-                                    <div class="mini-cal-nav">
-                                        <button type="button" id="miniCalPrev" aria-label="Previous month"><i class="bi bi-chevron-left"></i></button>
-                                        <button type="button" id="miniCalNext" aria-label="Next month"><i class="bi bi-chevron-right"></i></button>
-                                    </div>
-                                </div>
-                                <div class="mini-cal-weekdays">
-                                    <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
-                                </div>
-                                <div class="mini-cal-grid" id="miniCalGrid"></div>
-                            </div>
-
-                            <div class="sidebar-divider"></div>
-                        {/if}
+                        {* CoAsia: sidebar mini month calendar removed entirely per explicit
+                           request — it used to render here whenever Overview set
+                           $PhysicalResources/$VideoResources (those two vars are still set and
+                           still used, just for 行事曆首頁's active-state check above, not for
+                           this). See Web/scripts/overview_fullcalendar.js + overview.js for the
+                           matching JS removal and Web/css/overview.css + overview_fullcalendar.css
+                           for the matching .mini-cal* CSS removal. *}
 
                         {* CoAsia: hidden for now — day-to-day usage only needs Overview + Bookings below. Remove `{if false}` to restore. *}
                         {if false}
@@ -340,40 +331,26 @@
                         </div>
                         {/if}
 
+                        {* CoAsia: single "管理中心" link — used to be two separate expanding
+                           dropdowns (a wrench-icon one here, plus a second gear-icon one down in
+                           .sidebar-footer, both confusingly labeled "ApplicationManagement" and
+                           both dumping their full link list into the main sidebar itself). That
+                           read as one giant, awkward sidebar once merged into a single dropdown
+                           with named sub-sections — expanding it pushed the whole rest of the
+                           sidebar down and every category was visible at once whether you needed
+                           it or not. Now it's a plain link straight to the new 管理總覽 dashboard;
+                           the categorized sub-navigation (預約管理/會議室與資源/使用者與權限/
+                           開放時間與規則/通知與信件/系統維護) lives in its own persistent panel
+                           next to the page content instead — see tpl/Admin/admin-nav.tpl,
+                           included further down only when $IsAdminPage is set. *}
                         {if isset($CanViewAdmin) && $CanViewAdmin}
-                            <div class="sidebar-group" id="navApplicationManagementDropdown">
-                                <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
-                                    data-bs-target="#sidebarAppMgmt">
-                                    <i class="bi bi-tools"></i><span class="sidebar-link-label">{translate key="ApplicationManagement"}</span>
-                                    <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
-                                </button>
-                                <div class="collapse sidebar-submenu" id="sidebarAppMgmt">
-                                    <a id="navManageReservations" class="sidebar-sublink" href="{$Path}admin/manage_reservations.php">{translate key="ManageReservations"}</a>
-                                    <a id="navManageSchedules" class="sidebar-sublink" href="{$Path}admin/manage_schedules.php">{translate key="ManageSchedules"}</a>
-                                    <a id="navManageResources" class="sidebar-sublink" href="{$Path}admin/manage_resources.php">{translate key="ManageResources"}</a>
-                                    <a id="navManageUsers" class="sidebar-sublink" href="{$Path}admin/manage_users.php">{translate key="ManageUsers"}</a>
-                                    <a id="navManageAttributes" class="sidebar-sublink" href="{$Path}admin/manage_attributes.php">{translate key="CustomAttributes"}</a>
-                                    <a id="navManageGroups" class="sidebar-sublink" href="{$Path}admin/manage_groups.php">{translate key="ManageGroups"}</a>
-
-                                    {* CoAsia: hidden — checked the dev DB and none of these are actually in use:
-                                       blackouts/quotas have zero rows, the 3 "accessories" are LibreBooking's own
-                                       unattached demo placeholders, and announcements have zero rows (doubly moot
-                                       now that Dashboard isn't the landing page). "groups" (ManageGroups, above)
-                                       moved out of this block — it's now the real permission-group mechanism
-                                       behind the "全體員工" default/everyone group + any future department-restricted
-                                       resource groups. Remove `{if false}` to restore if CoAsia starts using one
-                                       of these too. *}
-                                    {if false}
-                                        <a id="navManageBlackouts" class="sidebar-sublink" href="{$Path}admin/manage_blackouts.php">{translate key="ManageBlackouts"}</a>
-                                        <a id="navManageQuotas" class="sidebar-sublink" href="{$Path}admin/manage_quotas.php">{translate key="ManageQuotas"}</a>
-                                        <a id="navManageAccessories" class="sidebar-sublink" href="{$Path}admin/manage_accessories.php">{translate key="ManageAccessories"}</a>
-                                        <a id="navManageAnnouncements" class="sidebar-sublink" href="{$Path}admin/manage_announcements.php">{translate key="ManageAnnouncements"}</a>
-                                        {if isset($PaymentsEnabled) && $PaymentsEnabled}
-                                            <a id="navManagePayments" class="sidebar-sublink" href="{$Path}admin/manage_payments.php">{translate key="ManagePayments"}</a>
-                                        {/if}
-                                    {/if}
-                                </div>
-                            </div>
+                            <a class="sidebar-link {if isset($IsAdminPage) && $IsAdminPage}active{/if}"
+                                id="navAdminCenter" href="{$Path}admin/manage_overview.php">
+                                <i class="bi bi-speedometer2"></i><span class="sidebar-link-label">{translate key="ApplicationManagement"}</span>
+                                {if isset($ShowNewVersion) && $ShowNewVersion}<span
+                                        class="badge badge-new-version new-version"
+                                    id="newVersionBadge">{translate key=NewVersion}</span>{/if}
+                            </a>
                         {/if}
 
                         {if isset($CanViewResponsibilities) && $CanViewResponsibilities}
@@ -438,33 +415,12 @@
                 </nav>
 
                 <div class="sidebar-footer">
-                    {if isset($CanViewAdmin) && $CanViewAdmin}
-                        <div class="sidebar-group" id="navConfigDropdown">
-                            <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
-                                data-bs-target="#sidebarConfig">
-                                <i class="bi bi-gear-fill"></i>
-                                <span class="visually-hidden">Configuration</span>
-                                <span class="sidebar-link-label">{translate key="ApplicationManagement"}</span>
-                                {if isset($ShowNewVersion) && $ShowNewVersion}<span
-                                        class="badge badge-new-version new-version"
-                                    id="newVersionBadge">{translate key=NewVersion}</span>{/if}
-                                <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
-                            </button>
-                            <div class="collapse sidebar-submenu" id="sidebarConfig">
-                                {if isset($EnableConfigurationPage) && $EnableConfigurationPage}
-                                    <a id="navManageConfiguration" class="sidebar-sublink" href="{$Path}admin/manage_configuration.php">{translate key="ManageConfiguration"}</a>
-                                {/if}
-                                <a id="navEmailTemplates" class="sidebar-sublink" href="{$Path}admin/manage_email_templates.php">{translate key="ManageEmailTemplates"}</a>
-                                <a id="navLookAndFeel" class="sidebar-sublink" href="{$Path}admin/manage_theme.php">{translate key="LookAndFeel"}</a>
-                                <a id="navImport" class="sidebar-sublink" href="{$Path}admin/ics_import.php">{translate key="Import"}</a>
-                                <a id="navServerSettings" class="sidebar-sublink" href="{$Path}admin/server_settings.php">{translate key="ServerSettings"}</a>
-                                <a id="navDataCleanup" class="sidebar-sublink" href="{$Path}admin/data_cleanup.php">{translate key="DataCleanup"}</a>
-                                {if isset($ShowNewVersion) && $ShowNewVersion}
-                                    <a id="navNewVersion" class="sidebar-sublink new-version" href="https://github.com/LibreBooking/librebooking/releases">{translate key=WhatsNew}</a>
-                                {/if}
-                            </div>
-                        </div>
-                    {/if}
+                    {* The old second "ApplicationManagement" dropdown (gear icon, Configuration/
+                       Email Templates/Look and Feel/Import/Server Settings/Data Cleanup) used to
+                       live here — merged into the single 管理中心 dropdown up in <nav> above.
+                       Look and Feel (manage_theme.php) is intentionally not linked from either
+                       location anymore per explicit request; the page itself still works if
+                       reached directly. *}
 
                     {* CoAsia: hidden for now — language switcher/help aren't part of the trimmed-down day-to-day nav. Remove `{if false}` to restore. *}
                     {if false}
@@ -618,6 +574,16 @@
             </script>
 
         </aside>
+
+        {* Second, persistent panel — only for pages under 管理中心 (see
+           Pages/Admin/AdminPage.php, the only place $IsAdminPage gets set). Lives here rather
+           than inside each admin template so ~25 existing pages get it automatically, same
+           reasoning as admin.css's own $IsAdminPage opt-in just above in <head>. *}
+        {if isset($IsAdminPage) && $IsAdminPage}
+            <aside class="admin-side-nav">
+                {include file='Admin/admin-nav.tpl'}
+            </aside>
+        {/if}
 
         <div class="app-content">
     {else}

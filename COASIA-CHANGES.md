@@ -1677,3 +1677,50 @@ Quick Create 已經填好的欄位（標題、日期時間、資源、參與者�
 - 頭像原本是側邊欄自己獨立的一個區塊（跟主導覽是分開的兩個 flex 容器，各自的 padding 沒有對齊），這輪把它搬進 `<nav class="sidebar-nav">` 內、變成跟「新增預約」「行事曆首頁」同一個 flex-column 的第一個子項目，這樣它們之間的間距就是同一份 `gap`，而不是分別調兩個容器的 padding 湊出視覺上差不多的數字。**副作用**：頭像原本在手機版是永遠顯示、不受漢堡選單收合影響的獨立區塊，搬進主導覽區塊後，手機版現在會跟其他導覽項目一起被漢堡選單收合/展開控制——如果這個手機版行為變化不是預期中的，需要另外處理。
 
 套用過程中修掉兩個連帶 bug：(1) 頭像原本用 `flex:0 0 40px` 撐開寬度，收合模式只覆寫了 `width:44px` 卻沒覆寫 `flex-basis`，導致寬度依然卡在 40px（flex-basis 在主軸方向的優先權高於 `width`）；(2) 「新增預約」按鈕跟頭像原本用 16px 左右內距，跟其他導覽項目的 12px 不一致，圖示起始位置差了 4px，統一成同一組 `--sidebar-row-padding-*` 變數後對齊。全程用瀏覽器 `getBoundingClientRect()` 直接量測每個圖示的中心點座標／間距，不是肉眼比對——展開版確認所有圖示 X 座標相同、所有文字 X 座標相同；收合版確認所有中心點 X 座標相同（同一條垂直中心線）、任兩個相鄰圖示的中心點垂直距離全部剛好 60px（44px 容器＋16px 間距）。
+
+## 50. 後台管理介面重整：資訊架構＋共用版型（先於配色），新增管理總覽儀表板
+
+使用者要求「先處理資訊架構與共用版型，不要只換顏色」，把原本散落在側邊欄兩處、都叫「程式管理」的入口整併成一個「管理中心」，並依功能分類，同時導入一套跟新版行事曆同語彙的共用視覺系統。
+
+### 50.1 資訊架構：兩個「程式管理」合併成一個「管理中心」
+
+原本 `tpl/globalheader.tpl` 有兩個獨立的展開式選單，都顯示「ApplicationManagement」：一個是主導覽的扳手圖示（預約／時間表／資源／使用者／自訂屬性／群組），一個是側欄底部的齒輪圖示（系統設定／通知範本／佈景設定／匯入／伺服器設定／資料清理）。使用者回報「全部顯示在側欄很詭異」——把兩個攤平清單直接合併成一個巢狀選單後，展開時整個側欄被撐得極長，六、七個分類的連結一次全部攤開。
+
+第一版先合併成一個帶分類標籤的巢狀選單，第二版依使用者要求改成完全不同的模式：「管理中心」在主側欄變成一個**直接連結**（不再展開），點下去直接進「管理總覽」；分類導覽（預約管理／會議室與資源／使用者與權限／開放時間與規則／通知與信件／系統維護）搬到一個**獨立的第二層側邊欄**（`tpl/Admin/admin-nav.tpl`＋`Web/css/admin.css` 的 `.admin-side-nav`），顯示在主側欄和頁面內容之間，只在管理頁面裡才出現，一般頁面的側欄完全不受影響、高度不會變。目前選中的項目會反白（比對 `$AdminCurrentScript`，在 PHP 端算好傳給樣板，因為這個專案的 Smarty 組態不允許把任意 PHP 函式如 `basename()` 當 modifier 用）。
+
+分類調整：群組（Manage Groups）併入「使用者與權限」；自訂屬性（Custom Attributes）併入「系統維護」。改名：Manage Email Templates→「通知與信件」、Import→「匯入行事曆（ICS）」、Server Settings→「系統診斷」、Data Cleanup→「資料清理」（移到系統維護最底部，用紅色警示樣式標示高風險）。佈景設定（Look and Feel）從導覽中隱藏，頁面本身仍在、仍可直接連結進入，只是不再從管理選單導覽過去。
+
+已知限制：第二層側邊欄在手機寬度（≤992px）目前直接隱藏（版面塞不下三欄），手機上進入管理頁面後沒有其他方式切換分類——已明確告知使用者，需要的話後續要再做一輪手機版設計。
+
+### 50.2 新增「管理總覽」儀表板
+
+新頁面 `Pages/Admin/ManageOverviewPage.php`／`tpl/Admin/Overview/manage_overview.tpl`，作為管理中心的預設首頁，直接下 SQL 查詢（沒有另外包一層 repository，因為都是一次性、不重用的查詢形狀）顯示：
+
+- 今日預約：今天開始時間的所有未刪除預約，含標題、資源、時間、預約人。
+- 會議室狀態：依 `resources.status_id` 分組計數（可使用／不可使用／已隱藏），並列出目前「不可使用」的資源清單與原因。
+- 近期使用者：依 `date_created` 排序的最新 8 筆帳號。
+- 系統警告：目前實作三項檢查——Email 通知整體關閉、LINE 通知已啟用但沒有設定 Channel Access Token、有預約正在等待審核（數量>0 才顯示）。
+
+### 50.3 共用視覺系統：`Web/css/admin.css`，透過 `$IsAdminPage` 自動套用到全部管理頁面
+
+不是逐一改樣板，而是在 `Pages/Admin/AdminPage.php`（`AdminPageDecorator::PageLoad()` 與 `AdminPage::Display()` 兩個既有的公共進入點）統一設定 `$IsAdminPage = true`，`tpl/globalheader.tpl` 偵測到這個變數就自動載入 `admin.css`——新舊約 25 個管理頁面完全不用個別修改樣板就自動套用新樣式。`admin.css` 的作法：
+
+- 每個管理頁面本來就已經把內容包在 `<div class="admin-page">` 裡（這個 class 之前完全沒有對應的 CSS 規則，是個空殼 hook）——直接在這個既有 hook 上定義卡片圓角/陰影、標題字重、`.btn-primary` 藥丸形狀、表單欄位圓角、表格密度，25 個既有頁面完全不用碰 HTML 就統一升級。
+- 新增元件（`.admin-card`／`.admin-grid`／`.admin-stat`／`.admin-list`／`.admin-warning`）給像管理總覽這種要從零打造的新頁面用，不用直接套用 Bootstrap 預設。
+- 設計token（`--surface`／`--border`／`--text-primary`／`--control-radius` 等）刻意跟 `overview_fullcalendar.css` 的 `#page-overview-fc` 那組同名同值——不是同一份 CSS（那份是綁定特定頁面 ID 的 scoped 規則，直接套用會連帶吃到大量跟行事曆本身相關、不相干的規則），而是各自宣告、數值一致，讓兩邊視覺上是同一套系統但不互相干擾。`.ghost-btn`／`.btn-primary` 等按鈕元件同理，是各自 scope 底下的平行副本。
+
+### 50.4 過程中發現並修掉的 bug
+
+- **Smarty modifier 不存在**：`admin-nav.tpl` 原本想用 `{$smarty.server.SCRIPT_NAME|basename}` 判斷目前頁面做反白，但這個專案的 Smarty 組態不接受任意 PHP 函式當 modifier，編譯直接失敗（`unknown modifier 'basename'`）。改成在 PHP 端（`AdminPage.php`）算好 `$AdminCurrentScript` 再傳給樣板。
+- **連帶暴露的既有 bug**：上面那個編譯錯誤觸發框架的全域例外處理／`RedirectToError()`，而 `AdminPage::Display()` 原本的邏輯會**無條件**在樣板名稱前面加上 `Admin/`——導致它去找一個根本不存在的 `Admin/error.tpl`，變成一次在例外處理過程中又拋出新例外的「二次錯誤」，使用者看到的是原始、未經樣式化的 PHP fatal error，而不是這個 app 平常的錯誤頁。這個 bug 在此之前一直潛伏著沒被踩到，因為原本會直接繼承 `AdminPage` 的頁面（`ServerSettingsPage`／`DataCleanupPage`）從來沒有真的觸發過 `RedirectToError()`。修法：在 `AdminPage` 覆寫 `RedirectToError()`，直接呼叫 `parent::Display('error.tpl')`（不經過會加前綴的 `AdminPage::Display()`）。修完後用 CLI 搭配一個假造 Admin `UserSession` 的 harness，把管理總覽跟另外 7 個既有管理頁面全部完整渲染一次，全部正常，也確認 `RedirectToError()` 現在真的會顯示正常的錯誤頁。
+- **開發環境 log 檔案權限**：診斷上面兩個 bug 時發現 `/var/log/librebooking/log/app.log` 的擁有者是 `root`（先前用 CLI 手動測試時以 root 身分建立），導致以 `www-data` 身分執行的真實網頁請求完全無法寫入、錯誤被 Monolog 自己的例外靜默吞掉——這也是為什麼真正在瀏覽器上發生的例外完全沒被記錄下來。修正檔案擁有者後，之後同類問題可以直接查 log 而不必每次都重建 CLI 測試腳本。
+
+### 50.5 刪除側邊欄迷你月曆（一般使用者與管理頁面皆是）
+
+使用者要求把側邊欄的迷你月曆整個刪掉，不管一般使用者頁面還是管理頁面都要拿掉。因為兩者共用同一份 `tpl/globalheader.tpl`，拿掉一次就對兩邊都生效：
+
+- `tpl/globalheader.tpl`：移除 `.mini-cal` 整段 HTML（原本只在 `$PhysicalResources`／`$VideoResources` 有值時顯示；這兩個變數本身還留著，因為「行事曆首頁」的當前頁反白判斷也在用同一組變數）。
+- `Web/scripts/overview_fullcalendar.js`、`Web/scripts/overview.js`：各自移除一份自己獨立實作的迷你月曆邏輯（月份切換、日期點擊跳轉）——這兩份 JS 各自維護一份幾乎一樣但不完全相同的實作（新版用 FullCalendar 的 `datesSet` 事件同步當週範圍，舊版用伺服器端渲染的起始日期），拿掉時两份都要處理。
+- `Web/css/coasia-theme.css`（收合側欄的隱藏規則清單裡移除 `.mini-cal` 這一項）、`Web/css/overview.css`、`Web/css/overview_fullcalendar.css`（各自的 `.mini-cal-*` 規則整段刪除）。
+
+瀏覽器實測：`document.getElementById('miniCal')` 回傳 `null`，主控台沒有任何殘留的 JS 錯誤。

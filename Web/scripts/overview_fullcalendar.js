@@ -309,127 +309,6 @@ $(function () {
         return Date.UTC(map.year, map.month - 1, map.day, map.hour, map.minute, map.second);
     }
 
-    // ---- Mini month calendar (same #miniCal markup from tpl/globalheader.tpl that
-    // Web/scripts/overview.js drives — reimplemented here since that file isn't loaded on
-    // this page. The one behavioral difference: "current week" tracks FullCalendar's live
-    // view via setWeekStart()/datesSet below, instead of a server-rendered start date, and
-    // clicking a day calls calendar.gotoDate() instead of a full-page navigation. ----
-    var miniCal = (function () {
-        var $label = $('#miniCalLabel');
-        var $grid = $('#miniCalGrid');
-        if (!$grid.length) {
-            return null;
-        }
-
-        function pad(n) {
-            return n < 10 ? '0' + n : '' + n;
-        }
-
-        function addDays(d, n) {
-            var copy = new Date(d.getTime());
-            copy.setDate(copy.getDate() + n);
-            return copy;
-        }
-
-        function isoDate(d) {
-            return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-        }
-
-        function mondayOfWeek(d) {
-            var day = d.getDay(); // Sunday=0..Saturday=6
-            var diff = day === 0 ? -6 : 1 - day;
-            return addDays(d, diff);
-        }
-
-        // A synthetic LOCAL date carrying only today's Y/M/D in the configured timezone
-        // (mirrors overview.js's parseISODate pattern) — keeps every getFullYear()/
-        // getMonth()/getDate()/getDay() call below correct regardless of the browser's
-        // own local timezone.
-        function todayLocalEquivalent() {
-            var parts = todayIsoInZone(opts.timezone).split('-');
-            return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-        }
-
-        var weekStart = todayLocalEquivalent();
-        var weekDates = [];
-        var viewYear = weekStart.getFullYear();
-        var viewMonth = weekStart.getMonth();
-
-        function render() {
-            $label.text(viewYear + '年' + (viewMonth + 1) + '月');
-            $grid.empty();
-
-            var firstOfMonth = new Date(viewYear, viewMonth, 1);
-            var gridStart = mondayOfWeek(firstOfMonth);
-            var today = todayLocalEquivalent();
-
-            for (var i = 0; i < 42; i++) {
-                var cellDate = addDays(gridStart, i);
-                var $btn = $('<button type="button"></button>').text(cellDate.getDate());
-
-                if (cellDate.getMonth() !== viewMonth) {
-                    $btn.addClass('outside-month');
-                }
-                var isToday = cellDate.getTime() === today.getTime();
-                var isInWeek = weekDates.indexOf(cellDate.getTime()) !== -1;
-
-                if (isToday && isInWeek) {
-                    $btn.addClass('selected-today');
-                } else if (isToday) {
-                    $btn.addClass('today');
-                } else if (isInWeek) {
-                    $btn.addClass('in-week');
-                }
-
-                (function (targetDate) {
-                    $btn.on('click', function () {
-                        calendar.gotoDate(isoDate(mondayOfWeek(targetDate)));
-                    });
-                })(cellDate);
-
-                $grid.append($btn);
-            }
-        }
-
-        $('#miniCalPrev').on('click', function () {
-            viewMonth -= 1;
-            if (viewMonth < 0) {
-                viewMonth = 11;
-                viewYear -= 1;
-            }
-            render();
-        });
-
-        $('#miniCalNext').on('click', function () {
-            viewMonth += 1;
-            if (viewMonth > 11) {
-                viewMonth = 0;
-                viewYear += 1;
-            }
-            render();
-        });
-
-        return {
-            // fakeUtcWeekStart is FullCalendar's datesSet info.start (a fake-UTC marker) —
-            // only its UTC Y/M/D components are meaningful, same convention as elsewhere
-            // in this file.
-            setWeekStart: function (fakeUtcWeekStart) {
-                weekStart = new Date(
-                    fakeUtcWeekStart.getUTCFullYear(),
-                    fakeUtcWeekStart.getUTCMonth(),
-                    fakeUtcWeekStart.getUTCDate()
-                );
-                weekDates = [];
-                for (var i = 0; i < 7; i++) {
-                    weekDates.push(addDays(weekStart, i).getTime());
-                }
-                viewYear = weekStart.getFullYear();
-                viewMonth = weekStart.getMonth();
-                render();
-            },
-        };
-    })();
-
     // ---- Quick-create modal (same booking UX as Web/scripts/overview.js's version, reusing
     // the identical #quickCreateModal markup/CSS and ajax/reservation_save.php endpoint —
     // the only structural difference is how a time range gets selected in the first place:
@@ -1205,9 +1084,6 @@ $(function () {
             });
             $('#viewPickerLabel').text($('.view-picker-item[data-view="' + info.view.type + '"]').text());
 
-            if (miniCal) {
-                miniCal.setWeekStart(info.start);
-            }
             // A view/date change tears down and rebuilds the whole time grid (new axis frame,
             // new now-indicator-line element or none at all) — the nowDotObserver MutationObserver
             // (set up alongside positionNowDot()) reacts to that DOM rebuild on its own, no

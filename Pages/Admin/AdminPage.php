@@ -24,6 +24,11 @@ class AdminPageDecorator extends ActionPage implements IActionPage
             die();
         }
 
+        // Same opt-in point as AdminPage::Display() below, for the majority of admin pages
+        // that extend plain ActionPage and only ever go through this decorator rather than
+        // through AdminPage directly.
+        $this->page->Set('IsAdminPage', true);
+        $this->page->Set('AdminCurrentScript', basename($_SERVER['SCRIPT_NAME'] ?? ''));
         $this->page->PageLoad();
     }
 
@@ -67,8 +72,34 @@ abstract class AdminPage extends SecurePage implements IActionPage
         }
     }
 
+    /**
+     * The framework's generic error page (Pages/Page.php::RedirectToError()) calls
+     * $this->Display('error.tpl') polymorphically -- without this override that would hit
+     * AdminPage::Display() below and go looking for a nonexistent 'Admin/error.tpl', turning
+     * any ordinary uncaught exception on a page that extends AdminPage directly (this one,
+     * ServerSettingsPage, DataCleanupPage) into a second, unrelated "template not found"
+     * fatal error instead of the app's normal styled error page.
+     */
+    public function RedirectToError($errorMessageId = ErrorMessages::UNKNOWN_ERROR, $lastPage = '')
+    {
+        $errorMessageKey = ErrorMessages::Instance()->GetResourceKey($errorMessageId);
+        $this->Set('ErrorMessage', $errorMessageKey);
+        $this->Set('TitleKey', 'Error');
+        parent::Display('error.tpl');
+        die();
+    }
+
     public function Display($adminTemplateName)
     {
+        // Single opt-in point for every admin page's shared visual system (Web/css/admin.css,
+        // loaded by globalheader.tpl only when this is set) -- new admin pages get it for free
+        // by simply extending AdminPage, instead of every template remembering to pass its own
+        // cssFiles param. AdminCurrentScript drives tpl/Admin/admin-nav.tpl's active-link
+        // highlighting -- computed here in PHP (not via a Smarty modifier) because this
+        // project's Smarty build doesn't allow arbitrary PHP functions as modifiers, only its
+        // own registered ones.
+        $this->Set('IsAdminPage', true);
+        $this->Set('AdminCurrentScript', basename($_SERVER['SCRIPT_NAME'] ?? ''));
         parent::Display('Admin/' . $adminTemplateName);
     }
 

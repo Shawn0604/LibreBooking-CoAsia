@@ -1013,7 +1013,7 @@ class en_us extends Language
         $strings['RepeatEndDateRequired'] = 'An end date is required for this repeat rule.';
         $strings['RepeatWeekdayRequired'] = 'Select at least one day of the week.';
         $strings['RepeatCustomDateRequired'] = 'Add at least one date.';
-        $strings['ServerSettings'] = 'Server Settings';
+        $strings['ServerSettings'] = 'System Diagnostics';
         $strings['Dashboard'] = 'Dashboard';
         $strings['Help'] = 'Help';
         $strings['Administration'] = 'Administration';
@@ -1030,7 +1030,27 @@ class en_us extends Language
         $strings['ChangePassword'] = 'Change Password';
         $strings['MyAccount'] = 'My Account';
         $strings['Profile'] = 'Profile';
-        $strings['ApplicationManagement'] = 'Application Management';
+        $strings['ApplicationManagement'] = 'Admin Center';
+        $strings['AdminOverview'] = 'Overview';
+        $strings['AdminSectionReservations'] = 'Reservations';
+        $strings['AdminSectionResources'] = 'Rooms & Resources';
+        $strings['AdminSectionUsers'] = 'Users & Permissions';
+        $strings['AdminSectionSchedules'] = 'Schedules & Rules';
+        $strings['AdminSectionNotifications'] = 'Notifications & Mail';
+        $strings['AdminSectionMaintenance'] = 'System Maintenance';
+        $strings['AdminOverviewTodaysReservations'] = "Today's Reservations";
+        $strings['AdminOverviewResourceStatus'] = 'Room & Resource Status';
+        $strings['AdminOverviewRecentUsers'] = 'Recently Added Users';
+        $strings['AdminOverviewWarnings'] = 'System Warnings';
+        $strings['AdminOverviewNoReservationsToday'] = 'No reservations today.';
+        $strings['AdminOverviewAvailable'] = 'Available';
+        $strings['AdminOverviewUnavailable'] = 'Unavailable';
+        $strings['AdminOverviewHidden'] = 'Hidden';
+        $strings['AdminOverviewNoWarnings'] = 'No system warnings right now.';
+        $strings['AdminOverviewJoinedOn'] = 'Joined';
+        $strings['AdminWarningEmailDisabled'] = 'Email notifications are currently disabled -- owners will not receive any notification emails.';
+        $strings['AdminWarningLineMisconfigured'] = 'LINE notifications are enabled but no Channel Access Token is configured, so LINE pushes cannot be sent.';
+        $strings['AdminWarningPendingApproval'] = '%s reservation(s) are currently waiting for approval.';
         $strings['ForgotPassword'] = 'Forgot Password';
         $strings['NotificationPreferences'] = 'Notification Preferences';
         $strings['CalendarHome'] = 'Calendar';
@@ -1058,7 +1078,7 @@ class en_us extends Language
         $strings['ManagePayments'] = 'Payments';
         $strings['ViewCalendar'] = 'View Calendar';
         $strings['DataCleanup'] = 'Data Cleanup';
-        $strings['ManageEmailTemplates'] = 'Manage Email Templates';
+        $strings['ManageEmailTemplates'] = 'Notifications & Mail';
         $strings['CheckResources'] = 'Check Resources';
         $strings['CheckSchedules'] = 'Check Schedules';
         // End Page Titles
