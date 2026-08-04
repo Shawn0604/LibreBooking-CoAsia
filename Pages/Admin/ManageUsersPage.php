@@ -109,6 +109,14 @@ interface IManageUsersPage extends IPageable, IActionPage
     public function GetUserGroup();
 
     /**
+     * "admin" or "user" -- CoAsia's simplified two-role picker, null when the submitting form
+     * doesn't include a role field at all (keeps this additive for any other caller of
+     * AddUser()/UpdateUser() that predates the role concept).
+     * @return string|null
+     */
+    public function GetRole();
+
+    /**
      * @param GroupItemView[] $groups
      */
     public function BindGroups($groups);
@@ -408,6 +416,11 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
         return $this->GetForm(FormKeys::GROUP_ID);
     }
 
+    public function GetRole()
+    {
+        return $this->GetForm(FormKeys::ROLE);
+    }
+
     public function BindGroups($groups)
     {
         $gs = [];
@@ -485,6 +498,9 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
         $this->Set('Languages', $GLOBALS['APP_TIMEZONES']);
         $this->Set('User', $user);
         $this->Set('Attributes', $attributes);
+        // Computed here rather than calling $User->IsInRole(RoleLevel::APPLICATION_ADMIN)
+        // directly from the template -- keeps the RoleLevel constant reference in PHP.
+        $this->Set('IsUserAdmin', $user->IsInRole(RoleLevel::APPLICATION_ADMIN));
         $this->Display('Admin/Users/user-update.tpl');
     }
 }

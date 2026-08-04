@@ -1,44 +1,46 @@
 {include file='globalheader.tpl' DataTable=true}
 
 <div id="page-manage-groups" class="admin-page">
-    <div class="border-bottom mb-3 clearfix">
-        <div class="dropdown admin-header-more float-end">
-            <div class="btn-group btn-group-sm">
-                <a href="#" class="add-group btn btn-primary" id="add-group">
-                    <i class="bi bi-plus-circle-fill me-1"></i>
-                    {translate key="AddGroup"}
-                </a>
-                {if $CanImportGroups or $CanExportGroups}
-                <button class="btn btn-primary dropdown-toggle" type="button" id="moreResourceActions"
-                    data-bs-toggle="dropdown" aria-expanded="false" aria-label="{translate key='More'}">
-                    <i class="bi bi-three-dots"></i>
-                </button>
-                <ul class="dropdown-menu" aria-labelledby="moreResourceActions">
-                    {if $CanImportGroups}
-                        <li>
-                            <a href="#" class="import-groups dropdown-item" id="import-groups" data-bs-toggle="modal"
-                                data-bs-target="#importGroupsDialog">
-                                <i class="bi bi-download me-1"></i>{translate key="Import"}
-                            </a>
-                        </li>
-                    {/if}
-                    {if $CanExportGroups}
-                        <li>
-                            <a href="{$smarty.server.SCRIPT_NAME}?dr=export" download class="export-groups dropdown-item"
-                                id="export-groups" target="_blank" rel="noopener noreferrer">
-                                <i class="bi bi-upload me-1"></i>{translate key="Export"}
-                            </a>
-                        </li>
-                    {/if}
-                </ul>
+    {capture name=headerActions}
+        <div class="btn-group btn-group-sm">
+            <a href="#" class="add-group btn btn-primary" id="add-group">
+                <i class="bi bi-plus-circle-fill me-1"></i>
+                {translate key="AddGroup"}
+            </a>
+            {if $CanImportGroups or $CanExportGroups}
+            <button class="btn btn-primary dropdown-toggle" type="button" id="moreResourceActions"
+                data-bs-toggle="dropdown" aria-expanded="false" aria-label="{translate key='More'}">
+                <i class="bi bi-three-dots"></i>
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="moreResourceActions">
+                {if $CanImportGroups}
+                    <li>
+                        <a href="#" class="import-groups dropdown-item" id="import-groups" data-bs-toggle="modal"
+                            data-bs-target="#importGroupsDialog">
+                            <i class="bi bi-download me-1"></i>{translate key="Import"}
+                        </a>
+                    </li>
                 {/if}
-            </div>
+                {if $CanExportGroups}
+                    <li>
+                        <a href="{$smarty.server.SCRIPT_NAME}?dr=export" download class="export-groups dropdown-item"
+                            id="export-groups" target="_blank" rel="noopener noreferrer">
+                            <i class="bi bi-upload me-1"></i>{translate key="Export"}
+                        </a>
+                    </li>
+                {/if}
+            </ul>
+            {/if}
         </div>
+    {/capture}
+    {include file='Admin/admin_page_shell.tpl' TitleKey='AdminSectionUsers' DescriptionKey='AdminUsersDescription' HeaderActions=$smarty.capture.headerActions}
 
-        <h1>{translate key='ManageGroups'}</h1>
+    <div class="admin-subnav">
+        <a class="admin-subnav-link" href="{$Path}admin/manage_users.php">{translate key=ManageUsers}</a>
+        <a class="admin-subnav-link active" href="{$Path}admin/manage_groups.php">{translate key=ManageGroups}</a>
     </div>
 
-    <div class="card shadow mb-2" id="groupSearchPanel">
+    <div class="admin-page-toolbar card shadow mb-2" id="groupSearchPanel">
         <div class="card-body">
             <label for="groupSearch">{translate key='FindGroup'}</label>
             | {html_link href=$smarty.server.SCRIPT_NAME key=AllGroups}
@@ -241,40 +243,35 @@
         <input type="hidden" id="addUserId" {formname key=USER_ID} />
     </form>
 
-    <div class="modal fade" id="addGroupDialog" tabindex="-1" role="dialog" aria-labelledby="addDialogLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <form id="addGroupForm" method="post">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addDialogLabel">{translate key=AddGroup}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div id="addGroupResults" class="error" style="display:none;"></div>
-                        <div class="form-group">
-                            <label class="fw-bold" for="addGroupName">{translate key=Name}<i
-                                    class="bi bi-asterisk text-danger align-top" style="font-size: 0.5rem;"></i></label>
-                            <input {formname key=GROUP_NAME} type="text" id="addGroupName" required
-                                class="form-control required has-feedback" />
-                        </div>
-                        <div class="form-group mt-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="addGroupIsDefault"
-                                    {formname key=IS_DEFAULT} />
-                                <label class="form-check-label"
-                                    for="addGroupIsDefault">{translate key=AutomaticallyAddToGroup}</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        {cancel_button}
-                        {add_button}
-                        {indicator}
+    <div class="offcanvas offcanvas-end admin-drawer" id="addGroupDialog" tabindex="-1" aria-labelledby="addDialogLabel">
+        <form id="addGroupForm" method="post" class="h-100 d-flex flex-column">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="addDialogLabel">{translate key=AddGroup}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body flex-grow-1">
+                <div id="addGroupResults" class="error" style="display:none;"></div>
+                <div class="form-group">
+                    <label class="fw-bold" for="addGroupName">{translate key=Name}<i
+                            class="bi bi-asterisk text-danger align-top" style="font-size: 0.5rem;"></i></label>
+                    <input {formname key=GROUP_NAME} type="text" id="addGroupName" required
+                        class="form-control required has-feedback" />
+                </div>
+                <div class="form-group mt-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="addGroupIsDefault"
+                            {formname key=IS_DEFAULT} />
+                        <label class="form-check-label"
+                            for="addGroupIsDefault">{translate key=AutomaticallyAddToGroup}</label>
                     </div>
                 </div>
-            </form>
-        </div>
+            </div>
+            <div class="admin-drawer-footer">
+                {cancel_button}
+                {add_button}
+                {indicator}
+            </div>
+        </form>
     </div>
 
     <div class="modal fade" id="deleteDialog" tabindex="-1" role="dialog" aria-labelledby="deleteDialogLabel"
@@ -302,40 +299,35 @@
         </div>
     </div>
 
-    <div class="modal fade" id="editDialog" tabindex="-1" role="dialog" aria-labelledby="editDialogLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <form id="editGroupForm" method="post">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="editDialogLabel">{translate key=Update}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label class="fw-bold" for="editGroupName">{translate key=Name}<i
-                                    class="bi bi-asterisk text-danger align-top form-control-feedback"
-                                    style="font-size: 0.5rem;"></i></label>
-                            <input type="text" id="editGroupName" class="form-control required has-feedback" required
-                                {formname key=GROUP_NAME} />
-                        </div>
-                        <div class="form-group mt-2">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="editGroupIsDefault"
-                                    {formname key=IS_DEFAULT} />
-                                <label class="form-check-label"
-                                    for="editGroupIsDefault">{translate key=AutomaticallyAddToGroup}</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        {cancel_button}
-                        {update_button}
-                        {indicator}
+    <div class="offcanvas offcanvas-end admin-drawer" id="editDialog" tabindex="-1" aria-labelledby="editDialogLabel">
+        <form id="editGroupForm" method="post" class="h-100 d-flex flex-column">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="editDialogLabel">{translate key=Update}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body flex-grow-1">
+                <div class="form-group">
+                    <label class="fw-bold" for="editGroupName">{translate key=Name}<i
+                            class="bi bi-asterisk text-danger align-top form-control-feedback"
+                            style="font-size: 0.5rem;"></i></label>
+                    <input type="text" id="editGroupName" class="form-control required has-feedback" required
+                        {formname key=GROUP_NAME} />
+                </div>
+                <div class="form-group mt-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="editGroupIsDefault"
+                            {formname key=IS_DEFAULT} />
+                        <label class="form-check-label"
+                            for="editGroupIsDefault">{translate key=AutomaticallyAddToGroup}</label>
                     </div>
                 </div>
-            </form>
-        </div>
+            </div>
+            <div class="admin-drawer-footer">
+                {cancel_button}
+                {update_button}
+                {indicator}
+            </div>
+        </form>
     </div>
 
     {if $CanChangeRoles}

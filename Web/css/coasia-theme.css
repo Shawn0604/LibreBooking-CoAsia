@@ -745,10 +745,18 @@ img.logo {
   text-decoration: none;
 }
 
-.sidebar-sublink:hover,
-.sidebar-sublink.active {
+.sidebar-sublink:hover {
   background: var(--sidebar-hover);
   color: var(--sidebar-text);
+}
+
+/* The current sub-page (e.g. which of 管理中心's 6 sections you're on) gets the same pale-blue
+   --sidebar-active used elsewhere for a pressed/current state, distinct from the plain gray
+   :hover above -- a real "you are here" marker, not just hover feedback. */
+.sidebar-sublink.active {
+  background: var(--sidebar-active);
+  color: var(--sidebar-create-btn-bg, #1f3159);
+  font-weight: 500;
 }
 
 .sidebar-sublink:focus-visible {

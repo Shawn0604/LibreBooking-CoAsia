@@ -331,26 +331,47 @@
                         </div>
                         {/if}
 
-                        {* CoAsia: single "管理中心" link — used to be two separate expanding
-                           dropdowns (a wrench-icon one here, plus a second gear-icon one down in
-                           .sidebar-footer, both confusingly labeled "ApplicationManagement" and
-                           both dumping their full link list into the main sidebar itself). That
-                           read as one giant, awkward sidebar once merged into a single dropdown
-                           with named sub-sections — expanding it pushed the whole rest of the
-                           sidebar down and every category was visible at once whether you needed
-                           it or not. Now it's a plain link straight to the new 管理總覽 dashboard;
-                           the categorized sub-navigation (預約管理/會議室與資源/使用者與權限/
-                           開放時間與規則/通知與信件/系統維護) lives in its own persistent panel
-                           next to the page content instead — see tpl/Admin/admin-nav.tpl,
-                           included further down only when $IsAdminPage is set. *}
+                        {* CoAsia: "管理中心" as an expanding dropdown in the main sidebar --
+                           tried a plain link to 管理總覽 with entry tiles on that page, a second
+                           persistent panel next to the page content, and a horizontal top nav;
+                           all three were rejected as unwanted extra/duplicate chrome. Uses the
+                           exact same .sidebar-group/.sidebar-group-toggle/.sidebar-submenu
+                           pattern as the "主要職責" (Responsibilities) dropdown just below --
+                           including its "expand the collapsed rail first" click handling
+                           (tpl/globalheader.tpl's own script further down, driven generically by
+                           the .sidebar-group-toggle class, no admin-specific JS needed). Stays
+                           expanded on every admin page via the `show` class below (not just on
+                           click) so navigating between admin pages doesn't collapse it again. *}
                         {if isset($CanViewAdmin) && $CanViewAdmin}
-                            <a class="sidebar-link {if isset($IsAdminPage) && $IsAdminPage}active{/if}"
-                                id="navAdminCenter" href="{$Path}admin/manage_overview.php">
-                                <i class="bi bi-speedometer2"></i><span class="sidebar-link-label">{translate key="ApplicationManagement"}</span>
-                                {if isset($ShowNewVersion) && $ShowNewVersion}<span
-                                        class="badge badge-new-version new-version"
-                                    id="newVersionBadge">{translate key=NewVersion}</span>{/if}
-                            </a>
+                            {assign var=adminUsersScripts value=['manage_users.php', 'manage_groups.php']}
+                            <div class="sidebar-group" id="navAdminCenterDropdown">
+                                <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
+                                    data-bs-target="#sidebarAdminCenter"
+                                    aria-expanded="{if isset($IsAdminPage) && $IsAdminPage}true{else}false{/if}">
+                                    <i class="bi bi-speedometer2"></i><span class="sidebar-link-label">{translate key="ApplicationManagement"}</span>
+                                    {if isset($ShowNewVersion) && $ShowNewVersion}<span
+                                            class="badge badge-new-version new-version"
+                                        id="newVersionBadge">{translate key=NewVersion}</span>{/if}
+                                    <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
+                                </button>
+                                <div class="collapse sidebar-submenu sidebar-admin-submenu {if isset($IsAdminPage) && $IsAdminPage}show{/if}"
+                                    id="sidebarAdminCenter">
+                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'manage_overview.php'}active{/if}"
+                                        href="{$Path}admin/manage_overview.php">{translate key="AdminOverview"}</a>
+                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'manage_reservations.php'}active{/if}"
+                                        href="{$Path}admin/manage_reservations.php">{translate key="AdminSectionReservations"}</a>
+                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'manage_resources.php'}active{/if}"
+                                        href="{$Path}admin/manage_resources.php">{translate key="AdminNavResources"}</a>
+                                    <a class="sidebar-sublink {if in_array($AdminCurrentScript, $adminUsersScripts)}active{/if}"
+                                        href="{$Path}admin/manage_users.php">{translate key="AdminSectionUsers"}</a>
+                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'manage_schedules.php'}active{/if}"
+                                        href="{$Path}admin/manage_schedules.php">{translate key="AdminNavSchedules"}</a>
+                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'manage_usage_analytics.php'}active{/if}"
+                                        href="{$Path}admin/manage_usage_analytics.php">{translate key="AdminUsageAnalytics"}</a>
+                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'system_settings.php'}active{/if}"
+                                        href="{$Path}admin/system_settings.php">{translate key="AdminSystemSettings"}</a>
+                                </div>
+                            </div>
                         {/if}
 
                         {if isset($CanViewResponsibilities) && $CanViewResponsibilities}
@@ -575,19 +596,15 @@
 
         </aside>
 
-        {* Second, persistent panel — only for pages under 管理中心 (see
-           Pages/Admin/AdminPage.php, the only place $IsAdminPage gets set). Lives here rather
-           than inside each admin template so ~25 existing pages get it automatically, same
-           reasoning as admin.css's own $IsAdminPage opt-in just above in <head>. *}
-        {if isset($IsAdminPage) && $IsAdminPage}
-            <aside class="admin-side-nav">
-                {include file='Admin/admin-nav.tpl'}
-            </aside>
-        {/if}
-
         <div class="app-content">
     {else}
     <div class="app-content app-content-bare">
     {/if}
+
+        {* No persistent 管理中心 nav chrome here (used to be a second vertical sidebar, then a
+           horizontal top nav -- both rejected). The single "管理中心" entry in the main sidebar
+           always lands on 管理總覽 (Pages/Admin/ManageOverviewPage.php), which is the one place
+           that links out to the 5 admin sections; every other admin page has no in-page nav of
+           its own, matching the plain single-entry-point sidebar behavior everywhere else. *}
 
 <div id="main" class="container-fluid my-3" role="main">

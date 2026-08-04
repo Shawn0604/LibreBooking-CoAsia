@@ -4,9 +4,9 @@ function ResourceManagement(opts) {
   var elements = {
     activeId: $('#activeId'),
     resourcesList: $('#resourceList'),
+    resourceTable: $('#resourcesTable'),
 
     imageDialog: $('#imageDialog'),
-    deleteDialog: $('#deletePrompt'),
     statusDialog: $('#statusDialog'),
     durationDialog: $('#durationDialog'),
     capacityDialog: $('#capacityDialog'),
@@ -32,7 +32,7 @@ function ResourceManagement(opts) {
     addForm: $('#addResourceForm'),
     statusOptionsFilter: $('#resourceStatusIdFilter'),
     statusReasonsFilter: $('#resourceReasonIdFilter'),
-    filterTable: $('#filter-resources-panel'),
+    filterTable: $('#filterForm'),
     filterButton: $('#filter'),
     clearFilterButton: $('#clearFilter'),
 
@@ -118,6 +118,10 @@ function ResourceManagement(opts) {
   };
 
   ResourceManagement.prototype.bindEventListeners = function () {
+    elements.resourceTable.on('click', 'tr.admin-clickable-row', function (e) {
+      openResourceDrawer($(this).attr('data-resourceId'));
+    });
+
     elements.resourcesList.on('click', '.update', function (e) {
       e.preventDefault();
       var id = $(this).closest('.resourceDetails').attr('data-resourceId');
@@ -254,12 +258,17 @@ function ResourceManagement(opts) {
     });
 
     $('.cancel').click(function () {
-      $(this).closest('.modal').modal('hide');
+      var container = $(this).closest('.modal, .offcanvas');
+      if (container.hasClass('offcanvas')) {
+        bootstrap.Offcanvas.getOrCreateInstance(container[0]).hide();
+      } else {
+        container.modal('hide');
+      }
     });
 
     elements.addResourceButtons.click(function (e) {
       e.preventDefault();
-      elements.addResourceDialog.modal('show');
+      bootstrap.Offcanvas.getOrCreateInstance(elements.addResourceDialog[0]).show();
       $('#resourceName').focus();
     });
 
@@ -274,8 +283,6 @@ function ResourceManagement(opts) {
     elements.clearFilterButton.click(function (e) {
       e.preventDefault();
       elements.filterTable.find('input,select,textarea').val('');
-
-      filterResources();
     });
 
     wireUpCheckboxToggle(elements.bulkUpdateDialog);
@@ -554,12 +561,11 @@ function ResourceManagement(opts) {
     ConfigureAsyncForm(elements.addForm, defaultSubmitCallback(elements.addForm), null, handleAddError);
     ConfigureAsyncForm(elements.deleteForm, defaultSubmitCallback(elements.deleteForm), function (result) {
       var id = getActiveResourceId();
-      console.log('deleting ' + id);
-      elements.resourcesList
-        .find('[data-resourceid="' + id + '"]')
-        .closest('tr')
-        .remove();
-      elements.deleteDialog.modal('hide');
+      elements.resourceTable.find('tr[data-resourceid="' + id + '"]').remove();
+      var drawerEl = document.getElementById('resourceDrawer' + id);
+      if (drawerEl) {
+        bootstrap.Offcanvas.getOrCreateInstance(drawerEl).hide();
+      }
     });
     ConfigureAsyncForm(elements.durationForm, defaultSubmitCallback(elements.durationForm), onDurationSaved, null, {
       onBeforeSerialize: combineIntervals,
@@ -729,7 +735,22 @@ function ResourceManagement(opts) {
 
   var showDeletePrompt = function (e) {
     e.preventDefault();
-    elements.deleteDialog.modal('show');
+    AdminConfirm.show({
+      title: options.confirmDeleteTitle,
+      message: options.confirmDeleteMessage,
+      confirmLabel: options.confirmDeleteButton,
+      onConfirm: function () {
+        elements.deleteForm.submit();
+      },
+    });
+  };
+
+  var openResourceDrawer = function (id) {
+    setActiveResourceId(id);
+    var drawerEl = document.getElementById('resourceDrawer' + id);
+    if (drawerEl) {
+      bootstrap.Offcanvas.getOrCreateInstance(drawerEl).show();
+    }
   };
 
   var showDurationPrompt = function (e) {

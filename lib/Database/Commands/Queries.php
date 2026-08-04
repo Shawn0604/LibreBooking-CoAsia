@@ -489,7 +489,10 @@ class Queries
 			(SELECT GROUP_CONCAT(CONCAT(`cav`.`custom_attribute_id`, \'=\', `cav`.`attribute_value`) SEPARATOR "!sep!")
 						FROM `custom_attribute_values` `cav` WHERE `cav`.`entity_id` = `u`.`user_id` AND `cav`.`attribute_category` = 2) as attribute_list,
             (SELECT GROUP_CONCAT(`ug`.`group_id` SEPARATOR "!sep!")
-                        FROM `user_groups` `ug` WHERE `ug`.`user_id` = `u`.`user_id`) as `group_ids`
+                        FROM `user_groups` `ug` WHERE `ug`.`user_id` = `u`.`user_id`) as `group_ids`,
+            (SELECT COUNT(DISTINCT `uep`.`event_type`) FROM `user_email_preferences` `uep`
+                        WHERE `uep`.`user_id` = `u`.`user_id` AND `uep`.`event_category` = \'reservation\'
+                        AND `uep`.`event_type` IN (\'approved\', \'created\', \'updated\', \'deleted\', \'series_ending\', \'participation_changed\')) as `email_events_enabled_count`
 			FROM `users` `u`
 			WHERE (0 = @user_statusid OR `status_id` = @user_statusid) ORDER BY `lname`, `fname`';
 

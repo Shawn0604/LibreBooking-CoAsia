@@ -47,6 +47,22 @@
 
 		<div class="col-sm-12 col-md-6">
 			<div class="form-group">
+				<label class="fw-bold" for="role">{translate key="AdminUserRole"}</label>
+				<select {formname key='ROLE'} id='role' class="form-select">
+					<option value="user" {if !$User->IsInRole(RoleLevel::APPLICATION_ADMIN)}selected{/if}>{translate key="AdminUserRoleUser"}</option>
+					<option value="admin" {if $User->IsInRole(RoleLevel::APPLICATION_ADMIN)}selected{/if}>{translate key="AdminUserRoleAdmin"}</option>
+				</select>
+				{if $User->Groups()|default:array()|count > 0}
+					<div class="form-text">
+						{translate key="AdminUserCurrentGroups"}:
+						{foreach from=$User->Groups() item=userGroup name=userGroupLoop}{$userGroup->GroupName|escape}{if !$smarty.foreach.userGroupLoop.last}, {/if}{/foreach}
+					</div>
+				{/if}
+			</div>
+		</div>
+
+		<div class="col-sm-12 col-md-6">
+			<div class="form-group">
 				<label class="fw-bold" for="timezone">{translate key="Timezone"}</label>
 				<select {formname key='TIMEZONE'} id='timezone' class="form-select">
 					{html_options values=$Timezones output=$Timezones selected="{$User->Timezone()}"}

@@ -664,8 +664,23 @@ class SmartyPage extends Smarty
         $showHideText = $this->Resources->GetString('ShowHide');
         $infoText = $this->Resources->GetString('Info');
         $lengthMenuText = $this->Resources->GetString('LengthMenu');
+        $firstText = $this->Resources->GetString('DataTablesFirst');
+        $previousText = $this->Resources->GetString('DataTablesPrevious');
+        $nextText = $this->Resources->GetString('DataTablesNext');
+        $lastText = $this->Resources->GetString('DataTablesLast');
+        $processingText = $this->Resources->GetString('DataTablesProcessing');
         $defaultPageSize = $this->GetDefaultDataTablePageSize();
         $lengthMenu = $this->BuildDataTableLengthMenu($AllText);
+
+        // Opt-out for tables in the new admin design (e.g. manage_users.tpl) that don't want the
+        // legacy Copy/Export Excel/Export PDF/Print/Show-Hide-Columns toolbar -- defaults to true
+        // so every other admin table's `{datatable tableId=...}` call keeps working unchanged.
+        $showButtons = !isset($params['buttons']) || $params['buttons'] !== false;
+        // Same opt-out shape for per-column sort arrows -- DataTables' default up/down indicator
+        // glyphs have no CSS anywhere in this app and were wrapping short header labels onto two
+        // lines on the new clean-table design; tables built against that design turn this off
+        // rather than styling glyphs nobody asked for.
+        $showOrdering = !isset($params['ordering']) || $params['ordering'] !== false;
 
         if ($tableId == 'report-results') {
             $pagination = '"paging": false,
@@ -677,21 +692,11 @@ class SmartyPage extends Smarty
             $pagination = '"pageLength": ' . $defaultPageSize . ', "lengthMenu": ' . $lengthMenu . ',';
         }
 
-        return sprintf(
-            '<script>
-           var table =  $("#' . $tableId . '").DataTable({
-                "searching": false,
-                "dom": \'<"d-flex justify-content-center flex-wrap"B><"d-flex justify-content-between flex-wrap mt-2"fil>rt<"d-flex justify-content-center"i><"d-flex justify-content-center"p><"clear">\',
-                ' . $pagination . '
-                "language": {
-                    search: "' . $searchText . '",
-                    info: "' . $infoText . '",
-                    infoEmpty: "' . $NoResultsFoundText . '",
-                    infoFiltered: "",
-                    lengthMenu: "' . $lengthMenuText . '",
-                    zeroRecords: "' . $NoResultsFoundText . '",
-                },
-                "buttons": [
+        $domString = $showButtons
+            ? '<"d-flex justify-content-center flex-wrap"B><"d-flex justify-content-between flex-wrap mt-2"fil>rt<"d-flex justify-content-center"i><"d-flex justify-content-center"p><"clear">'
+            : '<"d-flex justify-content-between flex-wrap mt-2"fil>rt<"d-flex justify-content-center"i><"d-flex justify-content-center"p><"clear">';
+
+        $buttonsBlock = $showButtons ? '"buttons": [
                     {
                         extend: "copyHtml5",
                         text: "<i class=\"bi bi-copy me-1\"></i><div class=\"d-none d-sm-inline-block\">' . $copyText . '</div>",
@@ -712,7 +717,32 @@ class SmartyPage extends Smarty
                         extend: "colvis",
                         text: "<i class=\"bi bi-list-check me-1\"></i><div class=\"d-none d-sm-inline-block\">' . $showHideText . '</div>",
                     }
-                ],
+                ],' : '';
+
+        return sprintf(
+            '<script>
+           var table =  $("#' . $tableId . '").DataTable({
+                "searching": false,
+                "ordering": ' . ($showOrdering ? 'true' : 'false') . ',
+                "dom": \'' . $domString . '\',
+                ' . $pagination . '
+                "language": {
+                    search: "' . $searchText . '",
+                    info: "' . $infoText . '",
+                    infoEmpty: "' . $NoResultsFoundText . '",
+                    infoFiltered: "",
+                    lengthMenu: "' . $lengthMenuText . '",
+                    zeroRecords: "' . $NoResultsFoundText . '",
+                    emptyTable: "' . $NoResultsFoundText . '",
+                    processing: "' . $processingText . '",
+                    paginate: {
+                        first: "' . $firstText . '",
+                        previous: "' . $previousText . '",
+                        next: "' . $nextText . '",
+                        last: "' . $lastText . '",
+                    },
+                },
+                ' . $buttonsBlock . '
                 "initComplete": function(settings, json) {
                     var table = this.api();
                     table.on("init.dt", function () {

@@ -493,12 +493,11 @@ class ManageUsersPresenterTest extends TestBase
         $attributeFormElements = [new AttributeFormElement($attributeId, $attributeValue)];
 
         $userId = 1090;
-        $groupId = 111;
+        $adminGroupId = 111;
 
         $user = new FakeUser($userId);
 
-        $group = new Group($groupId, 'name');
-        $group->AddUser($userId);
+        $adminGroup = new Group($adminGroupId, 'Application Administrators');
 
         $this->fakeConfig->SetKey(ConfigKeys::DEFAULT_LANGUAGE, $lang);
 
@@ -509,7 +508,7 @@ class ManageUsersPresenterTest extends TestBase
         $this->page->_Timezone = $timezone;
         $this->page->_Password = $password;
         $this->page->_Attributes = $attributeFormElements;
-        $this->page->_UserGroup = $groupId;
+        $this->page->_Role = 'admin';
 
         $this->manageUsersService->expects($this->once())
                                  ->method('AddUser')
@@ -530,16 +529,92 @@ class ManageUsersPresenterTest extends TestBase
                                  )
                                  ->willReturn($user);
 
+        $this->groupViewRepository->expects($this->once())
+                              ->method('GetGroupsByRole')
+                              ->with($this->equalTo(RoleLevel::APPLICATION_ADMIN))
+                              ->willReturn([new GroupItemView($adminGroupId, 'Application Administrators')]);
+
         $this->groupRepository->expects($this->once())
                               ->method('LoadById')
-                              ->with($this->equalTo($groupId))
-                              ->willReturn($group);
+                              ->with($this->equalTo($adminGroupId))
+                              ->willReturn($adminGroup);
 
         $this->groupRepository->expects($this->once())
                               ->method('Update')
-                              ->with($this->equalTo($group));
+                              ->with($this->equalTo($adminGroup));
 
         $this->presenter->AddUser();
+
+        $this->assertContains($userId, $adminGroup->AddedUsers());
+    }
+
+    public function testAddsUserWithRegularRoleRemovesFromAdminGroupInCaseTheyWerePreviouslyAdmin()
+    {
+        $userId = 1090;
+        $adminGroupId = 111;
+        $user = new FakeUser($userId);
+        $adminGroup = new Group($adminGroupId, 'Application Administrators');
+        $this->page->_Role = 'user';
+
+        $this->manageUsersService->method('AddUser')->willReturn($user);
+
+        $this->groupViewRepository->expects($this->once())
+                              ->method('GetGroupsByRole')
+                              ->with($this->equalTo(RoleLevel::APPLICATION_ADMIN))
+                              ->willReturn([new GroupItemView($adminGroupId, 'Application Administrators')]);
+
+        $this->groupRepository->expects($this->once())
+                              ->method('LoadById')
+                              ->with($this->equalTo($adminGroupId))
+                              ->willReturn($adminGroup);
+
+        $this->groupRepository->expects($this->once())
+                              ->method('Update')
+                              ->with($this->equalTo($adminGroup));
+
+        $this->presenter->AddUser();
+    }
+
+    public function testAddUserWithNoRoleSubmittedLeavesGroupsUntouched()
+    {
+        $user = new FakeUser(1090);
+        $this->page->_Role = null;
+
+        $this->manageUsersService->method('AddUser')->willReturn($user);
+
+        $this->groupViewRepository->expects($this->never())->method('GetGroupsByRole');
+        $this->groupRepository->expects($this->never())->method('LoadById');
+        $this->groupRepository->expects($this->never())->method('Update');
+
+        $this->presenter->AddUser();
+    }
+
+    public function testUpdateUserPromotesToAdminGroupWhenAdminRoleSubmitted()
+    {
+        $userId = 1090;
+        $adminGroupId = 111;
+        $adminGroup = new Group($adminGroupId, 'Application Administrators');
+
+        $this->page->_UserId = $userId;
+        $this->page->_Role = 'admin';
+
+        $this->groupViewRepository->expects($this->once())
+                              ->method('GetGroupsByRole')
+                              ->with($this->equalTo(RoleLevel::APPLICATION_ADMIN))
+                              ->willReturn([new GroupItemView($adminGroupId, 'Application Administrators')]);
+
+        $this->groupRepository->expects($this->once())
+                              ->method('LoadById')
+                              ->with($this->equalTo($adminGroupId))
+                              ->willReturn($adminGroup);
+
+        $this->groupRepository->expects($this->once())
+                              ->method('Update')
+                              ->with($this->equalTo($adminGroup));
+
+        $this->presenter->UpdateUser();
+
+        $this->assertContains($userId, $adminGroup->AddedUsers());
     }
 
     public function testGetsAllUsers()
@@ -758,6 +833,7 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
      * @var int
      */
     public $_UserGroup;
+    public $_Role;
     public $_JsonResponse;
     public $_ReservationColor = '';
     public $_Value = '';
@@ -881,6 +957,11 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
     public function GetUserGroup()
     {
         return $this->_UserGroup;
+    }
+
+    public function GetRole()
+    {
+        return $this->_Role;
     }
 
     public function BindGroups($groups)

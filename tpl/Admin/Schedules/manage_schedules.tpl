@@ -2,352 +2,318 @@
 
 <div id="page-manage-schedules" class="admin-page">
 
-	<div class="border-bottom mb-3 clearfix">
-		<h1 class="float-start">{translate key=ManageSchedules}</h1>
-		<a href="#" class="add-link btn btn-sm btn-primary float-end" id="add-schedule">
+	{capture name=headerActions}
+		<a href="#" class="add-link btn btn-sm btn-primary" id="add-schedule">
 			<span class="bi bi-plus-circle-fill me-1 icon add"></span>{translate key="AddSchedule"}
 		</a>
-	</div>
+	{/capture}
+	{include file='Admin/admin_page_shell.tpl' TitleKey='AdminNavSchedules' DescriptionKey='AdminSchedulesDescription' HeaderActions=$smarty.capture.headerActions}
 
-	<div class="card shadow" id="list-schedules-panel">
-		<div class="card-body no-padding" id="scheduleList">
-			<div class="accordion" id="scheduleAccordion">
-				{assign var=tableIdFilter value=schedulesTable}
-				<table class="table table-borderless w-100" id="{$tableIdFilter}">
-					<thead class="d-none">
-						<tr>
-							<th>{translate key="AllSchedules"}</th>
+	<div class="card shadow admin-clean-table-card" id="list-schedules-panel">
+		<div class="table-responsive">
+			{assign var=tableIdFilter value=schedulesTable}
+			<table class="table admin-clean-table w-100" id="{$tableIdFilter}">
+				<thead>
+					<tr>
+						<th>{translate key="Name"}</th>
+						<th>{translate key="Resources"}</th>
+						<th>{translate key="AdminScheduleWeeklyHours"}</th>
+						<th>{translate key="Status"}</th>
+					</tr>
+				</thead>
+				<tbody>
+					{foreach from=$Schedules item=schedule}
+						{assign var=id value=$schedule->GetId()}
+						<tr class="admin-clickable-row" data-scheduleId="{$id}">
+							<td class="fw-bold">{$schedule->GetName()}</td>
+							<td>
+								{if array_key_exists($id, $Resources)}
+									{foreach from=$Resources[$id] item=r name=resources_loop}
+										{$r->GetName()|escape}{if !$smarty.foreach.resources_loop.last}, {/if}
+									{/foreach}
+								{else}
+									<span class="admin-cell-secondary">{translate key=None}</span>
+								{/if}
+							</td>
+							<td>
+								<div class="d-flex flex-wrap gap-1">
+									{assign var=usesDaily value=$Layouts[$id]->UsesDailyLayouts()}
+									{if !$usesDaily}{assign var=singleSlots value=$Layouts[$id]->GetSlots()}{/if}
+									{foreach from=DayOfWeek::Days() item=day}
+										{assign var=dOpen value=false}
+										{assign var=dStart value=""}
+										{assign var=dEnd value=""}
+										{if $usesDaily}{assign var=daySlots value=$Layouts[$id]->GetSlots($day)}{else}{assign var=daySlots value=$singleSlots}{/if}
+										{foreach from=$daySlots item=period}
+											{if $period->IsReservable()}
+												{assign var=dOpen value=true}
+												{if $dStart == ""}{assign var=dStart value=$period->Start->Format("H:i")}{/if}
+												{assign var=dEnd value=$period->End->Format("H:i")}
+											{/if}
+										{/foreach}
+										<span class="admin-schedule-day-chip{if $dOpen} admin-schedule-day-chip-open{/if}"
+											title="{$DayNames[$day]}{if $dOpen} {$dStart}-{$dEnd}{else} {translate key=AdminScheduleClosed}{/if}">{$DayAbbr[$day]}</span>
+									{/foreach}
+								</div>
+							</td>
+							<td>
+								{if $schedule->GetIsDefault()}
+									<span class="admin-badge admin-badge-upcoming">{translate key=Default}</span>
+								{elseif array_key_exists($id, $Resources) && $Resources[$id]|count > 0}
+									<span class="admin-badge admin-badge-inprogress">{translate key=AdminScheduleInUse}</span>
+								{else}
+									<span class="admin-badge admin-badge-ended">{translate key=AdminScheduleUnused}</span>
+								{/if}
+							</td>
 						</tr>
-					</thead>
-					<tbody>
-						{foreach from=$Schedules item=schedule}
-							<tr>
-								<td>
-									{assign var=id value=$schedule->GetId()}
-									{capture name=daysVisible}<span
-											class='propertyValue daysVisible inlineUpdate fw-bold text-decoration-underline pe-auto'
-											data-type='number' data-pk='{$id}' data-name='{FormKeys::SCHEDULE_DAYS_VISIBLE}'
-										data-min='0'>{$schedule->GetDaysVisible()}</span>{/capture}
-									{assign var=dayOfWeek value=$schedule->GetWeekdayStart()}
-									{capture name=dayName}<span
-											class='propertyValue dayName inlineUpdate fw-bold text-decoration-underline pe-auto'
-											data-type='select' data-pk='{$id}' data-name='{FormKeys::SCHEDULE_WEEKDAY_START}'
-											data-value='{$dayOfWeek}'>{if $dayOfWeek == Schedule::Today}{$Today}{else}{$DayNames[$dayOfWeek]}{/if}</span>
-									{/capture}
-									<div class="accordion-item">
-										<h2 class="accordion-header">
-											<button class="accordion-button" type="button" data-bs-toggle="collapse"
-												data-bs-target="#panel{$id}" aria-expanded="true"
-												aria-controls="panel{$id}">
-												{$schedule->GetName()}
-											</button>
-										</h2>
-										<div id="panel{$id}" class="accordion-collapse collapse show">
-											<div class="accordion-body">
-												<div class="scheduleDetails row" data-schedule-id="{$id}">
-													<div class="col-12 col-sm-6">
-														<input type="hidden" class="id" value="{$id}" />
-														<input type="hidden" class="daysVisible" value="{$daysVisible}" />
-														<input type="hidden" class="dayOfWeek" value="{$dayOfWeek}" />
-
-														<div>
-															<span class="title scheduleName fw-bold" data-type="text"
-																data-pk="{$id}"
-																data-name="{FormKeys::SCHEDULE_NAME}">{$schedule->GetName()}</span>
-															<a class="update renameButton link-primary" href="#"><span
-																	class="visually-hidden">{translate key=Rename}</span><span
-																	class="bi bi-pencil-square"></span></a>
-														</div>
-
-														<div>
-															{translate key="LayoutDescription" args="{$smarty.capture.dayName},
-														{$smarty.capture.daysVisible}" class="fw-bold"}</div>
-
-														<div>
-															{translate key='ScheduleAdministrator'}
-															<span class="propertyValue scheduleAdmin fw-bold"
-																data-type="select" data-pk="{$id}"
-																data-value="{$schedule->GetAdminGroupId()}"
-																data-name="{FormKeys::SCHEDULE_ADMIN_GROUP_ID}">
-																{assign var=adminGroupId value=$schedule->GetAdminGroupId()}
-																{if $adminGroupId !== null && isset($GroupLookup[$adminGroupId])}
-																	{$GroupLookup[$adminGroupId]->Name|escape:'html'}
-																{else}
-																	{translate key='None'}
-																{/if}
-															</span>
-															{if $AdminGroups|default:array()|count > 0}
-																<a class="link-primary update changeScheduleAdmin"><span
-																		class="visually-hidden">{translate key='ScheduleAdministrator'}</span><span
-																		class="bi bi-pencil-square"></span>
-																</a>
-															{/if}
-
-														</div>
-
-														<div class="availabilityPlaceHolder d-flex align-items-center">
-															<div class="availabilityContent">
-																{include file="Admin/Schedules/manage_availability.tpl" schedule=$schedule timezone=$Timezone}
-															</div>
-
-															<a class="update changeAvailability link-primary ms-1" href="#">
-																<span
-																	class="visually-hidden">{translate key='Availability'}</span>
-																<span class="bi bi-pencil-square"></span>
-															</a>
-														</div>
-
-														<div class="maximumConcurrentContainer"
-															data-concurrent="{$schedule->GetTotalConcurrentReservations()}">
-															{if $schedule->EnforceConcurrentReservationMaximum()}
-																{translate key=ScheduleConcurrentMaximum args=$schedule->GetTotalConcurrentReservations()}
-															{else}
-																{translate key=ScheduleConcurrentMaximumNone}
-															{/if}
-															<a href="#"
-																class="update changeScheduleConcurrentMaximum link-primary">
-																<span
-																	class="visually-hidden">{translate key='ScheduleMaximumConcurrent'}</span>
-																<span class="bi bi-pencil-square"></span>
-															</a>
-														</div>
-
-														<div class="resourcesPerReservationContainer"
-															data-maximum="{$schedule->GetMaxResourcesPerReservation()}">
-															{if $schedule->EnforceMaxResourcesPerReservation()}
-																{translate key=ScheduleResourcesPerReservationMaximum args=$schedule->GetMaxResourcesPerReservation()}
-															{else}
-																{translate key=ScheduleResourcesPerReservationNone}
-															{/if}
-															<a href="#"
-																class="update changeResourcesPerReservation link-primary">
-																<span
-																	class="visually-hidden">{translate key='ScheduleResourcesPerReservation'}</span>
-																<span class="bi bi-pencil-square"></span>
-															</a>
-														</div>
-
-														<div>
-															{translate key=DefaultStyle}
-															<span
-																class="propertyValue defaultScheduleStyle inlineUpdate fw-bold text-decoration-underline"
-																data-type="select" data-pk="{$id}"
-																data-name="{FormKeys::SCHEDULE_DEFAULT_STYLE}"
-																data-value="{$schedule->GetDefaultStyle()->value}">{$StyleNames[$schedule->GetDefaultStyle()->value]}</span>
-														</div>
-
-														{if $CreditsEnabled}
-															<span>{translate key=PeakTimes}</span>
-															<a class="update changePeakTimes link-primary" href="#">
-																<span class="visually-hidden">{translate key=PeakTimes}</span>
-																<span class="bi bi-pencil-square"></span>
-															</a>
-															<div class="peakPlaceHolder">
-																{include file="Admin/Schedules/manage_peak_times.tpl" Layout=$Layouts[$id] Months=$Months DayNames=$DayNames}
-															</div>
-														{/if}
-
-														<div>{translate key=Resources}
-															<span class="propertyValue fw-bold">
-																{if array_key_exists($id, $Resources)}
-																	{foreach from=$Resources[$id] item=r name=resources_loop}
-																		{$r->GetName()|escape}{if !$smarty.foreach.resources_loop.last},
-																		{/if}
-																	{/foreach}
-																{else}
-																	{translate key=None}
-																{/if}
-															</span>
-														</div>
-
-														{if $schedule->GetIsCalendarSubscriptionAllowed()}
-															<div>
-																<span>{translate key=PublicId}</span>
-																<span
-																	class="propertyValue fw-bold">{$schedule->GetPublicId()}</span>
-															</div>
-														{/if}
-
-													</div>
-
-													<div class="layout col-12 col-sm-6">
-														{function name="display_periods"}
-															{foreach from=$Layouts[$id]->GetSlots($day) item=period name=layouts}
-																{if $period->IsReservable() == $showReservable}
-																	{$period->Start->Format("H:i")} - {$period->End->Format("H:i")}
-																	{if $period->IsLabelled()}
-																		{$period->Label}
-																	{/if}
-																	{if !$smarty.foreach.layouts.last}, {/if}
-																{/if}
-															{foreachelse}
-																{translate key=None}
-															{/foreach}
-														{/function}
-
-														<div>
-															{translate key=ScheduleLayout args=$schedule->GetTimezone()}
-															<a class="update changeLayoutButton link-primary" href="#"
-																title="{translate key=ChangeLayout}">
-																<span class="bi bi-pencil-square"
-																	data-layout-type="{$Layouts[$id]->GetType()}"></span>
-																<span
-																	class="visually-hidden">{translate key=ChangeLayout}</span>
-															</a>
-														</div>
-														<input type="hidden" class="timezone"
-															value="{$schedule->GetTimezone()}" />
-
-														{if $Layouts[$id]->UsesDailyLayouts()}
-															<input type="hidden" class="usesDailyLayouts" value="true" />
-															{translate key=LayoutVariesByDay} - <a href="#layout{$id}"
-																class="link-primary" role="button"
-																data-bs-toggle="collapse">{translate key=ShowHide}</a>
-															<div class="collapse" id="layout{$id}">
-																{foreach from=DayOfWeek::Days() item=day}
-																	{$DayNames[$day]}
-																	<div class="reservableSlots" id="reservableSlots_{$day}"
-																		ref="reservableEdit_{$day}">
-																		{display_periods showReservable=true day=$day}
-																	</div>
-																	<div class="blockedSlots" id="blockedSlots_{$day}"
-																		ref="blockedEdit_{$day}">
-																		{display_periods showReservable=false day=$day}
-																	</div>
-																{/foreach}
-															</div>
-															<div class="mt-4 fw-bold">
-																{translate key=ThisScheduleUsesAStandardLayout}</div>
-															<div><a href="#" class="update switchLayout link-primary"
-																	data-switch-to="{ScheduleLayout::Custom}">{translate key=SwitchToACustomLayout}</a>
-															</div>
-														{elseif $Layouts[$id]->UsesCustomLayout()}
-															<div class="mt-4 fw-bold">
-																{translate key=ThisScheduleUsesACustomLayout}</div>
-															<div><a href="#" class="update switchLayout link-primary"
-																	data-switch-to="{ScheduleLayout::Standard}">{translate key=SwitchToAStandardLayout}</a>
-															</div>
-														{else}
-															<input type="hidden" class="usesDailyLayouts" value="false" />
-															{translate key=ReservableTimeSlots}
-															<div class="reservableSlots" id="reservableSlots"
-																ref="reservableEdit">
-																{display_periods showReservable=true day=null}
-															</div>
-															{translate key=BlockedTimeSlots}
-															<div class="blockedSlots" id="blockedSlots" ref="blockedEdit">
-																{display_periods showReservable=false day=null}
-															</div>
-															<div class="mt-4 fw-bold">
-																{translate key=ThisScheduleUsesAStandardLayout}</div>
-															<div><a href="#" class="update switchLayout link-primary"
-																	data-switch-to="{ScheduleLayout::Custom}">{translate key=SwitchToACustomLayout}</a>
-															</div>
-														{/if}
-													</div>
-													<div class="actions col-12">
-														<div
-															class="alert alert-light  d-flex align-items-center gap-1 mb-0">
-															{if $schedule->GetIsDefault()}
-																<span
-																	class="note fst-italic">{translate key=ThisIsTheDefaultSchedule}</span>
-																<div class="vr"></div>
-																<span
-																	class="note fst-italic">{translate key=DefaultScheduleCannotBeDeleted}</span>
-																<div class="vr"></div>
-															{else}
-																<a class="update makeDefaultButton link-primary"
-																	href="#">{translate key=MakeDefault}</a>
-																<div class="vr"></div>
-																<a class="update deleteScheduleButton link-primary"
-																	href="#">{translate key=Delete}</a>
-																<div class="vr"></div>
-															{/if}
-															{if $IcsEnabled}
-																{if $schedule->GetIsCalendarSubscriptionAllowed()}
-																	<a class="update disableSubscription link-primary"
-																		href="#">{translate key=TurnOffSubscription}</a>
-																	<div class="vr"></div>
-																{else}
-																	<a class="update enableSubscription link-primary"
-																		href="#">{translate key=TurnOnSubscription}</a>
-																{/if}
-																{if $schedule->GetIsCalendarSubscriptionAllowed()}
-																	{assign var="atomUrl" value=$schedule->GetSubscriptionUrl()->GetAtomUrl()}
-																	{assign var="icalUrl" value=$schedule->GetSubscriptionUrl()->GetWebcalUrl()}
-																	<a target="_blank" class="link-primary"
-																		title="{translate key=UrlCopiedToClipboard}"
-																		onclick="copyUrlToClipboard('{$atomUrl|escape:'javascript'|escape:'html'}'); return false;"
-																		href="{$atomUrl|escape:'html'}"> <i
-																			class="bi bi-rss-fill link-primary me-1"></i>Atom</a>
-																	<div class="vr"></div>
-																	<a target="_blank" class="link-primary"
-																		title="{translate key=UrlCopiedToClipboard}"
-																		onclick="copyUrlToClipboard('{$icalUrl|escape:'javascript'|escape:'html'}'); return false;"
-																		href="{$icalUrl|escape:'html'}">iCalendar</a>
-																{/if}
-															{/if}
-															{indicator id="action-indicator"}
-														</div>
-													</div>
-												</div>
-											</div>
-										</div>
-									</div>
-								</td>
-							</tr>
-						{/foreach}
-					</tbody>
-				</table>
-			</div>
+					{foreachelse}
+						<tr>
+							<td colspan="4" class="admin-empty">{translate key=AdminScheduleNoResults}</td>
+						</tr>
+					{/foreach}
+				</tbody>
+			</table>
 		</div>
+		<div class="admin-pager" id="schedulePager"></div>
 	</div>
 
-	<div id="addDialog" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="addScheduleDialogLabel"
-		aria-hidden="true">
-		<form id="addScheduleForm" method="post">
-			<div class="modal-dialog">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="addScheduleDialogLabel">{translate key=AddSchedule}</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-					</div>
-					<div class="modal-body vstack gap-2">
-						<div class="form-group">
-							<label class="fw-bold" for="addName">{translate key=Name}<i
-									class="bi bi-asterisk text-danger align-top" style="font-size: 0.5rem;"></i></label>
-							<input type="text" id="addName" class="form-control has-feedback required"
-								{formname key=SCHEDULE_NAME} />
-						</div>
-						<div class="form-group">
-							<label class="fw-bold" for="addStartsOn">{translate key=StartsOn}</label>
-							<select {formname key=SCHEDULE_WEEKDAY_START} class="form-select" id="addStartsOn">
-								<option value="{Schedule::Today}">{$Today}</option>
-								{foreach from=$DayNames item="dayName" key="dayIndex"}
-									<option value="{$dayIndex}">{$dayName}</option>
-								{/foreach}
-							</select>
-						</div>
-						<div class="form-group">
-							<label class="fw-bold" for="addNumDaysVisible">{translate key=NumberOfDaysVisible}</label>
-							<input type="number" min="1" max="100" class="form-control required" id="addNumDaysVisible"
-								value="7" {formname key=SCHEDULE_DAYS_VISIBLE} />
-						</div>
-						<div class="form-group">
-							<label class="fw-bold" for="addSameLayoutAs">{translate key=UseSameLayoutAs}</label>
-							<select class="form-select" {formname key=SCHEDULE_ID} id="addSameLayoutAs">
-								{foreach from=$SourceSchedules item=schedule}
-									<option value="{$schedule->GetId()}">{$schedule->GetName()}</option>
-								{/foreach}
-							</select>
-						</div>
-					</div>
-					<div class="modal-footer">
-						{cancel_button}
-						{add_button submit=true}
-						{indicator}
-					</div>
+	{* Event delegation root for every per-schedule drawer's inline x-editable widgets/sub-dialog
+	   triggers (Web/scripts/admin/schedule.js's elements.scheduleList) -- the old Schedule Layout
+	   tabs/quick-wizard/custom-calendar editor and Peak Times editor are intentionally not linked
+	   to from here anymore (still present at the bottom of this file, unreachable) per the redesign
+	   brief; hours are edited with the simple per-weekday editor below instead, which reuses the
+	   existing changeLayoutForm/ActionChangeLayout endpoint under the hood (see saveScheduleHours in
+	   schedule.js). *}
+	<div id="scheduleList">
+		{foreach from=$Schedules item=schedule}
+			{assign var=id value=$schedule->GetId()}
+			<div id="scheduleDrawer{$id}" class="offcanvas offcanvas-end admin-drawer admin-drawer-wide" tabindex="-1"
+				aria-labelledby="scheduleDrawerLabel{$id}">
+				<div class="offcanvas-header">
+					<h5 class="offcanvas-title" id="scheduleDrawerLabel{$id}">{$schedule->GetName()}</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
 				</div>
+				<div class="offcanvas-body scheduleDetails" data-schedule-id="{$id}">
+					<input type="hidden" class="id" value="{$id}" />
+					<input type="hidden" class="timezone" value="{$schedule->GetTimezone()}" />
+
+					<div class="mb-3">
+						<label class="fw-bold d-block">{translate key=Name}</label>
+						<span class="scheduleName fs-6 fw-bold" data-type="text" data-pk="{$id}"
+							data-name="{FormKeys::SCHEDULE_NAME}">{$schedule->GetName()}</span>
+						<a class="update renameButton link-primary ms-1" href="#" title="{translate key=Edit}">
+							<span class="visually-hidden">{translate key=Rename}</span>
+							<i class="bi bi-pencil-square"></i>
+						</a>
+					</div>
+
+					<div class="mb-3">
+						<label class="fw-bold d-block">{translate key='ScheduleAdministrator'}</label>
+						<span class="propertyValue scheduleAdmin" data-type="select" data-pk="{$id}"
+							data-value="{$schedule->GetAdminGroupId()}" data-name="{FormKeys::SCHEDULE_ADMIN_GROUP_ID}">
+							{assign var=adminGroupId value=$schedule->GetAdminGroupId()}
+							{if $adminGroupId !== null && isset($GroupLookup[$adminGroupId])}
+								{$GroupLookup[$adminGroupId]->Name|escape:'html'}
+							{else}
+								{translate key='None'}
+							{/if}
+						</span>
+						{if $AdminGroups|default:array()|count > 0}
+							<a class="update changeScheduleAdmin link-primary ms-1" href="#" title="{translate key=Edit}">
+								<span class="visually-hidden">{translate key='ScheduleAdministrator'}</span>
+								<i class="bi bi-pencil-square"></i>
+							</a>
+						{/if}
+					</div>
+
+					<div class="mb-3 d-flex align-items-center gap-2">
+						<label class="fw-bold mb-0">{translate key=Status}</label>
+						{if $schedule->GetIsDefault()}
+							<span class="admin-badge admin-badge-upcoming">{translate key=Default}</span>
+							<span class="admin-cell-secondary">{translate key=DefaultScheduleCannotBeDeleted}</span>
+						{else}
+							<a class="update makeDefaultButton link-primary" href="#">{translate key=MakeDefault}</a>
+						{/if}
+					</div>
+
+					<hr />
+
+					<div class="scheduleHoursEditor">
+						<label class="fw-bold d-block mb-2">{translate key=AdminScheduleWeeklyHours}</label>
+						{assign var=usesDaily value=$Layouts[$id]->UsesDailyLayouts()}
+						{if !$usesDaily}{assign var=singleSlots value=$Layouts[$id]->GetSlots()}{/if}
+						{foreach from=DayOfWeek::Days() item=day}
+							{assign var=dOpen value=false}
+							{assign var=dStart value=""}
+							{assign var=dEnd value=""}
+							{if $usesDaily}{assign var=daySlots value=$Layouts[$id]->GetSlots($day)}{else}{assign var=daySlots value=$singleSlots}{/if}
+							{foreach from=$daySlots item=period}
+								{if $period->IsReservable()}
+									{assign var=dOpen value=true}
+									{if $dStart == ""}{assign var=dStart value=$period->Start->Format("H:i")}{/if}
+									{assign var=dEnd value=$period->End->Format("H:i")}
+								{/if}
+							{/foreach}
+							{if $dStart == ""}{assign var=dStart value="09:00"}{/if}
+							{if $dEnd == ""}{assign var=dEnd value="18:00"}{/if}
+							<div class="admin-schedule-day-row d-flex align-items-center gap-2 mb-2" data-day="{$day}">
+								<div class="form-check form-switch admin-schedule-day-toggle">
+									<input class="form-check-input scheduleDayOpen" type="checkbox"
+										id="scheduleDayOpen{$id}_{$day}" {if $dOpen}checked{/if} />
+									<label class="form-check-label admin-schedule-day-label"
+										for="scheduleDayOpen{$id}_{$day}">{$DayNames[$day]}</label>
+								</div>
+								<input type="time" class="form-control form-control-sm scheduleDayStart"
+									id="scheduleDayStart{$id}_{$day}" value="{$dStart}" {if !$dOpen}disabled{/if} />
+								<span>&ndash;</span>
+								<input type="time" class="form-control form-control-sm scheduleDayEnd"
+									id="scheduleDayEnd{$id}_{$day}" value="{$dEnd}" {if !$dOpen}disabled{/if} />
+							</div>
+						{/foreach}
+						<button type="button" class="btn btn-primary btn-sm saveScheduleHours mt-1"
+							data-schedule-id="{$id}">{translate key=Save}</button>
+						<div id="scheduleHoursError{$id}" class="error d-none mt-2"></div>
+					</div>
+
+					<details class="admin-drawer-advanced">
+						<summary class="admin-drawer-advanced-summary">{translate key=AdminResourceAdvancedSettings}</summary>
+						<div>
+							{capture name=daysVisible}<span
+									class='propertyValue daysVisible inlineUpdate fw-bold text-decoration-underline pe-auto'
+									data-type='number' data-pk='{$id}' data-name='{FormKeys::SCHEDULE_DAYS_VISIBLE}'
+								data-min='0'>{$schedule->GetDaysVisible()}</span>{/capture}
+							{assign var=dayOfWeek value=$schedule->GetWeekdayStart()}
+							{capture name=dayName}<span
+									class='propertyValue dayName inlineUpdate fw-bold text-decoration-underline pe-auto'
+									data-type='select' data-pk='{$id}' data-name='{FormKeys::SCHEDULE_WEEKDAY_START}'
+									data-value='{$dayOfWeek}'>{if $dayOfWeek == Schedule::Today}{$Today}{else}{$DayNames[$dayOfWeek]}{/if}</span>
+							{/capture}
+							<div class="mb-2">
+								{translate key="LayoutDescription" args="{$smarty.capture.dayName},{$smarty.capture.daysVisible}"}
+							</div>
+
+							<div class="availabilityPlaceHolder d-flex align-items-center mb-2">
+								<div class="availabilityContent">
+									{include file="Admin/Schedules/manage_availability.tpl" schedule=$schedule timezone=$Timezone}
+								</div>
+								<a class="update changeAvailability link-primary ms-1" href="#">
+									<span class="visually-hidden">{translate key='Availability'}</span>
+									<span class="bi bi-pencil-square"></span>
+								</a>
+							</div>
+
+							<div class="maximumConcurrentContainer mb-2"
+								data-concurrent="{$schedule->GetTotalConcurrentReservations()}">
+								{if $schedule->EnforceConcurrentReservationMaximum()}
+									{translate key=ScheduleConcurrentMaximum args=$schedule->GetTotalConcurrentReservations()}
+								{else}
+									{translate key=ScheduleConcurrentMaximumNone}
+								{/if}
+								<a href="#" class="update changeScheduleConcurrentMaximum link-primary">
+									<span class="visually-hidden">{translate key='ScheduleMaximumConcurrent'}</span>
+									<span class="bi bi-pencil-square"></span>
+								</a>
+							</div>
+
+							<div class="resourcesPerReservationContainer mb-2"
+								data-maximum="{$schedule->GetMaxResourcesPerReservation()}">
+								{if $schedule->EnforceMaxResourcesPerReservation()}
+									{translate key=ScheduleResourcesPerReservationMaximum args=$schedule->GetMaxResourcesPerReservation()}
+								{else}
+									{translate key=ScheduleResourcesPerReservationNone}
+								{/if}
+								<a href="#" class="update changeResourcesPerReservation link-primary">
+									<span class="visually-hidden">{translate key='ScheduleResourcesPerReservation'}</span>
+									<span class="bi bi-pencil-square"></span>
+								</a>
+							</div>
+
+							<div class="mb-2">
+								{translate key=DefaultStyle}
+								<span class="propertyValue defaultScheduleStyle inlineUpdate fw-bold text-decoration-underline"
+									data-type="select" data-pk="{$id}" data-name="{FormKeys::SCHEDULE_DEFAULT_STYLE}"
+									data-value="{$schedule->GetDefaultStyle()->value}">{$StyleNames[$schedule->GetDefaultStyle()->value]}</span>
+							</div>
+
+							{if $schedule->GetIsCalendarSubscriptionAllowed()}
+								<div class="mb-2">
+									<span>{translate key=PublicId}</span>
+									<span class="propertyValue fw-bold">{$schedule->GetPublicId()}</span>
+								</div>
+							{/if}
+
+							{if $IcsEnabled}
+								<div class="mb-2">
+									{if $schedule->GetIsCalendarSubscriptionAllowed()}
+										<a class="update disableSubscription link-primary" href="#">{translate key=TurnOffSubscription}</a>
+										{assign var="atomUrl" value=$schedule->GetSubscriptionUrl()->GetAtomUrl()}
+										{assign var="icalUrl" value=$schedule->GetSubscriptionUrl()->GetWebcalUrl()}
+										<div class="vr mx-1"></div>
+										<a target="_blank" class="link-primary" title="{translate key=UrlCopiedToClipboard}"
+											onclick="copyUrlToClipboard('{$atomUrl|escape:'javascript'|escape:'html'}'); return false;"
+											href="{$atomUrl|escape:'html'}"><i class="bi bi-rss-fill link-primary me-1"></i>Atom</a>
+										<div class="vr mx-1"></div>
+										<a target="_blank" class="link-primary" title="{translate key=UrlCopiedToClipboard}"
+											onclick="copyUrlToClipboard('{$icalUrl|escape:'javascript'|escape:'html'}'); return false;"
+											href="{$icalUrl|escape:'html'}">iCalendar</a>
+									{else}
+										<a class="update enableSubscription link-primary" href="#">{translate key=TurnOnSubscription}</a>
+									{/if}
+								</div>
+							{/if}
+
+							{if !$schedule->GetIsDefault()}
+								<a class="update deleteScheduleButton link-danger" href="#">{translate key=Delete}</a>
+							{/if}
+
+							{indicator id="action-indicator"}
+						</div>
+					</details>
+				</div>
+			</div>
+		{/foreach}
+	</div>
+
+	<div id="addDialog" class="offcanvas offcanvas-end admin-drawer" tabindex="-1" aria-labelledby="addScheduleDialogLabel">
+		<form id="addScheduleForm" method="post" class="h-100 d-flex flex-column">
+			<div class="offcanvas-header">
+				<h5 class="offcanvas-title" id="addScheduleDialogLabel">{translate key=AddSchedule}</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+			</div>
+			<div class="offcanvas-body flex-grow-1 vstack gap-2">
+				<div class="form-group">
+					<label class="fw-bold" for="addName">{translate key=Name}<i
+							class="bi bi-asterisk text-danger align-top" style="font-size: 0.5rem;"></i></label>
+					<input type="text" id="addName" class="form-control has-feedback required"
+						{formname key=SCHEDULE_NAME} />
+				</div>
+				<div class="form-group">
+					<label class="fw-bold" for="addStartsOn">{translate key=StartsOn}</label>
+					<select {formname key=SCHEDULE_WEEKDAY_START} class="form-select" id="addStartsOn">
+						<option value="{Schedule::Today}">{$Today}</option>
+						{foreach from=$DayNames item="dayName" key="dayIndex"}
+							<option value="{$dayIndex}">{$dayName}</option>
+						{/foreach}
+					</select>
+				</div>
+				<div class="form-group">
+					<label class="fw-bold" for="addNumDaysVisible">{translate key=NumberOfDaysVisible}</label>
+					<input type="number" min="1" max="100" class="form-control required" id="addNumDaysVisible"
+						value="7" {formname key=SCHEDULE_DAYS_VISIBLE} />
+				</div>
+				<div class="form-group">
+					<label class="fw-bold" for="addSameLayoutAs">{translate key=UseSameLayoutAs}</label>
+					<select class="form-select" {formname key=SCHEDULE_ID} id="addSameLayoutAs">
+						{foreach from=$SourceSchedules item=schedule}
+							<option value="{$schedule->GetId()}">{$schedule->GetName()}</option>
+						{/foreach}
+					</select>
+				</div>
+			</div>
+			<div class="admin-drawer-footer">
+				{cancel_button}
+				{add_button submit=true}
+				{indicator}
 			</div>
 		</form>
 	</div>
@@ -852,10 +818,10 @@
 	{control type="DatePickerSetupControl" ControlId="availabilityEndDate" DefaultDate=$EndDate}
 
 	{csrf_token}
-	{include file="javascript-includes.tpl" InlineEdit=true Fullcalendar=true DataTable=true}
-	{datatablefilter tableId=$tableIdFilter}
+	{include file="javascript-includes.tpl" InlineEdit=true Fullcalendar=true}
 	{jsfile src="ajax-helpers.js"}
 	{jsfile src="date-helper.js"}
+	{jsfile src="admin/admin-table-paginate.js"}
 	{jsfile src="admin/schedule.js"}
 	{vendor_js src="jquery-form/3.09/jquery.form-3.09.min.js"}
 
@@ -963,6 +929,8 @@
 
 			var scheduleManagement = new ScheduleManagement(opts);
 			scheduleManagement.init();
+
+			AdminTablePaginate({ tableId: '{$tableIdFilter}', containerId: 'schedulePager', pageSize: 20 });
 		});
 	</script>
 

@@ -2,267 +2,236 @@
 
 <div id="page-manage-users" class="admin-page">
 
-    <div class="border-bottom mb-3 clearfix">
-        <div class="dropdown admin-header-more float-end">
-            <div class="btn-group btn-group-sm">
+    {capture name=headerActions}
+        <div class="btn-group btn-group-sm">
+            {if $CanCreateUsers}
+                <a href="#" id="add-user" class="add-link add-user add-group btn btn-primary">
+                    <i class="bi bi-plus-circle-fill me-1"></i>
+                    {translate key="AddUser"}
+                </a>
+            {/if}
+
+            {if $CanCreateUsers or $CanExportUsers}
+            <button class="btn btn-primary btn-sm dropdown-toggle" type="button" id="moreUserActions"
+                data-bs-toggle="dropdown" aria-expanded="false" aria-label="{translate key='More'}">
+                <i class="bi bi-three-dots"></i>
+            </button>
+
+            <ul class="dropdown-menu" aria-labelledby="moreUserActions">
                 {if $CanCreateUsers}
-                    <a href="#" id="add-user" class="add-link add-user add-group btn btn-primary">
-                        <i class="bi bi-plus-circle-fill me-1"></i>
-                        {translate key="AddUser"}
-                    </a>
+                    <li>
+                        <a href="#" id="invite-users" class="dropdown-item">
+                            <i class="bi bi-send me-1"></i>
+                            {translate key="InviteUsers"}
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" id="import-users" class="dropdown-item">
+                            <i class="bi bi-download me-1"></i>
+                            {translate key="Import"}
+                        </a>
+                    </li>
                 {/if}
-
-                {if $CanCreateUsers or $CanExportUsers}
-                <button class="btn btn-primary btn-sm dropdown-toggle" type="button" id="moreUserActions"
-                    data-bs-toggle="dropdown" aria-expanded="false" aria-label="{translate key='More'}">
-                    <i class="bi bi-three-dots"></i>
-                </button>
-
-                <ul class="dropdown-menu" aria-labelledby="moreUserActions">
-                    {if $CanCreateUsers}
-                        <li>
-                            <a href="#" id="invite-users" class="dropdown-item">
-                                <i class="bi bi-send me-1"></i>
-                                {translate key="InviteUsers"}
-                            </a>
-                        </li>
-                        <li>
-                            <a href="#" id="import-users" class="dropdown-item">
-                                <i class="bi bi-download me-1"></i>
-                                {translate key="Import"}
-                            </a>
-                        </li>
-                    {/if}
-                    {if $CanExportUsers}
-                        <li>
-                            <a href="{$ExportUrl}" download id="export-users" class="dropdown-item" target="_blank"
-                                rel="noopener noreferrer">
-                                <i class="bi bi-upload me-1"></i>
-                                {translate key="Export"}
-                            </a>
-                        </li>
-                    {/if}
-                </ul>
+                {if $CanExportUsers}
+                    <li>
+                        <a href="{$ExportUrl}" download id="export-users" class="dropdown-item" target="_blank"
+                            rel="noopener noreferrer">
+                            <i class="bi bi-upload me-1"></i>
+                            {translate key="Export"}
+                        </a>
+                    </li>
                 {/if}
-            </div>
+            </ul>
+            {/if}
         </div>
-        <h1 class="float-start">{translate key=ManageUsers}</h1>
+    {/capture}
+    {include file='Admin/admin_page_shell.tpl' TitleKey='AdminSectionUsers' DescriptionKey='AdminUsersDescription' HeaderActions=$smarty.capture.headerActions}
+
+    <div class="admin-page-toolbar">
+        <form id="filterForm" class="admin-toolbar-row" role="form">
+            <label class="admin-search" for="userSearch">
+                <i class="bi bi-search"></i>
+                <input type="text" id="userSearch" placeholder="{translate key=AdminUserSearchPlaceholder}" />
+            </label>
+            <select id="filterStatusId" class="form-select form-select-sm admin-toolbar-select" aria-label="{translate key=Status}">
+                {html_options selected=$FilterStatusId options=$statusDescriptions}
+            </select>
+            <select id="userSortOrder" class="form-select form-select-sm admin-toolbar-select" aria-label="{translate key=AdminUserSortBy}">
+                <option value="name-asc" selected>{translate key=AdminUserSortNameAsc}</option>
+                <option value="name-desc">{translate key=AdminUserSortNameDesc}</option>
+                <option value="lastlogin-desc">{translate key=AdminUserSortLastLoginDesc}</option>
+                <option value="lastlogin-asc">{translate key=AdminUserSortLastLoginAsc}</option>
+            </select>
+        </form>
     </div>
 
-    <div class="card shadow mb-2">
-        <div class="card-body">
-            <form id="filterForm" class="row" role="form">
-                <div class="form-group col-sm-4">
-                    <label class="fw-bold" for="userSearch"><i
-                            class="bi bi-person-fill me-1"></i>{translate key=FindUser}
-                        | {html_link href=$smarty.server.SCRIPT_NAME key=AllUsers}</label>
-                    <input type="text" id="userSearch" class="form-control form-control-sm" />
-                </div>
-                <div class="form-group col-sm-2">
-                    <label class="fw-bold" for="filterStatusId">{translate key=Status}</label>
-                    <select id="filterStatusId" class="form-select">
-                        {html_options selected=$FilterStatusId options=$statusDescriptions}
-                    </select>
-                </div>
-            </form>
-        </div>
-    </div>
+    {* AD-managed flag is a custom attribute rather than a dedicated schema column -- looked up
+       here by label once instead of per-row, since it has no stable/hardcoded id (it's created by
+       database_schema/upgrades/4.2/data.sql). *}
+    {assign var=adManagedAttrId value=0}
+    {foreach from=$AttributeList item=attr}
+        {if $attr->Label() == 'AD Managed Account'}{assign var=adManagedAttrId value=$attr->Id()}{/if}
+    {/foreach}
 
-    <div class="card shadow">
-        <div class="card-body">
-            <div class="table-responsive">
-                {assign var=tableId value='userList'}
-                <table class="table table-striped table-hover w-100 admin-panel" id="{$tableId}">
-                    <thead>
-                        <tr>
-                            <th>{translate key='Name'}</th>
-                            <th>{translate key='Username'}</th>
-                            <th>{translate key='Email'}</th>
-                            <th>{translate key='Phone'}</th>
-                            <th>{translate key='Organization'}</th>
-                            <th>{translate key='Position'}</th>
-                            <th>{translate key='Created'}</th>
-                            <th>{translate key='LastLogin'}</th>
-                            <th class="action">{translate key='Status'}</th>
-                            {if $CreditsEnabled}
-                                <th class="action">{translate key='Credits'}</th>
-                            {/if}
-                            {if $PerUserColors}
-                                <th class="action">{translate key='Color'}</th>
-                            {/if}
-                            <th>{translate key='Actions'}</th>
-                            {if $CanDeleteUsers}
-                                <th class="action-delete">
-                                    <div class="form-check checkbox-single">
-                                        <input class="form-check-input" type="checkbox" id="delete-all"
-                                            aria-label="{translate key=All}" title="{translate key=All}" />
-                                    </div>
-                                    <a href="#" id="delete-selected" class="d-none" title="{translate key=Delete}">
-                                        <span class="visually-hidden">{translate key=Delete}</span>
-                                        <span class="bi bi-trash3-fill text-danger icon remove"></span>
-                                    </a>
-                                </th>
-                            {/if}
-                            {assign var=attributes value=$AttributeList}
-                            {if $attributes|default:array()|count > 0}
-                                <th>{translate key='More'}
-                                </th>
-                            {/if}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {foreach from=$users item=user}
-                            {assign var=id value=$user->Id}
-                            <tr data-userId="{$id}">
-                                <td>{fullname first=$user->First|default:''|unescape:'html' last=$user->Last|default:''|unescape:'html' ignorePrivacy="true"}
-                                </td>
-                                <td>{$user->Username}</td>
-                                <td><a href="mailto:{$user->Email}" class="link-primary">{$user->Email}</a></td>
-                                <td>{$user->Phone}</td>
-                                <td>{$user->Organization}</td>
-                                <td>{$user->Position}</td>
-                                <td
-                                    data-order="{format_date date=$user->DateCreated format='Y-m-d H:i' timezone=$Timezone}">
-                                    {format_date date=$user->DateCreated key=short_datetime timezone=$Timezone}</td>
-                                <td data-order="{format_date date=$user->LastLogin format='Y-m-d H:i' timezone=$Timezone}">
-                                    {format_date date=$user->LastLogin key=short_datetime timezone=$Timezone}</td>
-                                <td class="action">
-                                    {if $CanChangeUserStatus}
-                                        <a href="#"
-                                            class="update changeStatus link-primary">{$statusDescriptions[$user->StatusId]}</a>
-                                        {indicator id="userStatusIndicator"}
-                                    {else}
-                                        {$statusDescriptions[$user->StatusId]}
-                                    {/if}
-                                </td>
-                                {if $CreditsEnabled}
-                                    <td class="text-end">
-                                        {if $CanChangeCredits}
-                                            <span class="propertyValue inlineUpdate changeCredits fw-bold text-decoration-underline"
-                                                data-type="number" data-pk="{$id}" data-value="{$user->CurrentCreditCount}"
-                                                data-name="{FormKeys::CREDITS}">{$user->CurrentCreditCount}</span>
-                                        {else}
-                                            <span class="fw-bold">{$user->CurrentCreditCount}</span>
-                                        {/if}
-                                        <a href="credit_log.php?{QueryStringKeys::USER_ID}={$id}"
-                                            title="{translate key=CreditHistory}" class="link-primary">
-                                            <span class="no-color">{translate key=CreditHistory}</span>
-                                            <i class="bi bi-list-task"></i>
-                                        </a>
-                                    </td>
+    <div class="card shadow admin-clean-table-card">
+        <div class="table-responsive">
+            {assign var=tableId value='userList'}
+            <table class="table admin-clean-table w-100" id="{$tableId}">
+                <thead>
+                    <tr>
+                        <th>{translate key=AdminUserColumnNameAvatar}</th>
+                        <th>{translate key=AdminUserColumnAccount}</th>
+                        <th>{translate key=AdminUserRole}</th>
+                        <th>{translate key=AdminUserColumnEmailNotify}</th>
+                        <th>{translate key=AdminUserColumnLineNotify}</th>
+                        <th>{translate key=Status}</th>
+                        <th>{translate key=AdminUserColumnLastLogin}</th>
+                        <th class="text-end">{translate key=Actions}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {foreach from=$users item=user}
+                        {assign var=id value=$user->Id}
+                        {assign var=isAdManaged value=false}
+                        {if $adManagedAttrId > 0 && $user->GetAttributeValue($adManagedAttrId) == '1'}{assign var=isAdManaged value=true}{/if}
+                        {assign var=lineUserId value=$user->Preferences->Get('LineUserId')}
+                        {* CoAsia's simplified two-role model -- a user is 系統管理員 if any group they
+                           belong to carries the APPLICATION_ADMIN role (GroupItemView::IsAdmin()),
+                           same check AuthorizationService uses to decide $CanViewAdmin. $Groups is
+                           every group site-wide, keyed by id (Pages/Admin/ManageUsersPage.php
+                           BindGroups()); user_groups membership already comes down per-row as
+                           $user->GroupIds, so no extra query per row. *}
+                        {assign var=isUserAdminRole value=false}
+                        {foreach from=$user->GroupIds item=gid}
+                            {if isset($Groups[$gid]) && $Groups[$gid]->IsAdmin()}{assign var=isUserAdminRole value=true}{/if}
+                        {/foreach}
+                        <tr data-userId="{$id}"
+                            data-name="{fullname first=$user->First|default:''|unescape:'html' last=$user->Last|default:''|unescape:'html' ignorePrivacy="true"}"
+                            data-search="{$user->First|default:''|unescape:'html'|lower} {$user->Last|default:''|unescape:'html'|lower} {$user->Username|lower} {$user->Email|lower}">
+                            <td>
+                                <div class="admin-user-cell">
+                                    <span class="admin-avatar">{$user->First|default:$user->Username|truncate:1:''|upper}</span>
+                                    <a href="#" class="update edit admin-user-name-link">{fullname first=$user->First|default:''|unescape:'html' last=$user->Last|default:''|unescape:'html' ignorePrivacy="true"}</a>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="admin-user-account">
+                                    <span class="admin-user-username">{$user->Username}</span>
+                                    <span class="admin-user-email">{$user->Email}</span>
+                                </div>
+                            </td>
+                            <td>
+                                {if $isUserAdminRole}
+                                    <span class="admin-badge admin-badge-inprogress">{translate key=AdminUserRoleAdmin}</span>
+                                {else}
+                                    <span class="admin-badge admin-badge-ended">{translate key=AdminUserRoleUser}</span>
                                 {/if}
-                                {if $PerUserColors}
-                                    <td class="action">
-                                        {if $CanChangeColors}
-                                            <a href="#" class="update changeColor link-primary">{translate key='Edit'}</a>
-                                            {if !empty($user->ReservationColor)}
-                                                <div class="user-color update changeColor rounded"
-                                                    style="background-color:{$user->ReservationColor|escape:'html'}">
-                                                    &nbsp;
-                                                </div>
-                                            {/if}
-                                        {else}
-                                            {if !empty($user->ReservationColor)}
-                                                <div class="user-color rounded"
-                                                    style="background-color:{$user->ReservationColor|escape:'html'}">
-                                                    &nbsp;
-                                                </div>
-                                            {/if}
-                                        {/if}
-                                    </td>
+                            </td>
+                            <td>
+                                {if $user->EmailNotificationsEnabled}
+                                    <span class="admin-badge admin-badge-inprogress">{translate key=AdminUserNotifyOn}</span>
+                                {else}
+                                    <span class="admin-badge admin-badge-ended">{translate key=AdminUserNotifyOff}</span>
                                 {/if}
-
-                                <td width="100">
-                                    <div class="btn-group btn-group-sm">
+                            </td>
+                            <td>
+                                {if empty($lineUserId)}
+                                    <span class="admin-badge admin-badge-ended">{translate key=AdminUserLineNotBound}</span>
+                                {elseif $user->Preferences->Get('LineNotificationsEnabled') !== '0'}
+                                    <span class="admin-badge admin-badge-inprogress">{translate key=AdminUserNotifyOn}</span>
+                                {else}
+                                    <span class="admin-badge admin-badge-ended">{translate key=AdminUserNotifyOff}</span>
+                                {/if}
+                            </td>
+                            <td>
+                                <span class="admin-badge {if $user->StatusId == 1}admin-badge-inprogress{else}admin-badge-ended{/if}">{$statusDescriptions[$user->StatusId]}</span>
+                                {indicator id="userStatusIndicator"}
+                            </td>
+                            <td data-order="{format_date date=$user->LastLogin format='Y-m-d H:i' timezone=$Timezone}">
+                                {format_date date=$user->LastLogin key=short_datetime timezone=$Timezone}</td>
+                            <td class="text-end">
+                                <div class="dropdown">
+                                    <button type="button" class="admin-row-menu-btn" data-bs-toggle="dropdown"
+                                        aria-label="{translate key=AdminUserViewEdit}">
+                                        <i class="bi bi-three-dots"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end" role="menu">
                                         {if $CanEditUsers}
-                                            <button type="button" class="btn btn-primary update edit">
-                                                <span class="visually-hidden">{translate key=Update}</span>
-                                                <i class="bi bi-pencil-square"></i></button>
+                                            <li role="presentation"><a role="menuitem" href="#"
+                                                    class="dropdown-item update edit">{translate key=AdminUserViewEdit}</a>
+                                            </li>
                                         {/if}
-                                        <button type="button" class="btn btn-primary dropdown-toggle"
-                                            data-bs-toggle="dropdown">
-                                            <span class="visually-hidden">{translate key=More}</span>
-                                        </button>
-                                        <ul class="dropdown-menu" role="menu">
-                                            {if $CanEditUsers}
-                                                <li role="presentation"><a role="menuitem" href="#"
-                                                        class="dropdown-item update edit">{translate key="Edit"}</a>
-                                                </li>
-                                            {/if}
-                                            {if $CanChangePermissions}
-                                                <li role="presentation"><a role="menuitem" href="#"
-                                                        class="dropdown-item update changePermissions">{translate key="Permissions"}</a>
-                                                </li>
-                                            {/if}
+                                        {if $CanChangePermissions}
                                             <li role="presentation"><a role="menuitem" href="#"
-                                                    class="dropdown-item update changeGroups">{translate key="Groups"}</a>
+                                                    class="dropdown-item update changePermissions">{translate key="Permissions"}</a>
+                                            </li>
+                                        {/if}
+                                        <li role="presentation"><a role="menuitem" href="#"
+                                                class="dropdown-item update viewReservations">{translate key="Reservations"}</a>
+                                        </li>
+                                        {if $CanChangePasswords}
+                                            <li role="presentation"><a role="menuitem" href="#"
+                                                    class="dropdown-item update resetPassword">{translate key="ChangePassword"}</a>
+                                            </li>
+                                        {/if}
+                                        {if $CreditsEnabled}
+                                            <li role="presentation"><a role="menuitem"
+                                                    href="credit_log.php?{QueryStringKeys::USER_ID}={$id}"
+                                                    class="dropdown-item">{translate key="CreditHistory"}</a>
+                                            </li>
+                                        {/if}
+                                        {if $PerUserColors && $CanChangeColors}
+                                            <li role="presentation"><a role="menuitem" href="#"
+                                                    class="dropdown-item update changeColor">{translate key="Color"}</a>
+                                            </li>
+                                        {/if}
+                                        {if $CanChangeUserStatus}
+                                            <li role="presentation">
+                                                <hr class="dropdown-divider">
                                             </li>
                                             <li role="presentation"><a role="menuitem" href="#"
-                                                    class="dropdown-item update viewReservations">{translate key="Reservations"}</a>
+                                                    class="dropdown-item update changeStatus">{if $user->StatusId == 1}{translate key="Deactivate"}{else}{translate key="Activate"}{/if}</a>
                                             </li>
-                                            {if $CanChangePasswords}
+                                        {/if}
+                                        {if $CanDeleteUsers}
+                                            <li role="presentation">
+                                                <hr class="dropdown-divider">
+                                            </li>
+                                            {if $isAdManaged}
+                                                <li role="presentation"><span
+                                                        class="dropdown-item admin-row-menu-disabled"
+                                                        title="{translate key=AdminUserCannotDeleteAD}">{translate key="Delete"}</span>
+                                                </li>
+                                            {else}
                                                 <li role="presentation"><a role="menuitem" href="#"
-                                                        class="dropdown-item update resetPassword">{translate key="ChangePassword"}</a>
+                                                        class="dropdown-item update delete text-danger">{translate key="Delete"}</a>
                                                 </li>
                                             {/if}
-
-                                        </ul>
-                                    </div>
-                                    {if $CanDeleteUsers}
-                                        |
-                                        <span class="inline">
-                                            <a href="#" class="update delete">
-                                                <span class="visually-hidden">{translate key=Delete}</span>
-                                                <span class="bi bi-trash3-fill text-danger icon remove"></span>
-                                            </a>
-                                        </span>
-                                    {/if}
-                                </td>
-                                {if $CanDeleteUsers}
-                                    <td class="action-delete">
-                                        <div class="form-check checkbox-single">
-                                            <input {formname key=USER_ID multi=true} class="delete-multiple form-check-input"
-                                                type="checkbox" id="delete{$id}" value="{$id}"
-                                                aria-label="{translate key=Delete}" title="{translate key=Delete}" />
-                                        </div>
-                                    </td>
-                                {/if}
-
-                                {if $attributes|default:array()|count > 0}
-                                    <td class="customAttributes" userId="{$id}">
-                                        {assign var=changeAttributeAction value=ManageUsersActions::ChangeAttribute}
-                                        {assign var=attributeUrl value="`$smarty.server.SCRIPT_NAME`?action=`$changeAttributeAction`"}
-                                        {foreach from=$AttributeList item=attribute}
-                                            {if $CanChangeAttributes}
-                                                {include file='Admin/InlineAttributeEdit.tpl' url=$attributeUrl id=$id attribute=$attribute value=$user->GetAttributeValue($attribute->Id())}
-                                            {elseif $attribute->AppliesToEntity($id)}
-                                                <div class="mb-0 d-inline-block">
-                                                    <label class="inline fw-bold">{$attribute->Label()}</label>
-                                                    {$user->GetAttributeValue($attribute->Id())|escape}
-                                                </div>
-                                            {/if}
-                                        {/foreach}
-                                    </td>
-                                {/if}
-                            {/foreach}
+                                        {/if}
+                                    </ul>
+                                </div>
+                            </td>
                         </tr>
-                    </tbody>
-                </table>
-            </div>
+                    {foreachelse}
+                        <tr>
+                            <td colspan="8" class="admin-empty">{translate key=AdminUserNoResults}</td>
+                        </tr>
+                    {/foreach}
+                </tbody>
+            </table>
         </div>
+        <div class="admin-pager" id="userPager"></div>
     </div>
 
     {if $CanCreateUsers}
-    <div id="addUserDialog" class="modal" tabindex="-1" role="dialog" aria-labelledby="addUserModalLabel"
-        aria-hidden="true">
-        <form id="addUserForm" class="form" role="form" method="post" ajaxAction="{ManageUsersActions::AddUser}">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="addUserModalLabel">{translate key=AddUser}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-                    </div>
-                    <div class="modal-body row gy-2">
+    <div id="addUserDialog" class="offcanvas offcanvas-end admin-drawer admin-drawer-wide" tabindex="-1"
+        aria-labelledby="addUserModalLabel">
+        <form id="addUserForm" class="form h-100 d-flex flex-column" role="form" method="post" ajaxAction="{ManageUsersActions::AddUser}">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="addUserModalLabel">{translate key=AddUser}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body flex-grow-1 row gy-2">
                         <div class="col-12">
                             <div id="addUserResults" class="validationSummary alert alert-danger d-none">
                                 <ul>
@@ -353,10 +322,10 @@
                         </div>
                         <div class="col-sm-12 col-md-6">
                             <div class="form-group has-feedback">
-                                <label class="fw-bold" for="addGroup">{translate key="Group"}</label>
-                                <select id="addGroup" {formname key='GROUP_ID'} class="form-select">
-                                    <option value="">{translate key=None}</option>
-                                    {object_html_options options=$Groups label=Name key=Id}
+                                <label class="fw-bold" for="addRole">{translate key="AdminUserRole"}</label>
+                                <select id="addRole" {formname key='ROLE'} class="form-select">
+                                    <option value="user" selected>{translate key="AdminUserRoleUser"}</option>
+                                    <option value="admin">{translate key="AdminUserRoleAdmin"}</option>
                                 </select>
                             </div>
                         </div>
@@ -376,18 +345,16 @@
                             {/for}
                         {/if}
                         <div class="clearfix"></div>
-                    </div>
-                    <div class="modal-footer">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="sendAddEmail" checked="checked"
-                                {formname key=SEND_AS_EMAIL} />
-                            <label class="form-check-label" for="sendAddEmail">{translate key=NotifyUser}</label>
-                        </div>
-                        {cancel_button}
-                        {add_button}
-                        {indicator}
-                    </div>
+            </div>
+            <div class="admin-drawer-footer">
+                <div class="form-check me-auto">
+                    <input class="form-check-input" type="checkbox" id="sendAddEmail" checked="checked"
+                        {formname key=SEND_AS_EMAIL} />
+                    <label class="form-check-label" for="sendAddEmail">{translate key=NotifyUser}</label>
                 </div>
+                {cancel_button}
+                {add_button}
+                {indicator}
             </div>
         </form>
     </div>
@@ -559,24 +526,20 @@
     {/if}
 
     {if $CanEditUsers}
-    <div id="userDialog" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="userModalLabel"
-        aria-hidden="true">
-        <form id="userForm" method="post" ajaxAction="{ManageUsersActions::UpdateUser}">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="userModalLabel">{translate key=Edit}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div id="update-user-placeholder"></div>
-                    </div>
-                    <div class="modal-footer">
-                        {cancel_button}
-                        {update_button}
-                        {indicator}
-                    </div>
-                </div>
+    <div id="userDialog" class="offcanvas offcanvas-end admin-drawer admin-drawer-wide" tabindex="-1"
+        aria-labelledby="userModalLabel">
+        <form id="userForm" method="post" class="h-100 d-flex flex-column" ajaxAction="{ManageUsersActions::UpdateUser}">
+            <div class="offcanvas-header">
+                <h5 class="offcanvas-title" id="userModalLabel">{translate key=Edit}</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+            </div>
+            <div class="offcanvas-body flex-grow-1">
+                <div id="update-user-placeholder"></div>
+            </div>
+            <div class="admin-drawer-footer">
+                {cancel_button}
+                {update_button}
+                {indicator}
             </div>
         </form>
     </div>
@@ -710,12 +673,71 @@
 
     {csrf_token}
     {include file="javascript-includes.tpl" InlineEdit=true DataTable=true}
-    {datatable tableId=$tableId}
+    {* DataTables itself stays loaded -- {datatablefilter tableId=$tableIdFilter} below still drives
+       the permissions dialog's own resource-picker table -- but the main #userList no longer calls
+       {datatable}: it's the same client-side admin-table-paginate.js pattern as
+       預約管理/會議室管理/開放時間管理 now (see the sort/search script below), not DataTables' own
+       pagination/info/length chrome. *}
     {datatablefilter tableId=$tableIdFilter}
     {jsfile src="ajax-helpers.js"}
     {jsfile src="autocomplete.js"}
+    {jsfile src="admin/admin-table-paginate.js"}
     {jsfile src="admin/user.js"}
     {vendor_js src="jquery-form/3.09/jquery.form-3.09.min.js"}
+
+    <script>
+        (function () {
+            var pager = AdminTablePaginate({ tableId: 'userList', containerId: 'userPager', pageSize: 20 });
+
+            var sortSelect = document.getElementById('userSortOrder');
+            var sortComparators = {
+                'name-asc': function (a, b) {
+                    return $(a).attr('data-name').localeCompare($(b).attr('data-name'));
+                },
+                'name-desc': function (a, b) {
+                    return $(b).attr('data-name').localeCompare($(a).attr('data-name'));
+                },
+                'lastlogin-desc': function (a, b) {
+                    return $(b).find('[data-order]').attr('data-order').localeCompare($(a).find('[data-order]').attr('data-order'));
+                },
+                'lastlogin-asc': function (a, b) {
+                    return $(a).find('[data-order]').attr('data-order').localeCompare($(b).find('[data-order]').attr('data-order'));
+                },
+            };
+
+            function sortRows() {
+                var comparator = sortSelect && sortComparators[sortSelect.value];
+                if (!comparator) {
+                    return;
+                }
+                var $tbody = $('#userList > tbody');
+                var rows = $tbody.find('> tr[data-userId]').get();
+                rows.sort(comparator);
+                $.each(rows, function (i, row) {
+                    $tbody.append(row);
+                });
+                pager.refresh();
+            }
+
+            if (sortSelect) {
+                sortSelect.addEventListener('change', sortRows);
+            }
+
+            // #userSearch also drives the jump-to-user autocomplete (see UserManagement.init in
+            // user.js) -- this just adds live filtering of the visible list on the same input.
+            var searchInput = document.getElementById('userSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    var query = searchInput.value.trim().toLowerCase();
+                    $('#userList > tbody > tr[data-userId]').each(function () {
+                        var haystack = $(this).attr('data-search') || '';
+                        $(this).toggleClass('admin-search-hidden', query !== '' && haystack.indexOf(query) === -1);
+                    });
+                    pager.refresh();
+                });
+            }
+        })();
+    </script>
 
     <script type="text/javascript">
         function setUpEditables() {
@@ -754,6 +776,7 @@
                 filterUrl: '{$smarty.server.SCRIPT_NAME}?{QueryStringKeys::ACCOUNT_STATUS}=',
                 actions: actions,
                 manageReservationsUrl: '{$ManageReservationsUrl}',
+                confirmDeactivateText: '{translate key=AdminUserConfirmDeactivateTitle}',
             };
 
             var userManagement = new UserManagement(userOptions);

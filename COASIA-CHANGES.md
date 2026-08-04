@@ -1724,3 +1724,64 @@ Quick Create 已經填好的欄位（標題、日期時間、資源、參與者�
 - `Web/css/coasia-theme.css`（收合側欄的隱藏規則清單裡移除 `.mini-cal` 這一項）、`Web/css/overview.css`、`Web/css/overview_fullcalendar.css`（各自的 `.mini-cal-*` 規則整段刪除）。
 
 瀏覽器實測：`document.getElementById('miniCal')` 回傳 `null`，主控台沒有任何殘留的 JS 錯誤。
+
+## 51. 預約管理／會議室管理／開放時間管理三頁重新設計，使用者管理拿掉 DataTables，新增「會議室使用分析」
+
+延續 §50 的共用視覺系統，這輪把管理中心裡還停留在舊版 LibreBooking 畫面（Accordion、DataTable、Inline Edit、舊版 Modal）的三個核心頁面整個重做，並在過程中額外處理了使用者管理的分頁機制、精簡了兩頁的篩選欄位，最後新增一個全新的「會議室使用分析」報表頁。
+
+### 51.1 會議室管理：Accordion 列表 → 表格 + 右側 Drawer
+
+`tpl/Admin/Resources/manage_resources.tpl` 原本每個資源是一個 Bootstrap accordion item，展開後把所有欄位（狀態、時間表、類型、容量、Access、Duration、自訂屬性…）全部塞在同一個展開區塊裡，用 x-editable 逐欄位 inline 編輯。改成：
+
+- 列表區改成 `.admin-clean-table` 純表格，只顯示 名稱／類型／地區／容量／狀態 五欄，點一整列開啟右側 Drawer。
+- 每個資源原本的 accordion body 整段抽成獨立檔案 `tpl/Admin/Resources/manage_resource_drawer_content.tpl`（內容逐字保留，包含所有 x-editable 欄位與子對話框觸發點——只換外層容器，從 accordion-collapse 換成 offcanvas body），複雜設定（Access／Duration／Credits／Capacity／ResourceGroups）收進一個 `<details class="admin-drawer-advanced">` 進階設定收合區。
+- 篩選列從 9 個欄位＋5 個自訂屬性（Test Number／Test String／video_*）的長表單，砍成「搜尋、類型、狀態」三個欄位的單行工具列（使用者實際回饋：「篩選不用這個多，也沒幾個」），其餘欄位（時間表／容量／需審核／自動授權／可跨日）從畫面上拿掉——後端 filter 邏輯不動，只是 UI 不再暴露這些欄位。
+- 刪除確認改用共用的 `AdminConfirm`（`tpl/Admin/admin_confirm_dialog.tpl`＋`Web/scripts/admin/admin-confirm.js`）取代舊版 `#deletePrompt` Modal。
+- 移除 DataTables，改用共用的 `Web/scripts/admin/admin-table-paginate.js`（純前端依 index 切頁，不做 AJAX）。
+
+### 51.2 開放時間管理：整個重新設計成「簡單規則頁」，拿掉舊版 Layout／Peak Time 編輯器
+
+這頁改動幅度最大，因為使用者明確要求「不要再顯示舊 Schedule Layout、Peak Time 等複雜介面」——原本一個時間表可以设定「每天不同時段」「自訂日曆版面」「尖峰時段加價」，介面是一整組分頁式 textarea＋FullCalendar 拖拉編輯器。新版：
+
+- 列表改成 `.admin-clean-table`：名稱／適用會議室／開放時間（7 個小圓點，滑鼠移上去顯示該天時段或「休息」）／狀態（預設／使用中／未使用）。
+- 每個時間表的 Drawer 裡放一個全新的「每週開放時間」editor：7 天各一列，開關 checkbox + 開始/結束時間（`<input type="time">`），取代原本的多時段 textarea 版面。
+- **關鍵設計決定：完全不改後端。** 儲存時把 7 天的開/關＋時間換算成原本 `ActionChangeLayout` 端點吃的格式（`reservableEdit_{day}`／`blockedEdit_{day}` 兩個隱藏欄位，值是 `"09:00 - 18:00"` 這種字串；關閉的那天寫 `blockedEdit_{day} = "00:00 - 00:00"`，避免踩到 `ScheduleLayout::ParseDaily()` 「不能兩者都空」的檢查），直接沿用既有的 `changeLayoutForm`／`ManageSchedules::ActionChangeLayout` 提交，`usesSingleLayout` 固定關閉。舊版的分頁式 Layout Dialog／Peak Time Dialog／FullCalendar 自訂版面 Dialog 的 HTML／JS 全部保留在頁面最下方（沒有刪除任何一行後端邏輯），只是新版畫面完全沒有任何連結會觸發它們顯示——降低風險（後端 0 改動）優先於刪掉「用不到但沒壞」的舊 code。
+- 進階設定收合區保留：星期起始／可見天數／並行預約上限／每筆預約會議室上限／ICS 訂閱／刪除。
+
+### 51.3 預約管理：延續前一次未完成的重構，補齊 CSS
+
+`tpl/Admin/Reservations/manage_reservations.tpl` 在本輪工作開始前其實已經大部分改完（`.admin-clean-table`＋右側唯讀詳情 Drawer＋`AdminConfirm`＋`AdminTablePaginate` 都已經接好），只是它所依賴的三個 CSS class（`.admin-clickable-row`／`.admin-drawer-advanced`／`.admin-clean-table-card`）當時只有在樣板裡使用、`admin.css` 從來沒有補上對應規則，等於完全沒套用到樣式。這輪跟著會議室管理一起把這三個 class 定義好之後，這頁不用改樣板就一併正常顯示。篩選列同樣依使用者回饋從 13 個欄位（日期區間／用戶／時間表／資源／狀態／參考數字／標題／說明／Resource Status／理由／Missed Checkin／Missed Checkout／自訂屬性）砍到只顯示「日期區間／用戶／資源／狀態」四項；其餘欄位改成 `d-none` 隱藏而非刪除——因為 `reservations.js` 的 `filterReservations()` 是直接用 id 讀這些欄位的值組出查詢字串（不是走原生表單送出），拿掉元素本身會讓對應 `.val()` 變成 `undefined`，隱藏可以保留原本的查詢能力（例如帶著舊的分享連結進來時，那些欄位仍保有原始值）同時不佔畫面。
+
+### 51.4 使用者管理：拿掉 DataTables，換成跟其他三頁一樣的簡易分頁
+
+使用者管理原本用完整的 DataTables（搜尋／排序／分頁都由它處理），視覺上跟其餘三頁改版後的簡潔分頁列風格明顯不搭（「第 1 頁，共 3 頁」＋「每頁顯示」那條資訊列用的是 DataTables 內建的 Bootstrap 5 主題樣式，字級與間距跟新版系統對不起來）。第一輪先嘗試單純加 CSS 覆寫 `.dataTables_*` 元件，使用者實測後回饋「更醜，請跟其他頁面相同」，因此改成第二輪方案：整個拔掉 DataTables，換成跟其他三頁一樣的 `admin-table-paginate.js`。
+
+- 排序下拉選單原本呼叫 `$('#userList').DataTable().order([...]).draw()`，改成純前端依 `data-name`／既有的 `data-order`（最後登入時間）屬性重新排序 `<tr>` DOM 順序，再呼叫分頁元件的 `refresh()`。
+- 搜尋框（「搜尋姓名、帳號或Email」）原本只接了 `userAutoComplete()`（打字時彈出建議清單、選了才會跳轉到該使用者頁面），並不會即時過濾清單本身——確認過現有 code 之後發現這是既有行為，不是本次改動造成的缺口，但既然現在把 115 個使用者切成每頁 20 筆分頁顯示，維持「打字完全不過濾清單」的體驗會比改版前更不好用，所以順手補上即時過濾：`admin-table-paginate.js` 新增支援一個獨立的 `.admin-search-hidden` marker class（跟分頁元件自己用來切頁的 `d-none` 分開，`refresh()` 時排除掉，避免兩套隱藏邏輯互相覆蓋），搜尋框 `input` 事件比對每列的 `data-search`（姓名＋帳號＋Email 小寫）屬性即時標記，再呼叫 `refresh()`。
+- **過程中抓到一個會直接讓整頁互動失效的 bug**：`user.js` 所有列操作（編輯／刪除／停權／變更角色…）都是委派綁定在 `elements.userList = $('#userList_wrapper')` 上——這個 `_wrapper` 是 DataTables 初始化時自動產生的包裹 div，拔掉 `{datatable}` 呼叫之後這個 div 根本不會存在，所有委派事件會安靜地完全失效（不會報錯，只是點什麼都沒反應）。改成直接綁在 `#userList`（表格本身）上，同一個 bug 樣式在稍早改會議室管理／開放時間管理時也各踩了一次（`#resourceList`／`#schedulesTable_wrapper`），都是同一個原因：DataTables 拔掉後，任何綁定在它自動產生的 `_wrapper` id 上的既有 JS 全部要重新指向一個保證存在的元素。
+- 使用者管理自己另一個表格（權限指派 Modal 裡的 `#permissionsFormFilter`）仍然是 DataTables，這次沒有動——只拔了主列表那一個 `{datatable}` 呼叫，`{datatablefilter}` 跟 DataTables 函式庫本身都繼續載入。
+
+### 51.5 新增「會議室使用分析」頁面
+
+全新頁面，`Pages/Admin/ManageUsageAnalyticsPage.php`／`tpl/Admin/UsageAnalytics/manage_usage_analytics.tpl`／`Web/admin/manage_usage_analytics.php`，導覽放在側邊欄「開放時間設定」與「系統設定」之間。做法比照 §50.2 的管理總覽：不建 repository，一次性原始 SQL（`ServiceLocator::GetDatabase()`＋`SqlCommand`／`Parameter`），四個查詢分開跑：
+
+| 區塊 | 查詢方式 |
+|---|---|
+| 預約總數／總時數／平均會議時長 | `COUNT(*)`＋`SUM(TIMESTAMPDIFF(MINUTE,...))`，對 `reservation_instances` JOIN `reservation_series`（排除 `status_id = ReservationStatus::Deleted`）JOIN `reservation_resources`（`resource_level_id = ResourceLevel::Primary`，避免同一筆預約因為掛多個資源被重複計算）JOIN `resources` |
+| 熱門預約時段 | 同一組 JOIN 加 `GROUP BY HOUR(ri.start_date)`，PHP 端補滿 0～23 小時（沒預約的小時補 0，不是直接跳過），前端用 Chart.js（`chart.js/4.4.9`，這個 app 在 `tpl/Reports/chart.tpl` 已經有引入過，不是新加的依賴）畫長條圖 |
+| 各會議室使用排行 | 同一組 JOIN 加 `GROUP BY r.resource_id`，依預約數排序 |
+| 各城市使用情況 | 同一組 JOIN 加 `GROUP BY r.location`（`location` 是 NULL 或空字串的資源歸進「未指定」一組，不會整列被漏掉不計） |
+
+篩選（日期區間／城市／會議室）沿用跟預約管理同一種「JS 讀欄位值組 query string 後 `window.location` 導頁」寫法，而不是原生表單送出——原因跟 §51.3 一樣，date picker 控件的顯示值跟底層真正要送出的值不一定同步，這個專案既有頁面全部走 JS 組 URL，沒有例外，這次直接沿用而不是另創一套。
+
+匯出 Excel 用 `phpoffice/phpspreadsheet`（`composer.json` 已有這個依賴，先前只在 `Jobs/import-coasia-employees.php` 用來讀 `.xls`，這是這個專案第一次真正拿它來寫 `.xlsx`），四個分頁（總覽／熱門時段／會議室排行／城市排行）對應畫面上的四個區塊，經 `Content-Disposition: attachment` 直接串流下載，不落地暫存檔。
+
+驗證方式：四條 SQL 直接對 dev DB（`docker exec` 進 MySQL 容器）用真實資料跑過一次，確認 join 條件、`ReservationStatus::Deleted` 實際數值（`2`，不是想像中的 `3`，用常數而非硬編碼數字避免這類筆誤流進正式程式碼）、`location` 為 NULL 時的分組行為都符合預期；PHP 檔案跑過 `php -l`；`PhpOffice\PhpSpreadsheet\Spreadsheet`／`Writer\Xlsx` 用 `class_exists()` 確認容器內 autoload 找得到。畫面本身（Drawer、圖表實際渲染、Excel 實際下載）尚待使用者在瀏覽器裡確認。
+
+### 51.6 過程中發現並修掉的環境問題
+
+- **Smarty 樣板編譯快取（`tpl_c/`）**：這個 dev 容器的 `cache.templates` 設定是 `true`（`config/config.dist.php` 預設值），代表 `SmartyPage` 的 `compile_check`／`force_compile` 都被關掉——樣板檔案改了，Smarty 完全不會重新編譯，永遠吃 `tpl_c/` 裡舊的編譯結果，改幾次都看不到效果。這不是這次改動造成的，是既有的效能設定，但過程中花了不少來回才確認到這是「看起來畫面沒更新」的真正原因（一開始懷疑是自己改錯地方）。之後每次改完 `.tpl` 都要清 `tpl_c/*.php` 才看得到效果。
+- **PHP OPcache（`opcache.validate_timestamps = Off`）**：跟上面同一類問題，但影響範圍是 `.php` 檔案（語言檔、Page class）——改了 `lang/zh_tw.php` 之後，`{translate key=...}` 全部顯示成 `?`（`Resources::GetString()` 對找不到的 key 就是回傳字面上的 `?`），一度誤以為是語言檔本身寫錯，後來直接 CLI `php -r` 重新 `require` 語言檔類別驗證字串確實存在、只是網頁那邊的 opcache 沒重新載入——改完 `.php` 檔案要 `docker restart` 容器才會生效，光清 `tpl_c/` 不夠。
+- **`ScheduleLayout->GetSlots($day)` 對「標準版面」時間表丟例外**：§51.2 新的每週時數摘要／編輯器一開始不分青紅皂白一律呼叫 `GetSlots($day)`，但這個方法在時間表是「標準版面」（`UsesDailyLayouts()` 為 false，也就是所有資源預設的那種）時，只要傳了 `$day` 參數就直接 throw exception（`$dayOfWeek cannot be provided when using single layout`）——反過來，`UsesDailyLayouts()` 為 true 時不傳 `$day` 又會丟另一個相反的例外。修法是先判斷 `UsesDailyLayouts()`，true 才逐天呼叫 `GetSlots($day)`，false 則呼叫一次不帶參數的 `GetSlots()`，7 天共用同一份結果。
+- **星期縮寫全部顯示成同一個字**：開放時間管理列表原本想拿 `$DayNames[$day]`（「星期一」「星期二」…完整名稱）用 `|truncate:1:""` 截前 1 個字當小圓點的縮寫文字，結果全部都是「星」（因為中文星期名稱共同開頭都是「星期」）。改成直接吃這個 app 語言檔裡本來就有、也已經正確在地化的 `GetDays('abbr')`（一二三四五六日 / Sun Mon Tue…），`ManageSchedulesPage.php` 多綁一個 `$DayAbbr` 給樣板用，不用另外自己兜縮寫邏輯。
+- **`AdminResourceAdvancedSettings`／`AdminScheduleWeeklyHours` 等好幾個語言字串鍵值根本不存在**：會議室管理／開放時間管理的樣板在前一輪工作中已經在用（`{translate key=AdminResourceAdvancedSettings}` 等），但三個語言檔裡從來沒有真的加上對應的 `$strings[...]` 這一行——沒有編譯錯誤（Smarty 對找不到的 key 就是印出 `?`），純粹肉眼看畫面才會發現。這次一併補齊，順便新增本輪新畫面用到的所有字串鍵值（`AdminScheduleInUse`／`AdminScheduleUnused`／`AdminResourceNoResults`／`AdminUsageAnalytics*` 系列等）。

@@ -3,7 +3,7 @@ function UserManagement(opts) {
 
   var elements = {
     activeId: $('#activeId'),
-    userList: $('#userList_wrapper'),
+    userList: $('#userList'),
 
     userAutocomplete: $('#userSearch'),
     filterStatusId: $('#filterStatusId'),
@@ -76,6 +76,12 @@ function UserManagement(opts) {
     });
 
     elements.userList.on('click', '.changeStatus', function (e) {
+      // Deactivating is the only direction that needs a confirm -- re-activating is harmless and
+      // reversible with one more click either way.
+      var user = getActiveUser();
+      if (user && user.isActive && !window.confirm(options.confirmDeactivateText)) {
+        return;
+      }
       changeStatus($(this));
     });
 
@@ -198,7 +204,7 @@ function UserManagement(opts) {
 
     $('#add-user').click(function (e) {
       e.preventDefault();
-      elements.addDialog.modal('show');
+      bootstrap.Offcanvas.getOrCreateInstance(elements.addDialog[0]).show();
     });
 
     $('#invite-users').click(function (e) {
@@ -262,7 +268,11 @@ function UserManagement(opts) {
     };
 
     var hideDialog = function (dialogElement) {
-      dialogElement.modal('hide');
+      if (dialogElement.hasClass('offcanvas')) {
+        bootstrap.Offcanvas.getOrCreateInstance(dialogElement[0]).hide();
+      } else {
+        dialogElement.modal('hide');
+      }
     };
 
     var hideDialogCallback = function (dialogElement) {
@@ -507,7 +517,7 @@ function UserManagement(opts) {
     // $('#organization').val(user.organization);
     // $('#position').val(user.position);
 
-    elements.userDialog.modal('show');
+    bootstrap.Offcanvas.getOrCreateInstance(elements.userDialog[0]).show();
   };
 
   var deleteUser = function () {

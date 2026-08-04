@@ -1,699 +1,242 @@
 {include file='globalheader.tpl' InlineEdit=true DataTable=true Trumbowyg=true}
 
 <div id="page-manage-resources" class="admin-page">
-	<div class="clearfix border-bottom mb-3">
-		<div class="dropdown admin-header-more float-end">
-			<div class="btn-group btn-group-sm" role="group">
-				<button href="#" role="button" class="add-link add-resource btn btn-primary">
-					<span class="bi bi-plus-circle-fill icon add"></span>
-					{translate key="AddResource"}
-				</button>
-				<button class="btn btn-primary dropdown-toggle" type="button" id="moreResourceActions"
-					data-bs-toggle="dropdown">
-					{translate key="MoreResourceActions"}
-				</button>
-				<ul class="dropdown-menu" role="menu" aria-labelledby="moreResourceActions">
+	{capture name=headerActions}
+		<div class="btn-group btn-group-sm" role="group">
+			<button href="#" role="button" class="add-link add-resource btn btn-primary">
+				<span class="bi bi-plus-circle-fill icon add"></span>
+				{translate key="AddResource"}
+			</button>
+			<button class="btn btn-primary dropdown-toggle" type="button" id="moreResourceActions"
+				data-bs-toggle="dropdown">
+				{translate key="MoreResourceActions"}
+			</button>
+			<ul class="dropdown-menu" role="menu" aria-labelledby="moreResourceActions">
 
+				<li role="presentation">
+					<a role="menuitem" href="{$Path}admin/manage_resource_groups.php"
+						class="dropdown-item">{translate key="ManageResourceGroups"}</a>
+				</li>
+				<li role="presentation">
+					<a role="menuitem" href="{$Path}admin/manage_resource_types.php"
+						class="dropdown-item">{translate key="ManageResourceTypes"}</a>
+				</li>
+				<li role="presentation">
+					<a role="menuitem" href="{$Path}admin/manage_resource_status.php"
+						class="dropdown-item">{translate key="ManageResourceStatus"}</a>
+				</li>
+				<li>
+					<hr class="dropdown-divider">
+				</li>
+				<li role="presentation">
+					<a role="menuitem" href="#" class="import-resources dropdown-item" id="import-resources">
+						<i class="bi bi-box-arrow-in-down"></i>
+						{translate key="ImportResources"}
+					</a>
+				</li>
+				<li role="presentation">
+					<a role="menuitem" href="{$ExportUrl}" download="{$ExportUrl}"
+						class="export-resources dropdown-item" id="export-resources" target="_blank">
+						<i class="bi bi-box-arrow-in-up"></i>
+						{translate key="ExportResources"}
+					</a>
+				</li>
+				<li>
+					<hr class="dropdown-divider">
+				</li>
+				{if !empty($Resources)}
 					<li role="presentation">
-						<a role="menuitem" href="{$Path}admin/manage_resource_groups.php"
-							class="dropdown-item">{translate key="ManageResourceGroups"}</a>
+						<a role="menuitem" href="#" class="dropdown-item"
+							id="bulkUpdatePromptButton">{translate key=BulkResourceUpdate}</a>
 					</li>
+				{/if}
+				{if !empty($Resources)}
 					<li role="presentation">
-						<a role="menuitem" href="{$Path}admin/manage_resource_types.php"
-							class="dropdown-item">{translate key="ManageResourceTypes"}</a>
+						<a role="menuitem" href="#" class="dropdown-item"
+							id="bulkDeletePromptButton">{translate key=BulkResourceDelete}</a>
 					</li>
-					<li role="presentation">
-						<a role="menuitem" href="{$Path}admin/manage_resource_status.php"
-							class="dropdown-item">{translate key="ManageResourceStatus"}</a>
-					</li>
-					<li>
-						<hr class="dropdown-divider">
-					</li>
-					<li role="presentation">
-						<a role="menuitem" href="#" class="import-resources dropdown-item" id="import-resources">
-							<i class="bi bi-box-arrow-in-down"></i>
-							{translate key="ImportResources"}
-						</a>
-					</li>
-					<li role="presentation">
-						<a role="menuitem" href="{$ExportUrl}" download="{$ExportUrl}"
-							class="export-resources dropdown-item" id="export-resources" target="_blank">
-							<i class="bi bi-box-arrow-in-up"></i>
-							{translate key="ExportResources"}
-						</a>
-					</li>
-					<li>
-						<hr class="dropdown-divider">
-					</li>
-					{if !empty($Resources)}
-						<li role="presentation">
-							<a role="menuitem" href="#" class="dropdown-item"
-								id="bulkUpdatePromptButton">{translate key=BulkResourceUpdate}</a>
-						</li>
-					{/if}
-					{if !empty($Resources)}
-						<li role="presentation">
-							<a role="menuitem" href="#" class="dropdown-item"
-								id="bulkDeletePromptButton">{translate key=BulkResourceDelete}</a>
-						</li>
-					{/if}
-				</ul>
-			</div>
+				{/if}
+			</ul>
 		</div>
+	{/capture}
+	{include file='Admin/admin_page_shell.tpl' TitleKey='ManageResources' DescriptionKey='AdminResourcesDescription' HeaderActions=$smarty.capture.headerActions}
 
-		<h1 class="float-start">{translate key='ManageResources'}</h1>
-	</div>
+	<div class="admin-page-toolbar">
+		<form id="filterForm" class="admin-toolbar-row" role="form" method="get">
+			<label class="admin-search" for="filterResourceName">
+				<i class="bi bi-search"></i>
+				<input type="text" id="filterResourceName" {formname key=RESOURCE_NAME} value="{$ResourceNameFilter}"
+					placeholder="{translate key=Name}" />
+			</label>
+			<select id="filterResourceType" class="form-select form-select-sm admin-toolbar-select"
+				{formname key=RESOURCE_TYPE_ID} aria-label="{translate key=ResourceType}">
+				<option value="">{translate key=AllResourceTypes}</option>
+				{object_html_options options=$ResourceTypes key='Id' label="Name" selected=$ResourceTypeFilter}
+			</select>
+			<select id="resourceStatusIdFilter" class="form-select form-select-sm admin-toolbar-select"
+				{formname key=RESOURCE_STATUS_ID} aria-label="{translate key=ResourceStatus}">
+				<option value="">{translate key=AllResourceStatuses}</option>
+				<option value="{ResourceStatus::AVAILABLE}">{translate key=Available}</option>
+				<option value="{ResourceStatus::UNAVAILABLE}">{translate key=Unavailable}</option>
+				<option value="{ResourceStatus::HIDDEN}">{translate key=Hidden}</option>
+			</select>
+			{filter_button id="filter"}
+			{reset_button id="clearFilter"}
 
-	<div class="accordion">
-		<div class="accordion-item shadow mb-3 panel-default filterTable" id="filter-resources-panel">
-			<h2 class="accordion-header">
-				<button class="accordion-button collapsed link-primary fw-bold" type="button" data-bs-toggle="collapse"
-					data-bs-target="#filter-resources-content" aria-expanded="false"
-					aria-controls="filter-resources-content">
-					<i class="bi bi-funnel-fill me-1"></i>{translate key="Filter"}
-				</button>
-			</h2>
-			<div id="filter-resources-content" class="accordion-collapse collapse">
-				<form id="filterForm" class="horizontal-list" role="form" method="get">
-					<div class="accordion-body">
-						<div class="row gy-2 mb-2">
-							{assign var=groupClass value="col-12 col-sm-4 col-md-3"}
-
-							<div class="form-group {$groupClass}">
-								<label for="filterResourceName" class="fw-bold">{translate key=Resource}</label>
-								<div class="position-relative">
-									<input id="filterResourceName" class="form-control form-control-sm"
-										{formname key=RESOURCE_NAME} value="{$ResourceNameFilter}"
-										placeholder="{translate key=Name}" />
-									<span class="searchclear searchclear-label bi bi-x-circle-fill"
-										ref="filterResourceName"></span>
-								</div>
-							</div>
-							<div class="form-group {$groupClass}">
-								<label for="filterScheduleId" class="fw-bold">{translate key=Schedule}</label>
-								<select id="filterScheduleId" {formname key=SCHEDULE_ID}
-									class="form-select form-select-sm">
-									<option value="">{translate key=AllSchedules}</option>
-									{object_html_options options=$AllSchedules key='GetId' label="GetName" selected=$ScheduleIdFilter}
-								</select>
-							</div>
-
-							<div class="form-group {$groupClass}">
-								<label for="filterResourceType" class="fw-bold">{translate key=ResourceType}</label>
-								<select id="filterResourceType" class="form-select form-select-sm"
-									{formname key=RESOURCE_TYPE_ID}>
-									<option value="">{translate key=AllResourceTypes}</option>
-									{object_html_options options=$ResourceTypes key='Id' label="Name" selected=$ResourceTypeFilter}
-								</select>
-							</div>
-							<div class="form-group {$groupClass}">
-								<label for="resourceStatusIdFilter"
-									class="fw-bold">{translate key=ResourceStatus}</label>
-								<div class="d-flex flex-wrap">
-									<select id="resourceStatusIdFilter" class="form-select form-select-sm inline w-auto"
-										{formname key=RESOURCE_STATUS_ID}>
-										<option value="">{translate key=AllResourceStatuses}</option>
-										<option value="{ResourceStatus::AVAILABLE}">{translate key=Available}</option>
-										<option value="{ResourceStatus::UNAVAILABLE}">{translate key=Unavailable}
-										</option>
-										<option value="{ResourceStatus::HIDDEN}">{translate key=Hidden}</option>
-									</select>
-									<label for="resourceReasonIdFilter"
-										class="visually-hidden">{translate key=Reason}</label>
-									<select id="resourceReasonIdFilter" class="form-select form-select-sm w-auto inline"
-										{formname key=RESOURCE_STATUS_REASON_ID}>
-										<option value="">-</option>
-									</select>
-								</div>
-							</div>
-							<div class="form-group {$groupClass}">
-								<label for="filterCapacity" class="fw-bold">{translate key=MinimumCapacity}</label>
-								<div class="position-relative">
-									<input type="number" min="0" id="filterCapacity"
-										class="form-control form-control-sm" {formname key=MAX_PARTICIPANTS}
-										value="{$CapacityFilter}" placeholder="{translate key=MinimumCapacity}" />
-									<span class="searchclear searchclear-label bi bi-x-circle-fill me-4"
-										ref="filterCapacity"></span>
-								</div>
-							</div>
-							<div class="form-group {$groupClass}">
-								<label for="filterRequiresApproval"
-									class="fw-bold">{translate key=ResourceRequiresApproval}</label>
-								<select id="filterRequiresApproval" class="form-select form-select-sm"
-									{formname key=REQUIRES_APPROVAL} title="{translate key='ResourceRequiresApproval'}">
-									<option value="">{translate key='ResourceRequiresApproval'}</option>
-									{html_options options=$YesNoOptions selected=$RequiresApprovalFilter}
-								</select>
-							</div>
-							<div class="form-group {$groupClass}">
-								<label for="filterAutoAssign"
-									class="fw-bold">{translate key=ResourcePermissionAutoGranted}</label>
-								<select id="filterAutoAssign" class="form-select form-select-sm"
-									{formname key=AUTO_ASSIGN} title="{translate key='ResourcePermissionAutoGranted'}">
-									<option value="">{translate key='ResourcePermissionAutoGranted'}</option>
-									{html_options options=$YesNoOptions selected=$AutoPermissionFilter}
-								</select>
-							</div>
-							<div class="form-group {$groupClass}">
-								<label for="filterAllowMultiDay"
-									class="fw-bold">{translate key=ResourceAllowMultiDay}</label>
-								<select id="filterAllowMultiDay" class="form-select form-select-sm"
-									{formname key=ALLOW_MULTIDAY} title="{translate key=ResourceAllowMultiDay}">
-									<option value="">{translate key=ResourceAllowMultiDay}</option>
-									{html_options options=$YesNoOptions selected=$AllowMultiDayFilter}
-								</select>
-							</div>
-						</div>
-						<div class="row mb-3">
-							{foreach from=$AttributeFilters item=attribute}
-								{control type="AttributeControl" idPrefix="search" attribute=$attribute searchmode=true class="customAttribute filter-customAttribute{$attribute->Id()}
-							{$groupClass}"}
-							{/foreach}
-						</div>
-
-						<div class="card-footer border-top pt-3">
-							{filter_button id="filter"}
-							{reset_button id="clearFilter"}
-						</div>
-					</div>
-				</form>
-			</div>
-		</div>
+			{* Hidden -- resource.js still targets these ids for the status/reason cascade
+			   (populateReasonOptions/initializeStatusFilter) even though the 理由 sub-filter
+			   itself is no longer surfaced in this simplified toolbar. *}
+			<select id="resourceReasonIdFilter" class="d-none" {formname key=RESOURCE_STATUS_REASON_ID}>
+				<option value="">-</option>
+			</select>
+		</form>
 	</div>
 
 	<div id="globalError" class="error d-none"></div>
 
-	<div class="card shadow panel-default admin-panel" id="list-resources-panel">
-		<div class="no-padding card-body accordion" id="resourceList">
+	<div class="card shadow admin-clean-table-card" id="list-resources-panel">
+		<div class="table-responsive">
 			{assign var=tableId value=resourcesTable}
-			<table class="table table-borderless w-100" id="{$tableId}">
-				<thead class="d-none">
+			<table class="table admin-clean-table w-100" id="{$tableId}">
+				<thead>
 					<tr>
-						<th>{translate key="Resources"}</th>
+						<th>{translate key="Resource"}</th>
+						<th>{translate key="ResourceType"}</th>
+						<th>{translate key="Location"}</th>
+						<th>{translate key="Capacity"}</th>
+						<th>{translate key="Status"}</th>
 					</tr>
 				</thead>
 				<tbody>
 					{foreach from=$Resources item=resource}
 						{assign var=id value=$resource->GetResourceId()}
-						<tr>
+						<tr class="admin-clickable-row" data-resourceId="{$id}">
+							<td class="fw-bold">{$resource->GetName()}</td>
 							<td>
-								<div class="resourceItem accordion-item shadow mb-2">
-									<h2 class="accordion-header">
-										<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
-											data-bs-target="#id{$resource->GetResourceId()}" aria-expanded="false"
-											aria-controls="id{$resource->GetResourceId()}">
-											{$resource->GetName()}
-										</button>
-									</h2>
-
-									<div id="id{$id}" class="accordion-collapse collapse">
-										<div class="accordion-body resourceDetails" data-resourceId="{$id}">
-											<input type="hidden" class="id" value="{$id}" />
-											<div class="row">
-												<div class="col-12 col-sm-2 p-2">
-													<div class="resourceImage">
-														{if $resource->HasImage()}
-															<div id="resourceImageCarousel{$id}" class="carousel slide">
-																<div
-																	class="carousel-inner h-100 ratio ratio-1x1 border rounded-3 shadow-sm">
-																	<div class="carousel-item active">
-																		<img src="{resource_image image=$resource->GetImage()}"
-																			alt="{$resource->GetName()}"
-																			class="rounded d-block w-100 h-100 object-fit-cover" />
-																	</div>
-																	{foreach from=$resource->GetImages() item=image}
-																		<div class="carousel-item">
-																			<img src="{resource_image image=$image}"
-																				alt="{$resource->GetName()}"
-																				class="rounded d-block w-100 h-100 object-fit-cover" />
-																		</div>
-																	{/foreach}
-																</div>
-																<div class="carousel-indicators mb-0">
-																	{if $resource->GetImages()|count > 0}
-																		{assign var=slide value=1}
-																		<button type="button"
-																			data-bs-target="#resourceImageCarousel{$id}"
-																			data-bs-slide-to="0" class="active"></button>
-																		{foreach from=$resource->GetImages() item=image}
-																			<button type="button"
-																				data-bs-target="#resourceImageCarousel{$id}"
-																				data-bs-slide-to="{$slide}"></button>
-																			{assign var=slide value=$slide+1}
-																		{/foreach}
-																	{/if}
-
-																</div>
-															</div>
-														{else}
-															<div class="noImageContainer text-center">
-																<div
-																	class="noImage d-flex align-items-center justify-content-center w-100 bg-light border rounded-3 mx-auto">
-																	<span class="bi bi-image fs-1"></span>
-																</div>
-															</div>
-														{/if}
-														<div class="edit-image d-inline-block rounded p-2 bg-body"
-															style="position: relative; top: -36px; left:1px; width: 35px; height: 35px;">
-															<a href="#" class="update imageButton link-primary "
-																title="{translate key='Change'}"><span
-																	class="bi bi-pencil-square"></span></a>
-														</div>
-													</div>
-													<div class="text-center">
-														<div>{translate key=ResourceColor}</div>
-														<input type="color"
-															class="resourceColorPicker w-50 mx-auto border form-control form-control-color"
-															value='{if $resource->HasColor()}{$resource->GetColor()}{else}#ffffff{/if}'
-															alt="{translate key=ResourceColor}"
-															title="{translate key=ResourceColor}" />
-														<div>
-															<a href="#" class="update clearColor link-danger"
-																title="{translate key=Remove}"><i
-																	class="bi bi-trash3-fill icon delete"></i></a>
-														</div>
-													</div>
-												</div>
-												<div class="col-12 col-sm-10">
-													<div class="row row-cols-auto row-cols-sm-3 ">
-														<div class="col d-block">
-															<div>
-																<div class="resourceNameField title fs-5 fw-bold me-1"
-																	data-type="text" data-pk="{$id}"
-																	data-name="{FormKeys::RESOURCE_NAME}">
-																	{$resource->GetName()}</div>
-																<div>
-																	<a class="update renameButton link-primary me-1"
-																		href="#" title="{translate key='Rename'}">
-																		<span
-																			class="visually-hidden">{translate key=Rename}</span>
-																		<i class="bi bi-pencil-square me-1"></i></a>
-																	<div class="vr me-1"></div>
-																	<a class="update copyButton link-primary me-1" href="#"
-																		title="{translate key='Copy'}">
-																		<span
-																			class="visually-hidden">{translate key=Copy}</span>
-																		<i class="bi bi-copy"></i></a>
-																	<div class="vr me-1"></div>
-																	<a class="update deleteButton link-danger me-1" href="#"
-																		title="{translate key='Delete'}">
-																		<span
-																			class="visually-hidden">{translate key=Delete}</span>
-																		<i class="bi bi-trash3-fill icon delete"></i>
-																	</a>
-																</div>
-															</div>
-															<div>
-																<label class="inline fw-bold">ResourceId:</label>
-																<span>{$id}</span>
-															</div>
-															<div>
-																<label
-																	class="inline fw-bold">{translate key='Status'}</label>
-																{if $resource->IsAvailable()}
-																	<a class="update changeStatus link-primary" href="#"
-																		data-popover-content="#statusDialog">{translate key='Available'}</a>
-																	<i class="bi bi-check-circle-fill text-success"></i>
-																{elseif $resource->IsUnavailable()}
-																	<a class="update changeStatus link-primary" href="#"
-																		data-popover-content="#statusDialog">{translate key='Unavailable'}</a>
-																	<i class="bi bi-exclamation-circle-fill text-warning"></i>
-																{else}
-																	<a class="update changeStatus link-primary" href="#"
-																		data-popover-content="#statusDialog">{translate key='Hidden'}</a>
-																	<i class="bi bi-x-circle-fill text-danger"></i>
-																{/if}
-																{if array_key_exists($resource->GetStatusReasonId(),$StatusReasons)}
-																	<span
-																		class="statusReason">{$StatusReasons[$resource->GetStatusReasonId()]->Description()}</span>
-																{/if}
-															</div>
-															<div>
-																<label
-																	class="inline fw-bold">{translate key='Schedule'}</label>
-																<span class="propertyValue scheduleName" data-type="select"
-																	data-pk="{$id}"
-																	data-value="{$resource->GetScheduleId()}"
-																	data-name="{FormKeys::SCHEDULE_ID}">{$Schedules[$resource->GetScheduleId()]}</span>
-																<a class="update changeScheduleButton link-primary"
-																	title="{translate key='Edit'}" href="#"><span
-																		class="bi bi-pencil-square"></span></a>
-															</div>
-															<div>
-																<label
-																	class="inline fw-bold">{translate key='ResourceType'}</label>
-																<span class="propertyValue resourceTypeName"
-																	data-type="select" data-pk="{$id}"
-																	data-value="{$resource->GetResourceTypeId()}"
-																	data-name="{FormKeys::RESOURCE_TYPE_ID}">
-																	{if $resource->HasResourceType()}
-																		{$ResourceTypes[$resource->GetResourceTypeId()]->Name()}
-																	{else}
-																		{translate key='NoResourceTypeLabel'}
-																	{/if}
-																</span>
-																<a class="update changeResourceType link-primary"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=ResourceType}</span>
-																	<span class="bi bi-pencil-square"></span>
-																</a>
-															</div>
-															<div>
-																<label
-																	class="inline fw-bold">{translate key=SortOrder}</label>
-																<span class="propertyValue sortOrderValue"
-																	data-type="number" data-pk="{$id}"
-																	data-name="{FormKeys::RESOURCE_SORT_ORDER}">
-																	{$resource->GetSortOrder()|default:"0"}
-																</span>
-																<a class="update changeSortOrder link-primary"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=SortOrder}</span>
-																	<span class="bi bi-pencil-square"></span>
-																</a>
-															</div>
-															<div class="mt-2">
-																<label
-																	class="inline fw-bold">{translate key='Location'}</label>
-																<span class="propertyValue locationValue" data-type="text"
-																	data-pk="{$id}" data-value="{$resource->GetLocation()}"
-																	data-name="{FormKeys::RESOURCE_LOCATION}">
-																	{if $resource->HasLocation()}
-																		{$resource->GetLocation()}
-																	{else}
-																		{translate key='NoLocationLabel'}
-																	{/if}
-																</span>
-																<a class="update changeLocation link-primary"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=Location}</span>
-																	<span class="bi bi-pencil-square"></span>
-																</a>
-															</div>
-															<div>
-																<label
-																	class="inline fw-bold">{translate key='Contact'}</label>
-																{if $ResourceContactIsUser}
-																	<span class="propertyValue contactValue" data-type="select"
-																	{else} <span class="propertyValue contactValue"
-																	data-type="text" {/if} data-pk="{$id}"
-																	data-value="{$resource->GetContact()}"
-																	data-name="{FormKeys::RESOURCE_CONTACT}">
-																	{if $resource->HasContact()}
-																		{$resource->GetContact()}
-																	{else}
-																		{translate key='NoContactLabel'}
-																	{/if}
-																</span>
-																<a class="update changeContact link-primary"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=Contact}</span>
-																	<span class="bi bi-pencil-square"></span></a>
-															</div>
-															<div>
-																<label
-																	class="inline fw-bold">{translate key='Description'}</label>
-																<a class="update changeDescription link-primary"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=Description}</span>
-																	<span class="bi bi-pencil-square"></span></a>
-																{if $resource->HasDescription()}
-																	{assign var=description value=$resource->GetDescription()}
-																{else}
-																	{assign var=description value=''}
-																{/if}
-																{strip}
-																	<div class="descriptionValue" data-type="trumbowyg"
-																		data-pk="{$id}" data-value="{$description}"
-																		data-name="{FormKeys::RESOURCE_DESCRIPTION}">
-																		{if $resource->HasDescription()}
-																			{$description|sanitize_rich_text}
-																		{else}
-																			{translate key='NoDescriptionLabel'}
-																		{/if}
-																	</div>
-																{/strip}
-															</div>
-															<div>
-																<label
-																	class="inline fw-bold">{translate key='Notes'}</label>
-																<a class="update changeNotes link-primary"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=Notes}</span>
-																	<span class="bi bi-pencil-square"></span>
-																</a>
-																{if $resource->HasNotes()}
-																	{assign var=notes value=$resource->GetNotes()}
-																{else}
-																	{assign var=notes value=''}
-																{/if}
-																{strip}
-																	<div class="notesValue" data-type="trumbowyg"
-																		data-pk="{$id}" data-value="{$notes}"
-																		data-name="{FormKeys::RESOURCE_NOTES}">
-																		{if $resource->HasNotes()}
-																			{$notes|sanitize_rich_text}
-																		{else}
-																			{translate key='NoNotesLabel'}
-																		{/if}
-																	</div>
-																{/strip}
-															</div>
-														</div>
-														<div class="col">
-															<div class="">
-																<span class="fs-6 fw-bold">{translate key=Access}</span>
-																<a class="inline update changeAccess link-primary"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=Access}</span>
-																	<span class="bi bi-pencil-square"></span>
-																</a>
-
-																<div class="accessPlaceHolder">
-																	{include file="Admin/Resources/manage_resources_access.tpl" resource=$resource}
-																</div>
-															</div>
-															<div class="mt-2">
-																<span
-																	class="fs-6 fw-bold">{translate key='ResourceAdministrator'}</span>
-																{if $AdminGroups|default:array()|count > 0}
-																	<a class="update changeResourceAdmin link-primary"
-																		title="{translate key='Edit'}" href="#">
-																		<span
-																			class="visually-hidden">{translate key=ResourceAdministrator}</span>
-																		<span class="bi bi-pencil-square"></span></a>
-																{/if}
-																<div>
-																	<span class="propertyValue resourceAdminValue"
-																		data-type="select" data-pk="{$id}"
-																		data-value="{$resource->GetAdminGroupId()}"
-																		 data-name="{FormKeys::RESOURCE_ADMIN_GROUP_ID}">
-																			{assign var=adminGroupId value=$resource->GetAdminGroupId()}
-																			{if $adminGroupId !== null && isset($GroupLookup[$adminGroupId])}
-																				{$GroupLookup[$adminGroupId]->Name|escape:'html'}
-																			{else}
-																				{translate key='None'}
-																			{/if}
-																		</span>
-																</div>
-															</div>
-															<div class="mt-2">
-																<span
-																	class="fs-6 fw-bold">{translate key='Permissions'}</span>
-																<div>
-																	<a href="#"
-																		class="update changeUserPermission link-primary">{translate key=Users}</a>
-																	<div class="vr mx-1"></div>
-																	<a href="#"
-																		class="update changeGroupPermissions link-primary">{translate key=Groups}</a>
-																</div>
-															</div>
-														</div>
-														<div class="col">
-															<div class="">
-																<span class="fs-6 fw-bold">{translate key=Duration}</span>
-																<a class="inline update changeDuration link-primary"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=Duration}</span>
-																	<span class="bi bi-pencil-square"></span>
-																</a>
-
-																<div class="durationPlaceHolder">
-																	{include file="Admin/Resources/manage_resources_duration.tpl" resource=$resource}
-																</div>
-															</div>
-
-															{if $CreditsEnabled}
-																<div class="mt-2">
-																	<span class="fs-6 fw-bold">{translate key='Credits'}</span>
-																	<a class="inline update changeCredits link-primary"
-																		title="{translate key='Edit'}" href="#">
-																		<span
-																			class="visually-hidden">{translate key=Credits}</span>
-																		<span class="bi bi-pencil-square"></span>
-																	</a>
-																	<div class="creditsPlaceHolder">
-																		{include file="Admin/Resources/manage_resources_credits.tpl" resource=$resource}
-																	</div>
-																</div>
-															{/if}
-
-															<div class="mt-2">
-																<span class="fs-6 fw-bold">{translate key='Capacity'}</span>
-																<a class="link-primary update changeCapacity"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=Capacity}</span>
-																	<span class="bi bi-pencil-square"></span>
-																</a>
-																<div class="capacityPlaceHolder">
-																	{include file="Admin/Resources/manage_resources_capacity.tpl" resource=$resource}
-																</div>
-															</div>
-															<div class="mt-2">
-																<span
-																	class="fs-6 fw-bold">{translate key='ResourceGroups'}</span>
-																<a class="link-primary update changeResourceGroups"
-																	title="{translate key='Edit'}" href="#">
-																	<span
-																		class="visually-hidden">{translate key=ResourceGroups}</span>
-																	<span class="bi bi-pencil-square"></span>
-																</a>
-
-																<div class="resourceGroupsPlaceHolder">
-																	{include file="Admin/Resources/manage_resources_groups.tpl" resource=$resource}
-																</div>
-															</div>
-														</div>
-													</div>
-													<hr class="hr" />
-													{if $AttributeList|default:array()|count > 0}
-														{assign var="hasResults" value=false}
-														{foreach from=$AttributeList item=attribute name=attrLoop}
-															{if $attribute->AppliesToEntity($id)}
-																{if !$hasResults}
-																	{assign var="hasResults" value=true}
-																	{* Content at the start of the iteration *}
-																	<div class="mb-4">
-																		<span class="fs-6 fw-bold">{translate key='CustomAttributes'}</span>
-																		<a id="customAttributesControl" class="link-primary" href="#"
-																			data-bs-toggle="collapse"
-																			data-bs-target="#customAttributes{$id}">
-																			<i id="customAttributesIcon{$id}"
-																				class="bi bi-chevron-down"></i>
-																		</a>
-																		<div id="customAttributes{$id}" class="collapse show">
-																			<div>
-																			{/if}
-																			{include file='Admin/InlineAttributeEdit.tpl' url="{$smarty.server.SCRIPT_NAME}?action={ManageResourcesActions::ActionChangeAttribute}"
-																			id=$id attribute=$attribute
-																			value=$resource->GetAttributeValue($attribute->Id())}
-																		{/if}
-																	{/foreach}
-																	{if $hasResults}
-																		{* Content at the end of the iteration *}
-																	</div>
-																</div>
-															</div>
-														{/if}
-													{/if}
-													<div class="">
-														<div class="fs-6 fw-bold me-2">{translate key='Public'}</div>
-														<div class="publicSettingsPlaceHolder">
-															{include file="Admin/Resources/manage_resources_public.tpl" resource=$resource}
-														</div>
-														<div class="">
-															<a href="{$smarty.server.SCRIPT_NAME}?action={ManageResourcesActions::ActionPrintQR}&rid={$id}"
-																target="_blank" class="link-primary">{translate key=PrintQRCode}
-																<i class="bi bi-qr-code"></i></a>
-														</div>
-													</div>
-												</div>
-											</div>
-										</div>
-									</div>
-								</div>
+								{if $resource->HasResourceType()}
+									{$ResourceTypes[$resource->GetResourceTypeId()]->Name()}
+								{else}
+									<span class="admin-cell-secondary">{translate key='NoResourceTypeLabel'}</span>
+								{/if}
 							</td>
+							<td>
+								{if $resource->HasLocation()}
+									{$resource->GetLocation()}
+								{else}
+									<span class="admin-cell-secondary">{translate key='NoLocationLabel'}</span>
+								{/if}
+							</td>
+							<td>
+								{if $resource->HasMaxParticipants()}
+									{$resource->GetMaxParticipants()}
+								{else}
+									<span class="admin-cell-secondary">{translate key='Unlimited'}</span>
+								{/if}
+							</td>
+							<td>
+								{if $resource->IsAvailable()}
+									<span class="admin-badge admin-badge-inprogress">{translate key='Available'}</span>
+								{elseif $resource->IsUnavailable()}
+									<span class="admin-badge admin-badge-upcoming">{translate key='Unavailable'}</span>
+								{else}
+									<span class="admin-badge admin-badge-ended">{translate key='Hidden'}</span>
+								{/if}
+							</td>
+						</tr>
+					{foreachelse}
+						<tr>
+							<td colspan="5" class="admin-empty">{translate key=AdminResourceNoResults}</td>
 						</tr>
 					{/foreach}
 				</tbody>
 			</table>
 		</div>
+		<div class="admin-pager" id="resourcePager"></div>
 	</div>
 
-	<div id="add-resource-dialog" class="modal" tabindex="-1" role="dialog" aria-labelledby="addResourceModalLabel"
-		aria-hidden="true">
-		<form id="addResourceForm" class="form" role="form" method="post"
-			ajaxAction="{ManageResourcesActions::ActionAdd}" enctype="multipart/form-data">
-			<div class="modal-dialog">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="addResourceModalLabel">{translate key=AddNewResource}</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-					</div>
-					<div class="modal-body">
-						<div id="addResourceResults" class="alert alert-danger no-show"></div>
-
-						<div class="form-group mb-2">
-							<label class="fw-bold" for="resourceName">{translate key='Name'}<i
-									class="bi bi-asterisk text-danger align-top" style="font-size: 0.5rem;"></i>
-							</label>
-							<input type="text" class="form-control form-control-sm required has-feedback "
-								maxlength="85" id="resourceName" {formname key=RESOURCE_NAME} />
-
-						</div>
-						<div class="form-group mb-2">
-							<label class="fw-bold" for="scheduleId">{translate key='Schedule'}</label>
-							<select class="form-select form-select-sm" {formname key=SCHEDULE_ID} id="scheduleId">
-								{foreach from=$Schedules item=scheduleName key=scheduleId}
-									<option value="{$scheduleId}">{$scheduleName}</option>
-								{/foreach}
-							</select>
-						</div>
-						<div class="form-group mb-2">
-							<label class="fw-bold" for="permissions">{translate key='ResourcePermissions'}</label>
-							<select class="form-select form-select-sm" {formname key=AUTO_ASSIGN} id="permissions">
-								<option value="0">{translate key="ResourcePermissionNotAutoGranted"}</option>
-								<option value="1">{translate key="ResourcePermissionAutoGranted"}</option>
-							</select>
-						</div>
-						<div class="form-group mb-2">
-							<label class="fw-bold"
-								for="resourceAdminGroupId">{translate key='ResourceAdministrator'}</label>
-							<select class="form-select form-select-sm" {formname key=RESOURCE_ADMIN_GROUP_ID}
-								id="resourceAdminGroupId">
-								{if $CanViewAdmin}
-								<option value="">{translate key=None}</option>{/if}
-								{foreach from=$AdminGroups item=adminGroup}
-									<option value="{$adminGroup->Id}">{$adminGroup->Name}</option>
-								{/foreach}
-							</select>
-						</div>
-						<label class="fw-bold mb-2" for="resourceImageAdd">{translate key=Image}</label>
-						<div class="dropzone text-center border border-2 rounded-3 bg-light" id="addResourceImage">
-							<div>
-								<i class="bi bi-image fs-1"></i><br />
-								{translate key=ChooseOrDropFile}
-							</div>
-							<input id="resourceImageAdd" type="file" {formname key=RESOURCE_IMAGE}
-								accept="image/*;capture=camera" />
-						</div>
-						<div class="note fst-italic">.gif, .jpg, or .png</div>
-					</div>
-					<div class="modal-footer">
-						{cancel_button}
-						{add_button}
-						{indicator}
-					</div>
+	{* Event delegation root for every per-resource drawer's inline x-editable widgets/sub-dialog
+	   triggers (Web/scripts/admin/resource.js's elements.resourcesList) -- unchanged from before,
+	   so resource.js's existing '.update' etc. delegated handlers keep working; only the outer
+	   wrapper per resource changed (was an accordion-collapse item, now its own offcanvas drawer),
+	   see Admin/Resources/manage_resource_drawer_content.tpl. Row-click-to-open is a separate
+	   handler on elements.resourceTable (the list table above, now a sibling of this container). *}
+	<div id="resourceList">
+		{foreach from=$Resources item=resource}
+			{assign var=id value=$resource->GetResourceId()}
+			<div id="resourceDrawer{$id}" class="offcanvas offcanvas-end admin-drawer admin-drawer-wide" tabindex="-1"
+				aria-labelledby="resourceDrawerLabel{$id}">
+				<div class="offcanvas-header">
+					<h5 class="offcanvas-title" id="resourceDrawerLabel{$id}">{$resource->GetName()}</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
 				</div>
+				<div class="offcanvas-body resourceDetails" data-resourceId="{$id}">
+					{include file="Admin/Resources/manage_resource_drawer_content.tpl" resource=$resource id=$id}
+				</div>
+			</div>
+		{/foreach}
+	</div>
+
+	<div id="add-resource-dialog" class="offcanvas offcanvas-end admin-drawer" tabindex="-1"
+		aria-labelledby="addResourceModalLabel">
+		<form id="addResourceForm" class="form h-100 d-flex flex-column" role="form" method="post"
+			ajaxAction="{ManageResourcesActions::ActionAdd}" enctype="multipart/form-data">
+			<div class="offcanvas-header">
+				<h5 class="offcanvas-title" id="addResourceModalLabel">{translate key=AddNewResource}</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+			</div>
+			<div class="offcanvas-body flex-grow-1">
+				<div id="addResourceResults" class="alert alert-danger no-show"></div>
+
+				<div class="form-group mb-2">
+					<label class="fw-bold" for="resourceName">{translate key='Name'}<i
+							class="bi bi-asterisk text-danger align-top" style="font-size: 0.5rem;"></i>
+					</label>
+					<input type="text" class="form-control form-control-sm required has-feedback "
+						maxlength="85" id="resourceName" {formname key=RESOURCE_NAME} />
+
+				</div>
+				<div class="form-group mb-2">
+					<label class="fw-bold" for="scheduleId">{translate key='Schedule'}</label>
+					<select class="form-select form-select-sm" {formname key=SCHEDULE_ID} id="scheduleId">
+						{foreach from=$Schedules item=scheduleName key=scheduleId}
+							<option value="{$scheduleId}">{$scheduleName}</option>
+						{/foreach}
+					</select>
+				</div>
+				<div class="form-group mb-2">
+					<label class="fw-bold" for="permissions">{translate key='ResourcePermissions'}</label>
+					<select class="form-select form-select-sm" {formname key=AUTO_ASSIGN} id="permissions">
+						<option value="0">{translate key="ResourcePermissionNotAutoGranted"}</option>
+						<option value="1">{translate key="ResourcePermissionAutoGranted"}</option>
+					</select>
+				</div>
+				<div class="form-group mb-2">
+					<label class="fw-bold"
+						for="resourceAdminGroupId">{translate key='ResourceAdministrator'}</label>
+					<select class="form-select form-select-sm" {formname key=RESOURCE_ADMIN_GROUP_ID}
+						id="resourceAdminGroupId">
+						{if $CanViewAdmin}
+						<option value="">{translate key=None}</option>{/if}
+						{foreach from=$AdminGroups item=adminGroup}
+							<option value="{$adminGroup->Id}">{$adminGroup->Name}</option>
+						{/foreach}
+					</select>
+				</div>
+				<label class="fw-bold mb-2" for="resourceImageAdd">{translate key=Image}</label>
+				<div class="dropzone text-center border border-2 rounded-3 bg-light" id="addResourceImage">
+					<div>
+						<i class="bi bi-image fs-1"></i><br />
+						{translate key=ChooseOrDropFile}
+					</div>
+					<input id="resourceImageAdd" type="file" {formname key=RESOURCE_IMAGE}
+						accept="image/*;capture=camera" />
+				</div>
+				<div class="note fst-italic">.gif, .jpg, or .png</div>
+			</div>
+			<div class="admin-drawer-footer">
+				{cancel_button}
+				{add_button}
+				{indicator}
 			</div>
 		</form>
 	</div>
@@ -1219,36 +762,10 @@
 		</form>
 	</div>
 
-	<div id="deletePrompt" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="deleteResourceDialogLabel"
-		aria-hidden="true">
-		<form id="deleteForm" method="post" ajaxAction="{ManageResourcesActions::ActionDelete}">
-			<div class="modal-dialog">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="deleteResourceDialogLabel">{translate key=Delete}</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-					</div>
-					<div class="modal-body">
-						<div class="alert alert-warning">
-							<div>{translate key=DeleteWarning}</div>
-							{translate key=DeleteResourceWarning}:
-							<ul>
-								<li>{translate key=DeleteResourceWarningReservations}</li>
-								<li>{translate key=DeleteResourceWarningPermissions}</li>
-							</ul>
-
-							{translate key=DeleteResourceWarningReassign}
-						</div>
-					</div>
-					<div class="modal-footer">
-						{cancel_button}
-						{delete_button}
-						{indicator}
-					</div>
-				</div>
-			</div>
-		</form>
-	</div>
+	{* Kept for its existing AJAX wiring (ConfigureAsyncForm) -- no longer wrapped in a visible
+	   modal, submitted programmatically from AdminConfirm's onConfirm instead (see
+	   Web/scripts/admin/resource.js showDeletePrompt()). *}
+	<form id="deleteForm" method="post" ajaxAction="{ManageResourcesActions::ActionDelete}" class="d-none"></form>
 
 	<div id="bulkUpdateDialog" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="bulkUpdateLabel"
 		aria-hidden="true">
@@ -2074,11 +1591,12 @@
 
 {csrf_token}
 
-{include file="javascript-includes.tpl" InlineEdit=true Clear=true DataTable=true Trumbowyg=true }
-{datatable tableId=$tableId}
+{include file="javascript-includes.tpl" InlineEdit=true Clear=true Trumbowyg=true }
 {jsfile src="ajax-helpers.js"}
 {jsfile src="autocomplete.js"}
 {vendor_js src="jqtree/1.8.11/js/tree.jquery.js"}
+{jsfile src="admin/admin-confirm.js"}
+{jsfile src="admin/admin-table-paginate.js"}
 {jsfile src="admin/resource.js"}
 {vendor_js src="dropzone/1.0.0/js/dropzone.js"}
 {jsfile src="search-clear.js"}
@@ -2300,7 +1818,10 @@
 			userAutocompleteUrl: "../ajax/autocomplete.php?type={AutoCompleteType::User}",
 			groupAutocompleteUrl: "../ajax/autocomplete.php?type={AutoCompleteType::Group}",
 			permissionsUrl: '{$smarty.server.SCRIPT_NAME}',
-			copyText: "{translate key=Copy|escape:'javascript'}"
+			copyText: "{translate key=Copy|escape:'javascript'}",
+			confirmDeleteTitle: '{translate key=Delete|escape:javascript}',
+			confirmDeleteMessage: '{translate key=AdminResourceConfirmDeleteMessage|escape:javascript}',
+			confirmDeleteButton: '{translate key=Delete|escape:javascript}'
 		};
 
 		var resourceManagement = new ResourceManagement(opts);
@@ -2425,6 +1946,7 @@
 		resourceManagement.initializeStatusFilter('{$ResourceStatusFilterId}', '{$ResourceStatusReasonFilterId}');
 		resourceManagement.addResourceGroups({$ResourceGroups});
 
+		AdminTablePaginate({ tableId: '{$tableId}', containerId: 'resourcePager', pageSize: 20 });
 	});
 </script>
 </div>

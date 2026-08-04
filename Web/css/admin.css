@@ -17,8 +17,7 @@
    if it's ever reused on an admin page, without those two scopes overlapping or fighting over
    which one wins. */
 
-.admin-page,
-.admin-side-nav {
+.admin-page {
   --surface: #fff;
   --surface-muted: #f6f7fb;
   --border: #e4e7ee;
@@ -28,92 +27,91 @@
   --dialog-radius: 16px;
   --control-radius: 10px;
   --icon-button-size: 36px;
-}
 
-.admin-page {
   max-width: 1360px;
   margin: 0 auto;
   padding: 24px 28px 40px;
   box-sizing: border-box;
 }
 
-/* ---------- Secondary nav panel: 管理中心's own persistent left panel, a sibling of
-   .app-sidebar (not nested inside it) and of .app-content -- see tpl/globalheader.tpl for
-   where it's inserted and tpl/Admin/admin-nav.tpl for its contents. Replaces the old design
-   where clicking "管理中心" expanded a deeply-nested dropdown taking over the *entire* main
-   sidebar; now the main sidebar stays exactly as tall as every other page, and the admin
-   category list lives in its own column next to the actual page content instead. ---------- */
+/* ---------- Drawer: shared right-side slide-in panel for admin add/edit forms, replacing a
+   centered Bootstrap modal for each entity's primary create/edit flow. Built on Bootstrap 5's
+   own Offcanvas component (`.offcanvas.offcanvas-end`, already loaded site-wide via
+   bootstrap.bundle.min.js) rather than a hand-rolled widget -- this rule set only restyles it to
+   match `.admin-card`'s radius/shadow/token language instead of Bootstrap's square defaults. ---------- */
 
-.admin-side-nav {
-  flex-shrink: 0;
-  width: 220px;
-  min-height: 100vh;
-  padding: 20px 12px;
-  box-sizing: border-box;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  overflow-y: auto;
+.admin-drawer.offcanvas {
+  width: min(480px, 100vw);
+  border-left: 1px solid var(--border);
+  box-shadow: -8px 0 24px rgba(20, 30, 55, 0.12);
 }
 
-.admin-side-nav-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px 16px;
-  margin-bottom: 8px;
+/* Wider variant for forms with many fields (e.g. add/edit user) that need two columns to stay
+   readable rather than stacking a dozen single-column inputs. */
+.admin-drawer.admin-drawer-wide.offcanvas {
+  width: min(640px, 100vw);
+}
+
+.admin-drawer .offcanvas-header {
+  padding: 20px 24px;
   border-bottom: 1px solid var(--border);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
 }
 
-.admin-side-nav-header i {
+.admin-drawer .offcanvas-title {
   font-size: 16px;
-  color: var(--primary, #1f3159);
-}
-
-.admin-side-nav-label {
-  padding: 14px 10px 4px;
-  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-.admin-side-nav-link {
-  display: block;
-  padding: 7px 10px;
-  border-radius: var(--control-radius);
-  font-size: 13.5px;
   color: var(--text-primary);
-  text-decoration: none;
-  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.admin-side-nav-link:hover {
+.admin-drawer .offcanvas-body {
+  padding: 20px 24px;
+}
+
+.admin-drawer .admin-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
   background: var(--surface-muted);
 }
 
-.admin-side-nav-link.active {
-  background: color-mix(in oklab, var(--primary, #1f3159) 12%, white);
-  color: var(--primary, #1f3159);
-  font-weight: 500;
+/* ---------- Read-only detail drawers (預約管理's reservation detail) ---------- */
+
+.admin-drawer-status-row {
+  margin-bottom: 16px;
 }
 
-.admin-side-nav-link-danger,
-.admin-side-nav-link-danger:hover {
-  color: var(--danger);
+.admin-drawer-detail-list {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  row-gap: 14px;
+  margin: 0;
 }
 
-.admin-side-nav-link-danger:hover {
-  background: rgba(197, 34, 31, 0.08);
+.admin-drawer-detail-list dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
-@media (max-width: 991.98px) {
-  .admin-side-nav {
-    display: none;
-  }
+.admin-drawer-detail-list dd {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
+
+.admin-cell-secondary {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+.admin-toolbar-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ---------- Page header: title + one primary action, replacing each page's previous
@@ -143,6 +141,60 @@
   flex-shrink: 0;
 }
 
+/* ---------- Shared admin sub-page shell (tpl/Admin/admin_page_shell.tpl): back link + header,
+   used by every 管理中心 section page (預約管理/會議室管理/使用者與權限/開放時間設定/系統設定) so
+   they share one header instead of each page rolling its own. ---------- */
+
+.admin-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.admin-back-link:hover {
+  color: var(--primary, #1f3159);
+}
+
+.admin-page-shell-header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-page-shell-header .admin-page-subtitle {
+  margin: 4px 0 0;
+}
+
+/* Filter/search bar placed directly under the shell header -- pages wrap their existing
+   filter panel markup in this instead of Bootstrap's default accordion/card styling, so every
+   section's filter row sits at the same spacing and reads as one system. */
+.admin-page-toolbar {
+  margin-bottom: 16px;
+}
+
+.admin-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-toolbar-row .admin-search {
+  flex: 1 1 280px;
+  max-width: 360px;
+}
+
+.admin-toolbar-select {
+  width: auto;
+  min-width: 140px;
+}
+
 /* Existing pages' own <h1 class="border-bottom mb-3"> (not yet migrated to
    .admin-page-header) still gets the refined type scale so it doesn't look out of place next
    to pages that have been migrated. */
@@ -156,6 +208,37 @@
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* ---------- Sub-nav tabs: for admin sections split across more than one controller/URL that
+   share a single top-nav entry (今 使用者與權限 = manage_users.php + manage_groups.php) --
+   presents as one merged section without merging the underlying PHP pages. ---------- */
+
+.admin-subnav {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.admin-subnav-link {
+  padding: 8px 4px 10px;
+  margin-right: 20px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.admin-subnav-link:hover {
+  color: var(--text-primary);
+}
+
+.admin-subnav-link.active {
+  color: var(--primary, #1f3159);
+  border-bottom-color: var(--primary, #1f3159);
+  font-weight: 600;
 }
 
 /* ---------- Cards: every existing admin page already uses Bootstrap's plain .card for its
@@ -191,6 +274,61 @@
   font-size: 14px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+/* ---------- Entry tiles: the only navigation into 管理中心's sections, used on 管理總覽 (5
+   tiles: 預約管理/會議室管理/使用者與權限/開放時間設定/系統設定) and reused as-is on 系統設定's own
+   hub page for its 5 sub-items. Deliberately large/clickable rather than a nav bar -- there is no
+   persistent admin nav chrome anywhere else in the app. ---------- */
+
+.admin-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.admin-entry-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--dialog-radius);
+  box-shadow: var(--bs-box-shadow-sm, 0 1px 2px rgba(20, 30, 55, 0.06));
+  color: var(--text-primary);
+  text-decoration: none;
+  text-align: center;
+  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
+}
+
+.admin-entry-card:hover {
+  color: var(--primary, #1f3159);
+  border-color: color-mix(in oklab, var(--primary, #1f3159) 40%, var(--border));
+  box-shadow: 0 4px 14px rgba(20, 30, 55, 0.1);
+  transform: translateY(-1px);
+}
+
+.admin-entry-card i {
+  font-size: 26px;
+  color: var(--primary, #1f3159);
+}
+
+.admin-entry-card span {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.admin-entry-card.admin-entry-card-danger:hover {
+  color: var(--danger);
+  border-color: color-mix(in oklab, var(--danger) 40%, var(--border));
+}
+
+.admin-entry-card.admin-entry-card-danger:hover i {
+  color: var(--danger);
 }
 
 .admin-grid {
@@ -260,9 +398,8 @@
   font-weight: 500;
   flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .admin-list-item-secondary {
@@ -274,6 +411,30 @@
 .admin-empty {
   padding: 12px 4px;
   color: var(--text-secondary);
+  font-size: 13.5px;
+}
+
+/* Full-card empty state for shell pages (通知紀錄/AD同步/操作紀錄) that have no data source
+   wired up yet -- centered icon + message rather than a bare line of text. */
+.admin-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.admin-empty-state i {
+  font-size: 32px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+}
+
+.admin-empty-state p {
+  margin: 0;
+  max-width: 420px;
   font-size: 13.5px;
 }
 
@@ -306,6 +467,259 @@
 .admin-warning-info {
   background: #e8eef7;
   color: var(--primary, #1f3159);
+}
+
+/* ---------- 管理總覽 dashboard-specific pieces ---------- */
+
+.admin-page-subtitle {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: var(--text-secondary);
+}
+
+.admin-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .admin-stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.admin-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.admin-stat-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--control-radius);
+  background: var(--surface-muted);
+  color: var(--primary, #1f3159);
+  font-size: 18px;
+}
+
+.admin-stat-card-icon-inuse {
+  color: #b5651d;
+  background: #fbeee0;
+}
+
+.admin-stat-card-icon-available {
+  color: #1e7e34;
+  background: #e6f4ea;
+}
+
+.admin-stat-card-icon-danger {
+  color: var(--danger);
+  background: #fbe9e7;
+}
+
+.admin-stat-value-danger {
+  color: var(--danger);
+}
+
+/* "尚未設定" -- shown in a stat tile's number slot when there's genuinely no data source behind
+   it yet (e.g. 通知失敗, no send-log table exists), instead of a fabricated 0. Smaller than a real
+   stat-value number since it's a word, not a digit, and muted so it doesn't read as an alarming
+   or notable figure. */
+.admin-stat-value-muted {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.admin-grid-2col {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .admin-grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-card-title-action {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--primary, #1f3159);
+  text-decoration: none;
+}
+
+.admin-card-title-action:hover {
+  text-decoration: underline;
+}
+
+.admin-list-item-reservation {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+.admin-list-item-time {
+  flex-shrink: 0;
+  width: 108px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.admin-list-item-tag {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 100px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 11.5px;
+}
+
+.admin-badge {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 100px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-badge-inprogress {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+.admin-badge-upcoming {
+  background: #e8eef7;
+  color: var(--primary, #1f3159);
+}
+
+.admin-badge-ended {
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+.admin-location-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-location-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-location-name {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.admin-location-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 100px;
+  overflow: hidden;
+  background: var(--surface-muted);
+}
+
+.admin-location-bar-segment {
+  flex-grow: 0;
+  flex-basis: 0;
+}
+
+.admin-location-bar-available {
+  background: #1e7e34;
+}
+
+.admin-location-bar-inuse {
+  background: #d9a441;
+}
+
+.admin-location-bar-unavailable {
+  background: var(--danger);
+}
+
+.admin-location-counts {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.admin-location-count-available::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #1e7e34;
+}
+
+.admin-location-count-inuse::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: #d9a441;
+}
+
+.admin-location-count-unavailable::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.admin-needs-attention-empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
+
+.admin-needs-attention-empty i {
+  color: #1e7e34;
+  font-size: 16px;
+}
+
+.admin-status-summary {
+  margin: 6px 4px 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+/* ---------- Confirm dialog (tpl/Admin/admin_confirm_dialog.tpl): every remaining plain
+   Bootstrap .modal on an admin page picks up the same radius/shadow language as .admin-card and
+   .admin-drawer via this .admin-page-scoped rule, not just the new confirm dialog specifically. ---------- */
+
+.admin-page .modal-content {
+  border: none;
+  border-radius: var(--dialog-radius);
+  box-shadow: 0 8px 24px rgba(20, 30, 55, 0.14);
+}
+
+.admin-page .modal-header,
+.admin-page .modal-footer {
+  border-color: var(--border);
 }
 
 /* ---------- Buttons: same class names as the calendar page's toolbar/Drawer components, a
@@ -360,6 +774,14 @@
   border-color: color-mix(in oklab, var(--primary) 85%, black 15%);
 }
 
+/* Destructive actions ({delete_button}, data_cleanup.php's purge/delete buttons) get the same
+   pill shape as .btn-primary so the danger color is the only thing that sets them apart, not
+   also a different corner radius. */
+.admin-page .btn-danger {
+  border-radius: 100px;
+  font-weight: 500;
+}
+
 /* ---------- Search / filter inputs: same pill-with-icon language as the calendar page's
    resource picker / participant search, applied here to the existing filter-form
    .form-control/.form-select every admin list page already has instead of a new markup
@@ -410,6 +832,36 @@
   width: 100%;
 }
 
+/* ---------- Pager (Web/scripts/admin/admin-table-paginate.js): replaces DataTables' own
+   prev/next controls now that DataTables is gone from the redesigned list pages. ---------- */
+
+.admin-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 0 4px;
+}
+
+.admin-pager-btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+}
+
+.admin-pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.admin-pager-status {
+  font-size: 13px;
+  color: var(--text-secondary);
+  min-width: 60px;
+  text-align: center;
+}
+
 /* ---------- Tables: tighter row height + softer header than Bootstrap's table-striped
    default, matching the calendar page's overall density. ---------- */
 
@@ -428,4 +880,273 @@
 
 .admin-page .table > tbody > tr:hover {
   background-color: var(--surface-muted);
+}
+
+/* ---------- Clean table: white rows + thin dividers instead of Bootstrap's zebra-striped
+   .table-striped -- used by the new content-area tables (e.g. 使用者與權限) built directly
+   against this system rather than the classic LibreBooking admin table markup. ---------- */
+
+.admin-clean-table {
+  margin-bottom: 0;
+}
+
+.admin-clean-table > thead > tr > th {
+  white-space: nowrap;
+}
+
+.admin-clean-table > tbody > tr > td {
+  vertical-align: middle;
+  border-bottom: 1px solid var(--surface-muted);
+}
+
+.admin-clean-table > tbody > tr:last-child > td {
+  border-bottom: none;
+}
+
+.admin-clean-table > tbody > tr:hover {
+  background-color: var(--surface-muted);
+}
+
+.admin-user-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary, #1f3159);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-user-name-link {
+  color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.admin-user-name-link:hover {
+  color: var(--primary, #1f3159);
+  text-decoration: underline;
+}
+
+.admin-user-account {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.admin-user-username {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.admin-user-email {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.admin-row-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+}
+
+.admin-row-menu-btn:hover {
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
+.admin-row-menu-disabled {
+  color: var(--text-secondary) !important;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---------- Clean table card wrapper (預約管理/會議室管理/開放時間管理 list panels): the table sits
+   directly in the card with no .card-body padding, so this clips it to the card's own rounded
+   corners instead of the table's square edges poking out past them. ---------- */
+
+.admin-clean-table-card {
+  overflow: hidden;
+}
+
+.admin-clean-table-card .table-responsive {
+  border-radius: inherit;
+}
+
+/* Row that opens a detail/edit Drawer on click (預約管理's reservation rows, 會議室管理's resource
+   rows) -- signals it's clickable without adding a visible per-row "view" button/icon column. */
+.admin-clickable-row {
+  cursor: pointer;
+}
+
+/* Marker for a row a client-side text search has excluded (使用者管理's #userSearch), kept
+   separate from the .d-none admin-table-paginate.js itself toggles for pagination -- see that
+   file's refresh() -- so search-filtering and pagination don't fight over the same class. */
+.admin-search-hidden {
+  display: none !important;
+}
+
+/* ---------- Advanced settings disclosure (會議室管理 drawer's 進階設定 section): a native
+   <details>/<summary> instead of a JS-driven collapse, styled to read as a quiet section toggle
+   rather than a bare browser triangle. ---------- */
+
+.admin-drawer-advanced {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-drawer-advanced-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.admin-drawer-advanced-summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-drawer-advanced-summary::before {
+  content: '\f285';
+  font-family: 'bootstrap-icons', sans-serif;
+  font-size: 11px;
+  transition: transform 0.14s ease;
+}
+
+.admin-drawer-advanced[open] .admin-drawer-advanced-summary::before {
+  transform: rotate(90deg);
+}
+
+.admin-drawer-advanced-summary:hover {
+  color: var(--text-primary);
+}
+
+.admin-drawer-advanced > div {
+  margin-top: 12px;
+}
+
+/* ---------- Schedule weekday chips/editor (開放時間管理): replaces the old per-schedule
+   reservable/blocked textarea layout editor with a plain 7-day open/closed + start-end time
+   picker, both in the list row (read-only chip strip) and the drawer (editable rows). ---------- */
+
+.admin-schedule-day-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.admin-schedule-day-chip-open {
+  background: #e6f4ea;
+  color: #1e7e34;
+}
+
+.admin-schedule-day-row {
+  padding: 6px 0;
+}
+
+.admin-schedule-day-toggle {
+  width: 108px;
+  flex-shrink: 0;
+}
+
+.admin-schedule-day-label {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* ---------- DataTables chrome (使用者與權限 and any other admin page still on {datatable tableId=...}
+   instead of the new .admin-clean-table + admin-table-paginate.js pattern): DataTables' own
+   generated markup (.dataTables_info/_length/_filter/_paginate) ships with the Bootstrap 5 theme's
+   default spacing/type scale, which is noticeably larger/looser than this system's 13.5px-and-tight
+   tokens -- restyled here so it reads as part of the same page instead of a bolted-on widget. ---------- */
+
+.admin-page .dataTables_wrapper {
+  padding-top: 4px;
+}
+
+.admin-page .dataTables_info,
+.admin-page .dataTables_length label,
+.admin-page .dataTables_filter label {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.admin-page .dataTables_length select,
+.admin-page .dataTables_filter input {
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  font-size: 12.5px;
+  padding: 2px 8px;
+}
+
+.admin-page .dataTables_filter input:focus,
+.admin-page .dataTables_length select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+.admin-page .dataTables_paginate {
+  margin-top: 8px !important;
+}
+
+.admin-page .dataTables_paginate .paginate_button {
+  padding: 4px 10px !important;
+  margin-left: 2px !important;
+  font-size: 12.5px !important;
+  border-radius: var(--control-radius) !important;
+  border: 1px solid transparent !important;
+  color: var(--text-secondary) !important;
+}
+
+.admin-page .dataTables_paginate .paginate_button.current,
+.admin-page .dataTables_paginate .paginate_button.current:hover {
+  background: var(--primary, #1f3159) !important;
+  border-color: var(--primary, #1f3159) !important;
+  color: #fff !important;
+}
+
+.admin-page .dataTables_paginate .paginate_button:hover {
+  background: var(--surface-muted) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+.admin-page .dataTables_paginate .paginate_button.disabled,
+.admin-page .dataTables_paginate .paginate_button.disabled:hover {
+  color: var(--text-secondary) !important;
+  opacity: 0.45;
+  background: transparent !important;
+  border-color: transparent !important;
 }

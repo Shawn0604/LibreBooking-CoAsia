@@ -3,7 +3,8 @@ function ScheduleManagement(opts) {
 
   var elements = {
     activeId: $('#activeId'),
-    scheduleList: $('#schedulesTable_wrapper'),
+    scheduleList: $('#scheduleList'),
+    scheduleTable: $('#schedulesTable'),
 
     layoutDialog: $('#changeLayoutDialog'),
     deleteDialog: $('#deleteDialog'),
@@ -79,6 +80,20 @@ function ScheduleManagement(opts) {
   };
 
   ScheduleManagement.prototype.init = function () {
+    elements.scheduleTable.on('click', 'tr.admin-clickable-row', function (e) {
+      openScheduleDrawer($(this).attr('data-scheduleId'));
+    });
+
+    elements.scheduleList.on('click', '.saveScheduleHours', function (e) {
+      e.preventDefault();
+      saveScheduleHours($(this).data('schedule-id'));
+    });
+
+    elements.scheduleList.on('change', '.scheduleDayOpen', function (e) {
+      var row = $(this).closest('.admin-schedule-day-row');
+      row.find('.scheduleDayStart, .scheduleDayEnd').prop('disabled', !$(this).is(':checked'));
+    });
+
     elements.scheduleList.on('click', '.update', function (e) {
       e.preventDefault();
       var id = $(this).closest('.scheduleDetails').attr('data-schedule-id');
@@ -252,10 +267,10 @@ function ScheduleManagement(opts) {
 
     elements.addScheduleButton.click(function (e) {
       e.preventDefault();
-      elements.addDialog.modal('show');
+      bootstrap.Offcanvas.getOrCreateInstance(elements.addDialog[0]).show();
     });
 
-    elements.addDialog.on('shown.bs.modal', function () {
+    elements.addDialog.on('shown.bs.offcanvas', function () {
       elements.addName.focus();
     });
 
@@ -290,7 +305,17 @@ function ScheduleManagement(opts) {
 
     wireUpPeakTimeToggles();
 
-    ConfigureAsyncForm(elements.changeLayoutForm, getSubmitCallback(options.changeLayoutAction));
+    ConfigureAsyncForm(
+      elements.changeLayoutForm,
+      getSubmitCallback(options.changeLayoutAction),
+      function () {
+        window.location.reload();
+      },
+      function (result) {
+        var errorEl = $('#scheduleHoursError' + getActiveScheduleId());
+        errorEl.removeClass('d-none').html(result);
+      }
+    );
     ConfigureAsyncForm(elements.addForm, getSubmitCallback(options.addAction), null, handleAddError);
     ConfigureAsyncForm(elements.deleteForm, getSubmitCallback(options.deleteAction));
     ConfigureAsyncForm(elements.peakTimesForm, getSubmitCallback(options.peakTimesAction), refreshPeakTimes, null, {
@@ -450,6 +475,39 @@ function ScheduleManagement(opts) {
       $('#staticSlots').hide();
       $('#dailySlots').show();
     }
+  };
+
+  var openScheduleDrawer = function (id) {
+    setActiveScheduleId(id);
+    var drawerEl = document.getElementById('scheduleDrawer' + id);
+    if (drawerEl) {
+      bootstrap.Offcanvas.getOrCreateInstance(drawerEl).show();
+    }
+  };
+
+  var saveScheduleHours = function (scheduleId) {
+    var errorEl = $('#scheduleHoursError' + scheduleId);
+    errorEl.addClass('d-none').empty();
+
+    for (var day = 0; day <= 6; day++) {
+      var isOpen = $('#scheduleDayOpen' + scheduleId + '_' + day).is(':checked');
+      var start = $('#scheduleDayStart' + scheduleId + '_' + day).val();
+      var end = $('#scheduleDayEnd' + scheduleId + '_' + day).val();
+
+      if (isOpen && start && end) {
+        $('#reservableEdit_' + day).val(start + ' - ' + end);
+        $('#blockedEdit_' + day).val('');
+      } else {
+        $('#reservableEdit_' + day).val('');
+        $('#blockedEdit_' + day).val('00:00 - 00:00');
+      }
+    }
+
+    elements.usesSingleLayout.prop('checked', false);
+    elements.layoutTimezone.val($('#scheduleDrawer' + scheduleId + ' .timezone').val());
+    setActiveScheduleId(scheduleId);
+
+    elements.changeLayoutForm.submit();
   };
 
   var showDeleteDialog = function (e) {

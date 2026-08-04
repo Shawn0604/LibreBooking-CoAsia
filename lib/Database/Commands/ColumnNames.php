@@ -343,6 +343,7 @@ class ColumnNames
     public const DURATION_ALIAS = 'duration';
     public const DURATION_HOURS = 'duration_in_hours';
     public const GROUP_IDS = 'group_ids';
+    public const EMAIL_EVENTS_ENABLED_COUNT = 'email_events_enabled_count';
     public const RESOURCE_IDS = 'resource_ids';
     public const GUEST_LIST = 'guest_list';
     public const USER_GROUP_LIST = 'user_group_list';

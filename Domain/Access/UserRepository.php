@@ -990,6 +990,15 @@ class UserItemView
      */
     public $GroupIds = [];
 
+    /**
+     * True only when all 6 reservation-lifecycle email events are subscribed (see
+     * NotificationPreferencesService::AllEmailEventsEnabled(), same semantics -- this mirrors
+     * that check via a correlated COUNT in GET_ALL_USERS_BY_STATUS instead of loading each
+     * user's full EmailPreferences to avoid an N+1 query for the admin list page).
+     * @var bool
+     */
+    public $EmailNotificationsEnabled = false;
+
     public function __construct()
     {
         $this->Attributes = new CustomAttributes();
@@ -1038,6 +1047,10 @@ class UserItemView
 
         if (isset($row[ColumnNames::GROUP_IDS])) {
             $user->GroupIds = explode('!sep!', $row[ColumnNames::GROUP_IDS]);
+        }
+
+        if (isset($row[ColumnNames::EMAIL_EVENTS_ENABLED_COUNT])) {
+            $user->EmailNotificationsEnabled = ((int) $row[ColumnNames::EMAIL_EVENTS_ENABLED_COUNT]) >= 6;
         }
 
         return $user;

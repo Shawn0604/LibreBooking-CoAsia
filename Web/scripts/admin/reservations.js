@@ -19,11 +19,22 @@ function ReservationManagement(opts, approval) {
     missedCheckin: $('#missedCheckin'),
     missedCheckout: $('#missedCheckout'),
 
-    deleteInstanceDialog: $('#deleteInstanceDialog'),
     deleteSeriesDialog: $('#deleteSeriesDialog'),
 
     deleteInstanceForm: $('#deleteInstanceForm'),
     deleteSeriesForm: $('#deleteSeriesForm'),
+
+    reservationDetailDrawer: $('#reservationDetailDrawer'),
+    reservationDrawerTitle: $('#reservationDrawerTitle'),
+    reservationDrawerStatus: $('#reservationDrawerStatus'),
+    reservationDrawerTime: $('#reservationDrawerTime'),
+    reservationDrawerResource: $('#reservationDrawerResource'),
+    reservationDrawerOwner: $('#reservationDrawerOwner'),
+    reservationDrawerDescription: $('#reservationDrawerDescription'),
+    reservationDrawerReference: $('#reservationDrawerReference'),
+    reservationDrawerEdit: $('#reservationDrawerEdit'),
+    reservationDrawerApprove: $('#reservationDrawerApprove'),
+    reservationDrawerCancel: $('#reservationDrawerCancel'),
 
     statusForm: $('#statusForm'),
     statusDialog: $('#statusDialog'),
@@ -81,29 +92,23 @@ function ReservationManagement(opts, approval) {
       $(e.target).closest('.updateCustomAttribute').find('.inlineAttribute').editable('toggle');
     });
 
-    elements.reservationTable.on('click', 'tr.editable', function (e) {
-      if (
-        $(e.target).hasClass('action') ||
-        $(e.target).hasClass('user') ||
-        $(e.target).closest('td').hasClass('action')
-      ) {
-        e.stopPropagation();
-        return;
-      }
-      $(this).addClass('clicked');
-      viewReservation($(this).attr('data-refnum'));
+    elements.reservationTable.on('click', 'tr.admin-clickable-row', function (e) {
+      openReservationDetail($(this).attr('data-refnum'));
     });
 
-    elements.reservationTable.on('click', '.delete', function (e) {
+    elements.reservationDrawerEdit.click(function (e) {
       e.preventDefault();
-      e.stopPropagation();
-      showDeleteReservation(getActiveReferenceNumber());
+      viewReservation(getActiveReferenceNumber());
     });
 
-    elements.reservationTable.on('click', '.approve', function (e) {
+    elements.reservationDrawerApprove.click(function (e) {
       e.preventDefault();
-      e.stopPropagation();
       approveReservation(getActiveReferenceNumber());
+    });
+
+    elements.reservationDrawerCancel.click(function (e) {
+      e.preventDefault();
+      showDeleteReservation(getActiveReferenceNumber());
     });
 
     elements.deleteTerms.click(function (e) {
@@ -130,26 +135,6 @@ function ReservationManagement(opts, approval) {
       setActiveReservationId(reservationId);
       elements.referenceNumberList.val(referenceNumber);
     }
-
-    elements.reservationTable.on('click', '.edit', function (e) {
-      //This conditional prevents the edit button from working on mobile devices
-      /*if ($(e.target).hasClass('action') || $(e.target).closest('td').hasClass('action')) {
-                e.stopPropagation();
-                return;
-            }*/
-      viewReservation($(this).closest('tr').attr('data-refnum'));
-    });
-
-    elements.reservationTable.find('tr.editable').each(function () {
-      var refNum = $(this).attr('data-refnum');
-      $(this).find('.reservationTitle').attachReservationPopup(refNum, options.popupUrl);
-
-      /*$(this).hover(function (e) {
-                $(this).find('td').addClass('highlight');
-            }, function (e) {
-                $(this).find('td').removeClass('highlight');
-            });*/
-    });
 
     elements.statusOptions.change(function (e) {
       populateReasonOptions(elements.statusOptions.val(), elements.statusReasons);
@@ -332,10 +317,48 @@ function ReservationManagement(opts, approval) {
 
   function showDeleteReservation(referenceNumber) {
     if (reservations[referenceNumber].isRecurring == '1') {
+      // Recurring cancellation needs a this-instance/all/future scope choice, not a plain
+      // yes/no confirm -- keeps its own dialog rather than forcing that 3-way choice into
+      // AdminConfirm's single-button shape.
       elements.deleteSeriesDialog.modal('show');
-    } else {
-      elements.deleteInstanceDialog.modal('show');
+      return;
     }
+
+    AdminConfirm.show({
+      title: options.confirmCancelTitle,
+      message: options.confirmCancelMessage,
+      confirmLabel: options.confirmCancelButton,
+      onConfirm: function () {
+        elements.deleteInstanceForm.find('.referenceNumber').val(referenceNumber);
+        elements.deleteInstanceForm.submit();
+      },
+    });
+  }
+
+  function openReservationDetail(referenceNumber) {
+    var reservation = reservations[referenceNumber];
+    if (!reservation) {
+      return;
+    }
+
+    setActiveReferenceNumber(referenceNumber);
+    elements.referenceNumberList.val(referenceNumber);
+
+    elements.reservationDrawerTitle.text(reservation.title || options.noTitleText);
+    elements.reservationDrawerTime.text(reservation.timeRange);
+    elements.reservationDrawerResource.text(reservation.resourceName);
+    elements.reservationDrawerOwner.text(reservation.ownerName);
+    elements.reservationDrawerDescription.text(reservation.description || '-');
+    elements.reservationDrawerReference.text(referenceNumber);
+
+    var isPending = reservation.requiresApproval == '1';
+    elements.reservationDrawerStatus
+      .text(isPending ? options.statusPendingText : options.statusConfirmedText)
+      .toggleClass('admin-badge-upcoming', isPending)
+      .toggleClass('admin-badge-inprogress', !isPending);
+    elements.reservationDrawerApprove.toggleClass('d-none', !isPending);
+
+    bootstrap.Offcanvas.getOrCreateInstance(elements.reservationDetailDrawer[0]).show();
   }
 
   function populateReasonOptions(statusId, reasonsElement) {

@@ -32,6 +32,7 @@ class QueryStringKeys
     public const INVITEE_ID = 'iid';
     public const LANGUAGE = 'lang';
     public const LAYOUT_DATE = 'ld';
+    public const LOCATION = 'loc';
     public const MESSAGE_ID = 'mid';
     public const MONTH = 'm';
     public const MISSED_CHECKIN = 'in';

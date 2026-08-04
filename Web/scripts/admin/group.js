@@ -76,11 +76,18 @@ function GroupManagement(opt) {
 
     //main interface
     $('.save').click((e) => $(e.currentTarget).closest('form').submit());
-    $('.cancel').click((e) => $(e.currentTarget).closest('.modal').modal('hide'));
+    $('.cancel').click((e) => {
+      var container = $(e.currentTarget).closest('.modal, .offcanvas');
+      if (container.hasClass('offcanvas')) {
+        bootstrap.Offcanvas.getOrCreateInstance(container[0]).hide();
+      } else {
+        container.modal('hide');
+      }
+    });
 
     $('#add-group').click((e) => {
       e.preventDefault();
-      addDialog.modal('show');
+      bootstrap.Offcanvas.getOrCreateInstance(addDialog[0]).show();
       addDialog.find(':text').first().focus();
     });
 
@@ -292,7 +299,7 @@ function GroupManagement(opt) {
     const activeRow = elements.groupList.find(`[data-group-id="${activeId}"]`);
     elements.editGroupName.val(activeRow.find('.dataGroupName').text());
     elements.editGroupIsDefault.prop('checked', activeRow.data('group-default') === '1');
-    elements.editDialog.modal('show');
+    bootstrap.Offcanvas.getOrCreateInstance(elements.editDialog[0]).show();
   };
 
   var deleteGroup = function () {
