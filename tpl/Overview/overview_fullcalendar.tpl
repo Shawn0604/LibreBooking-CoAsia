@@ -143,7 +143,7 @@
     <div class="modal fade" id="quickCreateModal" tabindex="-1" aria-hidden="true" aria-labelledby="quickCreateModalHeading">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <button type="button" class="btn-close qc-close" data-bs-dismiss="modal" aria-label="{translate key='Cancel'}"></button>
+                <button type="button" class="qc-close" data-bs-dismiss="modal" aria-label="{translate key='Close'}" title="{translate key='Close'}">×</button>
                 <div class="modal-body">
                     {* The dialog's own accessible name (aria-labelledby above) now points here
                        instead of the hidden input label below — a real heading is a more

@@ -1841,3 +1841,12 @@ Quick Create 已經填好的欄位（標題、日期時間、資源、參與者�
 過程中在既有語言檔（`lang/en_us.php`、`lang/zh_tw.php`）發現一句 `AdminOverviewSystemStatusSummary = "AD 同步正常 · Email 正常 · LINE 正常"`，會在「沒有異常」時顯示——但 AD 同步跟 Email 健康狀態這個系統完全沒有真實資料來源在背後（`Pages/Admin/AdSyncStatusPage.php`／`NotificationLogPage.php` 都是刻意做成誠實空狀態的殼頁面，沒有排程、沒有送信紀錄表），這句字串等於是憑空宣稱三個系統都正常。已整段移除（中英文語言檔都刪），不用「不確定狀態」之類的字樣取代，就是不再顯示任何整體健康度宣稱。
 
 沒有 PHP CLI／登入權限的情況下，這輪主要靠：`php -l` 等價的手動大括號配對檢查（PHP／Smarty／CSS 各自寫小腳本數 `{`/`}` 是否平衡）、`curl` 直接打頁面確認回傳 302（轉登入頁）而不是 500、容器 log 沒有 fatal error，作為程式碼正確性的替代驗證；畫面實際長相仍待使用者在瀏覽器裡確認。
+
+## 53. 快速預約彈窗關閉鈕（`.qc-close`）：滑鼠移入 X 消失的問題
+
+快速預約彈窗（行事曆首頁 FullCalendar 版與舊版共用 `#quickCreateModal` markup）右上角關閉鈕原本是 Bootstrap `.btn-close`——一顆用 `background: transparent url("data:image/svg+xml,...")` 畫出來的黑色 X。滑鼠移上去 X 會整個消失、只剩一塊灰底，根因有兩層：
+
+1. `#quickCreateModal .qc-close:hover` 原本寫的是 `background: var(--bs-tertiary-bg, #f1f2f6);`——`background` 是簡寫屬性，會整個蓋掉 `.btn-close` 本來用同一個簡寫畫出來的 SVG 圖層，等於 hover 時把圖示本身砍掉，只留下純色背景。改成只設 `background-color`，不動 `background-image` 這一層，圖示才會在 hover 時繼續存在。
+2. 光改上面這條還不夠：`overview_fullcalendar.css` 裡本來就有一條頁面級的通用按鈕 hover 規則 `#page-overview-fc button:not(:disabled):not(.reservation-icon-button):not(.reservation-primary-button):not(.reservation-btn-text):hover`（`#quickCreateModal` 在 DOM 上是 `#page-overview-fc` 的子孫，這條規則吃得到它），5 個 `:not()` 疊出來的 specificity 比 `#quickCreateModal .qc-close:hover` 高，會整組蓋掉後者的 hover 樣式。修法是在這條規則的排除清單裡多加 `:not(.qc-close):not(.btn-primary)`，跟既有的 `.reservation-icon-button` 等排除項用同一套模式，讓 Quick Create 彈窗裡的關閉鈕跟「建立預約」主按鈕維持自己的 hover 樣式，不再被頁面級規則搶走。
+
+順便把關閉鈕從 Bootstrap 的 SVG 背景圖示換成純文字 `×` 字元（`tpl/Overview/overview.tpl`／`overview_fullcalendar.tpl` 的 `<button class="qc-close">×</button>`）——不再依賴背景圖片這一層，之後要調顏色/尺寸只需要改 `color`/`font-size`，也徹底排除同一種「某個屬性簡寫蓋掉圖示」的問題再發生的可能。目前定案的樣式（`overview_fullcalendar.css`）：點擊區 36×36px、圓角 8px、位置右上 16px、預設字色 `#6C7488`（24px）、hover 字色 `#1F3159`＋底色 `#F1F4F8`、active 底色 `#E4E9F1`，`:focus-visible` 保留 2px 藍色外框。`overview.css`（舊版頁面）目前仍是原本的 50% 圓角／12px 定位／`var(--gcal-control-height)` 尺寸，尚未套用同一組數值，之後如果要讓兩個版本視覺一致需另外處理。

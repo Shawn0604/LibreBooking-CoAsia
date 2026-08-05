@@ -130,7 +130,7 @@
    the filled primary button and the red delete button to this same pale blue. They get their
    own hover treatment further down instead (search .reservation-icon-button for that
    section). */
-#page-overview-fc button:not(:disabled):not(.reservation-icon-button):not(.reservation-primary-button):not(.reservation-btn-text):hover,
+#page-overview-fc button:not(:disabled):not(.reservation-icon-button):not(.reservation-primary-button):not(.reservation-btn-text):not(.qc-close):not(.btn-primary):hover,
 #page-overview-fc a[role="button"]:not(.disabled):hover,
 #page-overview-fc .ghost-btn:not(.disabled):hover {
   background: color-mix(in oklab, var(--primary) 14%, white);
@@ -1022,13 +1022,36 @@
   z-index: 10;
   width: 36px;
   height: 36px;
-  border-radius: 50%;
-  opacity: 0.65;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  /* Plain-text × glyph — not Bootstrap's .btn-close background image, not an icon font, not
+     an inline <svg> — so there's no image layer, no font load, and no separate child element
+     for a hover background-color to ever paint over/hide. */
+  font-family: Arial, sans-serif;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1;
+  color: #6c7488;
+  background-color: transparent;
+  cursor: pointer;
 }
 
 #quickCreateModal .qc-close:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
-  opacity: 1;
+  color: #1f3159;
+  background-color: #f1f4f8;
+}
+
+#quickCreateModal .qc-close:active {
+  color: #1f3159;
+  background-color: #e4e9f1;
+}
+
+#quickCreateModal .qc-close:focus-visible {
+  outline: 2px solid #8ba7d7;
+  outline-offset: 2px;
 }
 
 /* A real dialog heading — .qc-close (absolute, top:16/right:16) sits outside this entirely,

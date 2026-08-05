@@ -33,12 +33,39 @@
   z-index: 5;
   width: var(--gcal-control-height);
   height: var(--gcal-control-height);
+  padding: 0;
+  border: 0;
   border-radius: 50%;
+  display: grid;
+  place-items: center;
+  /* Plain-text × glyph — not Bootstrap's .btn-close background image, not an icon font, not
+     an inline <svg> — so there's no image layer, no font load, and no separate child element
+     for a hover background-color to ever paint over/hide. */
+  font-family: Arial, sans-serif;
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1;
+  color: #4f5968;
+  background-color: transparent;
   opacity: 0.65;
+  cursor: pointer;
 }
 
 #quickCreateModal .qc-close:hover {
-  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: #1f3159;
+  background-color: var(--bs-tertiary-bg, #f1f2f6);
+  opacity: 1;
+}
+
+#quickCreateModal .qc-close:active {
+  color: #1f3159;
+  background-color: #dfe5ee;
+  opacity: 1;
+}
+
+#quickCreateModal .qc-close:focus-visible {
+  outline: 2px solid #8ba7d7;
+  outline-offset: 2px;
   opacity: 1;
 }
 
