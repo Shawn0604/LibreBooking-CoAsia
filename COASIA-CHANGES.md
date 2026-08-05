@@ -1785,3 +1785,59 @@ Quick Create 已經填好的欄位（標題、日期時間、資源、參與者�
 - **`ScheduleLayout->GetSlots($day)` 對「標準版面」時間表丟例外**：§51.2 新的每週時數摘要／編輯器一開始不分青紅皂白一律呼叫 `GetSlots($day)`，但這個方法在時間表是「標準版面」（`UsesDailyLayouts()` 為 false，也就是所有資源預設的那種）時，只要傳了 `$day` 參數就直接 throw exception（`$dayOfWeek cannot be provided when using single layout`）——反過來，`UsesDailyLayouts()` 為 true 時不傳 `$day` 又會丟另一個相反的例外。修法是先判斷 `UsesDailyLayouts()`，true 才逐天呼叫 `GetSlots($day)`，false 則呼叫一次不帶參數的 `GetSlots()`，7 天共用同一份結果。
 - **星期縮寫全部顯示成同一個字**：開放時間管理列表原本想拿 `$DayNames[$day]`（「星期一」「星期二」…完整名稱）用 `|truncate:1:""` 截前 1 個字當小圓點的縮寫文字，結果全部都是「星」（因為中文星期名稱共同開頭都是「星期」）。改成直接吃這個 app 語言檔裡本來就有、也已經正確在地化的 `GetDays('abbr')`（一二三四五六日 / Sun Mon Tue…），`ManageSchedulesPage.php` 多綁一個 `$DayAbbr` 給樣板用，不用另外自己兜縮寫邏輯。
 - **`AdminResourceAdvancedSettings`／`AdminScheduleWeeklyHours` 等好幾個語言字串鍵值根本不存在**：會議室管理／開放時間管理的樣板在前一輪工作中已經在用（`{translate key=AdminResourceAdvancedSettings}` 等），但三個語言檔裡從來沒有真的加上對應的 `$strings[...]` 這一行——沒有編譯錯誤（Smarty 對找不到的 key 就是印出 `?`），純粹肉眼看畫面才會發現。這次一併補齊，順便新增本輪新畫面用到的所有字串鍵值（`AdminScheduleInUse`／`AdminScheduleUnused`／`AdminResourceNoResults`／`AdminUsageAnalytics*` 系列等）。
+
+## 52. 參與者元件重構、行事曆首頁工具列重新設計、CoAsia 共用 Design Token 系統、管理總覽儀表板擴充
+
+這輪橫跨四塊互相獨立的工作，共用的主線是「先讀既有實作，抽出/對齊管理中心（`admin.css`）已經在用的真實數值，再套用到其他頁面」，而不是憑印象另外訂一套規格。
+
+### 52.1 參與者元件：快速預約與完整預約共用同一套邏輯
+
+`Web/scripts/participant-picker.js`（`createParticipantPicker()`）原本就是快速預約與完整預約共用的內部使用者搜尋＋Chip 元件，這輪擴充成同時支援外部（非系統帳號）Email：
+
+- 同一個搜尋欄位：打字時即時打 `ajax/overview_fullcalendar_participant_search.php` 顯示內部員工搜尋結果（姓名／帳號／公司 Email 皆可比對）；輸入的字串是合法完整 Email 格式、且沒有內部帳號符合時，下拉選單改顯示「按 Enter 邀請此外部 Email：{email}」提示。
+- **外部 Email 必須按下 `Enter` 才會加入清單**——單純打字不會自動加入，避免使用者還在輸入中途就被誤判成確認。點下拉裡的提示列一樣可以加入（保留滑鼠操作路徑），但主要且唯一「保證有效」的方式是 `Enter`；新增了一個 `keydown` 監聽，`Enter` 命中時呼叫跟點擊提示列相同的 `addExternal()`，並 `e.preventDefault()` 避免觸發表單送出。
+- 選取後的內部使用者與外部 Email 顯示在同一組 Chip 清單裡，外部收件人多一個「外部」徽章，視覺上不分兩組。
+- 後端收到的資料仍然分開：內部使用者送 `participantList[]`/`invitationList[]`（user id），外部 Email 送 `guestParticipationList[]`/`guestInvitationList[]`（Email 字串）——這個分流邏輯是 JS 端依 `type: 'internal' | 'external'` 在送出時決定要 append 到哪個表單欄位，前端看起來是同一個元件，後端完全沒有新增資料表或欄位。
+- 「選擇性參與者」（非必要參與者）這輪從快速預約（Quick Create 彈窗）整個拿掉，只留在完整預約表單裡；快速預約要新增選擇性參與者，走既有的「更多選項」導去完整預約頁。連帶拔掉 Quick Create 裡對應的第二個 picker 實例（`qcInviteePicker`）與相關 markup/CSS。
+- `Allow Participants To Join` checkbox 先隱藏（`d-none`），欄位跟送出邏輯都還在，只是暫時不給使用者看到。
+
+### 52.2 行事曆首頁工具列重新設計
+
+原本工具列（`tpl/Overview/overview_fullcalendar.tpl`＋`Web/css/overview_fullcalendar.css`）是三欄 `1fr auto 1fr` 網格，中間放「今天」文字連結＋前後箭頭＋月份、右側是「只看我的」切換開關＋「週」下拉。這輪重做成單行三欄、禁止用 `position:absolute` 定位月份的版本：
+
+- `grid-template-columns: minmax(150px,1fr) auto minmax(220px,1fr)`，中央欄的日期切換器（`.date-switcher`）把上一頁／月份／下一頁包進同一個白色圓角外框，內部用淡色垂直分隔線分開，月份區固定寬度（避免切月份時整組寬度跳動），箭頭 hover 只highlight 該箭頭自己的格子，不是整組外框一起亮。
+- 右側改成三個等高（40px）控制項：`📅` 圖示回到今天按鈕（Tooltip「回到今天」，已經在本週時仍保留版位、不讓右側整組跳動）、「全部⌄」篩選（取代原本的切換開關，選項「全部／只看我的」）、「週⌄」檢視切換（日／週／月），三者尺寸、圓角、邊框、hover/focus 完全一致。
+- 行事曆容器（`.fc-frame`）改用跟管理中心一致的圓角、邊框色、極淡陰影，跟工具列間距固定 12px；FullCalendar 內部格線顏色調淡、預約事件圓角從 4px 改成 8px。
+- 過程中發現既有的 hover 邏輯（`.fc-event:hover` 用各會議室自己的顏色加深，不會全部變成同一個綠色）跟今天欄位的淡綠底色其實都已經正確實作，沒有再重覆處理。
+
+### 52.3 CoAsia 共用 Design Token 系統
+
+使用者明確要求「除了真圓形元件外，所有有框元件都要共用管理中心的規格，不要每個頁面各自寫一套」。作法是先完整讀過 `Web/css/admin.css` 實際在用的數值（不是憑印象），抽成 `Web/css/coasia-theme.css` `:root` 底下的一組新 token：
+
+```
+--coasia-border: #e4e7ee            (= admin.css 的 --border)
+--coasia-radius-control: 10px       (= admin.css 的 --control-radius)
+--coasia-radius-surface: 16px       (= admin.css 的 --dialog-radius)
+--coasia-shadow-surface / --coasia-shadow-elevated / --coasia-shadow-drawer
+--coasia-control-height: 40px
+```
+
+再把這組 token 接到 `coasia-theme.css` 既有的全域 Bootstrap class 覆寫（`.btn`／`.form-control`／`.form-select`／`.card`／`.modal-content`／`.dropdown-menu`／`.toast`／`.flatpickr-calendar`）——這幾個 class 是每一頁都會載入的通用類別，改一處就對登入頁、快速預約、完整預約、通知設定、所有 Modal/Drawer/Dropdown 同時生效，不用逐頁修改樣板。另外新增 `.coasia-control`／`.coasia-icon-button`／`.coasia-surface`／`.coasia-dropdown`／`.coasia-modal`／`.coasia-drawer` 給之後要直接照這套系統蓋新元件的地方用。
+
+過程中順便修掉兩個不一致：
+
+- `admin.css` 自己的按鈕（`.ghost-btn`／`.btn-primary`／`.btn-danger`）原本是 `border-radius:100px` 藥丸形，剛好違反「除圓形元件外禁止膠囊」的新規則，改成跟其他控制項一樣的 `--control-radius`。
+- 側邊欄（`coasia-theme.css`）的頭像、新增預約按鈕、導覽圖示原本收合時是正圓（`border-radius:50%`），展開/收合時圖示欄寬度也不一致（展開 40px、收合 44px）。這輪統一成：展開時所有列高 44px（頭像／新增／首頁／通知／管理／設定／登出一致），收合時外層可點擊區塊 48×48、內部圖示容器/色塊 44×44（`padding:2px`+`background-clip:content-box` 內縮），圓角統一 12px（不是直接套用 `--coasia-radius-control` 的 10px，是刻意取跟它同比例、對應側欄較大尺寸放大後的值：12/48 = 10/40 = 0.25）。收合狀態下側欄收合鈕／頭像／新增／各導覽項目全部靠同一個 `align-items:center` 對齊到同一條垂直中心線；「新增預約」這顆按鈕因為是實色填滿，額外改用 `margin`（不是 `padding`）內縮，讓色塊本身的邊界對齊 Logo 左邊，不是只有裡面的圖示對齊而已。左側所有列的起始位置也統一改成跟 Logo 同一個 16px 左邊界（原本 `.sidebar-nav`／`.sidebar-footer` 自己還有一層 12px 內距疊加在每列自己的 20px 上，等於圖示比 Logo 多縮了 16px）。
+
+### 52.4 管理總覽儀表板擴充
+
+`Pages/Admin/ManageOverviewPage.php`／`tpl/Admin/Overview/manage_overview.tpl`（§50.2 建立的版本）這輪從「統計卡片＋今日預約清單＋依地區的可用率長條」擴充成四排：
+
+1. 今日預約／進行中／一小時內即將開始／停用或維修中會議室（4 張卡片，取代原本那組，不是疊加）。
+2. 今日預約清單（每筆改成可點擊連到 `reservation.php?rn=<預約編號>`）＋**即時會議室狀態**：不再是依地區分組的比例長條，改成逐間顯示空閒（附下一場開始時間）／使用中（附結束時間）／維修中（附原因）——新增 `GetLiveResourceStatus()`，一條 SQL 抓出每間會議室「現在正在進行或最近的下一場」預約（依 `resource_id, start_date` 排序後在 PHP 端取每個 resource 的第一筆），不是逐間下查詢。
+3. 近七日預約趨勢（純 CSS 長條圖，7 天缺值補 0，長條高度是 PHP 端算好的百分比，不在 Smarty 樣板裡塞內聯運算式）＋熱門會議室排行前 5 名（沿用 §51.5「會議室使用分析」`GetUsageByResource()` 的查詢寫法，改成固定抓最近 7 天）。
+4. 需要處理的異常：沿用既有邏輯（待審核預約數／停用中會議室清單／Email 通知關閉／LINE 設定不完整／缺 Email 帳號數），這輪每一項都加上可點擊連結（分別連到預約管理／會議室管理／通知紀錄／使用者管理，沒有連去不存在的「維運紀錄」頁面）。
+
+過程中在既有語言檔（`lang/en_us.php`、`lang/zh_tw.php`）發現一句 `AdminOverviewSystemStatusSummary = "AD 同步正常 · Email 正常 · LINE 正常"`，會在「沒有異常」時顯示——但 AD 同步跟 Email 健康狀態這個系統完全沒有真實資料來源在背後（`Pages/Admin/AdSyncStatusPage.php`／`NotificationLogPage.php` 都是刻意做成誠實空狀態的殼頁面，沒有排程、沒有送信紀錄表），這句字串等於是憑空宣稱三個系統都正常。已整段移除（中英文語言檔都刪），不用「不確定狀態」之類的字樣取代，就是不再顯示任何整體健康度宣稱。
+
+沒有 PHP CLI／登入權限的情況下，這輪主要靠：`php -l` 等價的手動大括號配對檢查（PHP／Smarty／CSS 各自寫小腳本數 `{`/`}` 是否平衡）、`curl` 直接打頁面確認回傳 302（轉登入頁）而不是 500、容器 log 沒有 fatal error，作為程式碼正確性的替代驗證；畫面實際長相仍待使用者在瀏覽器裡確認。
