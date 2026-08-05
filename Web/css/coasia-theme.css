@@ -63,20 +63,73 @@
 
   /* One shared row grid for the whole sidebar — expanded and collapsed alike. Every row
      (avatar, create, nav links, group toggles) reads these same values instead of its own
-     hand-tuned padding/width/gap, so the icon column's left edge, the text's left edge, and
-     the vertical rhythm are identical everywhere by construction. Expanded vs collapsed only
-     ever changes --sidebar-*-width (above) and whether label text is visible/clipped — never
-     these.
-     Expanded: `20px left margin + 40px icon column + 12px gap + text`.
-     Collapsed: every item's own outer box is --sidebar-icon-box (44px), laid out in a single
-     flex column using --sidebar-icon-gap (16px) between items — no per-item margin. */
-  --sidebar-row-padding-left: 20px;
+     hand-tuned padding/width/gap/radius, so the icon column's left edge, the text's left
+     edge, and the vertical rhythm are identical everywhere by construction. Expanded vs
+     collapsed only ever changes --sidebar-*-width (above) and whether label text is visible/
+     clipped — never these.
+     Three sizes, not two: --sidebar-hit-size (48px) is the COLLAPSED-only outer square hit
+     box — bigger than the icon inside it on purpose, since a collapsed item has no text label
+     to give it any horizontal breathing room the way an expanded row already has. Expanded
+     mode never uses this token; its row height is --sidebar-icon-col instead (44px, the same
+     size the avatar/create-btn color block already is), so avatar/create-btn/nav-links/group-
+     toggles all sit at one consistent expanded height. --sidebar-icon-col (44px) is also the
+     painted icon container / avatar+create-btn color block in collapsed mode, unconditionally
+     2px inset from the 48px hit box on every side (collapsed mode's padding:2px +
+     background-clip:content-box below). --sidebar-icon-glyph (24px) is the glyph itself,
+     centered inside that 44px container.
+     --sidebar-radius (12px) — not --coasia-radius-control (10px) — is deliberately its own
+     token: 12/48 is the exact same proportion as --coasia-radius-control/--coasia-control-
+     height (10/40 = 0.25), so the sidebar's larger controls read as the same shape at a
+     bigger size, not a different design language.
+     Expanded: `16px left margin + 44px icon column + 12px gap + text`, 44px row height. The
+     16px left margin is not arbitrary — it's exactly .sidebar-brand's own left padding, so
+     every icon column's left edge lines up with the logo's left edge above it.
+     Collapsed: every item's own outer box is --sidebar-hit-size (48px), laid out in a single
+     flex column using --sidebar-icon-gap (12px) between items — no per-item margin. */
+  --sidebar-row-padding-left: 16px;
   --sidebar-row-padding-right: 16px;
-  --sidebar-icon-col: 40px;
+  --sidebar-hit-size: 48px;
+  --sidebar-icon-col: 44px;
   --sidebar-row-gap: 12px;
   --sidebar-icon-glyph: 24px;
-  --sidebar-icon-box: 44px;
-  --sidebar-icon-gap: 16px;
+  --sidebar-icon-gap: 12px;
+  --sidebar-radius: 12px;
+
+  /* ---- CoAsia system tokens — extracted from 管理中心's own already-shipped CSS
+     (Web/css/admin.css), the single visual baseline for every framed component sitewide
+     (buttons, inputs, selects, dropdowns, cards, modals, drawers, the calendar frame, the
+     date switcher). Values below are copied verbatim from admin.css's `.admin-page` scope,
+     not eyeballed:
+       --coasia-border        = admin.css's --border (#e4e7ee)
+       --coasia-radius-control = admin.css's --control-radius (10px) — every button/input/
+         select/dropdown/icon-button corner. Deliberately NOT 999px/pill: admin.css's own
+         .ghost-btn/.btn-primary/.btn-danger were still pill-shaped before this pass (a
+         leftover from before the admin system existed) and are corrected below to match.
+       --coasia-radius-surface = admin.css's --dialog-radius (16px) — cards/modals/drawers/
+         the calendar frame.
+       --coasia-shadow-surface = admin.css's .admin-card shadow (var(--bs-box-shadow-sm)).
+       --coasia-shadow-elevated = admin.css's .admin-page .modal-content shadow — a modal
+         sitting on top of the whole page reads one step heavier than a card sitting in the
+         page flow.
+       --coasia-shadow-drawer = admin.css's .admin-drawer.offcanvas shadow (directional,
+         since a drawer slides in from one edge rather than sitting flat on the page).
+       --coasia-control-height = admin.css's own .ghost-btn height (var(--gcal-control-height,
+         40px)) — already the de facto standard everywhere, just never had its own name.
+     Circular/pill exceptions this system does NOT apply to: user avatars, resource color
+     dots, today's date badge, the now-indicator dot, switch thumbs, and status dots — those
+     stay round/pill on purpose and are unaffected by --coasia-radius-control. */
+  --coasia-surface: #fff;
+  --coasia-surface-muted: #f6f7fb;
+  --coasia-border: #e4e7ee;
+  --coasia-text-primary: #1c2333;
+  --coasia-text-secondary: #6c7488;
+  --coasia-danger: #c5221f;
+  --coasia-radius-control: 10px;
+  --coasia-radius-surface: 16px;
+  --coasia-control-height: 40px;
+  --coasia-shadow-surface: 0 1px 2px rgba(20, 30, 55, 0.06);
+  --coasia-shadow-elevated: 0 8px 24px rgba(20, 30, 55, 0.14);
+  --coasia-shadow-drawer: -8px 0 24px rgba(20, 30, 55, 0.12);
 }
 
 /* `css.theme` only accepts a fixed whitelist of names (see ConfigKeys::CSS_THEME),
@@ -102,18 +155,39 @@ body {
   background-color: #f1f2f6;
 }
 
-/* Cards, panels and popups read softer with a touch more radius + a light shadow */
+/* Cards and panels sitting flat in the page (Bootstrap's plain .card, the quick-create
+   success panel) — the 管理中心 surface language: 16px radius + a very soft shadow, no
+   border of its own beyond what an individual page adds. */
 .card,
-.dropdown-menu,
-.modal-content,
 .reservationResponseMessage,
 #reservation-created {
-  border-radius: var(--bs-border-radius-lg);
-  box-shadow: var(--bs-box-shadow);
+  border-radius: var(--coasia-radius-surface);
+  box-shadow: var(--coasia-shadow-surface);
+}
+
+/* Modals sit on top of the whole page (a dimmed backdrop behind them), so they read one
+   shadow-step heavier than a flat card, and (matching 管理中心's own .modal-content
+   treatment) drop the default Bootstrap border in favor of the shadow alone doing the
+   separation work. */
+.modal-content {
+  border: none;
+  border-radius: var(--coasia-radius-surface);
+  box-shadow: var(--coasia-shadow-elevated);
+}
+
+/* Dropdown/autocomplete panels (native Bootstrap .dropdown-menu — the row-action "more"
+   menus on 管理中心's list pages) use the smaller *control* radius, matching every custom
+   picker panel already built this way (.resource-picker-panel/.view-picker-panel/
+   .scope-picker-panel in Web/css/overview_fullcalendar.css) rather than the larger card
+   radius — a dropdown reads as a small, anchored control, not a standalone surface. */
+.dropdown-menu {
+  border: 1px solid var(--coasia-border);
+  border-radius: var(--coasia-radius-control);
+  box-shadow: var(--coasia-shadow-surface);
 }
 
 .btn {
-  border-radius: var(--bs-border-radius);
+  border-radius: var(--coasia-radius-control);
   font-weight: 500;
 }
 
@@ -130,7 +204,166 @@ h6 {
 
 .form-control,
 .form-select {
-  border-radius: var(--bs-border-radius-sm);
+  border-radius: var(--coasia-radius-control);
+  border-color: var(--coasia-border);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--primary) 20%, transparent);
+}
+
+/* Bootstrap's real toast component (globalfooter.tpl's #clipboardCopyToast etc.) had no
+   radius/shadow of its own before this — same control radius + surface shadow as every
+   other framed component. */
+.toast {
+  border: none;
+  border-radius: var(--coasia-radius-control);
+  box-shadow: var(--coasia-shadow-elevated);
+}
+
+/* Flatpickr's own default popup chrome had no radius/shadow/border alignment with the rest
+   of the system — librebooking.css only themes its *colors* (selected day, month header),
+   never touched here. */
+.flatpickr-calendar {
+  border: 1px solid var(--coasia-border);
+  border-radius: var(--coasia-radius-surface);
+  box-shadow: var(--coasia-shadow-elevated);
+}
+
+/* Flatpickr's own default day cell is a 150px pill (effectively a circle at its ~39px size)
+   — librebooking.css already themes .flatpickr-day.selected/.flatpickr-day.today's *colors*
+   but never their shape. Today's date and the selected date aren't on the "stays round"
+   allowlist, so they get the same control radius as everything else. */
+.flatpickr-day {
+  border-radius: var(--coasia-radius-control);
+}
+
+/* ---------- Shared component classes — the actual reusable building blocks, for markup
+   built directly against this system rather than repurposing Bootstrap's .btn/.form-control/
+   .dropdown-menu/.modal/.offcanvas (which are themselves already aligned above). Every
+   existing page-scoped copy of this same pattern (Web/css/overview_fullcalendar.css's
+   .gcal-control, Web/css/admin.css's .ghost-btn) should eventually just use these instead of
+   redeclaring the same properties under a different name. ---------- */
+
+.coasia-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--coasia-control-height);
+  box-sizing: border-box;
+  border: 1px solid var(--coasia-border);
+  background: var(--coasia-surface);
+  border-radius: var(--coasia-radius-control);
+  padding: 0 12px;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--coasia-text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.coasia-control:not(.disabled):not(:disabled):hover {
+  background: color-mix(in oklab, var(--primary) 14%, white);
+  border-color: color-mix(in oklab, var(--primary) 45%, white);
+  color: var(--primary);
+}
+
+.coasia-control:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Trigger of an open dropdown/panel (aria-expanded="true") reads as "currently active"
+   the same way a selected sidebar item or an active filter chip does. */
+.coasia-control[aria-expanded='true'],
+.coasia-control.selected,
+.coasia-control.active {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.coasia-control.disabled,
+.coasia-control:disabled {
+  color: #c7cbd6;
+  border-color: #e7e9ef;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Square icon-only button — row actions, pagers, "more" triggers. Smaller than a text
+   control (36px, matching admin.css's own --icon-button-size) since it carries no label to
+   give it visual weight. */
+.coasia-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--coasia-border);
+  border-radius: var(--coasia-radius-control);
+  background: var(--coasia-surface);
+  color: var(--coasia-text-secondary);
+  cursor: pointer;
+  transition: background-color 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+.coasia-icon-button:not(.disabled):not(:disabled):hover {
+  background: var(--coasia-surface-muted);
+  color: var(--coasia-text-primary);
+}
+
+.coasia-icon-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.coasia-icon-button.disabled,
+.coasia-icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Generic bordered card/panel — for markup that isn't literally Bootstrap's .card but wants
+   the same surface language (radius/border/shadow). */
+.coasia-surface {
+  background: var(--coasia-surface);
+  border: 1px solid var(--coasia-border);
+  border-radius: var(--coasia-radius-surface);
+  box-shadow: var(--coasia-shadow-surface);
+}
+
+/* Custom dropdown/autocomplete panels (the anchored, absolutely-positioned kind — resource
+   pickers, participant search results) that don't go through Bootstrap's native
+   .dropdown-menu component. */
+.coasia-dropdown {
+  background: var(--coasia-surface);
+  border: 1px solid var(--coasia-border);
+  border-radius: var(--coasia-radius-control);
+  box-shadow: var(--coasia-shadow-surface);
+  padding: 6px;
+}
+
+/* For any centered dialog built without Bootstrap's .modal-content wrapper. */
+.coasia-modal {
+  background: var(--coasia-surface);
+  border: none;
+  border-radius: var(--coasia-radius-surface);
+  box-shadow: var(--coasia-shadow-elevated);
+}
+
+/* For any slide-in side panel built without Bootstrap's .offcanvas wrapper. */
+.coasia-drawer {
+  background: var(--coasia-surface);
+  border-left: 1px solid var(--coasia-border);
+  box-shadow: var(--coasia-shadow-drawer);
 }
 
 img.logo {
@@ -187,41 +420,43 @@ img.logo {
     display: none !important;
   }
 
-  /* Every tappable circle in the collapsed rail — nav links, group toggles, the user avatar,
-     the create button — is exactly --sidebar-icon-box (44px), laid out with plain flex
-     centering (no per-item margin, no absolute positioning). The collapse/expand toggle
-     itself is deliberately NOT in this list — it keeps its own smaller, distinct circular
-     control (see .sidebar-collapse-toggle below) whether the sidebar is expanded or
-     collapsed, only the chevron's rotation changes. */
+  /* Every tappable region in the collapsed rail — nav links, group toggles, the user avatar,
+     the create button, and (below) the collapse toggle itself — shares the exact same
+     --sidebar-hit-size (48px) outer box, --sidebar-radius (12px) corner, and centering
+     mechanism (plain flex, no per-item margin, no absolute positioning, no transform). */
   .app-sidebar.collapsed .sidebar-link,
   .app-sidebar.collapsed .sidebar-group-toggle,
   .app-sidebar.collapsed .sidebar-user-avatar,
   .app-sidebar.collapsed .create-btn {
-    /* .sidebar-user-avatar's base rule sets `flex: 0 0 var(--sidebar-icon-col)` (its 40px
+    /* .sidebar-user-avatar's base rule sets `flex: 0 0 var(--sidebar-icon-col)` (its 44px
        expanded-mode column) — flex-basis wins over `width` alone on the main axis of its
        row-direction parent, so this must reset flex-basis too or the avatar silently stays
-       40px wide here despite `width` below saying 44px. */
-    flex: 0 0 var(--sidebar-icon-box);
-    width: var(--sidebar-icon-box);
-    height: var(--sidebar-icon-box);
-    min-height: var(--sidebar-icon-box);
+       44px wide here despite `width` below saying 48px. */
+    flex: 0 0 var(--sidebar-hit-size);
+    width: var(--sidebar-hit-size);
+    height: var(--sidebar-hit-size);
+    min-height: var(--sidebar-hit-size);
     margin: 0;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0;
-    border-radius: 50%;
+    /* Rounded square (12px — see --sidebar-radius's own comment above), not a circle —
+       avatar/create-btn/nav-links/group-toggles all collapse to the exact same 48x48 hit box. */
+    border-radius: var(--sidebar-radius);
     box-sizing: border-box;
   }
 
   /* Avatar and create-btn paint a *permanent* solid color across their whole box (every other
      item here only paints on hover/focus/active — see the plain .sidebar-link rule), which
-     reads as a visibly bigger, heavier shape at the full 44px than the icon-only buttons next
-     to it. Insetting the *painted* circle to 40px via padding + background-clip (rather than
+     reads as a visibly bigger, heavier shape at the full 48px than the icon-only buttons next
+     to it. Insetting the *painted* square to 44px via padding + background-clip (rather than
      shrinking the box itself) keeps the outer hit box/flex-item every icon shares at exactly
-     --sidebar-icon-box, 44px, so center-to-center spacing and the icon's own hit target stay
-     uniform across the whole rail regardless of how much of its box each item paints. */
+     --sidebar-hit-size, 48px, so center-to-center spacing and the icon's own hit target stay
+     uniform across the whole rail regardless of how much of its box each item paints — and the
+     44px painted result exactly matches --sidebar-icon-col, the same size every plain nav
+     icon's own container already is. */
   .app-sidebar.collapsed .sidebar-user-avatar,
   .app-sidebar.collapsed .create-btn {
     padding: 2px;
@@ -234,6 +469,12 @@ img.logo {
     min-height: 64px;
     flex-direction: column;
     justify-content: center;
+    /* Centers the collapse toggle on the exact same x as .sidebar-nav/.sidebar-footer's own
+       `align-items: center` below — both are column-direction flex containers spanning the
+       same collapsed sidebar width, so centering each independently lands every icon (收合/
+       頭像/新增/首頁/通知/管理/設定/登出) on one shared vertical center line without any
+       manual offset math. */
+    align-items: center;
     padding: 10px 0;
     gap: 6px;
   }
@@ -408,6 +649,10 @@ img.logo {
   align-items: center;
   gap: var(--sidebar-row-gap);
   width: 100%;
+  /* Expanded-mode row height matches --sidebar-icon-col (44px, the avatar's own size) —
+     --sidebar-hit-size (48px) is the collapsed-only square hit target, not an expanded row
+     height; a full-width expanded row already has ample horizontal hit area. */
+  min-height: var(--sidebar-icon-col);
   box-sizing: border-box;
   padding: 0 var(--sidebar-row-padding-right) 0 var(--sidebar-row-padding-left);
   color: inherit;
@@ -417,7 +662,7 @@ img.logo {
   flex: 0 0 var(--sidebar-icon-col);
   width: var(--sidebar-icon-col);
   height: var(--sidebar-icon-col);
-  border-radius: 50%;
+  border-radius: var(--sidebar-radius);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -428,7 +673,7 @@ img.logo {
 }
 
 .sidebar-user-name {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
   color: var(--sidebar-text);
   white-space: nowrap;
@@ -442,14 +687,14 @@ img.logo {
 .sidebar-collapse-toggle {
   display: none;
   position: absolute;
-  top: 18px;
-  right: 12px;
-  width: 28px;
-  height: 28px;
+  top: 14px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--sidebar-divider);
-  border-radius: 50%;
+  border-radius: var(--sidebar-radius);
   background: transparent;
   color: var(--sidebar-text);
   cursor: pointer;
@@ -496,7 +741,7 @@ img.logo {
   height: var(--gcal-control-height);
   margin: 12px 16px 0;
   border: none;
-  border-radius: 50%;
+  border-radius: var(--coasia-radius-control);
   background: var(--sidebar-hover);
   color: var(--sidebar-text);
 }
@@ -548,7 +793,11 @@ img.logo {
   /* Same value, same variable, in both expanded and collapsed layouts — see
      --sidebar-icon-gap's own comment (top of file) for why this isn't hand-tuned per state. */
   gap: var(--sidebar-icon-gap);
-  padding: 24px 12px 0;
+  /* No left padding here — each row supplies its own --sidebar-row-padding-left (16px, same
+     as .sidebar-brand's own left padding) so every icon column's left edge lines up exactly
+     with the logo above it. Used to be 12px here PLUS 20px per row (32px total, visibly
+     indented past the logo's 16px) before this was consolidated to one number. */
+  padding: 24px 12px 0 0;
 }
 
 /* Restored "+新增預約" pill — removed entirely in an earlier round (COASIA-CHANGES §29) once
@@ -562,16 +811,26 @@ img.logo {
   display: flex;
   align-items: center;
   gap: var(--sidebar-row-gap);
-  width: 100%;
   box-sizing: border-box;
-  height: var(--gcal-control-height);
-  /* Same row grid as .sidebar-link/.sidebar-group-toggle/.sidebar-user — see the
-     --sidebar-row-* variables (top of file) for why this isn't its own hand-tuned value. */
-  padding: 0 var(--sidebar-row-padding-right) 0 var(--sidebar-row-padding-left);
-  border-radius: 100px;
+  /* Expanded-mode height matches --sidebar-icon-col (44px, same as the avatar) — not
+     --sidebar-hit-size (48px), which is the collapsed-only square hit target. */
+  height: var(--sidebar-icon-col);
+  /* Every other row is transparent, so only its *icon's* padding-driven position is ever
+     visible — nobody notices the row's own box technically spans the full width. create-btn
+     paints a solid background, so its box's own edges ARE visible, and width:100% + padding
+     alone (the plain-row approach) left that painted edge flush against the sidebar's edge
+     while the "+" icon sat inset — not aligned with .sidebar-brand's logo the way every other
+     row's icon now is. Margin (not padding) insets the whole painted box instead, by the same
+     --sidebar-row-padding-left the logo itself uses, so the button's own left edge — not just
+     an icon floating inside it — lines up with the logo. .sidebar-nav's default
+     align-items:stretch (no width:100% needed) sizes the button to fill whatever's left after
+     that margin. */
+  margin: 0 var(--sidebar-row-padding-left);
+  padding: 0 var(--sidebar-row-padding-right);
+  border-radius: var(--sidebar-radius);
   background: var(--sidebar-create-btn-bg);
   color: var(--sidebar-create-btn-text);
-  font-size: 13.5px;
+  font-size: 16px;
   font-weight: 500;
   text-decoration: none;
   border: none;
@@ -620,7 +879,8 @@ img.logo {
   /* Same --sidebar-icon-gap as .sidebar-nav — settings/sign-out share the exact spacing
      system the top icon group uses, not a second hand-tuned value that happens to look close. */
   gap: var(--sidebar-icon-gap);
-  padding: 24px 12px 24px;
+  /* No left padding here — see .sidebar-nav's own comment above for why. */
+  padding: 24px 12px 24px 0;
   border-top: 1px solid var(--sidebar-divider);
 }
 
@@ -632,14 +892,16 @@ img.logo {
   align-items: center;
   gap: var(--sidebar-row-gap);
   width: 100%;
-  min-height: var(--gcal-control-height);
+  /* Expanded-mode height matches --sidebar-icon-col (44px, same as avatar/create-btn) — not
+     --sidebar-hit-size (48px), which is the collapsed-only square hit target. */
+  min-height: var(--sidebar-icon-col);
   padding: 0 var(--sidebar-row-padding-right) 0 var(--sidebar-row-padding-left);
   box-sizing: border-box;
   border: none;
   background: transparent;
-  border-radius: var(--bs-border-radius, 0.6rem);
+  border-radius: var(--sidebar-radius);
   color: var(--sidebar-text);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 500;
   letter-spacing: 0.01em;
   text-decoration: none;
@@ -647,7 +909,7 @@ img.logo {
   transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-/* The icon column itself is a fixed --sidebar-icon-col (40px) box, not the glyph's own
+/* The icon column itself is a fixed --sidebar-icon-col (44px) box, not the glyph's own
    intrinsic width — the glyph (--sidebar-icon-glyph, 24px) is centered inside it. This is
    what makes every row's text start at the exact same x regardless of which Bootstrap icon
    happens to be wider or narrower than another. */
@@ -843,10 +1105,10 @@ details.moreOptions[open] summary .bi-chevron-right {
 .login-card {
   width: 100%;
   max-width: 430px;
-  background: #fff;
-  border: 1px solid var(--gcal-border-strong);
-  border-radius: 16px;
-  box-shadow: var(--bs-box-shadow);
+  background: var(--coasia-surface);
+  border: 1px solid var(--coasia-border);
+  border-radius: var(--coasia-radius-surface);
+  box-shadow: var(--coasia-shadow-surface);
   padding: 36px 32px 24px;
   box-sizing: border-box;
 }
@@ -897,21 +1159,21 @@ details.moreOptions[open] summary .bi-chevron-right {
 
 .login-input {
   width: 100%;
-  height: 44px;
+  height: var(--coasia-control-height);
   padding: 0 14px;
   box-sizing: border-box;
-  border: 1px solid var(--gcal-border-strong);
-  border-radius: var(--bs-border-radius-sm);
+  border: 1px solid var(--coasia-border);
+  border-radius: var(--coasia-radius-control);
   font-size: 14px;
   color: var(--sidebar-text);
-  background: #fff;
+  background: var(--coasia-surface);
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
 
 .login-input:focus {
   outline: none;
-  border-color: var(--sidebar-create-btn-bg);
-  box-shadow: 0 0 0 3px rgba(31, 49, 89, 0.12);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 0.2rem color-mix(in oklab, var(--primary) 20%, transparent);
 }
 
 .login-password-wrap {
@@ -919,15 +1181,15 @@ details.moreOptions[open] summary .bi-chevron-right {
 }
 
 .login-password-wrap .login-input {
-  padding-right: 44px;
+  padding-right: var(--coasia-control-height);
 }
 
 .login-password-toggle {
   position: absolute;
   top: 0;
   right: 0;
-  width: 44px;
-  height: 44px;
+  width: var(--coasia-control-height);
+  height: var(--coasia-control-height);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -938,9 +1200,9 @@ details.moreOptions[open] summary .bi-chevron-right {
 }
 
 .login-password-toggle:focus-visible {
-  outline: 2px solid var(--sidebar-focus);
+  outline: 2px solid var(--primary);
   outline-offset: -2px;
-  border-radius: var(--bs-border-radius-sm);
+  border-radius: var(--coasia-radius-control);
 }
 
 .login-row {
@@ -971,9 +1233,9 @@ details.moreOptions[open] summary .bi-chevron-right {
 .login-submit {
   display: block;
   width: 100%;
-  height: 48px;
+  height: var(--coasia-control-height);
   border: none;
-  border-radius: var(--bs-border-radius);
+  border-radius: var(--coasia-radius-control);
   background: var(--sidebar-create-btn-bg);
   color: #fff;
   font-size: 15px;
@@ -987,7 +1249,7 @@ details.moreOptions[open] summary .bi-chevron-right {
 }
 
 .login-submit:focus-visible {
-  outline: 2px solid var(--sidebar-focus);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 

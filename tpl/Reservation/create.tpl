@@ -309,14 +309,6 @@
                         <div id="accessories" class="rp-chip-list"></div>
                         {/if}
 
-                        <div class="rp-subrow-block">
-                            {if $ShowParticipation && $AllowParticipation && $ShowReservationDetails}
-                            {include file="Reservation/invitees.tpl"}
-                            {else}
-                            {include file="Reservation/private-participation.tpl"}
-                            {/if}
-                        </div>
-
                         {if $Terms != null}
                         <div class="rp-subrow-block" id="termsAndConditions">
                             {if $TermsAccepted}
@@ -573,33 +565,96 @@
         var reminders = new Reminder(reminderOpts);
         reminders.init();
 
-        // Same participant picker Quick Create uses (Web/scripts/participant-picker.js) —
-        // same search endpoint/conditions (Chinese/Korean/English name, username/employee ID,
-        // email) and same chip style. #participantList's old hidden-input-per-chip markup is
-        // gone; participantList[] is instead synced into #rpParticipantHiddenInputs on every
-        // change, which is what Pages/Ajax/ReservationSavePage.php::GetParticipants() /
-        // ReservationUpdatePresenter actually read on submit.
-        var rpParticipantPicker = createParticipantPicker({
+        // Shared participant picker (Web/scripts/participant-picker.js) — same search endpoint/
+        // conditions (Chinese/Korean/English name, username/employee ID, email) and same chip
+        // style as Quick Create. Two instances share one component: rpParticipantPicker for
+        // required participants, rpInviteePicker for the collapsible optional ones — each also
+        // accepts external (non-user) email invitees when guest participation is allowed, and
+        // each excludes the reservation owner and whatever the other picker already holds so the
+        // same person/email can't end up required AND optional, or invited as themselves.
+        // #participantList's old hidden-input-per-chip markup is gone; participantList[] /
+        // guestParticipationList[] / invitationList[] / guestInvitationList[] are instead synced
+        // into their #rp*HiddenInputs containers on every change, which is what
+        // Pages/Ajax/ReservationSavePage.php::GetParticipants()/GetInvitees()/
+        // GetParticipatingGuests()/GetInvitedGuests() and ReservationUpdatePresenter actually
+        // read on submit.
+        var rpOwnerId = {$UserId};
+        var rpOwnerEmail = '{$UserEmail|escape:"javascript"}';
+        var rpAllowGuestParticipation = {if $AllowGuestParticipation}true{else}false{/if};
+        var rpInviteEmailLabel = '{translate key="InviteExternalEmail"|escape:"javascript"}';
+        var rpExternalBadgeText = '{translate key="ExternalParticipantBadge"|escape:"javascript"}';
+        var rpNoMatchesText = '{translate key="NoMatchesFound"|escape:"javascript"}';
+
+        function rpSyncHiddenInputs(containerSelector, internalFieldName, externalFieldName, participants) {
+            var $hidden = $(containerSelector).empty();
+            participants.forEach(function (p) {
+                var name = p.type === 'external' ? externalFieldName : internalFieldName;
+                var value = p.type === 'external' ? p.email : p.id;
+                $('<input type="hidden">').attr('name', name).val(value).appendTo($hidden);
+            });
+        }
+
+        var rpParticipantPicker, rpInviteePicker;
+
+        rpParticipantPicker = createParticipantPicker({
             input: '#rpParticipantSearchInput',
             results: '#rpParticipantSearchResults',
             chipList: '#rpParticipantChipList',
             wrapper: '#rpParticipantSearch',
             searchUrl: 'ajax/overview_fullcalendar_participant_search.php?term=',
-            noMatchesText: '{translate key="NoMatchesFound"|escape:"javascript"}',
+            noMatchesText: rpNoMatchesText,
+            allowExternal: rpAllowGuestParticipation,
+            inviteEmailLabel: rpInviteEmailLabel,
+            externalBadgeText: rpExternalBadgeText,
+            excludeIds: [rpOwnerId],
+            excludeEmails: [rpOwnerEmail],
+            conflictsWith: function () { return rpInviteePicker ? rpInviteePicker.getParticipants() : []; },
             onChange: function (participants) {
-                var $hidden = $('#rpParticipantHiddenInputs').empty();
-                participants.forEach(function (p) {
-                    $('<input type="hidden" name="participantList[]">').val(p.id).appendTo($hidden);
-                });
+                rpSyncHiddenInputs('#rpParticipantHiddenInputs', 'participantList[]', 'guestParticipationList[]', participants);
                 $('#participantBadge').text(participants.length);
+            },
+        });
+
+        rpInviteePicker = createParticipantPicker({
+            input: '#rpInviteeSearchInput',
+            results: '#rpInviteeSearchResults',
+            chipList: '#rpInviteeChipList',
+            wrapper: '#rpInviteeSearch',
+            searchUrl: 'ajax/overview_fullcalendar_participant_search.php?term=',
+            noMatchesText: rpNoMatchesText,
+            allowExternal: rpAllowGuestParticipation,
+            inviteEmailLabel: rpInviteEmailLabel,
+            externalBadgeText: rpExternalBadgeText,
+            excludeIds: [rpOwnerId],
+            excludeEmails: [rpOwnerEmail],
+            conflictsWith: function () { return rpParticipantPicker ? rpParticipantPicker.getParticipants() : []; },
+            onChange: function (participants) {
+                rpSyncHiddenInputs('#rpInviteeHiddenInputs', 'invitationList[]', 'guestInvitationList[]', participants);
+                $('#inviteeBadge').text(participants.length);
             },
         });
 
         rpParticipantPicker.reset([
             {foreach from=$Participants item=user name=rpParticipantsLoop}
-            { id: {$user->UserId}, label: "{$user->FullName|escape:'javascript'}" }{if !$smarty.foreach.rpParticipantsLoop.last},{/if}
+            { id: {$user->UserId}, label: "{$user->FullName|escape:'javascript'}", type: 'internal' },
+            {/foreach}
+            {foreach from=$ParticipatingGuests item=guest name=rpParticipatingGuestsLoop}
+            { id: 'ext:{$guest|lower|escape:"javascript"}', label: "{$guest|escape:'javascript'}", type: 'external', email: "{$guest|escape:'javascript'}" }{if !$smarty.foreach.rpParticipatingGuestsLoop.last},{/if}
             {/foreach}
         ]);
+
+        rpInviteePicker.reset([
+            {foreach from=$Invitees item=user name=rpInviteesLoop}
+            { id: {$user->UserId}, label: "{$user->FullName|escape:'javascript'}", type: 'internal' },
+            {/foreach}
+            {foreach from=$InvitedGuests item=guest name=rpInvitedGuestsLoop}
+            { id: 'ext:{$guest|lower|escape:"javascript"}', label: "{$guest|escape:'javascript'}", type: 'external', email: "{$guest|escape:'javascript'}" }{if !$smarty.foreach.rpInvitedGuestsLoop.last},{/if}
+            {/foreach}
+        ]);
+
+        if (rpInviteePicker.getParticipants().length > 0) {
+            $('#rpOptionalParticipantsDetails').attr('open', 'open');
+        }
 
         // Google-Calendar-style "更多選項": Quick Create's in-progress draft (title/
         // description/participants) travels here via sessionStorage rather than the URL —
@@ -624,24 +679,16 @@
                     if ((qcDraft.participants || []).length) {
                         rpParticipantPicker.reset(qcDraft.participants);
                     }
+                    if ((qcDraft.optionalParticipants || []).length) {
+                        rpInviteePicker.reset(qcDraft.optionalParticipants);
+                        $('#rpOptionalParticipantsDetails').attr('open', 'open');
+                    }
                 }
             } catch (e) {
                 // Malformed/unavailable sessionStorage — the form just opens blank instead of
                 // prefilled, same as clicking "更多選項" with nothing typed in yet.
             }
         }
-
-        {foreach from=$Invitees item=user}
-        reservation.addInvitee("{$user->FullName|escape:'javascript'}", '{$user->UserId}');
-        {/foreach}
-
-        {foreach from=$ParticipatingGuests item=guest}
-        reservation.addParticipatingGuest('{$guest}');
-        {/foreach}
-
-        {foreach from=$InvitedGuests item=guest}
-        reservation.addInvitedGuest('{$guest}');
-        {/foreach}
 
         {foreach from=$Accessories item=accessory}
         reservation.addAccessory({$accessory->AccessoryId}, {$accessory->QuantityReserved}, "{$accessory->Name|escape:'javascript'}");

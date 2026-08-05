@@ -212,14 +212,10 @@ $(function () {
     // changes whether the fetched events are further narrowed to this user's own
     // reservations (see the events() callback below, and
     // OverviewFullCalendarEventsPresenter::GetEvents()'s $mineOnly branch on the server).
+    // UI is a dropdown (same trigger/panel pattern as the view picker, wired up alongside it
+    // further below via initScopePicker()) rather than the old labeled toggle switch — only
+    // the control changed, not what it drives.
     var mineOnly = false;
-
-    $('#fcMineOnlyToggle').on('change', function () {
-        mineOnly = this.checked;
-        if (typeof calendar !== 'undefined') {
-            calendar.refetchEvents();
-        }
-    });
 
     // ---- Default resource for quick-create actions (drag-select, sidebar "+新增預約") ----
     // Always the currently selected resource — there's exactly one at any time now, so this
@@ -806,7 +802,10 @@ $(function () {
 
     // Quick Create's participant picker — factory shared with the classic reservation form
     // (Web/scripts/participant-picker.js, {jsfile}-included above) so both use the identical
-    // debounced-search/dropdown/removable-chip behavior, endpoint, and visual style.
+    // debounced-search/dropdown/removable-chip behavior, endpoint, and visual style. Required
+    // participants only — no optional-participants picker here (see the "更多選項" comment
+    // further down and the removed markup this used to pair with); accepts external (non-user)
+    // email invitees when guest participation is allowed, and excludes the current user.
     var qcParticipantPicker = createParticipantPicker({
         input: '#qcParticipantSearchInput',
         results: '#qcParticipantSearchResults',
@@ -814,6 +813,11 @@ $(function () {
         wrapper: '#qcParticipantSearch',
         searchUrl: opts.participantSearchUrl,
         noMatchesText: opts.translations.noMatchesFound,
+        allowExternal: opts.allowGuestParticipation,
+        inviteEmailLabel: opts.translations.inviteExternalEmail,
+        externalBadgeText: opts.translations.externalParticipantBadge,
+        excludeIds: [opts.currentUserId],
+        excludeEmails: [opts.currentUserEmail],
     });
 
     function buildQuickCreateDraft() {
@@ -1267,6 +1271,49 @@ $(function () {
         });
     })();
 
+    // ---- Reservation scope filter (全部／只看我的, dropdown "全部 ▾") — same trigger/
+    // panel pattern as the view picker above; sets the `mineOnly` flag declared earlier
+    // (read by the events() callback / OverviewFullCalendarEventsPresenter's $mineOnly
+    // branch) instead of changing calendar view. ----
+    (function initScopePicker() {
+        var $picker = $('#scopePicker');
+        var $trigger = $('#scopePickerTrigger');
+        var $panel = $('#scopePickerPanel');
+        var $label = $('#scopePickerLabel');
+
+        function open() {
+            closeAllDropdowns();
+            $picker.addClass('open');
+            $trigger.attr('aria-expanded', 'true');
+        }
+        function close() {
+            $picker.removeClass('open');
+            $trigger.attr('aria-expanded', 'false');
+        }
+        allDropdownClosers.push(close);
+
+        $trigger.on('click', function (e) {
+            e.stopPropagation();
+            if ($picker.hasClass('open')) {
+                close();
+            } else {
+                open();
+            }
+        });
+        $panel.on('click', function (e) { e.stopPropagation(); });
+        $panel.on('click', '.view-picker-item', function () {
+            var $item = $(this);
+            mineOnly = $item.data('scope') === 'mine';
+            $panel.find('.view-picker-item').removeClass('active');
+            $item.addClass('active');
+            $label.text($item.text());
+            close();
+            if (typeof calendar !== 'undefined') {
+                calendar.refetchEvents();
+            }
+        });
+    })();
+
     // Cross-day-safe: compares full 'YYYY-MM-DD HH:MM:SS' strings, not just the time-of-day,
     // so a legitimate cross-midnight range (e.g. start 22:00 / end next-day 02:00) isn't
     // mistaken for an invalid one.
@@ -1300,7 +1347,7 @@ $(function () {
         body.set('endDate', pending.endDate);
         body.set('endPeriod', minutesToHHMMSS(pending.endMinutes));
         qcParticipantPicker.getParticipants().forEach(function (p) {
-            body.append('participantList[]', p.id);
+            body.append(p.type === 'external' ? 'guestParticipationList[]' : 'participantList[]', p.type === 'external' ? p.email : p.id);
         });
 
         fetch(opts.saveUrl, {

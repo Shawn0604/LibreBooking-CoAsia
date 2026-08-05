@@ -32,6 +32,7 @@ class OverviewFullCalendarPage extends SecurePage implements IOverviewFullCalend
     public function PageLoad()
     {
         $this->presenter->PageLoad(ServiceLocator::GetServer()->GetUserSession());
+        $this->Set('AllowGuestParticipation', Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_ALLOW_GUEST_PARTICIPATION, new BooleanConverter()));
         $this->Display('Overview/overview_fullcalendar.tpl');
     }
 

@@ -72,6 +72,7 @@ class en_us extends Language
         $strings['UserNameRequired'] = 'User name is required.';
         $strings['CaptchaMustMatch'] = 'Captcha is required.';
         $strings['Today'] = 'Today';
+        $strings['BackToToday'] = 'Back to today';
         $strings['Day'] = 'Day';
         $strings['Week'] = 'Week';
         $strings['Month'] = 'Month';
@@ -154,6 +155,10 @@ class en_us extends Language
         $strings['SearchResources'] = 'Search resources';
         $strings['NoMatchesFound'] = 'No matches found';
         $strings['SearchParticipants'] = 'Search by name, username, or email';
+        $strings['RequiredParticipants'] = 'Required Participants';
+        $strings['OptionalParticipants'] = 'Optional Participants';
+        $strings['ExternalParticipantBadge'] = 'External';
+        $strings['InviteExternalEmail'] = 'Press Enter to invite {{email}} (external)';
         $strings['TakeOffline'] = 'Take Offline';
         $strings['BringOnline'] = 'Bring Online';
         $strings['AddImage'] = 'Add Image';
@@ -1097,7 +1102,6 @@ class en_us extends Language
         $strings['AdminOverviewNotificationFailures'] = 'Notification Failures';
         $strings['AdminOverviewNeedsAttention'] = 'Needs Attention';
         $strings['AdminOverviewNoIssues'] = 'Nothing needs attention right now';
-        $strings['AdminOverviewSystemStatusSummary'] = 'AD Sync OK · Email OK · LINE OK';
         $strings['AdminOverviewViewAllReservations'] = 'View All Reservations';
         $strings['AdminOverviewManageRooms'] = 'Manage Rooms';
         $strings['AdminOverviewUnassignedLocation'] = 'Unassigned Location';
@@ -1107,6 +1111,19 @@ class en_us extends Language
         $strings['AdminOverviewStatusUpcoming'] = 'Upcoming';
         $strings['AdminOverviewStatusEnded'] = 'Ended';
         $strings['AdminOverviewNotConfigured'] = 'Not configured';
+        $strings['AdminOverviewInProgress'] = 'In Progress';
+        $strings['AdminOverviewStartingSoon'] = 'Starting Within 1 Hour';
+        $strings['AdminOverviewUnavailableRooms'] = 'Disabled/Maintenance Rooms';
+        $strings['AdminOverviewLiveRoomStatus'] = 'Live Room Status';
+        $strings['AdminOverviewMaintenance'] = 'Maintenance';
+        $strings['AdminOverviewUntil'] = 'until';
+        $strings['AdminOverviewFree'] = 'Free';
+        $strings['AdminOverviewNextAt'] = 'Next at';
+        $strings['AdminOverviewNothingScheduled'] = 'Nothing scheduled';
+        $strings['AdminOverviewWeeklyTrend'] = 'Reservations, Last 7 Days';
+        $strings['AdminOverviewTopResources'] = 'Top Rooms';
+        $strings['AdminOverviewReservationCount'] = '%s reservations';
+        $strings['AdminOverviewNoReservationsThisWeek'] = 'No reservations this week';
         $strings['AdminBackToOverview'] = 'Back to Overview';
         $strings['AdminReservationsDescription'] = 'View, filter, and manage all reservations.';
         $strings['AdminResourcesDescription'] = 'Manage room and resource status, groups, and settings.';

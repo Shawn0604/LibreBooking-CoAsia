@@ -1,9 +1,18 @@
 // Shared participant search+chip picker — originally built for the Overview page's Quick
-// Create modal, now also used by the classic reservation form (tpl/Reservation/create.tpl)
-// so both share the identical debounced-search/dropdown/removable-chip behavior, endpoint,
-// and visual style rather than drifting into two near-duplicate implementations. Searches
-// ajax/overview_fullcalendar_participant_search.php (Chinese/Korean/English name, username/
-// employee ID, email) and stores each result's real Id (users.user_id), never an email.
+// Create modal, now also used by the classic reservation form (tpl/Reservation/create.tpl,
+// tpl/Reservation/participation.tpl) so both share the identical debounced-search/dropdown/
+// removable-chip behavior, endpoint, and visual style rather than drifting into two
+// near-duplicate implementations. Searches ajax/overview_fullcalendar_participant_search.php
+// (Chinese/Korean/English name, username/employee ID, email) and stores each internal result's
+// real Id (users.user_id), never an email.
+//
+// Also supports external (non-user) attendees: when config.allowExternal is set and the search
+// box holds a syntactically complete email address that doesn't already belong to a selected/
+// excluded/internal-search-matched user, an "invite this email" row is offered. Picking it adds
+// an entry with type:'external' carrying the email instead of a user id — the caller (create.tpl,
+// overview_fullcalendar.js) is responsible for routing type:'internal' entries to the
+// participant/invitee id list and type:'external' entries to the guest email list when building
+// the submit payload.
 //
 // config: {
 //   input, results, chipList: selectors (required)
@@ -11,6 +20,16 @@
 //     .participant-search-ish container isn't assumed; pass it explicitly)
 //   searchUrl: full search endpoint including any trailing '?term=' (required)
 //   noMatchesText: string shown when a search returns zero results
+//   allowExternal: bool — offer "invite this email" for external attendees
+//   inviteEmailLabel: string with a literal '{{email}}' token, e.g. 'Invite {{email}} (external)'
+//   externalBadgeText: string shown on external attendee chips, e.g. 'External'
+//   excludeIds: number[] — internal user ids that may never be added (e.g. the reservation owner)
+//   excludeEmails: string[] — emails that may never be added as external attendees (e.g. the
+//     reservation owner's own email, and/or every currently-selected internal user's email so
+//     someone can't be added twice under two different identities)
+//   conflictsWith: optional function() -> {id, type, email}[] — current selections of a paired
+//     picker (e.g. the "optional participants" picker when this is the "required" one) so the
+//     same person can't end up in both lists at once
 //   onChange: optional callback(participants[]) fired after every add/remove/reset
 // }
 var PARTICIPANT_AVATAR_PALETTE = [
@@ -22,8 +41,10 @@ var PARTICIPANT_AVATAR_PALETTE = [
     { bg: '#e0f2fe', fg: '#075985' },
 ];
 
+var PARTICIPANT_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function participantAvatarColors(id) {
-    return PARTICIPANT_AVATAR_PALETTE[Math.abs(id) % PARTICIPANT_AVATAR_PALETTE.length];
+    return PARTICIPANT_AVATAR_PALETTE[Math.abs(typeof id === 'number' ? id : 0) % PARTICIPANT_AVATAR_PALETTE.length];
 }
 
 function participantInitials(name) {
@@ -39,7 +60,7 @@ function participantInitials(name) {
 }
 
 function createParticipantPicker(config) {
-    var participants = []; // {id, label}[] — label is what the chip shows
+    var participants = []; // {id, label, type: 'internal'|'external', email?}[] — label is what the chip shows
     var searchTimer = null;
 
     function fireChange() {
@@ -48,10 +69,39 @@ function createParticipantPicker(config) {
         }
     }
 
+    function excludedIds() {
+        return config.excludeIds || [];
+    }
+
+    function excludedEmails() {
+        return (config.excludeEmails || []).map(function (e) { return e.toLowerCase(); });
+    }
+
+    function peerParticipants() {
+        return typeof config.conflictsWith === 'function' ? (config.conflictsWith() || []) : [];
+    }
+
+    function isDuplicateInternal(userId) {
+        var here = participants.some(function (p) { return p.type !== 'external' && p.id === userId; });
+        var peer = peerParticipants().some(function (p) { return p.type !== 'external' && p.id === userId; });
+        return here || peer;
+    }
+
+    function isDuplicateExternal(emailLower) {
+        var here = participants.some(function (p) { return p.type === 'external' && p.email.toLowerCase() === emailLower; });
+        var peer = peerParticipants().some(function (p) { return p.type === 'external' && (p.email || '').toLowerCase() === emailLower; });
+        return here || peer;
+    }
+
     function render() {
         var $list = $(config.chipList).empty();
         participants.forEach(function (p) {
-            var $chip = $('<span class="reservation-chip"></span>').text(p.label);
+            var $chip = $('<span class="reservation-chip"></span>');
+            if (p.type === 'external') {
+                $chip.addClass('reservation-chip-external');
+                $('<span class="reservation-chip-ext-badge"></span>').text(config.externalBadgeText || 'External').appendTo($chip);
+            }
+            $('<span class="reservation-chip-text"></span>').text(p.label).appendTo($chip);
             $('<button type="button" class="btn-close btn-close-white" style="font-size:8px" aria-label="Remove"></button>')
                 .on('click', function () {
                     participants = participants.filter(function (x) { return x.id !== p.id; });
@@ -69,23 +119,64 @@ function createParticipantPicker(config) {
     }
 
     function add(user) {
-        if (participants.some(function (p) { return p.id === user.Id; })) {
+        if (excludedIds().indexOf(user.Id) !== -1) {
+            return;
+        }
+        if (isDuplicateInternal(user.Id)) {
             return;
         }
         var label = (user.ChineseName ? user.ChineseName + ' ' : '') + (user.EnglishName || user.Username || '');
-        participants.push({ id: user.Id, label: label.trim() || user.Email });
+        participants.push({ id: user.Id, label: label.trim() || user.Email, type: 'internal', email: user.Email || '' });
         render();
         fireChange();
         closeResults();
         $(config.input).val('').trigger('focus');
     }
 
+    function addExternal(rawEmail) {
+        var email = $.trim(rawEmail);
+        if (!PARTICIPANT_EMAIL_RE.test(email)) {
+            return false;
+        }
+        var key = email.toLowerCase();
+        if (excludedEmails().indexOf(key) !== -1 || isDuplicateExternal(key)) {
+            return false;
+        }
+        participants.push({ id: 'ext:' + key, label: email, type: 'external', email: email });
+        render();
+        fireChange();
+        closeResults();
+        $(config.input).val('').trigger('focus');
+        return true;
+    }
+
     function renderResults(results) {
         var $panel = $(config.results).empty();
-        var selectedIds = participants.map(function (p) { return p.id; });
-        var visible = results.filter(function (u) { return selectedIds.indexOf(u.Id) === -1; });
+        var selectedIds = participants.filter(function (p) { return p.type !== 'external'; }).map(function (p) { return p.id; });
+        var blockedIds = excludedIds().concat(selectedIds).concat(
+            peerParticipants().filter(function (p) { return p.type !== 'external'; }).map(function (p) { return p.id; })
+        );
+        var visible = results.filter(function (u) { return blockedIds.indexOf(u.Id) === -1; });
 
-        if (visible.length === 0) {
+        var term = $.trim($(config.input).val());
+        var showInvite = false;
+        if (config.allowExternal && PARTICIPANT_EMAIL_RE.test(term)) {
+            var key = term.toLowerCase();
+            var matchesInternal = results.some(function (u) { return (u.Email || '').toLowerCase() === key; });
+            showInvite = !matchesInternal && excludedEmails().indexOf(key) === -1 && !isDuplicateExternal(key);
+        }
+
+        if (showInvite) {
+            var inviteText = (config.inviteEmailLabel || 'Invite {{email}}').replace('{{email}}', term);
+            var $invite = $('<button type="button" class="participant-search-item participant-search-invite"></button>');
+            $('<span class="participant-search-item-avatar participant-search-invite-icon"></span>')
+                .html('<i class="bi bi-envelope-plus"></i>')
+                .appendTo($invite);
+            $('<span class="participant-search-item-name"></span>').text(inviteText).appendTo($invite);
+            $invite.on('click', function () { addExternal(term); }).appendTo($panel);
+        }
+
+        if (visible.length === 0 && !showInvite) {
             $('<div class="participant-search-empty"></div>').text(config.noMatchesText || '').appendTo($panel);
         } else {
             visible.forEach(function (u) {
@@ -142,6 +233,23 @@ function createParticipantPicker(config) {
         }
     });
 
+    // Typing a complete external email never adds it by itself — only Enter (or clicking the
+    // "invite this email" row rendered above) does. This is the one case where the picker adds
+    // something that never came back from the internal-user search, so it's gated behind an
+    // explicit confirmation rather than happening automatically as a side effect of typing.
+    $(config.input).on('keydown', function (e) {
+        var isEnter = e.key === 'Enter' || e.keyCode === 13;
+        if (!isEnter || !config.allowExternal) {
+            return;
+        }
+        var term = $.trim($(this).val());
+        if (!PARTICIPANT_EMAIL_RE.test(term)) {
+            return;
+        }
+        e.preventDefault();
+        addExternal(term);
+    });
+
     $(document).on('click', function (e) {
         if (!$(e.target).closest(config.wrapper).length) {
             closeResults();
@@ -150,7 +258,14 @@ function createParticipantPicker(config) {
 
     return {
         reset: function (initial) {
-            participants = (initial || []).slice();
+            participants = (initial || []).map(function (p) {
+                return {
+                    id: p.id,
+                    label: p.label,
+                    type: p.type || 'internal',
+                    email: p.email || (p.type === 'external' ? p.label : ''),
+                };
+            });
             render();
             $(config.input).val('');
             closeResults();

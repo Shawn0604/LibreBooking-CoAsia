@@ -500,6 +500,10 @@ abstract class ReservationPage extends Page implements IReservationPage
     {
         $this->Set('ReservationUserName', $user->FullName());
         $this->Set('UserId', $user->Id());
+        // Overrides the session-wide 'UserEmail' assigned in Pages/Page.php with the actual
+        // reservation owner's email — matters when an admin books on behalf of someone else via
+        // "change user", where UserId above is already overridden the same way.
+        $this->Set('UserEmail', $user->EmailAddress());
         $this->Set('CurrentUserCredits', $user->CurrentCreditCount());
     }
 

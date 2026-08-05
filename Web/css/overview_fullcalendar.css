@@ -18,6 +18,11 @@
   --dialog-radius: 16px;
   --control-radius: 10px;
   --icon-button-size: 36px;
+  /* Lower-contrast than their old #eceff1/#dde1e6 fallbacks — internal FullCalendar grid
+     lines only (hour rows, day/axis separators); the toolbar and calendar-frame outer
+     borders use the explicit #DFE4EC design-system border color directly, not this token. */
+  --gcal-border: #eef1f5;
+  --gcal-border-strong: #e8ebf0;
 
   position: relative;
   display: flex;
@@ -31,7 +36,9 @@
   height: calc(100vh - 16px);
   max-width: 1360px;
   margin: -16px auto 0;
-  padding: 0 20px 16px 16px;
+  /* Left/right padding matches .admin-page's own 28px so this page reads as the same
+     design system as 管理中心 (Web/css/admin.css) instead of its own one-off spacing. */
+  padding: 0 28px 16px 28px;
   box-sizing: border-box;
 }
 
@@ -47,13 +54,12 @@
 #page-overview-fc .cal-toolbar.cal-toolbar-3col {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(150px, 1fr) auto minmax(220px, 1fr);
   align-items: center;
-  column-gap: 16px;
+  column-gap: 12px;
   height: 64px;
   box-sizing: border-box;
   padding: 0 4px;
-  border-bottom: 1px solid var(--gcal-border, #eceff1);
 }
 
 #page-overview-fc .toolbar-col {
@@ -71,9 +77,12 @@
   gap: 8px;
 }
 
+/* Right-side control group: back-to-today icon button, scope filter, view picker — same
+   40px height, 12px corner radius, and 8px spacing across all three so they read as one
+   consistent button row instead of three differently-shaped controls. */
 #page-overview-fc .toolbar-col-right {
   justify-content: flex-end;
-  gap: 16px;
+  gap: 8px;
 }
 
 /* ---- Ghost Button — the shared visual language for every pill-shaped toolbar control
@@ -153,6 +162,24 @@
   color: var(--primary);
 }
 
+/* The resource picker / today button / scope picker / view picker triggers use the sitewide
+   .coasia-control class (Web/css/coasia-theme.css) directly now — same 40px/10px-radius/
+   --coasia-border control every other page's buttons use, not a page-scoped copy. Only
+   layout tweaks specific to each trigger (width/justify-content) live here. */
+
+/* Icon-only "back to today" button (toolbar right) — square 40x40, same shared control
+   shape as the two dropdown triggers beside it. */
+#page-overview-fc .today-btn {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+#page-overview-fc .today-btn i {
+  font-size: var(--gcal-icon-size, 20px);
+  line-height: 1;
+}
+
 #page-overview-fc .today-btn.disabled {
   color: #c7cbd6;
   border-color: #e7e9ef;
@@ -160,31 +187,67 @@
   pointer-events: none;
 }
 
-#page-overview-fc .arrows {
+/* ---- Date switcher (toolbar center) — prev/month/next as one bordered 40px-tall group
+   instead of three separate controls; a fixed-width month label keeps the group's overall
+   width constant as the text itself changes length between months ("月份變化時整組寬度不可
+   跳動"), and `overflow:hidden` + the group's own radius means neither arrow needs (or gets)
+   its own border/corner treatment. ---- */
+#page-overview-fc .date-switcher {
   display: flex;
-  gap: 2px;
+  align-items: center;
+  height: var(--coasia-control-height, 40px);
+  box-sizing: border-box;
+  border: 1px solid var(--coasia-border, #e4e7ee);
+  border-radius: var(--coasia-radius-control, 10px);
+  background: var(--coasia-surface, #fff);
+  overflow: hidden;
 }
 
-#page-overview-fc .arrows a.nav.ghost-btn {
-  width: var(--gcal-control-height, 40px);
-  padding: 0;
+#page-overview-fc .date-switcher-arrow {
+  display: flex;
+  align-items: center;
   justify-content: center;
-  border: none;
-  border-radius: 50%;
+  align-self: stretch;
+  width: 40px;
+  color: #3c4043;
+  transition: background-color 0.14s ease, color 0.14s ease;
 }
 
-#page-overview-fc .arrows a.nav i {
+/* Hovering one arrow only highlights that arrow's own cell, not the whole group. */
+#page-overview-fc .date-switcher-arrow:hover {
+  background: color-mix(in oklab, var(--primary) 14%, white);
+  color: var(--primary);
+}
+
+#page-overview-fc .date-switcher-arrow:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+  z-index: 1;
+}
+
+#page-overview-fc .date-switcher-arrow i {
   font-size: var(--gcal-icon-size, 20px);
   line-height: 1;
 }
 
+#page-overview-fc .date-switcher-divider {
+  width: 1px;
+  height: 20px;
+  flex-shrink: 0;
+  background: var(--coasia-border, #e4e7ee);
+}
+
 #page-overview-fc .month-label {
-  font-size: 18px;
+  width: 120px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 15px;
   font-weight: 500;
   color: #3c4043;
   font-variant-numeric: tabular-nums;
-  line-height: var(--gcal-control-height, 40px);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---- Resource picker (toolbar left) — replaces the old top-level physical/video tabs
@@ -210,7 +273,8 @@
 }
 
 #page-overview-fc .resource-picker-trigger .bi-chevron-down,
-#page-overview-fc .view-picker-trigger .bi-chevron-down {
+#page-overview-fc .view-picker-trigger .bi-chevron-down,
+#page-overview-fc .scope-picker-trigger .bi-chevron-down {
   font-size: 11px;
   color: #9aa1b3;
   transition: transform 0.15s ease;
@@ -218,7 +282,8 @@
 }
 
 #page-overview-fc .resource-picker.open .resource-picker-trigger .bi-chevron-down,
-#page-overview-fc .view-picker.open .view-picker-trigger .bi-chevron-down {
+#page-overview-fc .view-picker.open .view-picker-trigger .bi-chevron-down,
+#page-overview-fc .scope-picker.open .scope-picker-trigger .bi-chevron-down {
   transform: rotate(180deg);
 }
 
@@ -232,7 +297,8 @@
 }
 
 #page-overview-fc .resource-picker-panel,
-#page-overview-fc .view-picker-panel {
+#page-overview-fc .view-picker-panel,
+#page-overview-fc .scope-picker-panel {
   position: absolute;
   top: calc(100% + 6px);
   z-index: 20;
@@ -253,14 +319,16 @@
   transform-origin: top left;
 }
 
-#page-overview-fc .view-picker-panel {
+#page-overview-fc .view-picker-panel,
+#page-overview-fc .scope-picker-panel {
   right: 0;
   min-width: 120px;
   transform-origin: top right;
 }
 
 #page-overview-fc .resource-picker.open .resource-picker-panel,
-#page-overview-fc .view-picker.open .view-picker-panel {
+#page-overview-fc .view-picker.open .view-picker-panel,
+#page-overview-fc .scope-picker.open .scope-picker-panel {
   opacity: 1;
   visibility: visible;
   transform: translateY(0) scale(1);
@@ -269,7 +337,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   #page-overview-fc .resource-picker-panel,
-  #page-overview-fc .view-picker-panel {
+  #page-overview-fc .view-picker-panel,
+  #page-overview-fc .scope-picker-panel {
     transition: none;
   }
 }
@@ -524,84 +593,46 @@
   color: #9aa1b3;
 }
 
-/* ---- Mine-only toggle switch (toolbar right) — replaces the old 全體／只看我的 tab
-   pair with a single on/off switch, since it's a binary filter, not a multi-way choice. ---- */
-
-#page-overview-fc .mine-only-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-#page-overview-fc .mine-only-label {
-  font-size: 14.5px;
-  font-weight: 500;
-  color: #3c4043;
-}
-
-#page-overview-fc .toggle-switch {
-  position: relative;
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-#page-overview-fc .toggle-switch input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-
-#page-overview-fc .toggle-track {
-  width: 36px;
-  height: 20px;
-  border-radius: 100px;
-  background: var(--bs-border-color, #d6d9e3);
-  transition: background-color 0.15s ease;
-  position: relative;
-}
-
-#page-overview-fc .toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-  transition: transform 0.15s ease;
-}
-
-#page-overview-fc .toggle-switch input:checked ~ .toggle-track {
-  background: var(--primary);
-}
-
-#page-overview-fc .toggle-switch input:checked ~ .toggle-track .toggle-thumb {
-  transform: translateX(16px);
-}
-
-#page-overview-fc .toggle-switch input:focus-visible ~ .toggle-track {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+/* "Invite this email" row in the search dropdown — same .participant-search-item base as a
+   real user result, just an icon avatar instead of initials. */
+#page-overview-fc .participant-search-invite-icon {
+  background: var(--surface-muted);
+  color: var(--primary);
+  font-size: 13px;
 }
 
 /* ---- View picker (toolbar right) — replaces the old day/week/month tab group with a
-   single dropdown ("月 ▾"), same panel styling as the resource picker above. ---- */
+   single dropdown ("週 ▾"), same panel styling as the resource picker above and same fixed
+   104px width / left-text-right-chevron layout as the scope filter beside it, so the two
+   dropdowns read as one matched pair. ---- */
 
 #page-overview-fc .view-picker {
   position: relative;
 }
 
 #page-overview-fc .view-picker-trigger {
-  min-width: 84px;
+  width: 104px;
   justify-content: space-between;
+}
+
+/* ---- Scope filter (全部／只看我的, toolbar right) — same trigger/panel dropdown pattern
+   and fixed 104px width as the view picker beside it, replacing the old labeled toggle
+   switch so all three right-side controls share one visual language. No leading icon (the
+   dropdown's own two options already say what it filters). ---- */
+
+#page-overview-fc .scope-picker {
+  position: relative;
+}
+
+#page-overview-fc .scope-picker-trigger {
+  width: 104px;
+  justify-content: space-between;
+}
+
+#page-overview-fc .scope-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The rounded outer frame the acceptance criteria asks for. `overflow: hidden` is safe
@@ -613,10 +644,13 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  border-radius: 16px;
+  margin-top: 12px;
+  border-radius: var(--coasia-radius-surface, 16px);
   overflow: hidden;
-  border: 1px solid var(--gcal-border, #eceff1);
-  background: #fff;
+  border: 1px solid var(--coasia-border, #e4e7ee);
+  background: var(--coasia-surface, #fff);
+  /* Same very-soft card shadow as .admin-card (Web/css/admin.css). */
+  box-shadow: var(--coasia-shadow-surface, 0 1px 2px rgba(20, 30, 55, 0.06));
 }
 
 #page-overview-fc #fullcalendarRoot {
@@ -704,10 +738,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 40px;
-  width: 40px;
+  height: 38px;
+  width: 38px;
   margin: 2px auto 0;
-  border-radius: 50%;
+  /* Rounded square, not a circle — today's date is not on the "stays round" allowlist
+     (resource dots / now-indicator dot / status dots / switch thumbs only). */
+  border-radius: var(--coasia-radius-control, 10px);
   font-size: 16px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -806,7 +842,7 @@
 #fullcalendarRoot .fc-timegrid-event {
   border-style: solid;
   border-width: 0 0 0 3px;
-  border-radius: 4px;
+  border-radius: 8px;
   padding: 3px 8px;
   box-shadow: none;
   overflow: hidden;
@@ -866,7 +902,7 @@
 #fullcalendarRoot .fc-daygrid-event {
   border-style: solid;
   border-width: 0 0 0 3px;
-  border-radius: 4px;
+  border-radius: 8px;
   margin: 1px 2px;
   padding: 1px 6px;
   white-space: nowrap;
@@ -1966,6 +2002,24 @@ textarea.reservation-field {
   padding: 4px 10px;
   font-size: 12px;
   color: var(--text-primary);
+}
+
+/* External (non-user, invited-by-email) attendees — same badge treatment as the classic
+   reservation form (Web/css/reservation-page.css), restated here since Quick Create/Drawer
+   don't load that stylesheet. */
+.reservation-chip-external {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.reservation-chip-ext-badge {
+  background: #92400e;
+  color: #fff;
+  border-radius: 100px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 
 /* Read-only detail lists in the Drawer (participants/invitees, guests, attachments) — a

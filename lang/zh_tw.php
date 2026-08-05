@@ -88,6 +88,7 @@ class zh_tw extends en_us
         $strings['UserNameRequired'] = '用戶名是必需的.';
         $strings['CaptchaMustMatch'] = '請您完全按照密碼圖片上顯示的內容輸入字元.';
         $strings['Today'] = '今天';
+        $strings['BackToToday'] = '回到今天';
         $strings['Day'] = '日';
         $strings['Week'] = '週';
         $strings['Month'] = '月';
@@ -172,6 +173,10 @@ class zh_tw extends en_us
         $strings['SearchResources'] = '搜尋資源';
         $strings['NoMatchesFound'] = '找不到符合的資源';
         $strings['SearchParticipants'] = '輸入姓名、帳號或 Email';
+        $strings['RequiredParticipants'] = '必要參與者';
+        $strings['OptionalParticipants'] = '選擇性參與者';
+        $strings['ExternalParticipantBadge'] = '外部';
+        $strings['InviteExternalEmail'] = '按 Enter 邀請此外部 Email：{{email}}';
         $strings['TakeOffline'] = 'Take 離線';
         $strings['BringOnline'] = 'Bring 線上';
         $strings['AddImage'] = '添加圖片';
@@ -711,7 +716,6 @@ class zh_tw extends en_us
         $strings['AdminOverviewNotificationFailures'] = '通知失敗';
         $strings['AdminOverviewNeedsAttention'] = '需要處理';
         $strings['AdminOverviewNoIssues'] = '目前沒有需要處理的異常';
-        $strings['AdminOverviewSystemStatusSummary'] = 'AD 同步正常 · Email 正常 · LINE 正常';
         $strings['AdminOverviewViewAllReservations'] = '查看全部預約';
         $strings['AdminOverviewManageRooms'] = '管理會議室';
         $strings['AdminOverviewUnassignedLocation'] = '未指定地區';
@@ -721,6 +725,19 @@ class zh_tw extends en_us
         $strings['AdminOverviewStatusUpcoming'] = '即將開始';
         $strings['AdminOverviewStatusEnded'] = '已結束';
         $strings['AdminOverviewNotConfigured'] = '尚未設定';
+        $strings['AdminOverviewInProgress'] = '進行中';
+        $strings['AdminOverviewStartingSoon'] = '一小時內即將開始';
+        $strings['AdminOverviewUnavailableRooms'] = '停用／維修中會議室';
+        $strings['AdminOverviewLiveRoomStatus'] = '即時會議室狀態';
+        $strings['AdminOverviewMaintenance'] = '維修中';
+        $strings['AdminOverviewUntil'] = '至';
+        $strings['AdminOverviewFree'] = '空閒';
+        $strings['AdminOverviewNextAt'] = '下一場';
+        $strings['AdminOverviewNothingScheduled'] = '無排程';
+        $strings['AdminOverviewWeeklyTrend'] = '近七日預約趨勢';
+        $strings['AdminOverviewTopResources'] = '熱門會議室排行';
+        $strings['AdminOverviewReservationCount'] = '%s 筆預約';
+        $strings['AdminOverviewNoReservationsThisWeek'] = '本週尚無預約';
         $strings['AdminBackToOverview'] = '返回管理總覽';
         $strings['AdminReservationsDescription'] = '檢視、篩選並管理所有預約紀錄。';
         $strings['AdminResourcesDescription'] = '管理會議室與可預約資源的狀態、群組與設定。';

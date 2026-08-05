@@ -25,7 +25,7 @@
                drives all of it: opens/closes the panel, filters the list as you type, and
                sets the trigger's label/dot/checkmark — see setSelectedResource() there. *}
             <div class="resource-picker" id="resourcePicker">
-                <button type="button" class="ghost-btn resource-picker-trigger" id="resourcePickerTrigger"
+                <button type="button" class="coasia-control resource-picker-trigger" id="resourcePickerTrigger"
                     aria-haspopup="listbox" aria-expanded="false">
                     <span class="resource-picker-dot" id="resourcePickerDot" style="display:none;"></span>
                     <span class="resource-picker-label" id="resourcePickerLabel"></span>
@@ -64,24 +64,51 @@
         </div>
 
         <div class="toolbar-col toolbar-col-center">
-            <a class="ghost-btn today-btn" id="fcTodayBtn" href="#">{translate key='Today'}</a>
-            <div class="arrows">
-                <a class="ghost-btn nav" id="fcPrevBtn" href="#" aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
-                <a class="ghost-btn nav" id="fcNextBtn" href="#" aria-label="Next"><i class="bi bi-chevron-right"></i></a>
+            {* Prev/month/next as one bordered group instead of three separate pill buttons —
+               fixed-width month label (CSS) keeps the group's overall width constant as the
+               text itself changes length between months, and the vertical dividers plus
+               per-arrow (not whole-group) hover are what "箭頭不要再有獨立外框" calls for.
+               Still pure date-nav via the FullCalendar API (overview_fullcalendar.js) — only
+               the markup/styling around fcPrevBtn/fcNextBtn/fcMonthLabel changed. *}
+            <div class="date-switcher" id="dateSwitcher">
+                <a class="date-switcher-arrow" id="fcPrevBtn" href="#" aria-label="Previous"><i class="bi bi-chevron-left"></i></a>
+                <span class="date-switcher-divider"></span>
+                <span class="month-label" id="fcMonthLabel"></span>
+                <span class="date-switcher-divider"></span>
+                <a class="date-switcher-arrow" id="fcNextBtn" href="#" aria-label="Next"><i class="bi bi-chevron-right"></i></a>
             </div>
-            <span class="month-label" id="fcMonthLabel"></span>
         </div>
 
         <div class="toolbar-col toolbar-col-right">
-            <label class="mine-only-toggle" for="fcMineOnlyToggle">
-                <span class="mine-only-label">{translate key='ReservationScopeMine'}</span>
-                <span class="toggle-switch">
-                    <input type="checkbox" id="fcMineOnlyToggle">
-                    <span class="toggle-track"><span class="toggle-thumb"></span></span>
-                </span>
-            </label>
+            {* Icon-only "back to today" — 40x40, same shared control shape as the two dropdown
+               triggers beside it. Click handler / .disabled-when-already-on-today logic in
+               overview_fullcalendar.js is untouched — only styling changed. Position is never
+               removed from the layout even while disabled, so the right-hand group never shifts
+               width when this week is already showing. *}
+            <button type="button" class="coasia-control today-btn" id="fcTodayBtn"
+                title="{translate key='BackToToday'}" aria-label="{translate key='BackToToday'}">
+                <i class="bi bi-calendar-check"></i>
+            </button>
+
+            {* Reservation scope (全體／只看我的) — same two-state filter as before, dropdown
+               matching the view picker's own trigger/panel pattern (both now fixed 104px so
+               the two read as one consistent pair). overview_fullcalendar.js reads the selected
+               data-scope and sets the same `mineOnly` flag + calendar.refetchEvents() the old
+               checkbox's change handler did — the actual scope-filtering behavior is unchanged. *}
+            <div class="scope-picker" id="scopePicker">
+                <button type="button" class="coasia-control scope-picker-trigger" id="scopePickerTrigger"
+                    aria-haspopup="listbox" aria-expanded="false">
+                    <span class="scope-picker-label" id="scopePickerLabel">{translate key='ReservationScopeAll'}</span>
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+                <div class="scope-picker-panel" id="scopePickerPanel">
+                    <button type="button" class="view-picker-item active" data-scope="all">{translate key='ReservationScopeAll'}</button>
+                    <button type="button" class="view-picker-item" data-scope="mine">{translate key='ReservationScopeMine'}</button>
+                </div>
+            </div>
+
             <div class="view-picker" id="viewPicker">
-                <button type="button" class="ghost-btn view-picker-trigger" id="viewPickerTrigger"
+                <button type="button" class="coasia-control view-picker-trigger" id="viewPickerTrigger"
                     aria-haspopup="listbox" aria-expanded="false">
                     <span id="viewPickerLabel">{translate key='Week'}</span>
                     <i class="bi bi-chevron-down"></i>
@@ -222,7 +249,11 @@
                        (see COASIA-CHANGES.md §45 — supersedes the earlier §44 "hands off to the
                        Drawer" placeholder). Same shared picker (createParticipantPicker() in
                        overview_fullcalendar.js) and same dedicated search endpoint as the
-                       Drawer's own participant editor below. *}
+                       Drawer's own participant editor below. Required participants only —
+                       optional participants ("選擇性參與者", non-required attendees) are
+                       deliberately NOT offered here; Quick Create is the fast path, and anyone
+                       who needs that goes through "更多選項" to the full reservation form
+                       (tpl/Reservation/participation.tpl), which already has it. *}
                     <div class="qc-grid-row qc-grid-row-top">
                         <div class="qc-icon"><i class="bi bi-people"></i></div>
                         <div class="qc-content">
@@ -363,6 +394,8 @@
         deleteUrl: '{$ScriptUrl}/ajax/reservation_delete.php?{QueryStringKeys::RESPONSE_TYPE}=json',
         csrfToken: '{$CSRFToken|escape:'javascript'}',
         currentUserId: {$UserId},
+        currentUserEmail: '{$UserEmail|escape:'javascript'}',
+        allowGuestParticipation: {if $AllowGuestParticipation}true{else}false{/if},
         timezone: '{$Timezone|escape:'javascript'}',
         {* Web/scripts/overview_fullcalendar.js is served as a static .js file — Smarty never
            processes it, so any {translate} tag written directly inside it would reach the
@@ -387,7 +420,9 @@
             days: '{translate key='days'|escape:'javascript'}',
             resourceAvailable: '{translate key='ResourceAvailable'|escape:'javascript'}',
             resourceUnavailable: '{translate key='ResourceUnavailable'|escape:'javascript'}',
-            noMatchesFound: '{translate key='NoMatchesFound'|escape:'javascript'}'
+            noMatchesFound: '{translate key='NoMatchesFound'|escape:'javascript'}',
+            inviteExternalEmail: '{translate key='InviteExternalEmail'|escape:'javascript'}',
+            externalParticipantBadge: '{translate key='ExternalParticipantBadge'|escape:'javascript'}'
         },
         resourceNames: {
             {foreach from=$PhysicalResources item=resource name=physicalNames}

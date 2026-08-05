@@ -18,14 +18,19 @@
    which one wins. */
 
 .admin-page {
-  --surface: #fff;
-  --surface-muted: #f6f7fb;
-  --border: #e4e7ee;
-  --text-primary: #1c2333;
-  --text-secondary: #6c7488;
-  --danger: #c5221f;
-  --dialog-radius: 16px;
-  --control-radius: 10px;
+  /* Local aliases of the sitewide --coasia-* tokens (Web/css/coasia-theme.css) — kept under
+     these existing shorter names since every rule in this file already reads them, rather
+     than a one-shot rename of a thousand-plus internal references. The values themselves are
+     no longer redeclared here; --border/--control-radius/--dialog-radius/etc. now literally
+     ARE the same token every other page reads, not a same-looking copy that could drift. */
+  --surface: var(--coasia-surface);
+  --surface-muted: var(--coasia-surface-muted);
+  --border: var(--coasia-border);
+  --text-primary: var(--coasia-text-primary);
+  --text-secondary: var(--coasia-text-secondary);
+  --danger: var(--coasia-danger);
+  --dialog-radius: var(--coasia-radius-surface);
+  --control-radius: var(--coasia-radius-control);
   --icon-button-size: 36px;
 
   max-width: 1360px;
@@ -607,6 +612,153 @@
   color: var(--text-secondary);
 }
 
+.admin-badge-free {
+  background: var(--surface-muted);
+  color: #1e7e34;
+}
+
+.admin-badge-unavailable {
+  background: #fbe9e7;
+  color: var(--danger);
+}
+
+/* Every clickable dashboard list row (今日預約清單/即時會議室狀態/熱門會議室排行/需要處理的異常)
+   is a real <a>, not a <div> with a JS click handler — this just undoes the browser's default
+   link styling so it reads identically to the plain (non-link) row it replaced, plus a subtle
+   hover to signal it's clickable. */
+.admin-list-item-link,
+.admin-room-status-row,
+.admin-rank-item,
+.admin-warning-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.admin-list-item-link:hover,
+.admin-room-status-row:hover,
+.admin-rank-item:hover {
+  background-color: var(--surface-muted);
+  border-radius: var(--control-radius);
+}
+
+.admin-warning-link:hover {
+  filter: brightness(0.97);
+}
+
+/* ---------- Live room status (即時會議室狀態) — per-room free/in-use/maintenance rows, each
+   with the actual next-available or in-use-until time, never just an aggregate percentage. ---------- */
+
+.admin-room-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.admin-room-status-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--surface-muted);
+  font-size: 13.5px;
+}
+
+.admin-room-status-row:last-child {
+  border-bottom: none;
+}
+
+.admin-room-status-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.admin-room-status-time {
+  flex-shrink: 0;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+/* ---------- Weekly trend (近七日預約趨勢) — plain CSS bar chart, 7 columns, bar height
+   proportional to that day's count against the week's own max (never against an unrelated
+   fixed scale). ---------- */
+
+.admin-trend-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 120px;
+  padding-top: 8px;
+}
+
+.admin-trend-col {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  height: 100%;
+}
+
+.admin-trend-count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.admin-trend-bar {
+  width: 100%;
+  max-width: 32px;
+  min-height: 3px;
+  border-radius: 4px 4px 0 0;
+  background: var(--primary, #1f3159);
+  opacity: 0.85;
+}
+
+.admin-trend-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ---------- Top resources ranking (熱門會議室排行) ---------- */
+
+.admin-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-rank-item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--surface-muted);
+  font-size: 13.5px;
+}
+
+.admin-rank-item:last-child {
+  border-bottom: none;
+}
+
+.admin-rank-number {
+  flex-shrink: 0;
+  width: 20px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .admin-location-list {
   display: flex;
   flex-direction: column;
@@ -707,25 +859,23 @@
   color: var(--text-secondary);
 }
 
-/* ---------- Confirm dialog (tpl/Admin/admin_confirm_dialog.tpl): every remaining plain
-   Bootstrap .modal on an admin page picks up the same radius/shadow language as .admin-card and
-   .admin-drawer via this .admin-page-scoped rule, not just the new confirm dialog specifically. ---------- */
-
-.admin-page .modal-content {
-  border: none;
-  border-radius: var(--dialog-radius);
-  box-shadow: 0 8px 24px rgba(20, 30, 55, 0.14);
-}
+/* .admin-page .modal-content used to redeclare its own radius/shadow here; removed now that
+   Web/css/coasia-theme.css's global `.modal-content` rule already produces the exact same
+   values (border:none, --coasia-radius-surface, --coasia-shadow-elevated) for every modal
+   sitewide, admin or not — this was pure duplication. */
 
 .admin-page .modal-header,
 .admin-page .modal-footer {
   border-color: var(--border);
 }
 
-/* ---------- Buttons: same class names as the calendar page's toolbar/Drawer components, a
-   parallel scoped copy rather than the exact same CSS rule (that one is hard-scoped under
-   #page-overview-fc, a different page's own id) so both surfaces read as one system without
-   the two stylesheets fighting over which page "owns" the shared class name. ---------- */
+/* ---------- Buttons: legacy per-page class names (.ghost-btn here, .gcal-control on the
+   calendar page) that predate the sitewide .coasia-control class in coasia-theme.css —
+   kept for now so existing admin/calendar markup doesn't need a class rename in this pass,
+   but their VALUES below are the same values .coasia-control uses, not an independent copy:
+   --control-radius (10px, not the pill/100px shape this had before — admin.css's own
+   buttons were the one place still using the old capsule look) and --coasia-border. New
+   markup should reach for .coasia-control directly instead of .ghost-btn. ---------- */
 
 .admin-page .ghost-btn {
   display: inline-flex;
@@ -733,10 +883,10 @@
   gap: 6px;
   height: var(--gcal-control-height, 40px);
   box-sizing: border-box;
-  border: 1px solid var(--bs-border-color, #d6d9e3);
+  border: 1px solid var(--border);
   background: transparent;
-  border-radius: 100px;
-  padding: 0 16px;
+  border-radius: var(--control-radius);
+  padding: 0 12px;
   font-size: 14.5px;
   font-weight: 500;
   line-height: 1;
@@ -759,12 +909,12 @@
 }
 
 /* Bootstrap's .btn-primary is what most admin pages' actual save/create buttons already use --
-   reshaping it (pill, no heavy border) rather than adding a parallel class every existing
-   template would need to adopt one by one. */
+   reshaping it to the shared control radius (not a pill) rather than adding a parallel class
+   every existing template would need to adopt one by one. */
 .admin-page .btn-primary {
   background: var(--primary);
   border-color: var(--primary);
-  border-radius: 100px;
+  border-radius: var(--control-radius);
   font-weight: 500;
 }
 
@@ -775,10 +925,10 @@
 }
 
 /* Destructive actions ({delete_button}, data_cleanup.php's purge/delete buttons) get the same
-   pill shape as .btn-primary so the danger color is the only thing that sets them apart, not
-   also a different corner radius. */
+   shape as .btn-primary so the danger color is the only thing that sets them apart, not also
+   a different corner radius. */
 .admin-page .btn-danger {
-  border-radius: 100px;
+  border-radius: var(--control-radius);
   font-weight: 500;
 }
 
@@ -806,9 +956,9 @@
   align-items: center;
   gap: 8px;
   height: var(--gcal-control-height, 40px);
-  padding: 0 14px;
+  padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: 100px;
+  border-radius: var(--control-radius);
   background: var(--surface);
   transition: border-color 0.14s ease;
 }

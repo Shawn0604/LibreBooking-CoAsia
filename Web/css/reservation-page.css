@@ -708,6 +708,74 @@
   color: var(--rp-text);
 }
 
+/* External (non-user, invited-by-email) attendees get a small badge on their chip so they
+   read as visually distinct from internal users — same .reservation-chip base, just a tinted
+   badge pill prepended before the label. */
+.reservation-chip-external {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.reservation-chip-ext-badge {
+  background: #92400e;
+  color: #fff;
+  border-radius: 100px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+/* "Invite this email" row in the search dropdown — same .participant-search-item base as a
+   real user result, just an icon avatar instead of initials. */
+#page-reservation .participant-search-invite-icon {
+  background: var(--rp-surface-muted);
+  color: var(--rp-accent);
+  font-size: 13px;
+}
+
+/* ---- Optional participants — collapsible sub-picker nested inside the required participants
+   row (participation.tpl), using the same .participant-search/.rp-chip-list component as
+   required, just gated behind a lightweight toggle instead of always shown. ---- */
+.rp-optional-participants {
+  margin-top: 10px;
+}
+
+.rp-optional-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rp-text-secondary);
+}
+
+.rp-optional-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.rp-optional-chevron {
+  flex-shrink: 0;
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+
+.rp-optional-participants[open] .rp-optional-chevron {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-optional-chevron {
+    transition: none;
+  }
+}
+
+.rp-optional-body {
+  margin-top: 8px;
+}
+
 .rp-description {
   flex: 1 1 auto;
   min-width: 0;

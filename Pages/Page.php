@@ -71,6 +71,7 @@ abstract class Page implements IPage
         $this->smarty->assign('UserName', !is_null($userSession) ? $userSession->FirstName : '');
         $this->smarty->assign('DisplayWelcome', $this->DisplayWelcome());
         $this->smarty->assign('UserId', $userSession->UserId);
+        $this->smarty->assign('UserEmail', $userSession->Email);
         $this->smarty->assign('CanViewAdmin', $userSession->IsAdmin);
         $this->smarty->assign('CanViewGroupAdmin', $userSession->IsGroupAdmin);
         $this->smarty->assign('CanViewResourceAdmin', $userSession->IsResourceAdmin);
