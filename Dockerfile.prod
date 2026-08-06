@@ -30,6 +30,6 @@ RUN composer install --no-dev --no-scripts --no-interaction --optimize-autoloade
 
 COPY . .
 
-RUN mkdir -p tpl_c uploads Web/uploads/images Web/uploads/tos \
+RUN mkdir -p tpl_c uploads Web/uploads/images Web/uploads/tos var \
     && chown -R www-data:www-data tpl_c uploads Web/uploads/images Web/uploads/tos var \
-    && chmod -R 770 tpl_c uploads Web/uploads/images Web/uploads/tos
+    && chmod -R 770 tpl_c uploads Web/uploads/images Web/uploads/tos var
