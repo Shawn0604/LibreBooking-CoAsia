@@ -86,6 +86,38 @@ class GuestEmailNotificationTest extends TestBase
         $this->assertEquals($guest2, $this->fakeEmailService->_LastMessage->To()->Address());
     }
 
+    public function testSendsReservationDeletedEmailsToInvitedGuests()
+    {
+        $ownerId = 828;
+        $owner = new User();
+
+        $guest1 = 'g1@email.com';
+        $guest2 = 'g2@email.com';
+
+        $instance1 = new TestReservation();
+        $instance1->WithInvitedGuest($guest1);
+        $instance1->WithInvitedGuest($guest2);
+
+        $series = new TestReservationSeries();
+        $series->WithOwnerId($ownerId);
+        $series->WithCurrentInstance($instance1);
+
+        $userRepo = $this->createMock('IUserRepository');
+        $attributeRepo = $this->createMock('IAttributeRepository');
+
+        $userRepo->expects($this->once())
+                 ->method('LoadById')
+                 ->with($this->equalTo($ownerId))
+                 ->willReturn($owner);
+
+        $notification = new GuestDeletedEmailNotification($userRepo, $attributeRepo);
+        $notification->Notify($series);
+
+        $this->assertEquals(2, count($this->fakeEmailService->_Messages));
+        $this->assertInstanceOf('GuestDeletedEmail', $this->fakeEmailService->_LastMessage);
+        $this->assertEquals($guest2, $this->fakeEmailService->_LastMessage->To()->Address());
+    }
+
     public function testSendsReservationUpdatedEmailToExistingParticipants()
     {
         $ownerId = 828;

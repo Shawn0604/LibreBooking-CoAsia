@@ -52,4 +52,39 @@ class InvitationEmailNotificationTest extends TestBase
         $this->assertInstanceOf('InviteeAddedEmail', $this->fakeEmailService->_LastMessage);
         //		$this->assertEquals($lastExpectedMessage, $this->fakeEmailService->_LastMessage);
     }
+
+    public function testSendsReservationDeletedEmailsToExistingInvitees()
+    {
+        $ownerId = 828;
+        $owner = new User();
+        $inviteeId1 = 50;
+        $invitee1 = new User();
+        $inviteeId2 = 60;
+        $invitee2 = new User();
+
+        $instance1 = new TestReservation();
+        $instance1->WithInvitee($inviteeId1);
+        $instance1->WithInvitee($inviteeId2);
+
+        $series = new TestReservationSeries();
+        $series->WithCurrentInstance($instance1);
+        $series->WithOwnerId($ownerId);
+
+        $userRepo = $this->createMock('IUserRepository');
+        $attributeRepo = $this->createMock('IAttributeRepository');
+
+        $userRepo->expects($this->exactly(3))
+            ->method('LoadById')
+            ->willReturnMap([
+                [$ownerId, $owner],
+                [$inviteeId1, $invitee1],
+                [$inviteeId2, $invitee2]
+            ]);
+
+        $notification = new InviteeDeletedEmailNotification($userRepo, $attributeRepo);
+        $notification->Notify($series);
+
+        $this->assertEquals(2, count($this->fakeEmailService->_Messages));
+        $this->assertInstanceOf('InviteeRemovedEmail', $this->fakeEmailService->_LastMessage);
+    }
 }
