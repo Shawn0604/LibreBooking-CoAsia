@@ -26,7 +26,7 @@
 
 ## 🏢 CoAsia Internal Fork
 
-This repository ([Shawn0604/LibreBooking-CoAsia](https://github.com/Shawn0604/LibreBooking-CoAsia)) is CoAsia's internal, customized fork of upstream LibreBooking — 擎亞會議室預約系統. It tracks upstream for core functionality but has diverged with company-specific work: Active Directory login, LINE notifications, a redesigned admin center, participant/external-guest invitations with ICS calendar invites, and more.
+This repository ([Shawn0604/LibreBooking-CoAsia](https://github.com/Shawn0604/LibreBooking-CoAsia)) is CoAsia's internal, customized fork of upstream LibreBooking, branded internally as **CoAsia Booking** — CoAsia 會議室預約. It tracks upstream for core functionality but has diverged with company-specific work: Active Directory login, LINE notifications, a redesigned admin center, participant/external-guest invitations with ICS calendar invites, and more.
 
 - What's been changed and why, in order: [COASIA-CHANGES.md](COASIA-CHANGES.md)
 - What's left before this can go live company-wide: [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md)

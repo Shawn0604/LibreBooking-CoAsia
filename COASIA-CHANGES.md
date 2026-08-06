@@ -1910,3 +1910,110 @@ Quick Create 已經填好的欄位（標題、日期時間、資源、參與者�
 ### 驗證
 
 `node --check` 三支改動的 JS（`reservations.js`/`resource.js`/`schedule.js`）語法都過；四支改動的 `.tpl` 用大括號計數法（比照 §52.4）確認 Smarty 標籤沒有配對錯誤。全專案 PHPUnit（1725 個測試）維持跟改動前一樣的 1 個既有 Error＋1 個既有 Failure（`ResourceCrossDayRuleTest`／`OverviewFullCalendarEventsPresenterTest`，都跟這輪動到的檔案無關），沒有新增的失敗——這輪本來就沒有改任何 PHP 邏輯，只動 tpl/js/css/lang。畫面實際操作（整列不再可點、編輯按鈕預設可見、kebab 內容正確、姓名不再可點、四頁新增按鈕尺寸一致）需要使用者自己登入後端逐頁確認，沒有帳密無法在瀏覽器裡代為驗證。
+
+## 57. 完整預約表單：切換會議室只有 1 個選項、拿掉「選擇性參與者」
+
+使用者從「更多選項」（Quick Create 導去完整預約表單）截圖回報兩個問題，逐一查證：
+
+### 57.1 切換會議室下拉選單只列出 1 個選項
+
+查資料庫確認根因：這個環境裡每個資源（12 個會議室/視訊資源）都各自綁定自己專屬的一個排程（`schedules` 表跟 `resources` 表 1:1，Google Meet1 自己一個排程、台北會議室自己一個…）。`ReservationComponentBinder.php` 的 `ReservationResourceBinder::Bind()` 原本用 `$this->resourceService->GetResourceGroups($requestedScheduleId, ...)->GetAllResources()` 餵 `create.tpl` 的切換會議室下拉選單——這個查詢本來就是照排程分組（用來支撐「在同一筆預約裡加開額外資源」那個獨立功能，這兩個功能共用同一個 `$AvailableResources` 變數），在這個「每個資源各自一個排程」的環境下，切換選單自然永遠只列得出 1 個選項。跟使用者確認：改成列出使用者可存取的「全部」資源，不分排程（比照 Quick Create 自己的資源選單，本來就是不分排程的）。
+
+修法：新增一條獨立的綁定路徑（`BindSwitchableResources()`），從 `IReservationPage`／`IReservationComponentInitializer` 兩層介面各加一個方法，`ReservationPage.php` 實作成 `Set('SwitchableResources', ...)`，`ReservationInitializerBase.php` 委派給 `basePage`；`ReservationResourceBinder::Bind()` 改用 `$this->resourceService->GetAllResources(false, $user)`（跟 `SearchAvailabilityPresenter`／`OverviewFullCalendarPresenter` 已經在用的同一支不分排程查詢）餵這條新路徑，`create.tpl` 的切換會議室 foreach 改讀 `$SwitchableResources`。刻意不動原本的 `$AvailableResources`／`ShowAdditionalResources`——「加開額外資源」那個功能繼續維持排程內限定，只有「整個換一個會議室」這個動作不再受排程邊界限制。兩個測試 fake（`FakeExistingReservationPage`、`GuestReservationPresenterTest` 裡的 `FakeGuestReservationPage`）補上對應的空實作，否則會直接 fatal error（介面多了一個沒實作的抽象方法）。
+
+### 57.2 拿掉「選擇性參與者」
+
+使用者確認完整表單上方那個收合的「選擇性參與者」區塊（`participation.tpl` 的 `<details id="rpOptionalParticipantsDetails">`）不是 bug——必要參與者確實會透過 `saveQuickCreateDraft()`/sessionStorage 從 Quick Create 帶過來，「選擇性參與者」本來就只能在完整表單新增（Quick Create 從 §52.1 起就沒有這個欄位），顯示 0 是預期行為——而是根本不想要這個功能了，要求整個拿掉。
+
+拿掉 `participation.tpl` 裡整個 `<details>` 區塊（搜尋框＋chip 清單＋隱藏欄位容器），`create.tpl` 對應拔掉 `rpInviteePicker` 的建立／`reset()`／`conflictsWith` wiring、`qcDraft.optionalParticipants` 的 sessionStorage 讀取分支，`reservation-page.css` 刪掉變成孤兒的 `.rp-optional-*` 樣式規則。範圍刻意只到「新增」這個入口——沒有動 `Domain/Reservation.php` 的 `Invitees()`/`InvitedGuests()`、§54 剛加的 `InviteeDeletedEmailNotification` 等後端通知邏輯、`view.tpl`/`availability.tpl`（唯讀顯示既有邀請對象）、`reservation-pdf.js`（PDF 匯出既有邀請對象）——這些都是「顯示/處理已經存在的邀請資料」，跟這次拿掉的「新增入口」是兩回事，留著不影響任何人；資料庫目前也確實只有 1 筆既有的選擇性受邀者測試資料。
+
+順手發現 `Web/scripts/reservation.js` 裡還留著一套更早期的邀請對話框實作（`#inviteeDialog`/`#promptForInvitees`/`participation.addInvitee()` 等），對應的 DOM 元素在 `participation.tpl` 這輪重構前就已經不存在了，是這輪之前就有的死程式碼，這次沒有一併清——範圍比較大，之後有空再處理。
+
+### 驗證
+
+`ReservationPage.php`／`ReservationInitializerBase.php`／`ReservationComponentBinder.php`／兩個 fake 都過 `php -l`；`create.tpl`／`participation.tpl`／`reservation-page.css` 用大括號計數法確認沒有配對錯誤。全專案 PHPUnit（1725 個測試）維持原本那 1 個既有 Error＋1 個既有 Failure，沒有新增失敗，12 個既有 Warning 也逐條核對過都是跟這輪完全無關的檔案（`SmartyPage.php`／`ReminderNotice.php`／`ScheduleRepository.php` 等既有的 PHP 8.2 array-key 警告）。畫面實際操作（切換會議室看得到全部選項、「選擇性參與者」區塊不見了）一樣需要使用者自己登入確認。
+
+## 58. 開發環境 Smarty 編譯快取排查、切換會議室顏色比照 Quick Create、拿掉「其他設定」整塊
+
+使用者回報 §57 的修正在畫面上沒生效，自己先查出根因：`config/config.php` 的 `cache.templates` 是 `true`，`tpl_c/` 底下還留著 8/5 的舊編譯檔（`participation.tpl.php`/`create.tpl.php`），Smarty 沒有重新編譯就直接吃了舊版。照使用者指示處理：清空 `tpl_c/`（用 `find -type f -not -name index.html -delete`，目前這個安裝實際上沒有 `index.html` 可保留）、`cache.templates` 改成 `false`（dev-only，`config/config.php` 是 gitignored，改的是 host 端 bind-mount 的檔案，不進 git）、重啟 app 容器清 PHP opcache。事後驗證：抓重啟後新編出來的 `participation.tpl.php` 確認不含 `rpOptionalParticipantsDetails`，證實真的生效了。之後這輪每次改完 tpl/PHP 都比照這個流程（清 `tpl_c` + 重啟容器）驗證。
+
+### 58.1 切換會議室顏色要跟 Quick Create 一致
+
+使用者盯著畫面發現：完整表單的切換會議室選單，色點幾乎都是同一種灰色，跟 Quick Create 資源選單裡五顏六色、每個資源一個顏色的樣子對不起來。查出原因：`create.tpl` 原本直接用 `$resource->GetColor()|default:'#5c6b84'`——資源沒有手動設定顏色時一律 fallback 成同一個灰色；Quick Create 用的是 `Presenters/OverviewFullCalendarPresenter.php::AssignColors()`，沒設定顏色時改成照列表順序從一組 11 色的固定調色盤裡循環選一個，讓每個資源看起來都不一樣（`OverviewPresenter.php` 也有一份幾乎一樣的 `AssignColors()`，是既有的重複）。
+
+抽出 `lib/Application/Schedule/ResourceColorAssigner.php`（靜態方法 `Assign()`，內容跟前述兩份 `AssignColors()` 一致）——這是第三份要用到同一段邏輯的地方，直接複製第三次沒必要，抽成共用類別讓三個地方以後對得起來，但沒有動既有那兩份重複（不在這次要求範圍內，風險/效益不划算）。`ReservationComponentBinder.php` 的 `ReservationResourceBinder::Bind()` 算出 `$switchableResources` 後，接著用 `ResourceColorAssigner::Assign()` 算顏色，`BindSwitchableResources()` 介面加一個 `$colors` 參數（`IReservationPage`／`IReservationComponentInitializer` 兩層都要跟著改，兩個測試 fake 也要補上新參數，否則會直接因為抽象方法簽章對不上而 fatal error）。`create.tpl` 的色點跟 `data-color` 都改讀 `$SwitchableResourceColors[$resource->GetId()].bg`。
+
+### 58.2 拿掉「其他設定」整塊
+
+使用者截圖問的另一個問題：「其他設定」收合區塊裡面實際包了 4 樣東西（加開額外資源、配件/設備、服務條款勾選、自訂欄位），確認過不是「這個資源剛好都是空的」這種顯示問題，是使用者決定整塊功能永久不要了。動手前查了一下這 4 樣東西在這個環境裡的真實使用狀況：`terms_of_service` 表是空的（0 筆，沒有任何排程設定過服務條款）、`accessories` 表雖然有 3 筆但名字是「accessory limited to 10」「unlimited accessory」這種明顯是 LibreBooking 內建 demo/seed 資料，不是 CoAsia 真的在用的配件；「加開額外資源」則是 §57.1 就已經查出來的、這個環境「每個資源各自一個排程」的資料形狀下本來就恆為 false（`ShowAdditionalResources` 需要同排程內 `NumberAccessible > 1`）——四樣裡沒有一樣在這個環境裡真的有在用，拿掉不影響任何現有資料或使用情境。
+
+`create.tpl` 整段刪掉 `<details class="rp-collapse-row">`（`OtherSettings`/`PermissionsAndCustomFields`）以及它唯一會打開的兩個 modal（`#dialogResourceGroups`、`#dialogAddAccessories`，觸發按鈕都在剛刪的區塊裡，變成沒有任何路徑可以打開，一併清掉）。刻意沒有動的部分：`Web/scripts/reservation.js` 裡對應這兩個 modal 的 JS（`AddResources()`、accessory 相關 handler）——DOM 元素沒了之後這些 handler 自然不會再被觸發，跟 §57.2 處理 `reservation.js` 舊版邀請對話框的方式一致，範圍比較大，這次沒有一併清理原始碼裡的函式本體。
+
+### 驗證
+
+新增的 `ResourceColorAssigner.php` 過 `php -l`；`create.tpl` 大括號計數法確認沒有配對錯誤；全專案 PHPUnit（1725 個測試）兩輪都維持原本那 1 個既有 Error＋1 個既有 Failure，沒有新增失敗。每次改完都清 `tpl_c`＋重啟容器，log 裡沒有 fatal error。
+
+## 59. 統一「快速預約」與「更多選項」——第一步：日期／時間選擇器
+
+使用者要求把 Quick Create 彈窗跟「更多選項」（完整預約表單）統一成同一套體驗，以 Quick Create 為唯一基準，範圍包含欄位順序/圖示/配色一致、資料不遺失、重複預約收合、共用資料模型。使用者決定先做其中最具體、風險最可控的一塊：**兩邊的日期／時間選擇器換成同一套元件**。
+
+盤點落差：完整表單原本是 jQuery UI 文字輸入日期＋兩個 `<select>`（選項來自 `$StartPeriods`/`$EndPeriods`，即該會議室排程實際設定的時段，顆粒度不保證是 30 分鐘，可能因排程而異），Quick Create 則是原生 `<input type="date">`＋自訂顯示＋固定 00:00–23:30、每 30 分鐘一格的兩個自訂下拉選單。查證過兩邊送出的欄位其實相容：`BeginPeriod`/`EndPeriod` 的值本來就是 `Time::ToString()`＝`"HH:mm:ss"`（`lib/Common/Time.php`），跟 Quick Create 自己的 `minutesToHHMMSS()` 輸出格式一致；`BeginDate` 原本的 `DatePickerSetupControl` 用的日期格式也是 `Y-m-d`（`Controls/DatePickerSetupControl.php:122`），跟原生 `<input type="date">` 的值格式完全相同——這代表可以直接把新元件的值寫進同樣 id/`{formname}` 的欄位，不用改任何 PHP 或 `recurrence.js`/`reservation.js` 的讀取邏輯。後端還有 `SchedulePeriodRule`（`lib/Application/Reservation/Validation/`）在送出時驗證時段合法性，所以前端換成「不管排程、固定 30 分鐘格」不會讓人繞過營業時間限制——跟 Quick Create 現在的行為本來就一樣（Quick Create 也沒有前端排程時段過濾，一直是靠這條規則 + 事後可用性檢查）。
+
+### 做法
+
+新增 `Web/scripts/reservation-datetime-picker.js`，把原本寫死在 `overview_fullcalendar.js` 裡的 `TimeDropdown()` 工廠函式、`minutesToHHMMSS`/`formatTimeLabel`/`formatDuration`/`formatDateLabel`/`positionDropdownVertically`（這次 Quick Create dropdown 那輪寫的「往上展開」量測邏輯）搬成全域函式（跟 `participant-picker.js` 一樣的做法，不是 ES module）；另外新增 `buildStartTimeOptions()`/`buildEndTimeOptions()` 把 `refreshTimeUI()` 裡原本兩段內嵌的 for 迴圈也收進共用檔案。`overview_fullcalendar.js` 改成呼叫共用版本並刪掉自己的重複定義，`TimeDropdown()` 新增第 4 個參數 `onBeforeOpen`（取代原本寫死呼叫 `closeAllDropdowns()`），讓這個工廠函式不用綁定特定頁面的 dropdown 註冊表就能被兩邊各自的 `closeAllDropdowns`/`rpCloseAllDropdowns` 重用。
+
+`create.tpl` 的日期/時間區塊拆成 `{if $LockPeriods}...{else}...{/if}`：`$LockPeriods`（編輯重複預約單一次時鎖定時段的既有情境）分支完全不動，原封不動保留舊的 `<select>`/文字輸入；沒鎖定的一般情況換成跟 Quick Create 完全同款的原生日期輸入＋兩個 `.qc-time-picker`/`.qc-time-dropdown`（沿用 `qc-` 這組既有 class，不另外發明 `rp-` 版本），新增的 IIFE 用共用函式產生選項、選到值後寫回 `#BeginDate`/`#BeginPeriod`/`#EndPeriod`/`#EndDate`（原本的 id／`{formname}`／POST 欄位名稱完全不變）並 `.trigger('change')`，讓既有的 `scheduleRpAvailabilityCheck` 監聽跟 `recurrence.js` 的結束日期自動計算都不用改就能繼續動作。同時拿掉 `#BeginDate`/`#EndDate` 的 `DatePickerSetupControl` 呼叫（jQuery UI datepicker 不再需要，`EndRepeat`/`RepeatDate` 那兩個保留）。`$StartPeriods`/`$EndPeriods` 的 PHP 端綁定完全沒動，只是模板不再用它們畫 `<select>`。
+
+`Web/css/reservation-page.css` 在 `#page-reservation` 底下新增一份跟 `overview_fullcalendar.css` 對應 `#quickCreateModal .qc-*` 規則逐項相同數值的複製（含這次 Quick Create dropdown 那輪的 170px 寬度／10px 圓角／`--coasia-shadow-surface` 陰影／`open-upward`／右對齊等最新版本），因為這兩頁各自載入不同的 CSS 檔、沒有共用機制。
+
+### 驗證
+
+`node --check` 新的共用 JS 檔＋改動過的 `overview_fullcalendar.js`；`create.tpl`／`reservation-page.css` 大括號計數法確認沒有配對錯誤；編譯後的 `create.tpl.php` 抓出來確認 `LockPeriods` 分支還留著舊的 `<select id="BeginPeriod">`（預期行為，只有這個分支該留）、非鎖定分支正確含 `rpStartDropdown`。全專案 PHPUnit（1725 個測試）維持原本那 1 個既有 Error＋1 個既有 Failure，沒有新增失敗——這輪沒有動任何 PHP 邏輯。過程中 Docker Desktop 整個掉線一次（不是單純容器停止，是 daemon 本身斷線），啟動 `Docker Desktop.exe`、等 daemon 恢復後重新清 `tpl_c`＋跑完整套驗證。
+
+### 還沒做的部分
+
+使用者原本列的其餘四項（欄位順序/圖示/文案配色其餘部分逐項比對、雙向資料不遺失含「返回快速預約」目前完全不存在的機制、重複預約收合成單一下拉選單、其餘部分共用資料模型）留待下一輪；已經在 `C:\Users\shawn_tsai\.claude\plans\moonlit-launching-ullman.md` 記錄過查證結果（`$ReturnUrl` 只看 Referer/redirect 參數，沒有任何草稿回帶機制；`saveCalendarReturnState()`只還原行事曆日期/檢視，不是預約草稿）方便之後接續規劃。
+
+### 上線後修的兩個問題
+
+畫面實際測試時發現兩個問題，當場修掉：
+
+1. **整頁「未知錯誤」**：新增的日期/時間選擇器那段 JS 註解裡，英文說明剛好寫成「still {formname}-bound to the same POST keys」——`{formname}`（沒有帶 `key=` 參數）被 Smarty 當成真的模板函式呼叫，`FormKeys::Evaluate(NULL)` 內部用 `eval()` 組字串時直接語法錯誤，整頁掛掉。註解裡混寫 Smarty 模板語言 + 英文說明時要避開任何 `{小寫英文字}` 這種剛好符合 Smarty 標籤語法的片語；改成不含花括號的措辭。順手全檔搜了一輪確認沒有其他地方誤觸發（`{* *}` Smarty 註解裡的 `{formname}` 是安全的，不會被解析）。
+2. **日期/時間沒有並排**：Quick Create 原本用 `.qc-time-edit`（`display:grid`，固定四欄寬度）把日期欄＋開始時間＋dash＋結束時間包成一列，複製 CSS 時漏掉複製這層容器規則，也漏掉在 `create.tpl` 加對應的包裹 `<div>`——這幾個元素掉進外層 `.rp-datetime-fields` 的 flex-wrap，每個都撐滿 100% 寬度變成直的一排。補上 `.qc-time-edit` 包裹 div 跟對應的 CSS grid 規則後恢復並排。
+
+## 60. 完整預約表單重複預約：收成一個下拉選單、選項精簡、切回不重複要清乾淨
+
+使用者原本統一快速預約/更多選項那份需求裡的第 3 項，這輪單獨拿出來做。四個小要求逐一核對：
+
+- **預設只顯示一個「不重複」下拉選單**：`Controls/RecurrenceDiv.tpl`（`{control type="RecurrenceControl"}` 這個共用元件，`tpl/Reservation/create.tpl`／`tpl/SearchAvailability/search-availability.tpl`／`tpl/Admin/Blackouts/manage_blackouts*.tpl` 都在用）本來就沒有把整組間隔/星期/結束日期包在一個有邊框的容器裡，子區塊預設都是 `d-none`，也沒有任何外層 box 樣式——本來就已經符合「預設只看得到一個下拉選單」，不用改。
+- **選項為不重複/每天/每週/每月/自訂**：既有的 `RepeatOptions`（`Controls/RecurrenceControl.php`）多一個「每年」，但這個共用元件也給 `search-availability.tpl`／管理中心的封鎖時段（blackouts）在用，後者留著「每年」可能有實際用途（例如每年固定假日封鎖某會議室）——沒有動共用檔案本身，只在 `create.tpl` 自己的 inline script 裡多一行 `$('#repeatOptions option[value="yearly"]').remove();`，只拔掉這一頁看到的選項；如果正在編輯的是一筆本來就已經設成「每年」的既有預約（`$RepeatType === 'yearly'`），保留該選項不拔，讓既有資料還能正常顯示/選取。
+- **選一種才展開對應設定**：`Web/scripts/recurrence.js` 的 `ChangeRepeatOptions()` 本來就是「選什麼類型只顯示對應的 `.recur-toggle` 子區塊」的邏輯，已經符合，沒有改。
+- **切回不重複要立即收起並清除設定**：這是唯一真的缺的一塊——原本切回「不重複」只有隱藏子區塊（`hide()`），星期勾選、月重複類型、結束日期、自訂日期清單的實際值都還留著沒清，切回其他類型時舊值會原封不動跑出來，甚至可能連著送出。新增 `ClearRepeatSettings()`，切到 `none` 時：間隔重設回 1、星期勾選全部取消、月重複類型重設回預設的「每月第 X 天」、結束日期清空（含 flatpickr 元件本身的 `.clear()`，`terminationDateSetManually` 旗標也重置，讓之後重新選重複類型時 `AdjustTerminationDate()` 還會自動建議一個結束日期）、自訂日期清單清空重繪。這段加在共用的 `ChangeRepeatOptions()` 裡（沒有另外包一份 create.tpl 專用版本）——判斷只在使用者明確選「不重複」時才觸發，其他既有頁面（search-availability、blackouts）只會多這個好處，不影響原本在用的其他類型間切換行為。
+
+### 驗證
+
+`node --check` 過 `recurrence.js`；`create.tpl` 大括號計數法沒有配對錯誤；PHPUnit（1725 個測試）維持原本那 1 個既有 Error＋1 個既有 Failure，沒有新增失敗——這輪同樣沒有動任何 PHP 邏輯，`RecurrenceControl.php`／`RecurrenceDiv.tpl` 完全沒改。清過 `tpl_c`＋重啟容器，log 沒有 fatal error。畫面實際操作（選重複類型只展開對應設定、切回不重複後星期/結束日期是不是真的清空、下拉選單裡沒有「每年」）需要使用者自己登入確認。
+
+### 追加：兩段式「不重複／重複」
+
+使用者實際看畫面後回饋：希望不是單一個「不重複／每天／每週／每月／自訂」五選一下拉選單，而是先問「重複還是不重複」，選了「重複」才跳出第二個下拉選單讓你選頻率——預設狀態一樣只看得到一個下拉選單。
+
+在 `create.tpl` 裡新增 `#rpRepeatGate`（不重複/重複兩選一）＋ `#rpRepeatFrequency`（每天/每週/每月/自訂，預設 `d-none`）這兩個純前端的 `<select>`，`RecurrenceControl` 原本的 `#repeatOptions` 保留在 DOM 裡當唯一的真實資料來源（`recurrence.js`／表單送出都還是讀它），只是把它自己那一列（label＋select）用 CSS 藏起來，兩個新選單改成用 JS 寫回 `#repeatOptions` 的值再 `.trigger('change')`，讓既有的 `ChangeRepeatOptions()`／`NotifyChange()` 邏輯完全不用改。隱藏用的 CSS 選擇器故意沿用既有那條 `.rp-recurrence-wrap .repeat-div .form-group > .d-flex:first-child`（原本只是拿來蓋 `margin-bottom`），只有這個組合選擇器才確保只在 `create.tpl` 生效、不影響共用這個控制項的 `search-availability.tpl`／管理中心封鎖時段兩個頁面。
+
+**中間踩了一個坑**：第一版只寫 `display: none`，畫面上那一列還是照樣顯示——因為 Bootstrap 自己的 `.d-flex` 工具類別是 `display: flex !important`，`!important` 不管選擇器再精確都贏。改成 `display: none !important` 才真的蓋掉。
+
+### 驗證（追加這段）
+
+CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.css` 確認伺服器吐出來的內容真的含 `!important`（排除是瀏覽器快取沒刷新的可能性）。清過 `tpl_c`＋重啟容器，log 沒有 fatal error，PHPUnit 維持原本基準沒有新增失敗。
+
+## 61. 文案/品牌小改：完整表單標題、系統名稱改成「CoAsia Booking」
+
+兩筆小改動，都是使用者看畫面後直接要求的文字調整：
+
+- `tpl/Reservation/create.tpl` 的頁面標題（`CreateReservationHeading`）從「建立一個預約」改成「新增預約」，副標「新增完整的會議室預約」（`CreateFullReservationSubtitle`）不變——只改 `lang/zh_tw.php` 這一個字串，確認過這個翻譯 key 只有這一頁在用。
+- 系統名稱從 LibreBooking 改成 CoAsia Booking：`config/config.php`（gitignored，不進 git）的 `app.title` 改成 `'CoAsia Booking'`——這一個設定值會同時驅動瀏覽器分頁標題（`Pages/Page.php` 的 `$Title`/`$AppTitle`）跟全站 185 個信件範本裡用到 `{$AppTitle}` 的地方（歡迎信、邀請信等），不用逐一改檔案。登入頁 logo 下方的說明文字（`RoomBookingSystem`）從「會議室預約系統」改成「CoAsia 會議室預約」，同樣只動 `lang/zh_tw.php`。`README.md` 的 CoAsia Fork 說明段落也一併補上新名稱。
+
+### 驗證
+
+`curl` 直接打首頁確認 `<title>CoAsia Booking - Log In</title>` 已經生效；登入頁標語的中文字串沒有直接用 curl 驗證（預設語系是 en_us，需要登入 session 的語系 cookie 才會顯示中文版，跟前幾輪其他 `lang/zh_tw.php` 字串改動一樣的驗證限制，使用者自己的瀏覽器 session 本來就是中文）。清過 `tpl_c`＋重啟容器，log 沒有 fatal error，PHPUnit 維持原本基準沒有新增失敗。`config/config.php` 的改動不進 git（gitignored），只有 `lang/zh_tw.php`／`README.md` 會進版控。
