@@ -26,29 +26,42 @@
 
 ## 目標架構
 
-```
-Windows（開發、測試、git commit）
-        │  git push（同時推 origin=GitHub 跟 gitlab=公司 GitLab）
-        ▼
-公司 GitLab（10.1.3.148，coasiait/coasia-booking）── 保存程式碼與版本、之後接 CI/CD、Container Registry
-        │  （未來）建立 Tag 觸發 pipeline；目前是手動 git pull
-        ▼
-Linux VM：BookingServer（10.1.8.32，Ubuntu 26.04 LTS，ESXi 上的 VM）
-        │
-        ▼
-Docker Compose（docker-compose.prod.yml）
-  ├─ app：Apache + PHP 8.2 + CoAsia Booking（Dockerfile.prod）
-  ├─ db：MySQL 8.0
-  └─ caddy：反向代理，處理 HTTPS（Caddyfile，TLS 策略待定）
-        │
-        ▼
-Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重建影響）
-        │
-        ▼
-每日備份 → NAS／其他 Server（尚未實作）
-```
+正式網址（規劃）：`https://booking.coasia.com.tw`（DNS 尚未設定，目前只能用內網 IP 測試）。虛線代表還沒接上／規劃中的部分。
 
-正式網址（規劃）：`https://booking.coasia.com.tw`（DNS 尚未設定，目前只能用內網 IP 測試）
+```mermaid
+flowchart TD
+    Dev["Windows 開發機<br/>docker-compose.dev.yml"]
+    GH["GitHub（備份）<br/>Shawn0604/LibreBooking-CoAsia"]
+    GL["公司 GitLab<br/>coasiait/coasia-booking"]
+    User(["員工瀏覽器"])
+
+    Dev -->|git push| GH
+    Dev -->|git push| GL
+    GL -.->|"目前：手動 git pull<br/>未來：Tag 觸發 CI/CD"| VM
+
+    subgraph VM["Linux VM：BookingServer（10.1.8.32，Ubuntu 26.04 LTS）"]
+        direction TB
+        subgraph Compose["docker-compose.prod.yml"]
+            direction LR
+            Caddy["caddy<br/>反向代理／HTTPS<br/>TLS 策略未定"]
+            App["app<br/>Apache + PHP 8.2<br/>(Dockerfile.prod)"]
+            DB[("db<br/>MySQL 8.0")]
+            Caddy --> App --> DB
+        end
+        DBVol[("lb_prod_db_data<br/>volume")]
+        UploadVol[("uploads 系列<br/>volumes")]
+        Secrets["config.php / app.env / .env /<br/>ActiveDirectory.config.php<br/>bind mount，不進版控"]
+        DB --> DBVol
+        App --> UploadVol
+        Secrets -.-> App
+    end
+
+    User -->|"https://booking.coasia.com.tw<br/>DNS 尚未設定"| Caddy
+
+    App --> DC["公司 AD DC<br/>LDAP :389"]
+    App --> SMTP["公司 SMTP Relay<br/>10.1.3.140:25"]
+    DBVol -.->|"每日備份<br/>尚未實作"| NAS[("NAS")]
+```
 
 ---
 
