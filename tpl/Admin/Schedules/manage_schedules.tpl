@@ -3,7 +3,7 @@
 <div id="page-manage-schedules" class="admin-page">
 
 	{capture name=headerActions}
-		<a href="#" class="add-link btn btn-sm btn-primary" id="add-schedule">
+		<a href="#" class="add-link btn btn-primary" id="add-schedule">
 			<span class="bi bi-plus-circle-fill me-1 icon add"></span>{translate key="AddSchedule"}
 		</a>
 	{/capture}
@@ -19,12 +19,13 @@
 						<th>{translate key="Resources"}</th>
 						<th>{translate key="AdminScheduleWeeklyHours"}</th>
 						<th>{translate key="Status"}</th>
+						<th class="text-end">{translate key=Actions}</th>
 					</tr>
 				</thead>
 				<tbody>
 					{foreach from=$Schedules item=schedule}
 						{assign var=id value=$schedule->GetId()}
-						<tr class="admin-clickable-row" data-scheduleId="{$id}">
+						<tr data-scheduleId="{$id}">
 							<td class="fw-bold">{$schedule->GetName()}</td>
 							<td>
 								{if array_key_exists($id, $Resources)}
@@ -65,10 +66,35 @@
 									<span class="admin-badge admin-badge-ended">{translate key=AdminScheduleUnused}</span>
 								{/if}
 							</td>
+							<td class="text-end">
+								<div class="admin-row-actions">
+									<button type="button" class="admin-row-edit-btn">
+										<i class="bi bi-pencil-square"></i>{translate key='Edit'}
+									</button>
+									<div class="dropdown">
+										<button type="button" class="admin-row-menu-btn" data-bs-toggle="dropdown"
+											aria-label="{translate key=Actions}">
+											<i class="bi bi-three-dots"></i>
+										</button>
+										<ul class="dropdown-menu dropdown-menu-end" role="menu">
+											{if !$schedule->GetIsDefault()}
+												<li role="presentation"><a role="menuitem" href="#"
+														class="dropdown-item text-danger admin-row-delete-action">{translate key='Delete'}</a>
+												</li>
+											{else}
+												<li role="presentation"><span
+														class="dropdown-item admin-row-menu-disabled"
+														title="{translate key=AdminScheduleDefaultCannotDelete}">{translate key='Delete'}</span>
+												</li>
+											{/if}
+										</ul>
+									</div>
+								</div>
+							</td>
 						</tr>
 					{foreachelse}
 						<tr>
-							<td colspan="4" class="admin-empty">{translate key=AdminScheduleNoResults}</td>
+							<td colspan="5" class="admin-empty">{translate key=AdminScheduleNoResults}</td>
 						</tr>
 					{/foreach}
 				</tbody>

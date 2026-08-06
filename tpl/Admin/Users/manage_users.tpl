@@ -111,7 +111,7 @@
                             <td>
                                 <div class="admin-user-cell">
                                     <span class="admin-avatar">{$user->First|default:$user->Username|truncate:1:''|upper}</span>
-                                    <a href="#" class="update edit admin-user-name-link">{fullname first=$user->First|default:''|unescape:'html' last=$user->Last|default:''|unescape:'html' ignorePrivacy="true"}</a>
+                                    <span class="admin-user-name">{fullname first=$user->First|default:''|unescape:'html' last=$user->Last|default:''|unescape:'html' ignorePrivacy="true"}</span>
                                 </div>
                             </td>
                             <td>
@@ -150,17 +150,18 @@
                             <td data-order="{format_date date=$user->LastLogin format='Y-m-d H:i' timezone=$Timezone}">
                                 {format_date date=$user->LastLogin key=short_datetime timezone=$Timezone}</td>
                             <td class="text-end">
-                                <div class="dropdown">
-                                    <button type="button" class="admin-row-menu-btn" data-bs-toggle="dropdown"
-                                        aria-label="{translate key=AdminUserViewEdit}">
-                                        <i class="bi bi-three-dots"></i>
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end" role="menu">
-                                        {if $CanEditUsers}
-                                            <li role="presentation"><a role="menuitem" href="#"
-                                                    class="dropdown-item update edit">{translate key=AdminUserViewEdit}</a>
-                                            </li>
-                                        {/if}
+                                <div class="admin-row-actions">
+                                    {if $CanEditUsers}
+                                        <button type="button" class="admin-row-edit-btn update edit">
+                                            <i class="bi bi-pencil-square"></i>{translate key=AdminUserViewEdit}
+                                        </button>
+                                    {/if}
+                                    <div class="dropdown">
+                                        <button type="button" class="admin-row-menu-btn" data-bs-toggle="dropdown"
+                                            aria-label="{translate key=Actions}">
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end" role="menu">
                                         {if $CanChangePermissions}
                                             <li role="presentation"><a role="menuitem" href="#"
                                                     class="dropdown-item update changePermissions">{translate key="Permissions"}</a>
@@ -208,7 +209,8 @@
                                                 </li>
                                             {/if}
                                         {/if}
-                                    </ul>
+                                        </ul>
+                                    </div>
                                 </div>
                             </td>
                         </tr>

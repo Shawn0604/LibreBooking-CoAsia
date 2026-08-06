@@ -115,12 +115,13 @@
 						<th>{translate key='Resource'}</th>
 						<th>{translate key='User'}</th>
 						<th>{translate key=Status}</th>
+						<th class="text-end">{translate key=Actions}</th>
 					</tr>
 				</thead>
 				<tbody>
 					{foreach from=$reservations item=reservation}
 						{assign var=reservationId value=$reservation->ReservationId}
-						<tr class="admin-clickable-row" data-seriesId="{$reservation->SeriesId}"
+						<tr data-seriesId="{$reservation->SeriesId}"
 							data-refnum="{$reservation->ReferenceNumber}">
 							<td>
 								{formatdate date=$reservation->StartDate timezone=$Timezone key=period_time} -
@@ -143,52 +144,39 @@
 									<span class="admin-badge admin-badge-inprogress">{translate key=AdminReservationStatusConfirmed}</span>
 								{/if}
 							</td>
+							<td class="text-end">
+								<div class="admin-row-actions">
+									<button type="button" class="admin-row-edit-btn admin-reservation-edit">
+										<i class="bi bi-pencil-square"></i>{translate key='Edit'}
+									</button>
+									<div class="dropdown">
+										<button type="button" class="admin-row-menu-btn" data-bs-toggle="dropdown"
+											aria-label="{translate key=Actions}">
+											<i class="bi bi-three-dots"></i>
+										</button>
+										<ul class="dropdown-menu dropdown-menu-end" role="menu">
+											{if $reservation->RequiresApproval}
+												<li role="presentation"><a role="menuitem" href="#"
+														class="dropdown-item admin-reservation-approve">{translate key='Approve'}</a>
+												</li>
+											{/if}
+											<li role="presentation"><a role="menuitem" href="#"
+													class="dropdown-item text-danger admin-reservation-cancel">{translate key=AdminReservationCancel}</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+							</td>
 						</tr>
 					{foreachelse}
 						<tr>
-							<td colspan="5" class="admin-empty">{translate key=AdminReservationNoResults}</td>
+							<td colspan="6" class="admin-empty">{translate key=AdminReservationNoResults}</td>
 						</tr>
 					{/foreach}
 				</tbody>
 			</table>
 		</div>
 		<div class="admin-pager" id="reservationPager"></div>
-	</div>
-
-	{* Reservation detail drawer -- replaces row-click-navigates-straight-to-reservation.php.
-	   Populated client-side from the same per-reservation data already tracked in
-	   reservationManagement.addReservation() (extended with display fields below), not a
-	   separate AJAX round-trip. "編輯" still deep-links to the classic reservation.php form --
-	   there's no AJAX-editable field set for a true in-place edit (confirmed: only custom
-	   attributes are inline-editable today), so a full in-drawer edit isn't realistic here. *}
-	<div id="reservationDetailDrawer" class="offcanvas offcanvas-end admin-drawer" tabindex="-1"
-		aria-labelledby="reservationDrawerTitle">
-		<div class="offcanvas-header">
-			<h5 class="offcanvas-title" id="reservationDrawerTitle"></h5>
-			<button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-		</div>
-		<div class="offcanvas-body">
-			<div class="admin-drawer-status-row">
-				<span id="reservationDrawerStatus" class="admin-badge"></span>
-			</div>
-			<dl class="admin-drawer-detail-list">
-				<dt>{translate key=AdminReservationColumnTime}</dt>
-				<dd id="reservationDrawerTime"></dd>
-				<dt>{translate key='Resource'}</dt>
-				<dd id="reservationDrawerResource"></dd>
-				<dt>{translate key='User'}</dt>
-				<dd id="reservationDrawerOwner"></dd>
-				<dt>{translate key='Description'}</dt>
-				<dd id="reservationDrawerDescription"></dd>
-				<dt>{translate key='ReferenceNumber'}</dt>
-				<dd id="reservationDrawerReference"></dd>
-			</dl>
-		</div>
-		<div class="admin-drawer-footer">
-			<button type="button" class="btn btn-danger" id="reservationDrawerCancel">{translate key=AdminReservationCancel}</button>
-			<button type="button" class="btn btn-success d-none" id="reservationDrawerApprove">{translate key='Approve'}</button>
-			<button type="button" class="btn btn-primary" id="reservationDrawerEdit">{translate key='Edit'}</button>
-		</div>
 	</div>
 
 	{* Kept for its existing AJAX wiring (ConfigureAsyncForm) -- no longer wrapped in a visible
@@ -493,12 +481,9 @@
 				termsOfServiceUrl: '{$smarty.server.SCRIPT_NAME}?dr=tos',
 				updateTermsOfServiceAction: 'termsOfService',
 				deleteTermsOfServiceAction: 'deleteTerms',
-				noTitleText: '{translate key=NoTitleLabel|escape:javascript}',
 				confirmCancelTitle: '{translate key=AdminReservationConfirmCancelTitle|escape:javascript}',
 				confirmCancelMessage: '{translate key=AdminReservationConfirmCancelMessage|escape:javascript}',
-				confirmCancelButton: '{translate key=AdminReservationCancel|escape:javascript}',
-				statusPendingText: '{translate key=AdminReservationStatusPending|escape:javascript}',
-				statusConfirmedText: '{translate key=AdminReservationStatusConfirmed|escape:javascript}'
+				confirmCancelButton: '{translate key=AdminReservationCancel|escape:javascript}'
 			};
 
 			var approvalOpts = {
@@ -511,12 +496,6 @@
 			reservationManagement.init();
 
 			{foreach from=$reservations item=reservation}
-				{assign var=resStart value=$reservation->StartDate}
-				{assign var=resEnd value=$reservation->EndDate}
-				{capture name=resStartFormatted}{formatdate date=$resStart timezone=$Timezone key=short_datetime}{/capture}
-				{capture name=resEndFormatted}{formatdate date=$resEnd timezone=$Timezone key=short_datetime}{/capture}
-				{capture name=resOwnerFull}{fullname first=$reservation->FirstName|unescape:'html' last=$reservation->LastName|unescape:'html' ignorePrivacy=true}{/capture}
-
 				reservationManagement.addReservation({
 					id: '{$reservation->ReservationId}',
 					referenceNumber: '{$reservation->ReferenceNumber}',
@@ -524,12 +503,7 @@
 					resourceStatusId: '{$reservation->ResourceStatusId}',
 					resourceStatusReasonId: '{$reservation->ResourceStatusReasonId}',
 					resourceId: '{$reservation->ResourceId}',
-					requiresApproval: '{$reservation->RequiresApproval}',
-					title: '{if !empty($reservation->Title)}{$reservation->Title|escape:javascript}{else}{translate key=NoTitleLabel|escape:javascript}{/if}',
-					description: '{$reservation->Description|escape:javascript}',
-					resourceName: '{$reservation->ResourceName|escape:javascript}',
-					ownerName: '{$smarty.capture.resOwnerFull|escape:javascript}',
-					timeRange: '{$smarty.capture.resStartFormatted|escape:javascript} - {$smarty.capture.resEndFormatted|escape:javascript}'
+					requiresApproval: '{$reservation->RequiresApproval}'
 				});
 			{/foreach}
 

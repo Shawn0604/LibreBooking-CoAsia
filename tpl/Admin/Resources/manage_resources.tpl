@@ -105,12 +105,13 @@
 						<th>{translate key="Location"}</th>
 						<th>{translate key="Capacity"}</th>
 						<th>{translate key="Status"}</th>
+						<th class="text-end">{translate key=Actions}</th>
 					</tr>
 				</thead>
 				<tbody>
 					{foreach from=$Resources item=resource}
 						{assign var=id value=$resource->GetResourceId()}
-						<tr class="admin-clickable-row" data-resourceId="{$id}">
+						<tr data-resourceId="{$id}">
 							<td class="fw-bold">{$resource->GetName()}</td>
 							<td>
 								{if $resource->HasResourceType()}
@@ -142,10 +143,28 @@
 									<span class="admin-badge admin-badge-ended">{translate key='Hidden'}</span>
 								{/if}
 							</td>
+							<td class="text-end">
+								<div class="admin-row-actions">
+									<button type="button" class="admin-row-edit-btn">
+										<i class="bi bi-pencil-square"></i>{translate key='Edit'}
+									</button>
+									<div class="dropdown">
+										<button type="button" class="admin-row-menu-btn" data-bs-toggle="dropdown"
+											aria-label="{translate key=Actions}">
+											<i class="bi bi-three-dots"></i>
+										</button>
+										<ul class="dropdown-menu dropdown-menu-end" role="menu">
+											<li role="presentation"><a role="menuitem" href="#"
+													class="dropdown-item text-danger admin-row-delete-action">{translate key='Delete'}</a>
+											</li>
+										</ul>
+									</div>
+								</div>
+							</td>
 						</tr>
 					{foreachelse}
 						<tr>
-							<td colspan="5" class="admin-empty">{translate key=AdminResourceNoResults}</td>
+							<td colspan="6" class="admin-empty">{translate key=AdminResourceNoResults}</td>
 						</tr>
 					{/foreach}
 				</tbody>

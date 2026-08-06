@@ -80,8 +80,14 @@ function ScheduleManagement(opts) {
   };
 
   ScheduleManagement.prototype.init = function () {
-    elements.scheduleTable.on('click', 'tr.admin-clickable-row', function (e) {
-      openScheduleDrawer($(this).attr('data-scheduleId'));
+    elements.scheduleTable.on('click', '.admin-row-edit-btn', function (e) {
+      openScheduleDrawer($(this).closest('tr').attr('data-scheduleId'));
+    });
+
+    elements.scheduleTable.on('click', '.admin-row-delete-action', function (e) {
+      e.preventDefault();
+      setActiveScheduleId($(this).closest('tr').attr('data-scheduleId'));
+      showDeleteDialog(e);
     });
 
     elements.scheduleList.on('click', '.saveScheduleHours', function (e) {

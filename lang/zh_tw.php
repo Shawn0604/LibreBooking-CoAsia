@@ -772,6 +772,7 @@ class zh_tw extends en_us
         $strings['AdminReservationConfirmCancelMessage'] = '取消後將無法復原。';
         $strings['AdminUserViewEdit'] = '查看／編輯';
         $strings['AdminUserCannotDeleteAD'] = 'AD 管理帳號無法直接刪除';
+        $strings['AdminScheduleDefaultCannotDelete'] = '預設排程無法刪除';
         $strings['AdminUserConfirmDeactivateTitle'] = '確認停用此使用者？';
         $strings['AdminUserNoResults'] = '沒有符合條件的使用者';
         $strings['AdminResourceAdvancedSettings'] = '進階設定';

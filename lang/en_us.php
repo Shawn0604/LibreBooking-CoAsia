@@ -1158,6 +1158,7 @@ class en_us extends Language
         $strings['AdminReservationConfirmCancelMessage'] = 'This cannot be undone.';
         $strings['AdminUserViewEdit'] = 'View / Edit';
         $strings['AdminUserCannotDeleteAD'] = 'AD-managed accounts cannot be deleted directly';
+        $strings['AdminScheduleDefaultCannotDelete'] = 'The default schedule cannot be deleted';
         $strings['AdminUserConfirmDeactivateTitle'] = 'Deactivate this user?';
         $strings['AdminUserNoResults'] = 'No users match your search';
         $strings['AdminResourceAdvancedSettings'] = 'Advanced Settings';

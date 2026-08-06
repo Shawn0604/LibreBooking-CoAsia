@@ -118,8 +118,13 @@ function ResourceManagement(opts) {
   };
 
   ResourceManagement.prototype.bindEventListeners = function () {
-    elements.resourceTable.on('click', 'tr.admin-clickable-row', function (e) {
-      openResourceDrawer($(this).attr('data-resourceId'));
+    elements.resourceTable.on('click', '.admin-row-edit-btn', function (e) {
+      openResourceDrawer($(this).closest('tr').attr('data-resourceId'));
+    });
+
+    elements.resourceTable.on('click', '.admin-row-delete-action', function (e) {
+      setActiveResourceId($(this).closest('tr').attr('data-resourceId'));
+      showDeletePrompt(e);
     });
 
     elements.resourcesList.on('click', '.update', function (e) {

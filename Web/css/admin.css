@@ -1077,16 +1077,9 @@
   font-weight: 600;
 }
 
-.admin-user-name-link {
+.admin-user-name {
   color: var(--text-primary);
   font-weight: 500;
-  cursor: pointer;
-  text-decoration: none;
-}
-
-.admin-user-name-link:hover {
-  color: var(--primary, #1f3159);
-  text-decoration: underline;
 }
 
 .admin-user-account {
@@ -1129,6 +1122,46 @@
   cursor: not-allowed;
 }
 
+/* ---------- Row actions (預約管理/會議室管理/使用者管理/開放時間設定 list rows): a per-row "編輯"
+   button always visible (not hover-revealed) next to the .admin-row-menu-btn kebab that holds
+   delete/disable/other secondary actions -- replaces the old .admin-clickable-row pattern where
+   the whole row was clickable with no visible affordance. Sized/styled to match
+   .admin-row-menu-btn exactly (same height, border, radius, background, hover) so the two read
+   as one control group. ---------- */
+
+.admin-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.admin-row-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-row-edit-btn i {
+  font-size: 13px;
+}
+
+.admin-row-edit-btn:hover {
+  background: var(--surface-muted);
+  color: var(--text-primary);
+}
+
 /* ---------- Clean table card wrapper (預約管理/會議室管理/開放時間管理 list panels): the table sits
    directly in the card with no .card-body padding, so this clips it to the card's own rounded
    corners instead of the table's square edges poking out past them. ---------- */
@@ -1139,12 +1172,6 @@
 
 .admin-clean-table-card .table-responsive {
   border-radius: inherit;
-}
-
-/* Row that opens a detail/edit Drawer on click (預約管理's reservation rows, 會議室管理's resource
-   rows) -- signals it's clickable without adding a visible per-row "view" button/icon column. */
-.admin-clickable-row {
-  cursor: pointer;
 }
 
 /* Marker for a row a client-side text search has excluded (使用者管理's #userSearch), kept

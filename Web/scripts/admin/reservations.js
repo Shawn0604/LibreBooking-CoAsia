@@ -24,18 +24,6 @@ function ReservationManagement(opts, approval) {
     deleteInstanceForm: $('#deleteInstanceForm'),
     deleteSeriesForm: $('#deleteSeriesForm'),
 
-    reservationDetailDrawer: $('#reservationDetailDrawer'),
-    reservationDrawerTitle: $('#reservationDrawerTitle'),
-    reservationDrawerStatus: $('#reservationDrawerStatus'),
-    reservationDrawerTime: $('#reservationDrawerTime'),
-    reservationDrawerResource: $('#reservationDrawerResource'),
-    reservationDrawerOwner: $('#reservationDrawerOwner'),
-    reservationDrawerDescription: $('#reservationDrawerDescription'),
-    reservationDrawerReference: $('#reservationDrawerReference'),
-    reservationDrawerEdit: $('#reservationDrawerEdit'),
-    reservationDrawerApprove: $('#reservationDrawerApprove'),
-    reservationDrawerCancel: $('#reservationDrawerCancel'),
-
     statusForm: $('#statusForm'),
     statusDialog: $('#statusDialog'),
     statusReasons: $('#resourceReasonId'),
@@ -92,23 +80,19 @@ function ReservationManagement(opts, approval) {
       $(e.target).closest('.updateCustomAttribute').find('.inlineAttribute').editable('toggle');
     });
 
-    elements.reservationTable.on('click', 'tr.admin-clickable-row', function (e) {
-      openReservationDetail($(this).attr('data-refnum'));
+    elements.reservationTable.on('click', '.admin-reservation-edit', function (e) {
+      e.preventDefault();
+      viewReservation($(this).closest('tr').attr('data-refnum'));
     });
 
-    elements.reservationDrawerEdit.click(function (e) {
+    elements.reservationTable.on('click', '.admin-reservation-approve', function (e) {
       e.preventDefault();
-      viewReservation(getActiveReferenceNumber());
+      approveReservation($(this).closest('tr').attr('data-refnum'));
     });
 
-    elements.reservationDrawerApprove.click(function (e) {
+    elements.reservationTable.on('click', '.admin-reservation-cancel', function (e) {
       e.preventDefault();
-      approveReservation(getActiveReferenceNumber());
-    });
-
-    elements.reservationDrawerCancel.click(function (e) {
-      e.preventDefault();
-      showDeleteReservation(getActiveReferenceNumber());
+      showDeleteReservation($(this).closest('tr').attr('data-refnum'));
     });
 
     elements.deleteTerms.click(function (e) {
@@ -333,32 +317,6 @@ function ReservationManagement(opts, approval) {
         elements.deleteInstanceForm.submit();
       },
     });
-  }
-
-  function openReservationDetail(referenceNumber) {
-    var reservation = reservations[referenceNumber];
-    if (!reservation) {
-      return;
-    }
-
-    setActiveReferenceNumber(referenceNumber);
-    elements.referenceNumberList.val(referenceNumber);
-
-    elements.reservationDrawerTitle.text(reservation.title || options.noTitleText);
-    elements.reservationDrawerTime.text(reservation.timeRange);
-    elements.reservationDrawerResource.text(reservation.resourceName);
-    elements.reservationDrawerOwner.text(reservation.ownerName);
-    elements.reservationDrawerDescription.text(reservation.description || '-');
-    elements.reservationDrawerReference.text(referenceNumber);
-
-    var isPending = reservation.requiresApproval == '1';
-    elements.reservationDrawerStatus
-      .text(isPending ? options.statusPendingText : options.statusConfirmedText)
-      .toggleClass('admin-badge-upcoming', isPending)
-      .toggleClass('admin-badge-inprogress', !isPending);
-    elements.reservationDrawerApprove.toggleClass('d-none', !isPending);
-
-    bootstrap.Offcanvas.getOrCreateInstance(elements.reservationDetailDrawer[0]).show();
   }
 
   function populateReasonOptions(statusId, reasonsElement) {
