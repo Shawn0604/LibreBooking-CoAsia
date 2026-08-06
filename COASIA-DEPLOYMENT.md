@@ -13,7 +13,9 @@
 - ✅ VM 到 GitLab（22/443）、SMTP relay（10.1.3.140:25）、AD LDAP（10.1.3.125:389）連線都測試成功
 - ✅ Docker 29.7.1 + Docker Compose v5.4.0 已安裝
 - ✅ `Dockerfile.prod`、`docker-compose.prod.yml`、`Caddyfile`、`.env.prod.example`、`.dockerignore` 已寫好（見下方元件設計）
-- ⬜ 尚未在 VM 上實際跑過第一次 build／up
+- ✅ 第一次在 VM 上 build／up 成功，`app`／`db`／`caddy` 三個服務都正常，資料庫已從測試環境搬過來（schema version 4.2），`curl http://localhost/Web/` 回 `200 OK`
+- ⬜ 還沒清掉測試預約資料（`COASIA-GOLIVE-CHECKLIST.md` 提到的 57 筆）
+- ⬜ 還沒用瀏覽器實際測試登入（含 AD 帳密登入）
 - ⬜ TLS 憑證策略、NAS 備份協定、GitLab Runner 部署方式仍待決定（見下方「尚待確認的決策」）
 
 ## 目標架構
@@ -77,6 +79,15 @@ Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重�
 - `config/config.php`：資料庫、LDAP、SMTP 等機密設定，直接放在 VM 上這個路徑，用 bind mount（`:ro`）掛進容器
 - `plugins/Authentication/ActiveDirectory/ActiveDirectory.config.php`：AD 服務帳號設定，同樣被 `.gitignore` 排除（`**/*.config.php`），同樣用 bind mount 掛進容器，不會被 bake 進 image
 - 這四個檔案（`.env`、`app.env`、`config/config.php`、`ActiveDirectory.config.php`）都已經在 `.gitignore` 裡（剛補上 `app.env`），檔案權限建議設 600。VM 上沒有的話用 `scp` 從 Windows 開發機傳過去
+
+**⚠️ `app.env` 從 `.env.example` 複製過來後，一定要先跑這兩行，再啟動容器**：
+
+```bash
+sed -i '/^LB_DATABASE_/d' app.env
+sed -i '/^LB_PHPMAILER_/d' app.env
+```
+
+原因：`lib/Config/Configuration.php` 的 `GetKey()` 邏輯是「只要對應的 `LB_*` 環境變數有值，就優先蓋掉 `config.php` 的設定」（`envKeyForConfig()` 把 `database.hostspec` 轉成 `LB_DATABASE_HOSTSPEC` 這種命名）。`.env.example` 裡 `LB_DATABASE_HOSTSPEC='127.0.0.1'`、`LB_PHPMAILER_SMTP_AUTOTLS=true`、`LB_PHPMAILER_SMTP_AUTH=true` 這幾個非空的預設值，會直接蓋掉 `config.php` 裡已經測試驗證過的正確設定（`hostspec=db`、SMTP 不需要 auth/TLS），導致 app 明明連得到資料庫、preflight 全過，正式跑起來卻一直 500（`Connection refused`，因為被蓋成去連 `127.0.0.1`，但 `app` 容器裡的 `127.0.0.1` 沒有 MySQL）。第一次在 `BookingServer` 上部署時就踩到這個坑，排查了很久才找到，值得記一筆。
 
 ---
 
