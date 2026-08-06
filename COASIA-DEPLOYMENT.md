@@ -6,22 +6,32 @@
 
 ---
 
+## 目前進度
+
+- ✅ 程式碼已推上公司 GitLab（`coasiait/coasia-booking`），SSH 連線方式
+- ✅ Linux VM 已建立：`BookingServer`（Ubuntu 26.04 LTS），固定 IP `10.1.8.32`（DHCP 保留，MAC 綁在 `dc7.coasia.com.tw` 的 `user_dhcp` scope）
+- ✅ VM 到 GitLab（22/443）、SMTP relay（10.1.3.140:25）、AD LDAP（10.1.3.125:389）連線都測試成功
+- ✅ Docker 29.7.1 + Docker Compose v5.4.0 已安裝
+- ✅ `Dockerfile.prod`、`docker-compose.prod.yml`、`Caddyfile`、`.env.prod.example`、`.dockerignore` 已寫好（見下方元件設計）
+- ⬜ 尚未在 VM 上實際跑過第一次 build／up
+- ⬜ TLS 憑證策略、NAS 備份協定、GitLab Runner 部署方式仍待決定（見下方「尚待確認的決策」）
+
 ## 目標架構
 
 ```
 Windows（開發、測試、git commit）
         │  git push
         ▼
-公司 GitLab（10.1.3.148，CoasiaIT 群組）── 保存程式碼與版本、CI/CD、Container Registry
+公司 GitLab（10.1.3.148，coasiait/coasia-booking）── 保存程式碼與版本、CI/CD、Container Registry
         │  建立 Tag 觸發 pipeline
         ▼
-Linux VM（正式執行環境，ESXi 上的 VM）
+Linux VM：BookingServer（10.1.8.32，Ubuntu 26.04 LTS）
         │
         ▼
-Docker Compose
+Docker Compose（docker-compose.prod.yml）
   ├─ app：Apache + PHP 8.2 + CoAsia Booking（Dockerfile.prod）
   ├─ db：MySQL 8.0
-  └─ reverse-proxy：Nginx／Caddy，處理 HTTPS
+  └─ caddy：反向代理，處理 HTTPS（Caddyfile）
         │
         ▼
 Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重建影響）
@@ -40,10 +50,10 @@ Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重�
 
 | 服務 | 說明 |
 | --- | --- |
-| `app` | 用 `Dockerfile.prod`（尚待建立）build，不像 `Dockerfile.dev` 用 bind mount，程式碼直接 COPY 進 image；`composer install --no-dev --optimize-autoloader` |
+| `app` | [Dockerfile.prod](Dockerfile.prod)，不像 `Dockerfile.dev` 用 bind mount，程式碼直接 COPY 進 image；`composer install --no-dev --optimize-autoloader` |
 | `db` | `mysql:8.0`，不對外開 port（現行 `docker-compose.dev.yml` 開了 3307 純粹方便本機除錯，正式環境不需要） |
-| `reverse-proxy` | Nginx 或 Caddy，終止 HTTPS，往 `app` 轉發；憑證來源見下方「尚待確認的決策」 |
-| `backup` | 排程任務（VM cron 或獨立 sidecar），不是長駐服務 |
+| `caddy` | [Caddyfile](Caddyfile)，終止 HTTPS，往 `app` 轉發；憑證來源見下方「尚待確認的決策」，Caddyfile 裡已經寫好三種模式（Let's Encrypt／內部 CA／Caddy 內建 CA）可以直接切換 |
+| `backup` | 排程任務（VM cron 或獨立 sidecar），不是長駐服務，尚未寫成腳本 |
 
 不在正式環境放 phpMyAdmin 等管理工具對外開放；要用的話走 SSH tunnel。
 
@@ -60,11 +70,12 @@ Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重�
 
 ## 設定與機密管理
 
-`config/config.php`、`.env`、`uploads/`、`var/`、`tpl_c/` 本來就在 `.gitignore` 裡，不會進 GitLab——這代表 Linux VM 上要維護一份**不經過版控**的實體檔案，部署時用 volume 掛進 `app` 容器，不是靠 git pull 帶過去：
+`config/config.php`、`.env`、`uploads/`、`var/`、`tpl_c/` 本來就在 `.gitignore` 裡，不會進 GitLab——這代表 Linux VM 上要維護幾份**不經過版控**的實體檔案，部署時用 bind mount 掛進 `app` 容器，不是靠 git pull 帶過去。`docker-compose.prod.yml` 需要兩個不同的環境檔案，注意不要搞混：
 
-- `config/config.php`：資料庫、LDAP、SMTP 等機密設定，直接放在 VM 上，掛進容器
-- `.env`（`LB_` 前綴的應用層設定，如 timeout、預設語言）：同樣放 VM 本機，不進 GitLab
-- MySQL root／app 使用者密碼：透過 `.env` 或 docker secrets 注入，不寫死在 `docker-compose.prod.yml` 明碼裡；`.env` 檔案權限設 600
+- `.env`（跟 `docker-compose.prod.yml`同一層）：docker compose 自己讀的，只放 `MYSQL_*` 這幾個 compose 層級要用的變數，範本在 [.env.prod.example](.env.prod.example)
+- `app.env`：app 自己的 `LB_` 前綴設定（timeout、預設語言等，範本在既有的 [.env.example](.env.example)），會被掛進容器變成 `/var/www/html/.env`，給 PHP 的 Dotenv 讀
+- `config/config.php`：資料庫、LDAP、SMTP 等機密設定，直接放在 VM 上這個路徑，用 bind mount（`:ro`）掛進容器
+- 這三個檔案（`.env`、`app.env`、`config/config.php`）都已經在 `.gitignore` 裡（剛補上 `app.env`），檔案權限建議設 600
 
 ---
 
@@ -73,8 +84,11 @@ Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重�
 | Volume | 掛載到 | 需要持久化？ |
 | --- | --- | --- |
 | `lb_prod_db_data` | `/var/lib/mysql` | 需要，備份重點 |
-| `lb_prod_uploads` | `uploads/`、`Web/uploads/images`、`Web/uploads/tos` | 需要 |
-| `lb_prod_config` | `config/config.php` | 需要（但內容不進版控，見上） |
+| `lb_prod_uploads` | `uploads/` | 需要 |
+| `lb_prod_uploads_images` | `Web/uploads/images` | 需要 |
+| `lb_prod_uploads_tos` | `Web/uploads/tos` | 需要 |
+| `caddy_data` / `caddy_config` | Caddy 內部狀態（憑證等） | 需要，換 image 時不想重新申請憑證 |
+| `config/config.php`、`.env`、`app.env` | 三個機密檔案 | 用 bind mount，不是 named volume，見上 |
 | `tpl_c/` | Smarty 編譯快取 | **不需要**，每次部署重建即可，持久化反而可能讓部署後還吃到舊快取 |
 
 ---
@@ -102,13 +116,11 @@ Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重�
 
 ## 尚待確認的決策
 
-以下幾點會直接影響 `Dockerfile.prod`、`docker-compose.prod.yml`、CI pipeline 怎麼寫，確認後才能動手：
+- **HTTPS 憑證策略**：`booking.coasia.com.tw` 的 DNS 是否對外可解析？可解析才能用 Let's Encrypt（`Caddyfile` 預設值）；純內網的話要改用 `Caddyfile` 裡已經寫好的內部 CA 或 Caddy 內建 CA 選項
+- **NAS 備份協定**：SMB／NFS／rsync，保留天數政策；備份腳本還沒寫
+- **GitLab Runner 部署方式**：建議直接裝在 `BookingServer` 這台 VM 上（最簡單），或必須透過既有共用 Runner + SSH
 
-- **HTTPS 憑證策略**：`booking.coasia.com.tw` 的 DNS 是否對外可解析？可解析才能用 Let's Encrypt；純內網的話要走公司內部 CA 或自簽
-- **NAS 備份協定**：SMB／NFS／rsync，保留天數政策
-- **GitLab Runner 部署方式**：建議直接裝在 Linux VM 上（最簡單），或必須透過既有共用 Runner + SSH
-- **Linux distro**：有無 IT 既定標準（現有清單多是 CentOS 7／RHEL 9，CentOS 7 已 EOL，建議 Rocky Linux 9 或 Ubuntu 22.04/24.04 LTS）
-- **AD/LDAP 連線**：`COASIA-GOLIVE-CHECKLIST.md` 提到的 TLS 1.0／過期憑證問題，Linux VM 到三台 DC 的網路路徑要重新跟 IT 確認（389 目前用的暫時明文方案，636 修好後要再測一次）
+已解決：Linux distro 用了 Ubuntu 26.04 LTS；VM（`10.1.8.32`）到 GitLab、SMTP relay、AD LDAP（389）的連線都已測試成功，網路路徑沒問題。
 
 ---
 
@@ -117,3 +129,4 @@ Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重�
 - [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) — 上線前還缺什麼
 - [COASIA-CHANGES.md](COASIA-CHANGES.md) — 已經做了什麼、為什麼
 - [Dockerfile.dev](Dockerfile.dev) / [docker-compose.dev.yml](docker-compose.dev.yml) — 現行開發環境設定
+- [Dockerfile.prod](Dockerfile.prod) / [docker-compose.prod.yml](docker-compose.prod.yml) / [Caddyfile](Caddyfile) / [.env.prod.example](.env.prod.example) — 正式環境設定

@@ -1,0 +1,35 @@
+FROM php:8.2-apache
+
+RUN apt-get update && apt-get install -y \
+        libicu-dev \
+        libldap2-dev \
+        libzip-dev \
+        libpng-dev \
+        libjpeg62-turbo-dev \
+        libfreetype6-dev \
+        unzip \
+    && docker-php-ext-configure ldap --with-libdir=lib/x86_64-linux-gnu \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j"$(nproc)" intl ldap mysqli pdo pdo_mysql zip gd bcmath \
+    && a2enmod rewrite \
+    && sed -i 's/AllowOverride None/AllowOverride All/' /etc/apache2/apache2.conf \
+    && rm -rf /var/lib/apt/lists/*
+
+# Same trade-off as Dockerfile.dev: skip opcache's per-request timestamp check.
+# Here the code is baked into the image (no bind mount), so there is nothing
+# for opcache to miss — a new image is the only way code changes ship anyway.
+RUN echo 'opcache.validate_timestamps=0' > /usr/local/etc/php/conf.d/zz-opcache-prod.ini
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+# Install dependencies first so this layer is cached across code-only changes.
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-interaction --optimize-autoloader
+
+COPY . .
+
+RUN mkdir -p tpl_c uploads Web/uploads/images Web/uploads/tos \
+    && chown -R www-data:www-data tpl_c uploads Web/uploads/images Web/uploads/tos var \
+    && chmod -R 770 tpl_c uploads Web/uploads/images Web/uploads/tos

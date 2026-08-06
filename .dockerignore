@@ -1,0 +1,16 @@
+.git
+.github
+node_modules
+vendor
+tests
+tpl_c
+var
+uploads
+Web/uploads/images
+Web/uploads/tos
+config/config.php
+config/config_*.bck.php
+.env
+*.md
+docker-compose*.yml
+Dockerfile*
