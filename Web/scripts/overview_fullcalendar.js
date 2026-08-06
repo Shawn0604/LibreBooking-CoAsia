@@ -246,21 +246,12 @@ $(function () {
         return y + '-' + m + '-' + d;
     }
 
-    // "2026-07-30" -> "7月30日（四）" — Quick Create's date field
-    // overlays this on top of a real (but text-transparent) <input type="date">, since a
-    // native date input's own displayed text can't be reformatted directly (see
-    // .qc-date-display/.rd-date-display in overview_fullcalendar.css).
-    function formatDateLabel(isoDate) {
-        if (!isoDate) {
-            return '';
-        }
-        var parts = isoDate.split('-');
-        var y = parseInt(parts[0], 10);
-        var m = parseInt(parts[1], 10);
-        var d = parseInt(parts[2], 10);
-        var date = new Date(Date.UTC(y, m - 1, d));
-        return m + '月' + d + '日（' + weekdayLabel(date) + '）';
-    }
+    // formatDateLabel ("2026-07-30" -> "7月30日（四）") now lives in
+    // Web/scripts/reservation-datetime-picker.js — Quick Create's date field overlays this on
+    // top of a real (but text-transparent) <input type="date">, since a native date input's own
+    // displayed text can't be reformatted directly (see .qc-date-display in
+    // overview_fullcalendar.css). weekdayLabel/WEEKDAY_LABELS stay local here too since this
+    // file's own calendar day-of-week headers (further below) also use them.
 
     // Always a single "Y年n月" — never a "7月－8月"-style range. A week view's visible range
     // can span two months; rather than growing the label to cover both (which changed the
@@ -324,96 +315,10 @@ $(function () {
         }
     });
 
-    function minutesToHHMMSS(minutes) {
-        var h = Math.floor(minutes / 60) % 24;
-        var m = minutes % 60;
-        return pad(h) + ':' + pad(m) + ':00';
-    }
-
-    // 24-hour "HH:MM", zero-padded, no 上午/下午 — used everywhere a time gets displayed
-    // (Quick Create's pills, the event popover's time range) so it reads the same way across
-    // the whole page.
-    function formatTimeLabel(minutes) {
-        var h = Math.floor(minutes / 60) % 24;
-        var m = minutes % 60;
-        return pad(h) + ':' + pad(m);
-    }
-
-    function formatDuration(minutes) {
-        if (minutes < 60) {
-            return minutes + ' 分鐘';
-        }
-        var hours = minutes / 60;
-        return (hours % 1 === 0 ? hours : hours.toFixed(1)) + ' 小時';
-    }
-
-    // Flips a Quick Create dropdown to grow upward (.open-upward, see overview_fullcalendar.css)
-    // when there isn't enough room below the trigger inside the viewport for it to open
-    // downward without getting clipped by/pushing past the modal's own bottom edge. Measured
-    // fresh on every open rather than assumed from CSS alone, since the modal can be scrolled
-    // to anywhere in the viewport depending on where the calendar cell that was clicked sits.
-    // $dropdown isn't display:none while "closed" (it's opacity/visibility-toggled — see
-    // .qc-time-dropdown/.resource-picker-panel), so its real height is measurable before
-    // deciding which way to open it.
-    function positionDropdownVertically($trigger, $dropdown) {
-        $dropdown.removeClass('open-upward');
-        var triggerRect = $trigger[0].getBoundingClientRect();
-        var dropdownHeight = $dropdown[0].offsetHeight;
-        var spaceBelow = window.innerHeight - triggerRect.bottom;
-        var spaceAbove = triggerRect.top;
-        if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
-            $dropdown.addClass('open-upward');
-        }
-    }
-
-    // ---- Generic pill + dropdown control shared by the start/end/resource pickers ----
-    function TimeDropdown(pillId, dropdownId, onPick) {
-        var $pill = $(pillId);
-        var $dropdown = $(dropdownId);
-
-        function close() {
-            $dropdown.removeClass('show');
-            $pill.attr('aria-expanded', 'false');
-        }
-
-        function open() {
-            closeAllDropdowns();
-            positionDropdownVertically($pill, $dropdown);
-            var $selected = $dropdown.find('.qc-option.selected');
-            if ($selected.length) {
-                $dropdown[0].scrollTop = $selected[0].offsetTop - $dropdown[0].offsetHeight / 2;
-            }
-            $dropdown.addClass('show');
-            $pill.attr('aria-expanded', 'true');
-        }
-
-        $pill.on('click', function (e) {
-            e.stopPropagation();
-            if ($dropdown.hasClass('show')) {
-                close();
-            } else {
-                open();
-            }
-        });
-
-        function render(options, selectedMinutes) {
-            $dropdown.empty();
-            options.forEach(function (opt) {
-                var $opt = $('<button type="button" class="qc-option" role="option"></button>').text(opt.label);
-                if (opt.minutes === selectedMinutes) {
-                    $opt.addClass('selected');
-                }
-                $opt.on('click', function (e) {
-                    e.stopPropagation();
-                    close();
-                    onPick(opt.minutes);
-                });
-                $dropdown.append($opt);
-            });
-        }
-
-        return { render: render, close: close };
-    }
+    // minutesToHHMMSS/formatTimeLabel/formatDuration/positionDropdownVertically/TimeDropdown
+    // now live in Web/scripts/reservation-datetime-picker.js (global functions, loaded before
+    // this file — see overview_fullcalendar.tpl) so the classic reservation form's date/time
+    // picker can share the exact same 30-minute-grid logic instead of duplicating it.
 
     var allDropdownClosers = [];
     function closeAllDropdowns() {
@@ -427,11 +332,11 @@ $(function () {
         pending.beginMinutes = minutes;
         pending.endMinutes = Math.min(24 * 60 - 30, minutes + duration);
         refreshTimeUI();
-    });
+    }, closeAllDropdowns);
     var endPicker = TimeDropdown('#qcEndPill', '#qcEndDropdown', function (minutes) {
         pending.endMinutes = minutes;
         refreshTimeUI();
-    });
+    }, closeAllDropdowns);
     allDropdownClosers.push(startPicker.close, endPicker.close);
 
     function refreshTimeUI() {
@@ -453,18 +358,8 @@ $(function () {
         $('#qcStartPill').text(formatTimeLabel(pending.beginMinutes));
         $('#qcEndPill').text(formatTimeLabel(pending.endMinutes));
 
-        var startOptions = [];
-        for (var m = 0; m < 24 * 60; m += 30) {
-            startOptions.push({ minutes: m, label: formatTimeLabel(m) });
-        }
-        startPicker.render(startOptions, pending.beginMinutes);
-
-        var endOptions = [];
-        for (var e = minEndMinutes; e <= 24 * 60 - 30; e += 30) {
-            var label = formatTimeLabel(e) + '（' + formatDuration(e - pending.beginMinutes) + '）';
-            endOptions.push({ minutes: e, label: label });
-        }
-        endPicker.render(endOptions, pending.endMinutes);
+        startPicker.render(buildStartTimeOptions(), pending.beginMinutes);
+        endPicker.render(buildEndTimeOptions(pending.beginMinutes, minEndMinutes), pending.endMinutes);
 
         $('#qcTimeError').addClass('d-none').empty();
 

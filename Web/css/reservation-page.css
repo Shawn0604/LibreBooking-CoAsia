@@ -264,6 +264,201 @@
   color: var(--rp-text);
 }
 
+/* ---- Start/end time picker (non-locked-periods path only) — same component as Quick Create's
+   own #qcStartPicker/#qcEndPicker (Web/css/overview_fullcalendar.css, scoped under
+   #quickCreateModal), copied here scoped under #page-reservation instead since this page
+   doesn't load overview_fullcalendar.css and there's no shared stylesheet between the two.
+   Every value below is a literal copy — keep the two in sync by hand if either changes. ---- */
+
+/* Fixed-width time columns (not flex-wrap) so date + start + dash + end always reads as one
+   row instead of each child claiming 100% of .rp-datetime-fields' flex width and wrapping onto
+   its own line. */
+#page-reservation .qc-time-edit {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) 92px 14px 92px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+}
+
+#page-reservation .qc-time-dash {
+  color: #6c7488;
+  text-align: center;
+}
+
+#page-reservation .qc-date-field,
+#page-reservation .qc-time-picker,
+#page-reservation .qc-time-pill {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+#page-reservation .qc-date-field {
+  position: relative;
+}
+
+#page-reservation .qc-date-input {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--bs-border-radius-sm);
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: transparent;
+}
+
+#page-reservation .qc-date-input::-webkit-calendar-picker-indicator {
+  position: relative;
+  z-index: 2;
+}
+
+#page-reservation .qc-date-input:focus {
+  outline: none;
+  background: color-mix(in oklab, var(--primary) 12%, white);
+}
+
+#page-reservation .qc-date-input:focus + .qc-date-display {
+  color: var(--primary);
+}
+
+#page-reservation .qc-date-display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding: 4px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #3c4043;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+#page-reservation .qc-time-error {
+  font-size: 12px;
+  color: var(--danger, #d93025);
+  margin-top: 4px;
+}
+
+#page-reservation .qc-time-picker {
+  position: relative;
+}
+
+#page-reservation .qc-time-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border: none;
+  border-radius: var(--bs-border-radius-sm);
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  padding: 4px 8px 4px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #3c4043;
+}
+
+#page-reservation .qc-time-pill::after {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid #6c7488;
+  flex-shrink: 0;
+}
+
+#page-reservation .qc-time-pill:hover,
+#page-reservation .qc-time-pill[aria-expanded="true"] {
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary);
+}
+
+#page-reservation .qc-time-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  width: 170px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #d9e0ea;
+  border-radius: var(--coasia-radius-control, 10px);
+  box-shadow: var(--coasia-shadow-surface, 0 1px 2px rgba(20, 30, 55, 0.06));
+  padding: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px) scale(0.98);
+  transform-origin: top left;
+  pointer-events: none;
+  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
+}
+
+#page-reservation .qc-time-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+#page-reservation .qc-time-dropdown.open-upward {
+  top: auto;
+  bottom: calc(100% + 4px);
+  transform-origin: bottom left;
+}
+
+#page-reservation #rpEndDropdown {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
+}
+
+#page-reservation #rpEndDropdown.open-upward {
+  transform-origin: bottom right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #page-reservation .qc-time-dropdown {
+    transition: none;
+  }
+}
+
+#page-reservation .qc-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0 12px;
+  font-size: 13.5px;
+  color: #3c4043;
+  border-radius: var(--bs-border-radius-sm);
+  white-space: nowrap;
+  transition: background-color 0.1s ease;
+}
+
+#page-reservation .qc-option:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+#page-reservation .qc-option.selected {
+  background: color-mix(in oklab, var(--primary) 12%, white);
+  color: var(--primary);
+  font-weight: 500;
+}
+
 /* ---- Recurrence — RecurrenceDiv.tpl's own markup/ids/classes (#repeatDiv, #repeatOptions,
    .recur-toggle, .btn-check pills, etc.) are untouched; this only reskins the native
    Bootstrap controls it renders to match everything else on the page. ---- */
@@ -273,8 +468,16 @@
   margin-top: 4px;
 }
 
+/* This is RecurrenceDiv.tpl's own 不重複/每天/每週/每月/自訂 <select> row (#repeatOptions) --
+   hidden here in favor of the two-stage 不重複/重複 gate + frequency dropdown pair
+   (#rpRepeatGate/#rpRepeatFrequency, create.tpl) sitting in front of it. #repeatOptions itself
+   stays in the DOM and still drives everything (recurrence.js, submission) — only its native
+   row is invisible; the gate/frequency pair writes into it via JS instead of a person picking
+   directly from it. !important is required here -- the row itself is a Bootstrap `.d-flex`
+   (`.d-flex { display: flex !important; }`), so a plain `display: none` loses to Bootstrap's
+   own utility rule regardless of this selector's higher specificity. */
 .rp-recurrence-wrap .repeat-div .form-group > .d-flex:first-child {
-  margin-bottom: 0 !important;
+  display: none !important;
 }
 
 .rp-recurrence-wrap select.repeat-drop,
@@ -732,48 +935,6 @@
   background: var(--rp-surface-muted);
   color: var(--rp-accent);
   font-size: 13px;
-}
-
-/* ---- Optional participants — collapsible sub-picker nested inside the required participants
-   row (participation.tpl), using the same .participant-search/.rp-chip-list component as
-   required, just gated behind a lightweight toggle instead of always shown. ---- */
-.rp-optional-participants {
-  margin-top: 10px;
-}
-
-.rp-optional-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  list-style: none;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--rp-text-secondary);
-}
-
-.rp-optional-toggle::-webkit-details-marker {
-  display: none;
-}
-
-.rp-optional-chevron {
-  flex-shrink: 0;
-  font-size: 11px;
-  transition: transform 0.15s ease;
-}
-
-.rp-optional-participants[open] .rp-optional-chevron {
-  transform: rotate(90deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .rp-optional-chevron {
-    transition: none;
-  }
-}
-
-.rp-optional-body {
-  margin-top: 8px;
 }
 
 .rp-description {

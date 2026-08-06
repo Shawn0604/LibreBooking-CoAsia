@@ -18,29 +18,6 @@
 	   the right name to serialize. *}
 	<div id="rpParticipantHiddenInputs"></div>
 
-	<details class="rp-optional-participants" id="rpOptionalParticipantsDetails">
-		<summary class="rp-optional-toggle">
-			<i class="bi bi-chevron-right rp-optional-chevron"></i>
-			<span>{translate key='OptionalParticipants'}</span>
-			<span class="badge bg-secondary rp-participant-badge" id="inviteeBadge">0</span>
-		</summary>
-		<div class="rp-optional-body">
-			<div class="participant-search" id="rpInviteeSearch">
-				<div class="participant-search-input-wrap">
-					<i class="bi bi-search"></i>
-					<input type="text" id="rpInviteeSearchInput" placeholder="{translate key='SearchParticipants'}" autocomplete="off">
-				</div>
-				<div class="participant-search-results d-none" id="rpInviteeSearchResults"></div>
-			</div>
-
-			<div class="rp-chip-list" id="rpInviteeChipList"></div>
-
-			{* invitationList[]/guestInvitationList[] — same idea as rpParticipantHiddenInputs
-			   above, but for the optional side (GetInvitees()/GetInvitedGuests()). *}
-			<div id="rpInviteeHiddenInputs"></div>
-		</div>
-	</details>
-
 	{* Hidden for now per explicit request — the checkbox (and its submitted value) still work
 	   exactly as before, just not shown to the user yet. *}
 	<div id="allowParticipation" class="form-check mt-2 d-none">

@@ -65,10 +65,10 @@
                 <div class="rp-row rp-row-datetime">
                     <i class="bi bi-clock rp-row-icon"></i>
                     <div class="rp-datetime-fields">
-                        <input type="text" id="BeginDate"
-                            class="rp-date-input{if $LockPeriods} no-show{/if}" {formname key=BEGIN_DATE} />
+                        {if $LockPeriods}
+                        <input type="text" id="BeginDate" class="rp-date-input no-show" {formname key=BEGIN_DATE} />
                         <select id="BeginPeriod" {formname key=BEGIN_PERIOD}
-                            class="rp-time-select timeinput{if $LockPeriods} no-show{/if}" title="Begin time">
+                            class="rp-time-select timeinput no-show" title="Begin time">
                             {foreach from=$StartPeriods item=period}
                             {if $period->IsReservable()}
                             {assign var='selected' value=''}
@@ -82,7 +82,7 @@
                         </select>
                         <span class="rp-time-dash">—</span>
                         <select id="EndPeriod" {formname key=END_PERIOD}
-                            class="rp-time-select timeinput{if $LockPeriods} no-show{/if}" title="End time">
+                            class="rp-time-select timeinput no-show" title="End time">
                             {foreach from=$EndPeriods item=period name=endPeriods}
                             {if $period->IsReservable()}
                             {assign var='selected' value=''}
@@ -94,8 +94,39 @@
                             {/if}
                             {/foreach}
                         </select>
-                        {if $LockPeriods}<span class="rp-locked-period">{formatdate date=$StartDate} {$startPeriod->Label()}</span>{/if}
+                        <span class="rp-locked-period">{formatdate date=$StartDate} {$startPeriod->Label()}</span>
                         <input type="text" id="EndDate" class="d-none" {formname key=END_DATE} />
+                        {else}
+                        {* Same date+time picker Quick Create uses (Overview page) — shared
+                           factory/formatters live in Web/scripts/reservation-datetime-picker.js,
+                           loaded by both pages so this is the exact same 30-minute-grid widget,
+                           not a lookalike. CSS is copied into reservation-page.css under
+                           #page-reservation (same pattern as the resource picker below), since
+                           this page doesn't load overview_fullcalendar.css. The four fields this
+                           form has always submitted keep their original id/{formname} (so
+                           Web/scripts/recurrence.js and reservation.js need no changes) but are
+                           now JS-written hidden inputs instead of user-facing controls. *}
+                        <div class="qc-time-edit">
+                            <div class="qc-date-field">
+                                <input type="date" class="qc-date-input" id="rpStartDate">
+                                <span class="qc-date-display" id="rpStartDateDisplay"></span>
+                            </div>
+                            <div class="qc-time-picker" id="rpStartPicker">
+                                <button type="button" class="qc-time-pill" id="rpStartPill" aria-haspopup="listbox" aria-expanded="false"></button>
+                                <div class="qc-time-dropdown" id="rpStartDropdown" role="listbox"></div>
+                            </div>
+                            <span class="qc-time-dash">－</span>
+                            <div class="qc-time-picker" id="rpEndPicker">
+                                <button type="button" class="qc-time-pill" id="rpEndPill" aria-haspopup="listbox" aria-expanded="false"></button>
+                                <div class="qc-time-dropdown" id="rpEndDropdown" role="listbox"></div>
+                            </div>
+                        </div>
+                        <div class="qc-time-error d-none" id="rpTimeError"></div>
+                        <input type="text" id="BeginDate" class="d-none" {formname key=BEGIN_DATE} value="{formatdate date=$StartDate key=system}" />
+                        <input type="text" id="BeginPeriod" class="d-none" {formname key=BEGIN_PERIOD} value="{if $SelectedStart}{$SelectedStart->Begin()}{else}09:00:00{/if}" />
+                        <input type="text" id="EndPeriod" class="d-none" {formname key=END_PERIOD} value="{if $SelectedEnd}{$SelectedEnd->End()}{else}09:30:00{/if}" />
+                        <input type="text" id="EndDate" class="d-none" {formname key=END_DATE} value="{formatdate date=$StartDate key=system}" />
+                        {/if}
                     </div>
                 </div>
 
@@ -103,6 +134,26 @@
                 <div class="rp-row rp-row-recurrence">
                     <i class="bi bi-arrow-repeat rp-row-icon"></i>
                     <div class="rp-recurrence-wrap">{$HideRecurrence}
+                        {* Two-stage picker in front of RecurrenceControl's own #repeatOptions
+                           (hidden — see .rp-recurrence-wrap .repeat-div .form-group >
+                           .d-flex:first-child in reservation-page.css): a plain 不重複/重複 gate
+                           by itself by default, with the actual frequency dropdown only
+                           appearing once "重複" is picked. #repeatOptions stays the single
+                           source of truth recurrence.js/the backend read — these two just drive
+                           its value and .trigger('change') so ChangeRepeatOptions()'s existing
+                           show/hide/clear logic runs unmodified either way. *}
+                        <div class="d-flex align-items-center gap-2 flex-wrap mb-2" id="rpRepeatGateRow">
+                            <select id="rpRepeatGate" class="form-select form-select-sm repeat-drop w-auto">
+                                <option value="none">{translate key=DoesNotRepeat}</option>
+                                <option value="repeat">{translate key=RepeatPrompt}</option>
+                            </select>
+                            <select id="rpRepeatFrequency" class="form-select form-select-sm repeat-drop w-auto d-none">
+                                <option value="daily">{translate key=Daily}</option>
+                                <option value="weekly">{translate key=Weekly}</option>
+                                <option value="monthly">{translate key=Monthly}</option>
+                                <option value="custom">{translate key=Custom}</option>
+                            </select>
+                        </div>
                         {control type="RecurrenceControl" RepeatTerminationDate=$RepeatTerminationDate}
                     </div>
                 </div>
@@ -131,7 +182,12 @@
                            reservation-page.css under #page-reservation since this page doesn't
                            load overview_fullcalendar.css). Switching resource re-runs the
                            availability check (#rpAvailability) below, same as changing the
-                           date/time does. *}
+                           date/time does. Lists $SwitchableResources (every resource the user
+                           can access, ReservationComponentBinder::ReservationResourceBinder),
+                           not $AvailableResources (that one's scoped to the current resource's
+                           own schedule, used below for the "additional resources on this same
+                           booking" section) — otherwise this picker could only ever offer
+                           resources sharing a schedule with whatever you started with. *}
                         <div class="resource-picker rp-resource-picker" id="rpResourcePicker">
                             <button type="button" class="ghost-btn resource-picker-trigger" id="rpResourcePickerTrigger"
                                 aria-haspopup="listbox" aria-expanded="false">
@@ -145,11 +201,11 @@
                                     <input type="text" id="rpResourcePickerSearch" placeholder="{translate key='SearchResources'}" autocomplete="off">
                                 </div>
                                 <div class="resource-picker-list" id="rpResourcePickerList">
-                                    {foreach from=$AvailableResources item=resource}
+                                    {foreach from=$SwitchableResources item=resource}
                                     <button type="button" class="resource-picker-item{if $resource->GetId() == $ResourceId} selected{/if}"
-                                        data-resource-id="{$resource->GetId()}" data-color="{$resource->GetColor()|default:'#5c6b84'}">
+                                        data-resource-id="{$resource->GetId()}" data-color="{$SwitchableResourceColors[$resource->GetId()].bg}">
                                         <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
-                                        <span class="resource-picker-dot" style="--dot-color:{$resource->GetColor()|default:'#5c6b84'}"></span>
+                                        <span class="resource-picker-dot" style="--dot-color:{$SwitchableResourceColors[$resource->GetId()].bg}"></span>
                                         <span class="resource-picker-item-label">{$resource->Name|escape:'html'}</span>
                                     </button>
                                     {/foreach}
@@ -282,56 +338,6 @@
                 </details>
                 {/if}
 
-                <details class="rp-collapse-row">
-                    <summary>
-                        <i class="bi bi-sliders rp-row-icon"></i>
-                        <span class="rp-collapse-label">{translate key='OtherSettings'}</span>
-                        <span class="rp-collapse-hint">{translate key='PermissionsAndCustomFields'}</span>
-                        <i class="bi bi-chevron-down rp-chevron"></i>
-                    </summary>
-                    <div class="rp-collapse-body">
-                        {if $ShowAdditionalResources}
-                        <div class="rp-subrow">
-                            <label class="rp-subrow-label">{translate key="Resources"}</label>
-                            <a id="btnAddResources" href="#" class="rp-collapse-action" data-bs-toggle="modal"
-                                data-bs-target="#dialogResourceGroups">{translate key=Change}
-                                <span class="bi bi-plus-square-fill"></span></a>
-                        </div>
-                        {/if}
-
-                        {if $ShowReservationDetails && $AvailableAccessories|default:array()|count > 0}
-                        <div class="rp-subrow">
-                            <label class="rp-subrow-label" for="addAccessoriesPrompt">{translate key="Accessories"}</label>
-                            <a href="#" id="addAccessoriesPrompt" class="rp-collapse-action" data-bs-toggle="modal"
-                                data-bs-target="#dialogAddAccessories">{translate key='Add'}
-                                <span class="bi bi-plus-square-fill"></span></a>
-                        </div>
-                        <div id="accessories" class="rp-chip-list"></div>
-                        {/if}
-
-                        {if $Terms != null}
-                        <div class="rp-subrow-block" id="termsAndConditions">
-                            {if $TermsAccepted}
-                            <div>
-                                <i class="bi bi-check-square-fill me-1"></i>{translate key=IAccept}
-                                <a href="{$Terms->DisplayUrl()}" class="link-primary"
-                                    target="_blank">{translate key=TheTermsOfService}</a>
-                            </div>
-                            {else}
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="termsAndConditionsAcknowledgement"
-                                    {formname key=TOS_ACKNOWLEDGEMENT} {if $TermsAccepted}checked="checked" {/if} />
-                                <label for="termsAndConditionsAcknowledgement">{translate key=IAccept}</label>
-                                <a href="{$Terms->DisplayUrl()}" class="link-primary"
-                                    target="_blank">{translate key=TheTermsOfService}</a>
-                            </div>
-                            {/if}
-                        </div>
-                        {/if}
-
-                        <div class="rp-subrow-block" id="custom-attributes-placeholder"></div>
-                    </div>
-                </details>
             </div>
 
             <input type="hidden" {formname key=RESERVATION_ID} value="{$ReservationId}" />
@@ -358,88 +364,6 @@
 
             <div id="retrySubmitParams" class="d-none"></div>
         </form>
-    </div>
-</div>
-
-
-<div class="modal fade" id="dialogResourceGroups" tabindex="-1" role="dialog" aria-labelledby="resourcesModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="resourcesModalLabel">{translate key=AddResources}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-            </div>
-            <div class="modal-body">
-                <div id="resourceGroups"></div>
-            </div>
-            <div class="modal-footer">
-                <div id="checking-availability" class="float-start">{translate key=CheckingAvailability} <div
-                        class="spinner-border spinner-border-sm" role="status"></div>
-                </div>
-                <div id="checking-availability-error" class="float-start no-show">
-                    {translate key=CheckingAvailabilityError}</div>
-                <button type="button" class="btn btn-outline-secondary btnClearAddResources"
-                    data-bs-dismiss="modal">{translate key='Cancel'}</button>
-                <button type="button" class="btn btn-primary btnConfirmAddResources">{translate key='Done'}</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="dialogAddAccessories" tabindex="-1" role="dialog" aria-labelledby="accessoryModalLabel"
-    aria-hidden="true">
-    <div class="modal-dialog modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="accessoryModalLabel">{translate key=AddAccessories}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-            </div>
-            <div class="modal-body">
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>{translate key=Accessory}</th>
-                            <th>{translate key=QuantityRequested}</th>
-                            <th>{translate key=QuantityAvailable}</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {foreach from=$AvailableAccessories item=accessory}
-                        <tr accessory-id="{$accessory->GetId()}">
-                            <td>{$accessory->GetName()}</td>
-                            <td>
-                                <input type="hidden" class="name" value="{$accessory->GetName()}" />
-                                <input type="hidden" class="id" value="{$accessory->GetId()}" />
-                                <input type="hidden" class="resource-ids"
-                                    value="{$accessory->ResourceIds()|join:','}" />
-                                <label for="accessory{$accessory->GetId()}"
-                                    class="visually-hidden">{$accessory->GetName()}</label>
-                                {if $accessory->GetQuantityAvailable() == 1}
-                                <input class="form-check-input" type="checkbox" name="accessory{$accessory->GetId()}"
-                                    id="accessory{$accessory->GetId()}" value="1" size="3" aria-label="checkbox" />
-                                {else}
-                                <input type="number" min="0" max="999"
-                                    class="form-control form-control-sm accessory-quantity"
-                                    name="accessory{$accessory->GetId()}" id="accessory{$accessory->GetId()}" value="0"
-                                    size="3" />
-                                {/if}
-                            </td>
-                            <td accessory-quantity-id="{$accessory->GetId()}"
-                                accessory-quantity-available="{$accessory->GetQuantityAvailable()}">
-                                {$accessory->GetQuantityAvailable()|default:'&infin;'}</td>
-                        </tr>
-                        {/foreach}
-                    </tbody>
-                </table>
-
-            </div>
-            <div class="modal-footer">
-                {cancel_button}
-                <button id="btnConfirmAddAccessories" type="button"
-                    class="btn btn-primary">{translate key='Done'}</button>
-            </div>
-        </div>
     </div>
 </div>
 
@@ -479,8 +403,9 @@
 
 {include file="javascript-includes.tpl"}
 
-{control type="DatePickerSetupControl" ControlId="BeginDate" DefaultDate=$StartDate MinDate=$AvailabilityStart MaxDate=$AvailabilityEnd FirstDay=$FirstWeekday}
-{control type="DatePickerSetupControl" ControlId="EndDate" DefaultDate=$EndDate MinDate=$AvailabilityStart MaxDate=$AvailabilityEnd FirstDay=$FirstWeekday}
+{* BeginDate/EndDate no longer get a jQuery UI datepicker attached -- the non-locked path uses
+   the native <input type="date"> Quick Create-style picker instead (see rp-row-datetime above),
+   and the locked-periods path never lets the user change the date at all. *}
 {control type="DatePickerSetupControl" ControlId="EndRepeat" DefaultDate=$RepeatTerminationDate MinDate=$StartDate MaxDate=$AvailabilityEnd FirstDay=$FirstWeekday}
 {control type="DatePickerSetupControl" ControlId="RepeatDate" MaxDate=$AvailabilityEnd FirstDay=$FirstWeekday MinDate=Date::Now()->ToTimezone($Timezone) Multiple=false}
 
@@ -489,6 +414,7 @@
 {jsfile src="date-helper.js"}
 {jsfile src="recurrence.js"}
 {jsfile src="participant-picker.js"}
+{jsfile src="reservation-datetime-picker.js"}
 {jsfile src="reservation.js"}
 {jsfile src="autocomplete.js"}
 {jsfile src="force-numeric.js"}
@@ -567,17 +493,13 @@
 
         // Shared participant picker (Web/scripts/participant-picker.js) — same search endpoint/
         // conditions (Chinese/Korean/English name, username/employee ID, email) and same chip
-        // style as Quick Create. Two instances share one component: rpParticipantPicker for
-        // required participants, rpInviteePicker for the collapsible optional ones — each also
-        // accepts external (non-user) email invitees when guest participation is allowed, and
-        // each excludes the reservation owner and whatever the other picker already holds so the
-        // same person/email can't end up required AND optional, or invited as themselves.
-        // #participantList's old hidden-input-per-chip markup is gone; participantList[] /
-        // guestParticipationList[] / invitationList[] / guestInvitationList[] are instead synced
-        // into their #rp*HiddenInputs containers on every change, which is what
-        // Pages/Ajax/ReservationSavePage.php::GetParticipants()/GetInvitees()/
-        // GetParticipatingGuests()/GetInvitedGuests() and ReservationUpdatePresenter actually
-        // read on submit.
+        // style as Quick Create. Also accepts external (non-user) email invitees when guest
+        // participation is allowed, and excludes the reservation owner so they can't add
+        // themselves. #participantList's old hidden-input-per-chip markup is gone;
+        // participantList[] / guestParticipationList[] are instead synced into
+        // #rpParticipantHiddenInputs on every change, which is what
+        // Pages/Ajax/ReservationSavePage.php::GetParticipants()/GetParticipatingGuests() and
+        // ReservationUpdatePresenter actually read on submit.
         var rpOwnerId = {$UserId};
         var rpOwnerEmail = '{$UserEmail|escape:"javascript"}';
         var rpAllowGuestParticipation = {if $AllowGuestParticipation}true{else}false{/if};
@@ -594,7 +516,7 @@
             });
         }
 
-        var rpParticipantPicker, rpInviteePicker;
+        var rpParticipantPicker;
 
         rpParticipantPicker = createParticipantPicker({
             input: '#rpParticipantSearchInput',
@@ -608,29 +530,9 @@
             externalBadgeText: rpExternalBadgeText,
             excludeIds: [rpOwnerId],
             excludeEmails: [rpOwnerEmail],
-            conflictsWith: function () { return rpInviteePicker ? rpInviteePicker.getParticipants() : []; },
             onChange: function (participants) {
                 rpSyncHiddenInputs('#rpParticipantHiddenInputs', 'participantList[]', 'guestParticipationList[]', participants);
                 $('#participantBadge').text(participants.length);
-            },
-        });
-
-        rpInviteePicker = createParticipantPicker({
-            input: '#rpInviteeSearchInput',
-            results: '#rpInviteeSearchResults',
-            chipList: '#rpInviteeChipList',
-            wrapper: '#rpInviteeSearch',
-            searchUrl: 'ajax/overview_fullcalendar_participant_search.php?term=',
-            noMatchesText: rpNoMatchesText,
-            allowExternal: rpAllowGuestParticipation,
-            inviteEmailLabel: rpInviteEmailLabel,
-            externalBadgeText: rpExternalBadgeText,
-            excludeIds: [rpOwnerId],
-            excludeEmails: [rpOwnerEmail],
-            conflictsWith: function () { return rpParticipantPicker ? rpParticipantPicker.getParticipants() : []; },
-            onChange: function (participants) {
-                rpSyncHiddenInputs('#rpInviteeHiddenInputs', 'invitationList[]', 'guestInvitationList[]', participants);
-                $('#inviteeBadge').text(participants.length);
             },
         });
 
@@ -642,19 +544,6 @@
             { id: 'ext:{$guest|lower|escape:"javascript"}', label: "{$guest|escape:'javascript'}", type: 'external', email: "{$guest|escape:'javascript'}" }{if !$smarty.foreach.rpParticipatingGuestsLoop.last},{/if}
             {/foreach}
         ]);
-
-        rpInviteePicker.reset([
-            {foreach from=$Invitees item=user name=rpInviteesLoop}
-            { id: {$user->UserId}, label: "{$user->FullName|escape:'javascript'}", type: 'internal' },
-            {/foreach}
-            {foreach from=$InvitedGuests item=guest name=rpInvitedGuestsLoop}
-            { id: 'ext:{$guest|lower|escape:"javascript"}', label: "{$guest|escape:'javascript'}", type: 'external', email: "{$guest|escape:'javascript'}" }{if !$smarty.foreach.rpInvitedGuestsLoop.last},{/if}
-            {/foreach}
-        ]);
-
-        if (rpInviteePicker.getParticipants().length > 0) {
-            $('#rpOptionalParticipantsDetails').attr('open', 'open');
-        }
 
         // Google-Calendar-style "更多選項": Quick Create's in-progress draft (title/
         // description/participants) travels here via sessionStorage rather than the URL —
@@ -679,10 +568,6 @@
                     if ((qcDraft.participants || []).length) {
                         rpParticipantPicker.reset(qcDraft.participants);
                     }
-                    if ((qcDraft.optionalParticipants || []).length) {
-                        rpInviteePicker.reset(qcDraft.optionalParticipants);
-                        $('#rpOptionalParticipantsDetails').attr('open', 'open');
-                    }
                 }
             } catch (e) {
                 // Malformed/unavailable sessionStorage — the form just opens blank instead of
@@ -695,6 +580,76 @@
         {/foreach}
 
         reservation.addResourceGroups({$ResourceGroupsAsJson});
+
+        {if !$LockPeriods}
+        // Start/end time picker — same widget Quick Create uses, driven by the shared factory
+        // in Web/scripts/reservation-datetime-picker.js (TimeDropdown/formatTimeLabel/
+        // minutesToHHMMSS/buildStartTimeOptions/buildEndTimeOptions/formatDateLabel). Writes
+        // into #BeginDate/#BeginPeriod/#EndPeriod/#EndDate (this form's original field ids and
+        // name/POST-key bindings, unchanged) and fires 'change' on each so the
+        // existing $('#BeginDate, #BeginPeriod, #EndPeriod').on('change', ...) binding further
+        // below (scheduleRpAvailabilityCheck) and recurrence.js's own listeners on those same
+        // ids keep working unmodified.
+        (function () {
+            function parseHHMM(str) {
+                return parseInt(str.slice(0, 2), 10) * 60 + parseInt(str.slice(3, 5), 10);
+            }
+
+            var rpBeginMinutes = parseHHMM('{if $SelectedStart}{$SelectedStart->Begin()}{else}09:00:00{/if}');
+            var rpEndMinutes = parseHHMM('{if $SelectedEnd}{$SelectedEnd->End()}{else}09:30:00{/if}');
+
+            var rpAllDropdownClosers = [];
+            function rpCloseAllDropdowns() {
+                rpAllDropdownClosers.forEach(function (close) { close(); });
+            }
+            $(document).on('click', rpCloseAllDropdowns);
+
+            var rpStartPicker = TimeDropdown('#rpStartPill', '#rpStartDropdown', function (minutes) {
+                var duration = Math.max(30, rpEndMinutes - rpBeginMinutes);
+                rpBeginMinutes = minutes;
+                rpEndMinutes = Math.min(24 * 60 - 30, minutes + duration);
+                refreshRpTimeUI();
+            }, rpCloseAllDropdowns);
+            var rpEndPicker = TimeDropdown('#rpEndPill', '#rpEndDropdown', function (minutes) {
+                rpEndMinutes = minutes;
+                refreshRpTimeUI();
+            }, rpCloseAllDropdowns);
+            rpAllDropdownClosers.push(rpStartPicker.close, rpEndPicker.close);
+
+            function refreshRpTimeUI() {
+                var minEndMinutes = rpBeginMinutes + 30;
+                if (rpEndMinutes < minEndMinutes) {
+                    rpEndMinutes = minEndMinutes;
+                }
+                if (rpEndMinutes > 24 * 60 - 30) {
+                    rpEndMinutes = 24 * 60 - 30;
+                }
+
+                $('#rpStartPill').text(formatTimeLabel(rpBeginMinutes));
+                $('#rpEndPill').text(formatTimeLabel(rpEndMinutes));
+
+                rpStartPicker.render(buildStartTimeOptions(), rpBeginMinutes);
+                rpEndPicker.render(buildEndTimeOptions(rpBeginMinutes, minEndMinutes), rpEndMinutes);
+
+                $('#rpTimeError').addClass('d-none').empty();
+
+                $('#BeginPeriod').val(minutesToHHMMSS(rpBeginMinutes)).trigger('change');
+                $('#EndPeriod').val(minutesToHHMMSS(rpEndMinutes)).trigger('change');
+            }
+
+            $('#rpStartDate').val($('#BeginDate').val());
+            $('#rpStartDateDisplay').text(formatDateLabel($('#rpStartDate').val()));
+
+            $('#rpStartDate').on('change', function () {
+                var isoDate = $(this).val();
+                $('#BeginDate').val(isoDate).trigger('change');
+                $('#EndDate').val(isoDate).trigger('change');
+                $('#rpStartDateDisplay').text(formatDateLabel(isoDate));
+            });
+
+            refreshRpTimeUI();
+        })();
+        {/if}
 
         // Searchable/switchable primary resource picker — same open/close/search/select
         // pattern as Quick Create's own #qcResourcePicker (Web/scripts/overview_fullcalendar.js
@@ -827,6 +782,56 @@
 
         var recurrence = new Recurrence(recurOpts);
         recurrence.init();
+
+        // This page's own reduced set (不重複/每天/每週/每月/自訂) — RecurrenceControl/
+        // RecurrenceDiv.tpl/recurrence.js are shared with search-availability.tpl and the admin
+        // blackouts pages, which still offer "每年", so this only trims the <option> here rather
+        // than touching the shared control. Kept if a reservation being edited already repeats
+        // yearly (pre-existing data), so its saved value still has a matching option to select.
+        if ('{$RepeatType}' !== 'yearly') {
+            $('#repeatOptions option[value="yearly"]').remove();
+        }
+
+        // Two-stage 不重複/重複 gate in front of #repeatOptions (see rp-row-recurrence markup
+        // above) — #rpRepeatGate/#rpRepeatFrequency don't submit anything themselves, they just
+        // drive #repeatOptions' value and .trigger('change') so recurrence.js's own
+        // ChangeRepeatOptions()/NotifyChange() keep running exactly as before.
+        (function () {
+            var $gate = $('#rpRepeatGate');
+            var $frequency = $('#rpRepeatFrequency');
+            var $realSelect = $('#repeatOptions');
+
+            function syncFromReal() {
+                var val = $realSelect.val();
+                if (!val || val === 'none') {
+                    $gate.val('none');
+                    $frequency.addClass('d-none');
+                    return;
+                }
+                $gate.val('repeat');
+                if ($frequency.find('option[value="' + val + '"]').length) {
+                    $frequency.val(val);
+                    $frequency.removeClass('d-none');
+                }
+            }
+
+            $gate.on('change', function () {
+                if ($gate.val() === 'none') {
+                    $frequency.addClass('d-none');
+                    $realSelect.val('none').trigger('change');
+                } else {
+                    var freqVal = $frequency.val() || 'daily';
+                    $frequency.val(freqVal).removeClass('d-none');
+                    $realSelect.val(freqVal).trigger('change');
+                }
+            });
+
+            $frequency.on('change', function () {
+                $realSelect.val($frequency.val()).trigger('change');
+            });
+
+            syncFromReal();
+        })();
 
         recurrence.onChange(reservation.repeatOptionsChanged);
 

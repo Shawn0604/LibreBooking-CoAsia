@@ -457,6 +457,7 @@
     };
 </script>
 {jsfile src="participant-picker.js"}
+{jsfile src="reservation-datetime-picker.js"}
 {jsfile src="overview_fullcalendar.js"}
 
 {include file='globalfooter.tpl'}

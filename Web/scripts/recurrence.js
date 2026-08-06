@@ -107,7 +107,9 @@ function Recurrence(recurOptions, recurElements, prefix) {
 
   var ChangeRepeatOptions = function () {
     var repeatDropDown = elements.repeatOptions;
-    if (RequiresTerminationDate(repeatDropDown.val())) {
+    var selectedType = repeatDropDown.val();
+
+    if (RequiresTerminationDate(selectedType)) {
       show($('#' + prefix + 'repeatUntilDiv'));
     } else {
       hide($('.recur-toggle', elements.repeatDiv));
@@ -119,28 +121,51 @@ function Recurrence(recurOptions, recurElements, prefix) {
     hide($('.years', elements.repeatDiv));
     hide($('.specific-dates', elements.repeatDiv));
 
-    if (repeatDropDown.val() == 'daily') {
+    // Switching back to "does not repeat" collapses AND clears every repeat sub-setting
+    // (interval/weekdays/monthly-type/termination date/custom dates) instead of just hiding
+    // them -- otherwise a stale selection made while a different type was active (e.g. Monday+
+    // Wednesday checked under "weekly") would silently still submit even though the visible
+    // dropdown now says "does not repeat".
+    if (selectedType == 'none') {
+      ClearRepeatSettings();
+    }
+
+    if (selectedType == 'daily') {
       show($('.days', elements.repeatDiv));
     }
 
-    if (repeatDropDown.val() == 'weekly') {
+    if (selectedType == 'weekly') {
       show($('.weeks', elements.repeatDiv));
     }
 
-    if (repeatDropDown.val() == 'monthly') {
+    if (selectedType == 'monthly') {
       show($('.months', elements.repeatDiv));
     }
 
-    if (repeatDropDown.val() == 'yearly') {
+    if (selectedType == 'yearly') {
       show($('.years', elements.repeatDiv));
     }
 
-    if (repeatDropDown.val() == 'custom') {
+    if (selectedType == 'custom') {
       show($('.specific-dates', elements.repeatDiv));
     }
 
     UpdateTerminationDateValidation();
     NotifyChange();
+  };
+
+  var ClearRepeatSettings = function () {
+    elements.repeatInterval.val(1);
+    elements.repeatOnWeeklyDiv.find('input[type="checkbox"]').prop('checked', false);
+    elements.repeatOnMonthlyDiv.find('input[type="radio"]').prop('checked', false);
+    elements.repeatOnMonthlyDiv.find('input[type="radio"]').first().prop('checked', true);
+    elements.repeatTermination.val('');
+    if (elements.repeatTermination[0] && elements.repeatTermination[0]._flatpickr) {
+      elements.repeatTermination[0]._flatpickr.clear();
+    }
+    terminationDateSetManually = false;
+    repeatDates = [];
+    DisplayRepeatDates();
   };
 
   function InitializeDateElements() {
