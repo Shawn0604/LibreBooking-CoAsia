@@ -75,7 +75,8 @@ Docker Volume（永久保存 MySQL 資料與上傳檔案，不受 app 容器重�
 - `.env`（跟 `docker-compose.prod.yml`同一層）：docker compose 自己讀的，只放 `MYSQL_*` 這幾個 compose 層級要用的變數，範本在 [.env.prod.example](.env.prod.example)
 - `app.env`：app 自己的 `LB_` 前綴設定（timeout、預設語言等，範本在既有的 [.env.example](.env.example)），會被掛進容器變成 `/var/www/html/.env`，給 PHP 的 Dotenv 讀
 - `config/config.php`：資料庫、LDAP、SMTP 等機密設定，直接放在 VM 上這個路徑，用 bind mount（`:ro`）掛進容器
-- 這三個檔案（`.env`、`app.env`、`config/config.php`）都已經在 `.gitignore` 裡（剛補上 `app.env`），檔案權限建議設 600
+- `plugins/Authentication/ActiveDirectory/ActiveDirectory.config.php`：AD 服務帳號設定，同樣被 `.gitignore` 排除（`**/*.config.php`），同樣用 bind mount 掛進容器，不會被 bake 進 image
+- 這四個檔案（`.env`、`app.env`、`config/config.php`、`ActiveDirectory.config.php`）都已經在 `.gitignore` 裡（剛補上 `app.env`），檔案權限建議設 600。VM 上沒有的話用 `scp` 從 Windows 開發機傳過去
 
 ---
 

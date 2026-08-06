@@ -22,6 +22,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./config/config.php:/var/www/html/config/config.php:ro
+      - ./plugins/Authentication/ActiveDirectory/ActiveDirectory.config.php:/var/www/html/plugins/Authentication/ActiveDirectory/ActiveDirectory.config.php:ro
       - ./app.env:/var/www/html/.env:ro
       - lb_prod_uploads:/var/www/html/uploads
       - lb_prod_uploads_images:/var/www/html/Web/uploads/images
