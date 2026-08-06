@@ -150,6 +150,10 @@ class FakeExistingReservationPage extends FakePageBase implements IExistingReser
     {
     }
 
+    public function BindSwitchableResources($resources, $colors)
+    {
+    }
+
     public function BindAvailableAccessories($accessories)
     {
     }

@@ -191,6 +191,19 @@ class ReservationResourceBinder implements IReservationComponentBinder
         $schedule = $this->scheduleRepository->LoadById($requestedScheduleId);
         $initializer->BindResourceGroups($groups);
         $initializer->BindAvailableResources($resources);
+        // Deliberately NOT scoped to $requestedScheduleId like $resources above -- switching to
+        // a different resource entirely (as opposed to adding an additional resource to this
+        // same booking, which does need to stay within one schedule's rules) shouldn't be
+        // limited to whatever schedule the starting resource happens to belong to. In this
+        // deployment every resource sits on its own single-resource schedule, so scoping this
+        // picker by schedule the same way $resources is would always show exactly one option.
+        $switchableResources = $this->resourceService->GetAllResources(false, $initializer->CurrentUser());
+        // Same color per resource as Quick Create's own resource picker (ResourceColorAssigner
+        // -- shared with Presenters/OverviewFullCalendarPresenter.php's identical logic) --
+        // otherwise every resource without a manually-assigned color falls back to the same flat
+        // gray dot here while showing up in Quick Create's distinct per-resource palette colors.
+        $switchableResourceColors = ResourceColorAssigner::Assign($switchableResources);
+        $initializer->BindSwitchableResources($switchableResources, $switchableResourceColors);
         $accessories = $this->resourceService->GetAccessories();
         $initializer->BindAvailableAccessories($accessories);
         $initializer->ShowAdditionalResources($bindableResourceData->NumberAccessible > 1);

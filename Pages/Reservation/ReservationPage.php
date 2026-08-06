@@ -18,6 +18,17 @@ interface IReservationPage extends IPage
     public function BindAvailableResources($resources);
 
     /**
+     * Every resource the current user can access, regardless of which schedule it belongs to —
+     * feeds the "switch to a different resource" picker, which (unlike BindAvailableResources,
+     * scoped to the current resource's own schedule for the "add an additional resource to this
+     * same booking" section) should let someone pick any resource they can see, not just ones
+     * that happen to share a schedule with whatever they started with.
+     * @param $resources array|ResourceDto[]
+     * @param $colors array resourceId => ['bg' => string, 'fg' => string], see ResourceColorAssigner
+     */
+    public function BindSwitchableResources($resources, $colors);
+
+    /**
      * @param $accessories Accessory[]
      */
     public function BindAvailableAccessories($accessories);
@@ -467,6 +478,12 @@ abstract class ReservationPage extends Page implements IReservationPage
     public function BindAvailableResources($resources)
     {
         $this->Set('AvailableResources', $resources);
+    }
+
+    public function BindSwitchableResources($resources, $colors)
+    {
+        $this->Set('SwitchableResources', $resources);
+        $this->Set('SwitchableResourceColors', $colors);
     }
 
     public function ShowAdditionalResources($shouldShow)

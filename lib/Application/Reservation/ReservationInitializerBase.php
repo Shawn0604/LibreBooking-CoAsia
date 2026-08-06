@@ -98,6 +98,12 @@ interface IReservationComponentInitializer
     public function BindAvailableResources($resources);
 
     /**
+     * @param $resources array|IBookableResource[]
+     * @param $colors array resourceId => ['bg' => string, 'fg' => string]
+     */
+    public function BindSwitchableResources($resources, $colors);
+
+    /**
      * @param $accessories Accessory[]
      */
     public function BindAvailableAccessories($accessories);
@@ -384,6 +390,11 @@ abstract class ReservationInitializerBase implements IReservationInitializer, IR
     public function BindAvailableResources($resources)
     {
         $this->basePage->BindAvailableResources($resources);
+    }
+
+    public function BindSwitchableResources($resources, $colors)
+    {
+        $this->basePage->BindSwitchableResources($resources, $colors);
     }
 
     /**

@@ -169,6 +169,10 @@ class FakeGuestReservationPage implements IGuestReservationPage
     {
     }
 
+    public function BindSwitchableResources($resources, $colors)
+    {
+    }
+
     public function BindAvailableAccessories($accessories)
     {
     }
