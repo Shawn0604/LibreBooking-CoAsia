@@ -76,3 +76,6 @@ php8-report.log
 .env
 app.env
 /certs/
+
+# Database dumps (may contain real employee data) — never commit these
+*.sql

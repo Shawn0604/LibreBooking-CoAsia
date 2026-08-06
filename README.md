@@ -1,189 +1,71 @@
 
 # CoAsia Booking
 
-[![GitHub issues](https://img.shields.io/github/issues/LibreBooking/librebooking)](https://github.com/LibreBooking/librebooking/issues)
-[![Last commit](https://img.shields.io/github/last-commit/LibreBooking/librebooking)](https://github.com/LibreBooking/librebooking/commits)
-[![GitHub release](https://img.shields.io/github/v/release/LibreBooking/librebooking?include_prereleases)](https://github.com/LibreBooking/librebooking/releases)
-[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](https://github.com/LibreBooking/librebooking/blob/develop/LICENSE.md)
-
-[![GitHub stars](https://img.shields.io/github/stars/LibreBooking/librebooking?style=flat)](https://github.com/LibreBooking/librebooking/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/LibreBooking/librebooking?style=flat)](https://github.com/LibreBooking/librebooking/network)
-
 [![PHP](https://img.shields.io/badge/PHP-8.2%2B-brightgreen.svg?logo=php)](https://www.php.net/)
-[![Database](https://img.shields.io/badge/Database-MySQL%20%3E%3D8.0%20%7C%20MariaDB%20%3E%3D10.6-blue.svg?logo=mysql)](https://www.mysql.com/)
-![Platform](https://img.shields.io/badge/Platform-Web-lightgrey)
-![Status](https://img.shields.io/badge/Status-Active-green)
+[![Database](https://img.shields.io/badge/Database-MySQL%208.0-blue.svg?logo=mysql)](https://www.mysql.com/)
+[![Docker](https://img.shields.io/badge/Docker-Supported-blue?logo=docker)](docker-compose.dev.yml)
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE.md)
 
-[![Docker](https://img.shields.io/badge/Docker-Supported-blue?logo=docker)](https://github.com/LibreBooking/docker)
-[![Docker pulls](https://img.shields.io/docker/pulls/librebooking/librebooking)](https://github.com/LibreBooking/docker)
+CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開源專案 [LibreBooking](https://github.com/LibreBooking/librebooking) 客製化而成，把它從一套通用的資源排程工具，改造成整合公司既有系統（AD 網域、LINE 官方帳號、內部 SMTP）的內部服務。
 
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/4TGThPtmX8)
-[![Docs](https://img.shields.io/badge/Docs-Available-lightgrey?logo=read-the-docs)](https://librebooking.readthedocs.io/en/latest/)
+- 內部網址（規劃中）：`https://booking.coasia.com.tw`
+- 程式碼保存於公司 GitLab（`coasiait/coasia-booking`）與個人 GitHub（[Shawn0604/LibreBooking-CoAsia](https://github.com/Shawn0604/LibreBooking-CoAsia)，備份用）
+- 上游原始專案：[LibreBooking/librebooking](https://github.com/LibreBooking/librebooking)（追蹤 `develop` branch，未來可 `git fetch upstream` 合併官方更新）
 
-⭐ Star us on GitHub — it motivates us a lot!
+---
 
-🔥 Join the community: [Discord discussion channel](https://discord.gg/4TGThPtmX8) .
+## 這個 fork 做了什麼客製化
 
-## 🏢 CoAsia Internal Fork
+跟原版 LibreBooking 相比，主要差異：
 
-This repository ([Shawn0604/LibreBooking-CoAsia](https://github.com/Shawn0604/LibreBooking-CoAsia)) is CoAsia's internal, customized fork of upstream LibreBooking, branded internally as **CoAsia Booking** — CoAsia 會議室預約. It tracks upstream for core functionality but has diverged with company-specific work: Active Directory login, LINE notifications, a redesigned admin center, participant/external-guest invitations with ICS calendar invites, and more.
+- **Active Directory 網域登入**：員工用既有的 AD 帳密登入，首次登入自動建立帳號（預設一般員工權限），既有管理員身份完整保留
+- **LINE 官方帳號通知**：預約建立/提醒等通知透過 LINE 推播，取代/補充 email
+- **視訊會議資訊自動帶入**：預約 Zoom / Google Meet 等視訊資源時，確認頁、確認信、提醒信自動帶出對應的連結、會議 ID、密碼；實體會議室完全不受影響
+- **重新設計的管理後台與預約介面**：Quick Create 快速建立、統一日期時間選擇器、參與者/外部訪客邀請（含 ICS 行事曆邀請）
+- **員工帳號批次匯入**：串接 HR/AD 匯出的名單批次建立帳號，讓從未登入過的員工也能立即被搜尋、邀請
+- **連接公司內部服務**：SMTP 改走內部 relay，不再掛在個人信箱底下
 
-- What's been changed and why, in order: [COASIA-CHANGES.md](COASIA-CHANGES.md)
-- What's left before this can go live company-wide: [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md)
+完整異動記錄與每項改動的原因，見 [COASIA-CHANGES.md](COASIA-CHANGES.md)。
 
-Everything below this section is the original upstream LibreBooking README, kept as-is for attribution and as a reference for the parts of the app that haven't diverged.
+## 技術棧
 
-## Table of Contents
+- PHP 8.2+ / Apache
+- MySQL 8.0
+- Smarty 樣板、Bootstrap 5 前端
+- Docker Compose（開發與正式環境都用容器跑）
 
-- [About](#-about)
-- [Features](#-features)
-- [Demo](#-demo)
-- [Screenshots](#-screenshots)
-- [Installation & Deployment](#-installation--deployment)
-- [Developer Documentation](#-developer-documentation)
-- [Configuration & Theming](#-configuration--theming)
-- [ReCaptcha](#-recaptcha)
-- [Community & Support](#-community--support)
-- [Contributing](#-contributing)
-- [Roadmap](#-roadmap)
-- [License](#-license)
-
-## 🚀 About
-
-**LibreBooking** is an open-source resource scheduling solution. It provides a
-flexible, mobile-friendly, and extensible interface for organizations to manage
-resource reservations.
-
-The repository for LibreBooking is hosted on GitHub at
-<https://github.com/LibreBooking/librebooking>; the `develop` branch contains the latest
-code.
-
-LibreBooking is a fork of Booked Scheduler, based on Booked Scheduler's last
-open-source version released in 2020. Since then, LibreBooking has evolved
-significantly and diverged from the original project.
-
-## ✨ Features
-
-- [x] Multi-resource booking & waitlists
-- [x] DataTables for advanced listings
-- [x] Role-based access control
-- [x] Quotas and credits for reservations
-- [x] Granular usage reporting
-- [x] Responsive Bootstrap 5 interface
-- [x] Custom themes and color schemes
-- [x] Plugin-ready architecture
-- [x] Outlook/Thunderbird integration through ics
-
-## 🧪 Demo
-
-A live demo instance of LibreBooking is available for testing:
-
-[Try the demo](https://librebooking-demo.fly.dev/Web/)
-
-| Role  | Username | Password    |
-| ----- | -------- | ----------- |
-| Admin | `admin`  | `demoadmin` |
-| User  | `user`   | `demouser`  |
-
-Note: This instance is public and **resets every 20 minutes** to ensure a clean environment. Startup might take a few seconds, so please be patient.
-
-## 📸 Screenshots
-
-![Login](./Web/img/readme/02.png)
-![Schedules](./Web/img/readme/06.png)
-![Dashboard](./Web/img/readme/03.png)
-![User profile](./Web/img/readme/04.png)
-![Search](./Web/img/readme/07.png)
-![DataTables example](./Web/img/readme/15.png)
-
-## 🔧 Installation & Deployment
-
-### Manual Installation
-
-To run LibreBooking from a prebuilt release, your server needs:
-
-- PHP >= 8.2 with the extensions: ctype, curl, fileinfo, intl, json, mbstring, mysqli, openssl, pdo, pdo_mysql, tokenizer, xml
-- Optional PHP extensions: bcmath (needed for Active Directory authentication), gd (image processing), ldap (LDAP authentication)
-- Apache >= 2.4. Other web servers, including Nginx, may work when configured
-  with equivalent routing and access-control rules, but are not currently
-  supported or tested by the LibreBooking project.
-- MySQL >= 8.0 (2018) or MariaDB >= 10.6 (2021)
-- Composer (for managing PHP dependencies)
-- Git (optional, useful for cloning the repository or managing updates)
-
-For full setup instructions, see
-[INSTALLATION](https://github.com/LibreBooking/librebooking/blob/develop/docs/source/INSTALLATION.rst)
-
-### Docker Deployment
-
-LibreBooking is available as a Docker container. See [LibreBooking Docker README](https://github.com/LibreBooking/docker) for complete setup.
+## 開發環境
 
 ```bash
-git clone https://github.com/LibreBooking/docker.git
-cd docker
-docker-compose up -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 
-## 💻 Developer Documentation
+啟動後：App 在 `http://localhost:8080`，Mailpit（假 SMTP，攔截開發時寄出的信）在 `http://localhost:8025`，MySQL 對外開在 `3307`。詳細設定見 [Dockerfile.dev](Dockerfile.dev) / [docker-compose.dev.yml](docker-compose.dev.yml)。
 
-- See
-  [docs/source/README.md](https://github.com/LibreBooking/librebooking/blob/develop/docs/source/DEVELOPER-README.rst)
-  for developer notes.
-- See [docs/source/API.rst](https://github.com/LibreBooking/librebooking/blob/develop/docs/source/API.rst)
-  for API notes.
-- See
-  [docs/source/Oauth2-Configuration.rst](https://github.com/LibreBooking/librebooking/blob/develop/docs/source/Oauth2-Configuration.rst)
-  for Oauth2 configuration.
-- See
-  [docs/source/SAML-Configuration.rst](https://github.com/LibreBooking/librebooking/blob/develop/docs/source/SAML-Configuration.rst)
-  for SAML configuration.
-- Codebase follows PSR-12 standards and GitHub Flow.
+常用指令：
 
-## 🎨 Configuration & Theming
+```bash
+composer install          # PHP 依賴
+composer preflight         # 檢查環境（PHP 版本、擴充套件、config.php、資料庫連線）
+composer phpunit           # 跑單元測試
+composer phpstan           # 靜態分析
+npm install && npm run lint:frontend   # 前端 lint（JS/CSS）
+```
 
-For configuration options, see the
-[Configuration Guide](https://github.com/LibreBooking/librebooking/blob/develop/docs/source/CONFIGURATION.rst).
+## 正式環境部署
 
-Recent configuration highlights:
+正式環境跑在公司內網的 Linux VM 上，用 `Dockerfile.prod` / `docker-compose.prod.yml` / `Caddyfile` 這一組容器設定，跟開發環境的容器分開。完整的部署架構、操作步驟、以及部署過程中踩過的坑，見 **[COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md)**。
 
-- Change theme via `config.php`:
+## 文件索引
 
-  ```php
-  'css.theme' = 'default';
-  ```
+| 文件 | 內容 |
+| --- | --- |
+| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改 |
+| [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 正式對全體員工開放前，還缺什麼 |
+| [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 正式環境部署架構與操作手冊 |
 
-- Theme options: 'default', 'dimgray', 'dark_red', 'dark_green', 'french_blue', 'orange'
-- Customize `Web/css/librebooking.css`
+## 授權與致謝
 
-## 🔒 ReCaptcha
+本專案基於 [LibreBooking](https://github.com/LibreBooking/librebooking)（GPL-3.0）修改而成，LibreBooking 本身是 Booked Scheduler 的 fork。原始專案的說明文件、安裝指引、社群資源請參考 [LibreBooking 官方 repo](https://github.com/LibreBooking/librebooking) 與[官方文件](https://librebooking.readthedocs.io/en/latest/)。
 
-As of 09-Mar-2023, ReCaptcha integration updated to v3. Generate new keys for your domain if using ReCaptcha.
-
-## 💬 Community & Support
-
-- [Discord](https://discord.gg/4TGThPtmX8)
-- [Docs](https://librebooking.readthedocs.io/en/latest/)
-- [Issues](https://github.com/LibreBooking/librebooking/issues)
-- [Discussions](https://github.com/LibreBooking/librebooking/discussions)
-
-## 🤝 Contributing
-
-- Fork, file issues, suggest improvements.
-- Even non-coders can help by reporting bugs, testing, updating issues.
-- PRs welcome (docs, features, refactoring, fixes).
-- See CONTRIBUTING.md
-
-## 💡 Roadmap
-
-_Work in progress – roadmap to be defined._  
-Want to suggest a feature? [Open an issue](https://github.com/LibreBooking/librebooking/issues) or join the [Discord discussion channel](https://discord.gg/4TGThPtmX8).
-
-## 📜 License
-
-This project is licensed under **GPL-3.0**.
-
-## 🙏 Acknowledgments
-
-Forked from Booked Scheduler. Thanks to all contributors and the community.
-
-[Back to top](#coasia-booking)
+License：[GPL-3.0](LICENSE.md)
