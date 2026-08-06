@@ -1,8 +1,8 @@
 {
-  "name": "librebooking",
+  "name": "coasia-booking",
   "version": "0.0.0",
   "private": true,
-  "description": "Frontend linting tools for LibreBooking",
+  "description": "Frontend linting tools for CoAsia Booking",
   "engines": {
     "node": ">=20.19.0"
   },

@@ -1,6 +1,6 @@
 {
-    "name": "librebooking/librebooking",
-    "description": "LibreBooking",
+    "name": "coasia/booking",
+    "description": "CoAsia Booking",
     "license": "GPL-3.0-only",
     "autoload": {},
     "require-dev": {

@@ -1,5 +1,5 @@
 
-# Librebooking
+# CoAsia Booking
 
 [![GitHub issues](https://img.shields.io/github/issues/LibreBooking/librebooking)](https://github.com/LibreBooking/librebooking/issues)
 [![Last commit](https://img.shields.io/github/last-commit/LibreBooking/librebooking)](https://github.com/LibreBooking/librebooking/commits)
@@ -186,4 +186,4 @@ This project is licensed under **GPL-3.0**.
 
 Forked from Booked Scheduler. Thanks to all contributors and the community.
 
-[Back to top](#librebooking)
+[Back to top](#coasia-booking)
