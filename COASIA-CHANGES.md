@@ -1850,3 +1850,63 @@ Quick Create 已經填好的欄位（標題、日期時間、資源、參與者�
 2. 光改上面這條還不夠：`overview_fullcalendar.css` 裡本來就有一條頁面級的通用按鈕 hover 規則 `#page-overview-fc button:not(:disabled):not(.reservation-icon-button):not(.reservation-primary-button):not(.reservation-btn-text):hover`（`#quickCreateModal` 在 DOM 上是 `#page-overview-fc` 的子孫，這條規則吃得到它），5 個 `:not()` 疊出來的 specificity 比 `#quickCreateModal .qc-close:hover` 高，會整組蓋掉後者的 hover 樣式。修法是在這條規則的排除清單裡多加 `:not(.qc-close):not(.btn-primary)`，跟既有的 `.reservation-icon-button` 等排除項用同一套模式，讓 Quick Create 彈窗裡的關閉鈕跟「建立預約」主按鈕維持自己的 hover 樣式，不再被頁面級規則搶走。
 
 順便把關閉鈕從 Bootstrap 的 SVG 背景圖示換成純文字 `×` 字元（`tpl/Overview/overview.tpl`／`overview_fullcalendar.tpl` 的 `<button class="qc-close">×</button>`）——不再依賴背景圖片這一層，之後要調顏色/尺寸只需要改 `color`/`font-size`，也徹底排除同一種「某個屬性簡寫蓋掉圖示」的問題再發生的可能。目前定案的樣式（`overview_fullcalendar.css`）：點擊區 36×36px、圓角 8px、位置右上 16px、預設字色 `#6C7488`（24px）、hover 字色 `#1F3159`＋底色 `#F1F4F8`、active 底色 `#E4E9F1`，`:focus-visible` 保留 2px 藍色外框。`overview.css`（舊版頁面）目前仍是原本的 50% 圓角／12px 定位／`var(--gcal-control-height)` 尺寸，尚未套用同一組數值，之後如果要讓兩個版本視覺一致需另外處理。
+
+## 54. 取消預約時，「選擇性」參與者（內部 Invitee／外部 Invited Guest）沒有收到取消信
+
+使用者要求盤點「參與者元件擴充外部 Email、寄信身分、ICS 產生器、建立/修改/取消串接」這條主線目前的完成度。逐一對照 §52.1（picker 擴充）、§25.3（SEQUENCE 接 `reservation_series.version`）、`iCalendarReservationView`/`ical.tpl`（UID／METHOD REQUEST-CANCEL／STATUS）、`AddReservationNotificationService`／`UpdateReservationNotificationService`／`DeleteReservationNotificationService` 三支串接服務後，發現前三塊其實都已經做完，真正還缺的只有 `DeleteReservationNotificationService`（取消預約時要通知誰）這一塊裡的一個不一致：
+
+- 「必要」參與者（內部 Participant／外部 Participating Guest）取消時本來就會收到取消信（`ParticipantDeletedEmailNotification`／`GuestDeletedEmailNotification`）。
+- 「選擇性」參與者這條線，新增／修改時都會正確收到通知信（`InviteeAddedEmailNotification`／`InviteeUpdatedEmailNotification`／`GuestUpdatedEmailNotification` 都有處理 Added/Unchanged/Removed 三種情況），但整筆預約直接被取消（不是被移出參與者清單，而是整場會議消失）時：
+  - 內部選擇性參與者（Invitee）完全沒有對應的 `InviteeDeletedEmailNotification`，`DeleteReservationNotificationService` 裡也沒有掛這一個通知——`InviteeRemovedEmail` 這個訊息類別其實老早就存在（`lib/Email/Messages/InviteeAddedEmail.php`），但只有「從進行中的預約裡被移除」這個情境會用到它，「整場預約被取消」這個情境完全沒有路徑會建立它。
+  - 外部選擇性受邀者（Invited Guest）雖然 `GuestDeletedEmailNotification` 有掛，但內容只跑 `UnchangedParticipatingGuests()`（必要外部訪客），漏了 `UnchangedInvitedGuests()`（選擇性外部訪客）這一條。
+
+同時盤點了使用者原本擔心的另外兩塊，確認其實都已經完成、不需要再動：
+
+- **寄信身分（Sender/Organizer 分離）**：`EmailService::Send()` 本來就會把信件的實際寄件人（envelope/header From）統一覆寫成後台設定的系統帳號（目前是 `coasiaerp@coasia.com`／擎亞會議室預約系統），而 `EmailMessage::ReplyTo()` 預設等於各訊息類別自己的 `From()`（也就是預約建立者本人），ICS 附件的 `ORGANIZER` 也是直接寫預約建立者的 email（`iCalendarReservationView::$OrganizerEmail`）——三者組合起來剛好就是「寄件人＝系統帳號、回覆會回到真人、行事曆事件的主辦人＝真人」，不需要另外加欄位或分支。
+- **防重送**：新增預約的防重複已經是既有的 idempotency key 機制（§22.6，P0-C）；修改／取消則是靠 `reservation_series.version` 的樂觀鎖（`ReservationRepository::Update()`／`DeleteSeriesEventCommand::Execute()`）——版本不符時整支 `Execute()` 會直接丟 `ReservationVersionConflictException`，通知服務只會在寫入成功後才被呼叫到，同一筆修改/取消的重複送出（雙擊、網路重試）本來就不會跑到兩次通知。
+
+### 修法
+
+新增 `lib/Application/Reservation/Notification/InviteeDeletedEmailNotification.php`，寫法跟 `ParticipantDeletedEmailNotification` 對稱：對 `CurrentInstance()->UnchangedInvitees()` 裡的每一個內部使用者，組一封 `InviteeRemovedEmail` 送出去；掛進 `DeleteReservationNotificationService` 的通知清單，並在 `Notification/namespace.php` 補上對應的 `require_once`。`GuestDeletedEmailNotification::Notify()` 多加一段迴圈跑 `UnchangedInvitedGuests()`（跟原本就有的 `UnchangedParticipatingGuests()` 迴圈並列），兩段都送 `GuestDeletedEmail`，不需要新的訊息類別。
+
+新增兩個測試：`InvitationEmailNotificationTest::testSendsReservationDeletedEmailsToExistingInvitees()`（驗證 `InviteeDeletedEmailNotification` 對兩個既有 invitee 各送一封 `InviteeRemovedEmail`）、`GuestEmailNotificationTest::testSendsReservationDeletedEmailsToInvitedGuests()`（驗證 `GuestDeletedEmailNotification` 現在也會對既有的 invited guest 送 `GuestDeletedEmail`），跑法比照同檔案裡既有的「必要參與者」對照組。全專案 PHPUnit（1725 個測試，含這次新增的 2 個）只有 1 個既有 Error（`ResourceCrossDayRuleTest`）＋1 個既有 Failure（`OverviewFullCalendarEventsPresenterTest`，語言字串斷言），兩者都跟這輪改動的檔案無關，跑這輪改動前就已經存在。
+
+### 還沒動的部分
+
+外部信箱端對端寄送這次沒有驗證——使用者確認公司內部 SMTP Relay（`10.1.3.140:25`）寄到內部信箱（`@coasia.com`）沒問題，但外部信箱（例如私人 Gmail）目前不確定 relay 是否放行，這件事屬於 relay/IT 端的網路層設定，不是這次動的程式碼能決定的，留待 relay 打通後另外用一筆真的帶外部 Email 的預約端對端驗證。
+
+## 55. Quick Create 彈窗：時間／資源下拉選單的尺寸、定位、層級
+
+使用者提出一份具體的 CSS 規格，要求「主版面不要重做，只修正所有 dropdown 的尺寸、定位與層級」，逐項對照 `Web/css/overview_fullcalendar.css` 既有的 `#quickCreateModal` 樣式後套用：
+
+- 結束時間選單（`#qcEndDropdown`）加 `left:auto; right:0`，右側對齊、不超出 Modal；開始時間選單維持原本的左側對齊不動。
+- `.qc-time-dropdown` 從 `min-width:180px` 改成固定 `width:170px`（`max-height:240px` 原本就對）；`.qc-option` 改用 `display:flex; align-items:center; min-height:40px`（原本 `padding:8px 12px` 實際只有約 32px，沒有真的達到 40px）。
+- `.qc-resource-picker .resource-picker-panel` 加 `max-height:280px`；新增專屬的 `.resource-picker-list` 覆寫把清單本身限制在 230px 內捲動——搜尋框本來就不在捲動區裡面（結構上早就是「固定在頂部」），不用額外處理。
+- `.qc-close` 字級 24px → 22px。
+- `#quickCreateModal .modal-content` 的 `overflow:hidden` 改成 `overflow:visible`，讓 dropdown 可以合法地超出 Modal 本身的邊界（往上展開、或資源清單較長時）而不被裁切——確認過這個 Modal 沒有滿版底色的 header/footer 貼齊邊緣，拿掉 `hidden` 不會讓四個角變成方形。
+- 兩個 dropdown 的圓角統一用 `var(--coasia-radius-control, 10px)`，陰影統一用 `var(--coasia-shadow-surface, ...)`——這兩個 token 是 §52.3 建的，`--coasia-shadow-surface` 本身就是管理中心 `.admin-card` 在用的陰影，符合「陰影與管理中心卡片一致」的要求。`z-index` 都拉到 `50`。
+
+### 向上展開：JS 量測，不是 CSS 猜
+
+新增 `positionDropdownVertically($trigger, $dropdown)`（`Web/scripts/overview_fullcalendar.js`），在每次開啟 dropdown 當下用 `getBoundingClientRect()` 量 trigger 下方在 viewport 裡的剩餘空間，跟 dropdown 實際渲染出來的高度（`offsetHeight`）比較——dropdown 目前是用 `opacity`/`visibility` 切換顯示，不是 `display:none`，所以在還沒加上 `.show`/`.open` 之前就能量到真實尺寸。空間不夠時加上 `.open-upward`（`top:auto; bottom:calc(100% + Npx)`），掛進三個開啟點：開始時間、結束時間、資源選單。工具列自己的資源選單（`#resourcePicker`，跟 Quick Create 的 `#qcResourcePicker` 是兩份獨立實例）沒有動，維持原樣，符合「只修 Quick Create」的範圍。
+
+## 56. 管理中心操作邏輯統一：編輯按鈕常駐、刪除進「⋯」選單、查看與編輯分開
+
+使用者要求四個管理清單頁（預約管理／會議室管理／使用者管理／開放時間設定）統一同一套操作邏輯：可編輯項目要有常駐可見的「編輯」按鈕（不是 hover 才出現、也不是靠整列可點這種沒有視覺提示的方式），刪除等次要操作收進每列右側「⋯」選單，純資訊欄位不可呈現成可點擊狀態。系統設定首頁本身已經是合格的卡片式導覽（純連結＋既有 hover 樣式），這次確認不用動；子頁面（信件範本／自訂欄位／AD 同步狀態／伺服器設定／資料清理）不在這次範圍內。
+
+盤點四頁現況（`.admin-clickable-row` 的說明註解原文正好就是在描述要修的反模式：「signals it's clickable without adding a visible per-row view button」）：預約／會議室／開放時間三頁都是整列可點開一個側邊 Drawer；使用者管理已經有每列「⋯」選單，但「編輯」是選單裡的第一項而不是獨立按鈕，姓名連結又重複做一樣的事。
+
+### 共用元件
+
+`Web/css/admin.css` 新增 `.admin-row-actions`（flex 容器）＋ `.admin-row-edit-btn`（鉛筆圖示＋「編輯」文字，常駐顯示），視覺上刻意比照既有的 `.admin-row-menu-btn`（同樣的 32px 高、border/radius/背景色、hover 色）讓兩顆按鈕讀起來像同一組控制項；kebab 本身沿用既有的 `.admin-row-menu-btn`／`.admin-row-menu-disabled`，沒有新增樣式。移除 `.admin-clickable-row`（改完之後三頁都不再用到，確認站內沒有其他頁面引用才刪）。
+
+### 逐頁改法（跟使用者確認過的取捨）
+
+- **使用者管理**：姓名從 `<a class="update edit admin-user-name-link">` 改成純文字 `<span class="admin-user-name">`（不再可點）；Actions 欄新增 `.admin-row-edit-btn`，直接掛上原本就在姓名連結上的 `update edit` 兩個 class——`Web/scripts/admin/user.js` 的 `.update`／`.edit` 委派事件本來就是讀 `closest('tr')`，跟掛在哪個子元素上無關，**完全不用改 JS**；kebab 選單裡原本重複的「編輯」項目拿掉。
+- **預約管理**：使用者決定拿掉現有的唯讀檢視 Drawer（`#reservationDetailDrawer`），只留「編輯」（直接連到 `reservation.php` 完整表單，沿用既有的 `viewReservation()`）＋「⋯」（`RequiresApproval` 時才顯示「核准」、一定顯示「取消預約」，都沿用既有的 `approveReservation()`/`showDeleteReservation()`，只是改成從列上的按鈕直接帶 `data-refnum` 呼叫，不用先開 Drawer）。連帶清掉 Drawer 專屬的 JS 綁定跟 `openReservationDetail()` 函式本體，以及只被這個函式用到的 5 個欄位（title/description/resourceName/ownerName/timeRange）跟 `noTitleText`/`statusPendingText`/`statusConfirmedText` 三個 option。
+- **會議室管理／開放時間設定**：「編輯」按鈕＝打開既有的 Drawer（Drawer 裡各欄位維持原本的就地編輯鉛筆圖示不動，這次沒有另外做唯讀檢視畫面）；kebab 加「刪除」，直接重用 `openResourceDrawer()`/`openScheduleDrawer()`（本來就會呼叫 `setActiveResourceId()`/`setActiveScheduleId()`）跟 `showDeletePrompt()`/`showDeleteDialog()`（原本就是靠 active id 判斷要刪誰，現在改成 kebab 點擊時先手動 `setActiveXxxId()` 再呼叫）。開放時間設定的預設排程不能刪，kebab 比照使用者管理「AD 帳號不可刪除」的既有寫法（`.admin-row-menu-disabled` + `title` 提示），新增 `AdminScheduleDefaultCannotDelete` 翻譯字串（`lang/en_us.php`／`lang/zh_tw.php`）。
+- **新增按鈕**：四頁本來就都透過 `Admin/admin_page_shell.tpl` 的 `HeaderActions` 固定在右上角，結構本來就一致；唯一不一致的是開放時間設定的新增按鈕多了一個 `btn-sm`，拿掉讓四頁尺寸統一。文字沿用既有翻譯字串，沒有改字詞。
+
+### 驗證
+
+`node --check` 三支改動的 JS（`reservations.js`/`resource.js`/`schedule.js`）語法都過；四支改動的 `.tpl` 用大括號計數法（比照 §52.4）確認 Smarty 標籤沒有配對錯誤。全專案 PHPUnit（1725 個測試）維持跟改動前一樣的 1 個既有 Error＋1 個既有 Failure（`ResourceCrossDayRuleTest`／`OverviewFullCalendarEventsPresenterTest`，都跟這輪動到的檔案無關），沒有新增的失敗——這輪本來就沒有改任何 PHP 邏輯，只動 tpl/js/css/lang。畫面實際操作（整列不再可點、編輯按鈕預設可見、kebab 內容正確、姓名不再可點、四頁新增按鈕尺寸一致）需要使用者自己登入後端逐頁確認，沒有帳密無法在瀏覽器裡代為驗證。
