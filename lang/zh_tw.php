@@ -105,7 +105,7 @@ class zh_tw extends en_us
         $strings['CreateFullReservationSubtitle'] = '新增完整的會議室預約';
         $strings['CompanyAccount'] = '公司帳號';
         $strings['CompanyAccountOrEmailPlaceholder'] = '輸入帳號或 Email';
-        $strings['RoomBookingSystem'] = '會議室預約系統';
+        $strings['RoomBookingSystem'] = 'CoAsia 會議室預約';
         $strings['SignInWithCompanyAccount'] = '使用公司帳號登入';
         $strings['DefaultPage'] = '默認主頁';
         $strings['MyCalendar'] = '我的日曆';
@@ -151,7 +151,7 @@ class zh_tw extends en_us
         $strings['RepeatUntilPrompt'] = '直到';
         $strings['RepeatEveryPrompt'] = '每';
         $strings['RepeatDaysPrompt'] = '在';
-        $strings['CreateReservationHeading'] = '建立一個預約';
+        $strings['CreateReservationHeading'] = '新增預約';
         $strings['EditReservationHeading'] = '編輯預約 %s';
         $strings['ViewReservationHeading'] = '瀏覽預約 %s';
         $strings['ReservationErrors'] = '更改預約';
