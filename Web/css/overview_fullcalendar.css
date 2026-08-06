@@ -1002,7 +1002,13 @@
   position: relative;
   padding: 0;
   border-radius: 16px;
-  overflow: hidden;
+  /* visible, not hidden — the start/end time and resource dropdowns are absolutely positioned
+     descendants that can legitimately extend past this box's own edges (open-upward near the
+     bottom of the viewport, or just a tall resource list); clipping them here would cut them
+     off against the modal's rounded corners/footer instead of letting them float above the
+     form. Safe to leave visible: nothing in this modal has a full-bleed background flush
+     against modal-content's own edges, so there's no square-corner artifact to mask. */
+  overflow: visible;
   /* Height comes from content alone — no fixed height/min-height anywhere in this modal,
      deliberately, so it never shows dead space on a short reservation and never clips a tall
      one (e.g. resource dropdown open + a validation error showing at once). */
@@ -1031,7 +1037,7 @@
      an inline <svg> — so there's no image layer, no font load, and no separate child element
      for a hover background-color to ever paint over/hide. */
   font-family: Arial, sans-serif;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 400;
   line-height: 1;
   color: #6c7488;
@@ -1256,13 +1262,14 @@
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 20;
+  z-index: 50;
+  width: 170px;
   max-height: 240px;
   overflow-y: auto;
-  min-width: 180px;
   background: #fff;
-  border-radius: var(--bs-border-radius-sm);
-  box-shadow: var(--bs-box-shadow);
+  border: 1px solid #d9e0ea;
+  border-radius: var(--coasia-radius-control, 10px);
+  box-shadow: var(--coasia-shadow-surface, 0 1px 2px rgba(20, 30, 55, 0.06));
   padding: 4px;
   opacity: 0;
   visibility: hidden;
@@ -1279,6 +1286,26 @@
   pointer-events: auto;
 }
 
+/* Toggled by overview_fullcalendar.js right before a dropdown is shown, once it's measured
+   there isn't enough room below the trigger inside the viewport — flips the anchor from the
+   trigger's bottom edge to its top edge so the panel grows upward instead of getting clipped
+   by (or pushing past) the modal's own bottom edge/footer. */
+#quickCreateModal .qc-time-dropdown.open-upward {
+  top: auto;
+  bottom: calc(100% + 4px);
+  transform-origin: bottom left;
+}
+
+#quickCreateModal #qcEndDropdown {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
+}
+
+#quickCreateModal #qcEndDropdown.open-upward {
+  transform-origin: bottom right;
+}
+
 @media (prefers-reduced-motion: reduce) {
   #quickCreateModal .qc-time-dropdown {
     transition: none;
@@ -1286,12 +1313,15 @@
 }
 
 #quickCreateModal .qc-option {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
   text-align: left;
   border: none;
   background: transparent;
-  padding: 8px 12px;
+  padding: 0 12px;
   font-size: 13.5px;
   color: #3c4043;
   border-radius: var(--bs-border-radius-sm);
@@ -1343,6 +1373,28 @@
   right: 0;
   width: auto;
   min-width: 0;
+  z-index: 50;
+  max-height: 280px;
+  overflow-y: hidden;
+  border-radius: var(--coasia-radius-control, 10px);
+  box-shadow: var(--coasia-shadow-surface, 0 1px 2px rgba(20, 30, 55, 0.06));
+}
+
+/* Only the list itself scrolls — .resource-picker-search sits above it as a normal (non-
+   scrolling) sibling, so it stays visible/"fixed" at the top of the panel for free without
+   any position:sticky. 230px keeps the panel's total height (search row + padding + this)
+   within the 280px cap on .resource-picker-panel above even on a long resource list. */
+#quickCreateModal .qc-resource-picker .resource-picker-list {
+  max-height: 230px;
+}
+
+/* Same open-upward flip as the time dropdowns (see .qc-time-dropdown.open-upward) —
+   overview_fullcalendar.js toggles this once it's measured there isn't enough room below
+   the trigger inside the viewport. */
+#quickCreateModal .qc-resource-picker .resource-picker-panel.open-upward {
+  top: auto;
+  bottom: calc(100% + 6px);
+  transform-origin: bottom left;
 }
 
 /* "此時段可用" / "此時段不可用" — shared by Quick Create (#qcAvailability) and the Drawer

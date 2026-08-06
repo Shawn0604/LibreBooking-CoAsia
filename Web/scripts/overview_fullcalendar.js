@@ -347,6 +347,25 @@ $(function () {
         return (hours % 1 === 0 ? hours : hours.toFixed(1)) + ' 小時';
     }
 
+    // Flips a Quick Create dropdown to grow upward (.open-upward, see overview_fullcalendar.css)
+    // when there isn't enough room below the trigger inside the viewport for it to open
+    // downward without getting clipped by/pushing past the modal's own bottom edge. Measured
+    // fresh on every open rather than assumed from CSS alone, since the modal can be scrolled
+    // to anywhere in the viewport depending on where the calendar cell that was clicked sits.
+    // $dropdown isn't display:none while "closed" (it's opacity/visibility-toggled — see
+    // .qc-time-dropdown/.resource-picker-panel), so its real height is measurable before
+    // deciding which way to open it.
+    function positionDropdownVertically($trigger, $dropdown) {
+        $dropdown.removeClass('open-upward');
+        var triggerRect = $trigger[0].getBoundingClientRect();
+        var dropdownHeight = $dropdown[0].offsetHeight;
+        var spaceBelow = window.innerHeight - triggerRect.bottom;
+        var spaceAbove = triggerRect.top;
+        if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+            $dropdown.addClass('open-upward');
+        }
+    }
+
     // ---- Generic pill + dropdown control shared by the start/end/resource pickers ----
     function TimeDropdown(pillId, dropdownId, onPick) {
         var $pill = $(pillId);
@@ -359,6 +378,7 @@ $(function () {
 
         function open() {
             closeAllDropdowns();
+            positionDropdownVertically($pill, $dropdown);
             var $selected = $dropdown.find('.qc-option.selected');
             if ($selected.length) {
                 $dropdown[0].scrollTop = $selected[0].offsetTop - $dropdown[0].offsetHeight / 2;
@@ -559,9 +579,10 @@ $(function () {
 
         function open() {
             closeAllDropdowns();
+            $search.val('').trigger('input');
+            positionDropdownVertically($trigger, $panel);
             $picker.addClass('open');
             $trigger.attr('aria-expanded', 'true');
-            $search.val('').trigger('input');
             setTimeout(function () { $search.trigger('focus'); }, 0);
         }
         function close() {
