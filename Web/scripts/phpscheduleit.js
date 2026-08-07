@@ -173,6 +173,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   window.onscroll = function () {
+    if (document.body.classList.contains('offcanvas-open')) {
+      return;
+    }
     var scroll = document.documentElement.scrollTop;
     if (scroll > 500) {
       buttonUp.style.transform = 'scale(1)';
@@ -180,6 +183,23 @@ document.addEventListener('DOMContentLoaded', function () {
       buttonUp.style.transform = 'scale(0)';
     }
   };
+
+  // CoAsia: this floating button sits at the same bottom-right corner as admin
+  // drawers (e.g. the schedule editor's offcanvas), where it visually collided
+  // with drawer content and got mistaken for that drawer's own Save button.
+  // Hide it for the duration any offcanvas is open; restore based on scroll
+  // position once it closes.
+  document.addEventListener('shown.bs.offcanvas', function () {
+    document.body.classList.add('offcanvas-open');
+    buttonUp.style.transform = 'scale(0)';
+  });
+
+  document.addEventListener('hidden.bs.offcanvas', function () {
+    document.body.classList.remove('offcanvas-open');
+    if (document.documentElement.scrollTop > 500) {
+      buttonUp.style.transform = 'scale(1)';
+    }
+  });
 });
 
 function initializeAccordions() {

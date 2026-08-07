@@ -211,8 +211,8 @@ class ManageReservationsPresenter extends ActionPresenter
         $reservations = $this->manageReservationsService->LoadFiltered(
             $this->page->GetPageNumber(),
             null,
-            $this->page->GetSortField(),
-            $this->page->GetSortDirection(),
+            $this->page->GetSortField() ?? 'start_date',
+            $this->page->GetSortDirection() ?? 'desc',
             $filter,
             $session
         );
