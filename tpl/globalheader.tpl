@@ -260,27 +260,14 @@
                         </a>
                         {/if}
 
-                        {* CoAsia: restored — gives access to per-user settings (Timezone on the
-                           Profile page, etc.) that only live here. NotificationPreferences is left
-                           out of this submenu since it already has its own always-visible link
-                           above (navNotification) — including it here too would duplicate that id. *}
-                        <div class="sidebar-group" id="navMyAccountDropdown">
-                            <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
-                                data-bs-target="#sidebarMyAccount">
-                                <i class="bi bi-person-circle"></i>{translate key="MyAccount"}
-                                <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
-                            </button>
-                            <div class="collapse sidebar-submenu" id="sidebarMyAccount">
-                                <a id="navProfile" class="sidebar-sublink" href="{$Path}{Pages::PROFILE}">{translate key="Profile"}</a>
-                                <a id="navPassword" class="sidebar-sublink" href="{$Path}{Pages::PASSWORD}">{translate key="ChangePassword"}</a>
-                                {if isset($ShowParticipation) && $ShowParticipation}
-                                    <a id="navInvitations" class="sidebar-sublink" href="{$Path}{Pages::PARTICIPATION}">{translate key="OpenInvitations"}</a>
-                                {/if}
-                                {if isset($CreditsEnabled) && $CreditsEnabled}
-                                    <a id="navUserCredits" class="sidebar-sublink" href="{$Path}{Pages::CREDITS}">{translate key="Credits"}</a>
-                                {/if}
-                            </div>
-                        </div>
+                        {* CoAsia: restored as a single direct link to Profile (not an expandable
+                           group) — that page now also carries Timezone and Language, so there's
+                           just one settings destination instead of a submenu of several. The old
+                           Password/Participation/Credits sub-links are dropped from the nav (their
+                           pages are untouched and still reachable directly if ever needed). *}
+                        <a class="sidebar-link" id="navMyAccount" href="{$Path}{Pages::PROFILE}">
+                            <i class="bi bi-person-circle"></i><span class="sidebar-link-label">{translate key="MyAccount"}</span>
+                        </a>
 
                         {* CoAsia: day-to-day nav trimmed to just this one link — Overview itself is reached
                            via the logo and the mini calendar above, so a redundant "總覽" link isn't needed.
@@ -446,16 +433,18 @@
                        location anymore per explicit request; the page itself still works if
                        reached directly. *}
 
-                    {* CoAsia: restored so users can switch language post-login, not just at the
-                       login screen. See globalfooter.tpl for the click handler that posts to
-                       ajax/change_language.php. *}
+                    {* CoAsia: language switching now lives on the Profile page (tpl/MyAccount/profile.tpl)
+                       as a dropdown, alongside Timezone — one settings destination instead of this
+                       plus a separate sidebar submenu. Remove `{if false}` here to bring this back
+                       as an additional quick-access entry point if wanted later. *}
+                    {if false}
                     {if isset($LoggedIn) && $LoggedIn && count($AvailableLanguages) > 1}
                         <div class="sidebar-group" id="navLanguageDropdown">
                             <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
                                 data-bs-target="#sidebarLanguage" aria-label="{translate key=ChangeLanguage}"
                                 title="{translate key=ChangeLanguage}">
                                 <i class="bi bi-globe-americas" aria-hidden="true"></i>
-                                <span>{translate key=ChangeLanguage}</span>
+                                <span class="sidebar-link-label">{translate key=ChangeLanguage}</span>
                                 <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
                             </button>
                             <div class="collapse sidebar-submenu" id="sidebarLanguage" style="max-height: 40vh; overflow-y: auto;">
@@ -469,6 +458,7 @@
                                 </div>
                             </div>
                         </div>
+                    {/if}
                     {/if}
 
                     {* CoAsia: Help dropdown stays hidden — wasn't part of this request. Remove `{if false}` to restore. *}

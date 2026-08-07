@@ -492,6 +492,9 @@ class zh_cn extends en_us
         $strings['Schedule'] = '时间表';
         $strings['Reservations'] = '预约';
         $strings['Account'] = '账号';
+        $strings['PersonalInformation'] = '个人资料';
+        $strings['Preferences'] = '偏好设置';
+        $strings['ChangeLanguage'] = '切换语言';
         $strings['EditProfile'] = '编辑个人编纂';
         $strings['FindAnOpening'] = '找到一个开放的';
         $strings['OpenInvitations'] = '开放的邀请';

@@ -1028,6 +1028,8 @@ class en_us extends Language
         $strings['Bookings'] = 'Bookings';
         $strings['Schedule'] = 'Schedule';
         $strings['Account'] = 'Account';
+        $strings['PersonalInformation'] = 'Personal Information';
+        $strings['Preferences'] = 'Preferences';
         $strings['EditProfile'] = 'Edit My Profile';
         $strings['FindAnOpening'] = 'Find An Opening';
         $strings['OpenInvitations'] = 'Open Invitations';

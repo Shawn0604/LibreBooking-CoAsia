@@ -59,7 +59,6 @@ function Profile() {
   function hideModal() {
     $('#waitModal').modal('hide');
 
-    var top = $('#profile-box').scrollTop();
-    $('html, body').animate({ scrollTop: top }, 'slow');
+    $('html, body').animate({ scrollTop: 0 }, 'slow');
   }
 }

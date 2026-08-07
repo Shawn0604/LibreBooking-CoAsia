@@ -1,0 +1,108 @@
+/* CoAsia "My Account" / Profile page (Web/profile.php) — same shell/page-head/np-card
+   pattern as Web/css/notification-preferences.css so this reads as one system with the
+   rest of the account-settings area rather than the old plain Bootstrap card it replaced. */
+
+#page-profile {
+  --np-text-primary: #1c2333;
+  --np-text-secondary: #6c7488;
+
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0 24px 60px;
+}
+
+#page-profile .page-head {
+  padding: 24px 0 16px;
+}
+
+#page-profile h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--np-text-primary);
+}
+
+#page-profile .pf-alert {
+  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  margin-bottom: 20px;
+}
+
+#page-profile .np-card {
+  background: #fff;
+  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  box-shadow: var(--bs-box-shadow);
+  padding: 20px 20px 12px;
+  margin-bottom: 20px;
+}
+
+#page-profile .np-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--np-text-primary);
+  margin: 0 0 4px;
+}
+
+#page-profile .pf-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 0;
+}
+
+#page-profile .pf-row + .pf-row {
+  border-top: 1px solid var(--gcal-border, #eceff1);
+}
+
+#page-profile .pf-row-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: var(--np-text-secondary);
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+#page-profile .pf-row-field {
+  flex: 1;
+  min-width: 0;
+}
+
+#page-profile .pf-row-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--np-text-secondary);
+  margin-bottom: 4px;
+}
+
+#page-profile .pf-row-static {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--np-text-primary);
+  padding: 6px 0;
+}
+
+#page-profile .pf-row-field .form-control,
+#page-profile .pf-row-field .form-select {
+  font-size: 13.5px;
+}
+
+#page-profile .pf-row-attribute {
+  border-top: 1px solid var(--gcal-border, #eceff1);
+  padding-top: 14px;
+}
+
+#page-profile .pf-submit {
+  display: flex;
+  justify-content: flex-end;
+}
+
+#page-profile .pf-submit .btn {
+  min-width: 140px;
+}

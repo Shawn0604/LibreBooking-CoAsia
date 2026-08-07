@@ -668,6 +668,9 @@ class zh_tw extends en_us
         $strings['Schedule'] = '時間表';
         $strings['Reservations'] = '預約';
         $strings['Account'] = '帳號';
+        $strings['PersonalInformation'] = '個人資料';
+        $strings['Preferences'] = '偏好設定';
+        $strings['ChangeLanguage'] = '切換語言';
         $strings['EditProfile'] = '編輯個人編纂';
         $strings['FindAnOpening'] = '找到一個開放的';
         $strings['OpenInvitations'] = '開放的邀請';
