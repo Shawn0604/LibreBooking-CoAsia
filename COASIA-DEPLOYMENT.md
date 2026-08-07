@@ -21,8 +21,8 @@
 - ✅ 確認公司有架 **AD CS**（`coasia-CSSRV-CA`，在 `DC6.coasia.com.tw`，有 Web 註冊介面），已申請正式憑證換掉自簽版，瀏覽器完全不再跳警告
 - ✅ 用瀏覽器實際打開過 `https://booking.coasia.com.tw`，登入頁正常顯示，AD 帳密登入、管理中心角色切換都驗證過
 - ✅ LINE Webhook 對外公開問題已解決：加了一條範圍限定的 Cloudflare Tunnel，只讓 `/Web/line-webhook.php` 這條路徑能被外部連到，主體 app 依然內網限定不受影響（見「十四、LINE Webhook 對外公開」）
+- ✅ LINE Developers 後台的 Webhook URL 已改成 `https://booking-hook.coasia.com/Web/line-webhook.php`，實際可以用了
 - ⬜ 還沒清掉測試預約資料（`COASIA-GOLIVE-CHECKLIST.md` 提到的 57 筆）
-- ⬜ LINE Developers 後台的 Webhook URL 還沒正式改成新網址，還沒找真人重新測過綁定
 - ⬜ NAS 備份協定、GitLab Runner 部署方式仍待決定（見「尚待確認的決策」）
 - ⬜ 還沒有自動化的 CI/CD pipeline，目前全部是手動在 VM 上跑指令
 - ⬜ 「使用者管理」編輯頁面沒有併發衝突偵測，兩個管理員同時編輯同一個使用者會靜默互相覆蓋（只在應用程式層級發現，跟部署無關，記在這裡提醒）
@@ -555,10 +555,9 @@ curl -sI --resolve booking-hook.coasia.com:443:<IP> https://booking-hook.coasia.
 
 看到 webhook 路徑回應帶有 `via: 1.1 Caddy` 跟 `x-powered-by: PHP/8.2.33` 這兩個 header，代表請求真的一路穿過 Cloudflare → Tunnel → Caddy → PHP，路由是通的。
 
-### 還沒做完
+### 結果
 
-- LINE Developers 後台的 Webhook URL 還沒正式改成 `https://booking-hook.coasia.com/Web/line-webhook.php`（目前應該還指向舊的、已失效的 Cloudflare Quick Tunnel 網址）
-- 改完之後要找一位新使用者，實際重新走一次掃 QR code＋輸入綁定碼的流程，確認真的收得到 LINE 推播
+LINE Developers 後台的 Webhook URL 已改成 `https://booking-hook.coasia.com/Web/line-webhook.php`，實測可以用了——整條路徑（LINE 平台 → Cloudflare → Tunnel → Caddy → PHP）驗證成功。
 
 ---
 
