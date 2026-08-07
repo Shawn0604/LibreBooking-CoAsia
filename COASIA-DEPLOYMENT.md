@@ -2,7 +2,7 @@
 
 這份文件記錄「把 CoAsia Booking 從 Windows 開發環境，部署到公司內網正式環境」的架構、操作步驟，以及過程中踩過的坑。跟 `COASIA-GOLIVE-CHECKLIST.md`（上線前還缺什麼業務/資安面的事）不同，這份是**部署架構本身怎麼設計、怎麼操作、出過什麼問題**的技術參考文件；跟 `COASIA-CHANGES.md`（記錄應用程式改了什麼、為什麼）也不同，這份專注在部署/基礎設施這一層。
 
-最後更新：2026-08-06
+最後更新：2026-08-07
 
 ---
 
@@ -15,21 +15,23 @@
 - ✅ `Dockerfile.prod`、`docker-compose.prod.yml`、`Caddyfile`、`.env.prod.example`、`.dockerignore` 已寫好並推上兩邊 repo
 - ✅ 第一次在 VM 上 build／up 成功，`app`／`db`／`caddy` 三個服務都正常
 - ✅ 資料庫已從測試環境搬過來（`mysqldump` → `mysql` 還原，schema version 4.2）
-- ✅ 踩到並修好一個環境變數蓋掉 `config.php` 的坑（見下方「部署時踩到的坑」），修好後 `curl http://localhost/Web/` 回 `200 OK`
-- ✅ 用臨時 port（繞過 Caddy）在瀏覽器上實際打開過登入頁，畫面正常
-- ✅ 確定走**內網限定**方案，不對外公開（見下方「TLS／DNS 決策」），Caddy／`docker-compose.prod.yml` 已改成對應設定
+- ✅ 踩到並修好一個環境變數蓋掉 `config.php` 的坑（見「部署時踩到的坑」），修好後 `curl http://localhost/Web/` 回 `200 OK`
+- ✅ 確定走**內網限定**方案，不對外公開（見「TLS／DNS 決策」）
+- ✅ 內部 DNS 已設定：`booking.coasia.com.tw → 10.1.8.32`（加在 `dc7.coasia.com.tw` 的 `coasia.com.tw` 區域）
+- ✅ 確認公司有架 **AD CS**（`coasia-CSSRV-CA`，在 `DC6.coasia.com.tw`，有 Web 註冊介面），已申請正式憑證換掉自簽版，瀏覽器完全不再跳警告
+- ✅ 用瀏覽器實際打開過 `https://booking.coasia.com.tw`，登入頁正常顯示，AD 帳密登入、管理中心角色切換都驗證過
+- ✅ LINE Webhook 對外公開問題已解決：加了一條範圍限定的 Cloudflare Tunnel，只讓 `/Web/line-webhook.php` 這條路徑能被外部連到，主體 app 依然內網限定不受影響（見「十四、LINE Webhook 對外公開」）
 - ⬜ 還沒清掉測試預約資料（`COASIA-GOLIVE-CHECKLIST.md` 提到的 57 筆）
-- ⬜ 還沒用瀏覽器實際測試完整登入流程（含 AD 帳密登入、LINE 通知）
-- ⬜ 內部 DNS（`booking.coasia.com.tw` → `10.1.8.32`）還沒請 IT 加
-- ⬜ 還沒確認公司有沒有 AD CS，先用 Caddy 自簽憑證頂著
-- ⬜ NAS 備份協定、GitLab Runner 部署方式仍待決定（見下方「尚待確認的決策」）
+- ⬜ LINE Developers 後台的 Webhook URL 還沒正式改成新網址，還沒找真人重新測過綁定
+- ⬜ NAS 備份協定、GitLab Runner 部署方式仍待決定（見「尚待確認的決策」）
 - ⬜ 還沒有自動化的 CI/CD pipeline，目前全部是手動在 VM 上跑指令
+- ⬜ 「使用者管理」編輯頁面沒有併發衝突偵測，兩個管理員同時編輯同一個使用者會靜默互相覆蓋（只在應用程式層級發現，跟部署無關，記在這裡提醒）
 
 ---
 
 ## 目標架構
 
-正式網址：`https://booking.coasia.com.tw`——**內網限定**，不對外公開（見下方「TLS／DNS 決策」）。虛線代表還沒接上／規劃中的部分。
+正式網址：`https://booking.coasia.com.tw`——**內網限定**，不對外公開（見「TLS／DNS 決策」）。唯一對外公開的例外是 LINE Webhook，走範圍限定的 Cloudflare Tunnel（見「十四」）。虛線代表還沒接上／規劃中的部分。
 
 ```mermaid
 flowchart TD
@@ -37,6 +39,8 @@ flowchart TD
     GH["GitHub（備份）<br/>Shawn0604/LibreBooking-CoAsia"]
     GL["公司 GitLab<br/>coasiait/coasia-booking"]
     User(["員工瀏覽器<br/>（僅限公司內網／VPN）"])
+    LINE(["LINE 平台<br/>（公網）"])
+    CF["Cloudflare Tunnel<br/>booking-hook.coasia.com<br/>只認 /Web/line-webhook.php"]
 
     Dev -->|git push| GH
     Dev -->|git push| GL
@@ -46,10 +50,12 @@ flowchart TD
         direction TB
         subgraph Compose["docker-compose.prod.yml"]
             direction LR
-            Caddy["caddy<br/>反向代理／HTTPS<br/>tls internal（自簽）"]
+            Caddy["caddy<br/>booking.coasia.com.tw：AD CS 憑證<br/>booking-hook.coasia.com：純 HTTP，僅 webhook 路徑"]
             App["app<br/>Apache + PHP 8.2<br/>(Dockerfile.prod)"]
             DB[("db<br/>MySQL 8.0")]
+            Cloudflared["cloudflared<br/>只連出去，不開任何 port"]
             Caddy --> App --> DB
+            Cloudflared -->|"caddy:80"| Caddy
         end
         DBVol[("lb_prod_db_data<br/>volume")]
         UploadVol[("uploads 系列<br/>volumes")]
@@ -59,8 +65,10 @@ flowchart TD
         Secrets -.-> App
     end
 
-    DNS["內部 AD DNS（dc7.coasia.com.tw）<br/>booking.coasia.com.tw → 10.1.8.32<br/>尚未設定"] -.-> User
+    DNS["內部 AD DNS（dc7.coasia.com.tw）<br/>booking.coasia.com.tw → 10.1.8.32<br/>已設定"] -.-> User
     User -->|"80/443 直連，無 NAT／port-forward"| Caddy
+    LINE -->|"HTTPS，Cloudflare 終止公開 TLS"| CF
+    CF -.->|"Tunnel，僅出站連線"| Cloudflared
 
     App --> DC["公司 AD DC<br/>LDAP :389"]
     App --> SMTP["公司 SMTP Relay<br/>10.1.3.140:25"]
@@ -374,8 +382,8 @@ docker stop temp-test-proxy
 | `lb_prod_uploads` | `uploads/` | 需要 |
 | `lb_prod_uploads_images` | `Web/uploads/images` | 需要 |
 | `lb_prod_uploads_tos` | `Web/uploads/tos` | 需要 |
-| `caddy_data` / `caddy_config` | Caddy 內部狀態（憑證等） | 需要，換 image 時不想重新申請憑證 |
-| `config/config.php`、`.env`、`app.env`、`ActiveDirectory.config.php` | 四個機密檔案 | 用 bind mount，不是 named volume，見上 |
+| `caddy_data` / `caddy_config` | Caddy 內部狀態 | 需要，保留 Caddy 自己的執行狀態 |
+| `config/config.php`、`.env`、`app.env`、`ActiveDirectory.config.php`、`certs/`（AD CS 憑證＋私鑰） | 機密檔案／憑證 | 用 bind mount，不是 named volume，見「六」「十三」 |
 | `tpl_c/` | Smarty 編譯快取 | **不需要**，每次部署重建即可，持久化反而可能讓部署後還吃到舊快取 |
 
 ---
@@ -415,11 +423,39 @@ docker stop temp-test-proxy
 
 同事之前架的 `app.coasia.com`（Cloudflare Proxy／橘色雲朵模式）也考慮過，但那個做法需要公司防火牆把某個公網 IP 的 port-forward 到這台 VM，一樣是「先製造出對外暴露的需求，再解決它」，跟內網限定的方向相反，所以也放棄了。
 
-### 目前設定
+### 目前設定（已完成）
 
-- **內部 DNS**：要請 IT 在 `dc7.coasia.com.tw` 的 DNS（跟前面設 DHCP 保留同一台）加一筆 `booking.coasia.com.tw → 10.1.8.32`，這步還沒做
-- **憑證**：`Caddyfile` 目前用 `tls internal`，Caddy 自己簽發、自己當 CA，功能正常但每台員工電腦瀏覽器會跳「不安全」警告，除非手動信任那個自簽 CA
-- **待確認**：公司有沒有架 **AD CS**（Active Directory Certificate Services）？如果有，所有已加入網域的電腦會自動信任它簽出的憑證，完全不會跳警告，是比自簽更好的長期解法，換過去只要改 `Caddyfile` 的 TLS 那行指到真正的憑證檔案即可（`Caddyfile` 裡已經留好註解版的設定範例）
+- **內部 DNS**：在 `dc7.coasia.com.tw` 的 DNS 管理員 → `coasia.com.tw` 正向對應區域 → 新增主機 (A)：`booking` → `10.1.8.32`
+- **憑證**：公司確實有架 **AD CS**，透過 `certutil -ADCA`／`certutil -config - -ping` 查出三個可用的 CA（`CA`@`filesvr.coasia.com.tw`、`coasia-CSSRV-CA`@`DC6.coasia.com.tw`、`coasia-DC1-CA`@`DC1.coasia.com.tw`），`DC6` 這台有裝 Web 註冊介面（`http://DC6.coasia.com.tw/certsrv`）。實際申請流程：
+  1. 在 VM 上用 openssl 產生 CSR：
+     ```bash
+     mkdir -p ~/coasia-booking/certs
+     cd ~/coasia-booking/certs
+     openssl req -new -newkey rsa:2048 -nodes \
+       -keyout booking.key \
+       -out booking.csr \
+       -subj "/CN=booking.coasia.com.tw" \
+       -addext "subjectAltName=DNS:booking.coasia.com.tw"
+     cat booking.csr
+     ```
+  2. 瀏覽器開 `http://DC6.coasia.com.tw/certsrv` → 用網域帳密登入 → 「申請憑證」→「進階憑證申請」→「提交憑證要求或更新要求」
+  3. 把 CSR 內容貼進「已儲存的要求」文字框，「憑證範本」選 **Web 伺服器**（預設是「使用者」，一定要換），「屬性」欄位補一行 `san:dns=booking.coasia.com.tw`（Microsoft CA 有時候會忽略 CSR 裡帶的 SAN，這裡明確再指定一次比較保險）
+  4. 提交後選 **Base 64 編碼**，分別下載「憑證」（`booking.cer`，只有 leaf）跟「憑證鏈結」（`certnew.p7b`，PKCS#7 格式，含完整鏈）
+  5. 把兩個檔案傳回 VM 的 `certs/` 資料夾，用 openssl 把 `.p7b` 拆成 PEM：
+     ```bash
+     openssl pkcs7 -print_certs -in certnew.p7b -out chain.pem
+     grep "subject=" chain.pem   # 確認裡面剛好是 leaf + 簽發它的 CA，順序就是對的
+     ```
+  6. `chain.pem`（leaf + issuing CA）+ `booking.key`（步驟 1 產生的私鑰）就是 Caddy 要的兩個檔案，`Caddyfile` 設定：
+     ```
+     booking.coasia.com.tw {
+         tls /etc/caddy/certs/chain.pem /etc/caddy/certs/booking.key
+         reverse_proxy app:80
+     }
+     ```
+     `docker-compose.prod.yml` 對應要有 `./certs:/etc/caddy/certs:ro` 這個 bind mount
+- 效果：所有已加入網域的電腦自動信任 `coasia-CSSRV-CA`，瀏覽器完全不會跳「不安全」警告，比 Caddy 自簽（`tls internal`）的方案好，不需要額外用 GPO 推送信任鏈
+- `certs/` 資料夾（含私鑰）已加進 `.gitignore`（`/certs/`），不會被誤 commit
 
 ### 其他待確認的決策
 
@@ -427,6 +463,102 @@ docker stop temp-test-proxy
 - **GitLab Runner 部署方式**：建議直接裝在 `BookingServer` 這台 VM 上（最簡單），或必須透過既有共用 Runner + SSH
 
 已解決：Linux distro 用了 Ubuntu 26.04 LTS；VM（`10.1.8.32`）到 GitLab、SMTP relay、AD LDAP（389）的連線都已測試成功，網路路徑沒問題。
+
+---
+
+## 十四、LINE Webhook 對外公開（Cloudflare Tunnel，範圍限定）
+
+### 問題
+
+`booking.coasia.com.tw` 內網限定之後，員工掃 QR code 綁定 LINE 通知完全沒反應。原因：LINE 官方帳號要把訊息**主動推送**到 `Web/line-webhook.php`，這個推送是從 LINE 的伺服器（公網）發起的，不是使用者瀏覽器——內網限定之後 LINE 的伺服器連不進來。`COASIA-GOLIVE-CHECKLIST.md` 早就提醒過這件事（「LINE webhook 目前靠 Cloudflare Quick Tunnel 這種臨時通道撐著，正式環境需要一個固定網域」），只是被內網限定的決策蓋過去了。
+
+### 決策：不整個 app 公開，只開放 webhook 這一條路徑
+
+考慮過兩個方案：
+
+1. **請網管開 port-forward**（比照既有的 `app.coasia.com` 做法）：需要一個閒置公網 IP＋防火牆規則，如果沒有能依 Host header 分流的 reverse proxy，還要另外申請 IP。當事人剛好就是網管本人，評估一輪覺得麻煩（要確認既有防火牆拓樸、公網 IP 分配狀況），最後放棄
+2. **Cloudflare Tunnel，範圍只限定 webhook**：不用碰防火牆、不用公網 IP，`cloudflared` 只會從 VM 主動連出去。唯一的門檻是要進 **Zero Trust** 才能建 Tunnel，第一次啟用要留信用卡（免費額度不收費）——這次因為是真的卡住一個功能而不是假設性需求，決定接受這個門檻
+
+最終選 **Cloudflare Tunnel**，但刻意設計成只讓 `/Web/line-webhook.php` 這一條路徑能被外部連到：主體 app（`booking.coasia.com.tw`）完全不受影響，繼續維持內網限定。
+
+### 設定步驟
+
+**1. Cloudflare 後台建立 Tunnel**（`one.dash.cloudflare.com` → Zero Trust → Networks → Tunnels → Create a tunnel）：
+- Connector 選 Cloudflared，名稱 `coasia-booking-webhook`
+- 安裝方式選 **Docker**，只複製 `--token` 後面的字串
+- 「已發布應用程式路由」（Public Hostname）分頁設定：Subdomain `booking-hook`、Domain `coasia.com`、路徑留空、服務類型 `HTTP`、URL `caddy:80`
+
+> 這個路由設定畫面存檔後，要在 Tunnel 詳情頁的「**已發布應用程式路由**」分頁才看得到（不是「主機名稱路由」那個標示測試版的分頁，兩個是不同功能，第一次找容易找錯地方）。
+
+**2. `docker-compose.prod.yml` 新增 `cloudflared` 服務**：
+
+```yaml
+cloudflared:
+  image: cloudflare/cloudflared:latest
+  restart: unless-stopped
+  command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  depends_on:
+    - caddy
+```
+
+`.env` 加一行 `CLOUDFLARE_TUNNEL_TOKEN=<剛剛複製的 token>`（範本見 `.env.prod.example`）。
+
+**3. `Caddyfile` 新增一個只認 webhook 路徑的站台區塊**：
+
+```
+http://booking-hook.coasia.com {
+    handle /Web/line-webhook.php {
+        reverse_proxy app:80
+    }
+    handle {
+        respond 404
+    }
+}
+```
+
+`http://` 前綴很重要——強制這個站台是純 HTTP，不觸發 Caddy 自動 HTTPS/ACME（因為公開 HTTPS 是 Cloudflare 在邊緣終止的，Caddy 這邊只需要跟 Tunnel 講 plain HTTP）。`handle` 只放行精確路徑，其他一律 404，就算 Tunnel 或 DNS 設定之後被改鬆，這台 VM 上也不會有除了 webhook 以外的東西被公開。
+
+### 踩到的兩個坑
+
+**坑 1（虛驚一場）：內部 DNS 查 `booking-hook.coasia.com` 一直是 Non-existent domain**
+
+`nslookup booking-hook.coasia.com` 對公司內部 DNS（`DC6.coasia.com.tw`）查詢一直失敗，清了 DNS 快取（`Clear-DnsServerCache -Force`）也沒用。原因：`DC6` 本身是 `coasia.com` 這個名稱的**內部權威區域**（AD 整合的正向對應區域，跟 Cloudflare 上的公開 `coasia.com`是兩個完全獨立的東西，只是剛好同名），權威伺服器對自己管轄範圍內查不到的名稱會直接答「不存在」，**不會**遞迴去問公網——這不是快取問題，是設計上就不會遞迴。
+
+但這其實無所謂：會打 `booking-hook.coasia.com` 這個網址的是 **LINE 的伺服器**，用的是公用 DNS，根本不會經過公司內部的 `DC6`。驗證方式是改用 Google 公用 DNS 查（`nslookup booking-hook.coasia.com 8.8.8.8`），或用 `curl --resolve` 直接指定 Cloudflare 給的 IP、繞過本機 DNS 解析，模擬外部連線的狀況：
+
+```bash
+curl -sI --resolve booking-hook.coasia.com:443:<Cloudflare回傳的其中一個IP> \
+  https://booking-hook.coasia.com/Web/line-webhook.php
+```
+
+**坑 2（真的是 bug）：改了 `Caddyfile` 但 Caddy 沒有真的重新載入**
+
+這是「bind mount 的檔案內容改了，但 `docker compose up -d` 偵測不到」這個雷第二次發生。這次的情境不太一樣：這次的 commit 只是**新增**一個 `cloudflared` 服務，`caddy` 自己的 compose 服務定義（image、ports、volumes 等）完全沒變——所以 `docker compose up -d` 判斷 `caddy` 不需要重建，只新建了 `cloudflared`，`caddy` 容器保持原本那個 process 繼續跑，Caddyfile 的新內容從來沒被讀進去。
+
+症狀是打 `https://booking-hook.coasia.com/...` 會收到一個「重新導向到自己」的 308（一開始誤以為是 Cloudflare 的 Redirect Rules 造成的，去檢查了「規則」→「重新導向規則」跟「網頁規則」，結果兩個都是空的，才想到是這個舊坑）。修法一樣：
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
+```
+
+**通用心法**：以後任何一次只要改了 `Caddyfile`（或任何 bind mount 進容器的設定檔）的內容，不管 `docker-compose.prod.yml` 本身有沒有變，都要習慣性加上 `--force-recreate <服務名稱>`，不要只信任 `up -d` 會自動處理。
+
+### 驗證方式
+
+```bash
+# webhook 路徑：預期 400（GET 空請求本來就會被拒絕，但代表有打到 PHP）
+curl -sI --resolve booking-hook.coasia.com:443:<IP> https://booking-hook.coasia.com/Web/line-webhook.php
+
+# 其他任意路徑：預期 404
+curl -sI --resolve booking-hook.coasia.com:443:<IP> https://booking-hook.coasia.com/
+```
+
+看到 webhook 路徑回應帶有 `via: 1.1 Caddy` 跟 `x-powered-by: PHP/8.2.33` 這兩個 header，代表請求真的一路穿過 Cloudflare → Tunnel → Caddy → PHP，路由是通的。
+
+### 還沒做完
+
+- LINE Developers 後台的 Webhook URL 還沒正式改成 `https://booking-hook.coasia.com/Web/line-webhook.php`（目前應該還指向舊的、已失效的 Cloudflare Quick Tunnel 網址）
+- 改完之後要找一位新使用者，實際重新走一次掃 QR code＋輸入綁定碼的流程，確認真的收得到 LINE 推播
 
 ---
 
