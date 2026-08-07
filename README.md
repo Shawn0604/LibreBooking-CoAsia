@@ -30,7 +30,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 
 ## 這個 fork 做了什麼客製化
 
-跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §61）：
+跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §65）：
 
 ### 身份驗證與帳號
 
@@ -63,6 +63,12 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 - **管理後台整體重整**：資訊架構、共用版型、管理總覽儀表板、會議室使用分析，預約/會議室/開放時間管理三頁重新設計
 - **CoAsia 品牌視覺**：CoAsia Blue 主色、統一 Design Token 系統、全站字體統一為 Noto Sans TC、登入頁重新設計
 - **側邊欄多輪重構**：收合/展開、圖示排版系統化、新增預約與通知設定移出主導覽
+- **「我的帳號」重新設計**：Profile 頁面改成跟通知設定一致的卡片風格，時區、登入後語言切換（英/繁中/簡中）都在同一頁完成，側邊欄簡化成單一直接連結
+
+### 資料完整性／管理後台修正
+
+- 修正新帳號語言預設值 bug（新建帳號會被寫死成英文，蓋掉瀏覽器語言判斷）、修正三個資源的開放時間資料錯誤（起訖時間相同，等於完全沒開放）
+- 預約管理列表預設排序改成最新在前；修掉一個把開放時間編輯的儲存按鈕整個蓋住的浮動按鈕重疊問題
 
 ---
 
@@ -89,6 +95,7 @@ flowchart LR
     Dev["Windows 開發機"] -->|git push| GH["GitHub（備份）"]
     Dev -->|git push| GL["公司 GitLab"]
     GL -.->|手動 git pull| VM
+    LINE(["LINE 平台"]) -->|"僅 webhook 路徑<br/>Cloudflare Tunnel"| Caddy
 
     subgraph VM["BookingServer（10.1.8.32）"]
         Caddy["caddy<br/>HTTPS，AD CS 憑證"] --> App["app<br/>PHP 8.2 + Apache"] --> DB[("db<br/>MySQL 8.0")]
@@ -98,6 +105,8 @@ flowchart LR
     App --> DC["公司 AD DC<br/>LDAP"]
     App --> SMTP["內部 SMTP Relay"]
 ```
+
+主體服務內網限定，唯一對外公開的是 LINE Webhook 這一條路徑（範圍限定的 Cloudflare Tunnel，其他路徑一律 404），細節見 `COASIA-DEPLOYMENT.md` 十四。
 
 正式環境的完整架構圖（含 volumes、機密檔案管理）在 [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) 裡有更詳細的版本。
 
@@ -150,7 +159,7 @@ npm install && npm run lint:frontend   # 前端 lint（JS/CSS）
 
 | 文件 | 內容 |
 | --- | --- |
-| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§61） |
+| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§65） |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 正式對全體員工開放前，還缺什麼 |
 | [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 正式環境部署架構與操作手冊，含完整 VM 建置、Docker、憑證、資料庫遷移步驟 |
 
