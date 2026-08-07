@@ -48,6 +48,17 @@ services:
     depends_on:
       - app
 
+  # Only carries traffic for the LINE webhook's public hostname (see the
+  # http://booking-hook.coasia.com block in Caddyfile) -- outbound-only
+  # connection to Cloudflare, nothing opened in any firewall. The main app
+  # (booking.coasia.com.tw) stays internal-only and is untouched by this.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - caddy
+
 volumes:
   lb_prod_db_data:
   lb_prod_uploads:

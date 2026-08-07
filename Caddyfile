@@ -8,3 +8,20 @@ booking.coasia.com.tw {
     tls /etc/caddy/certs/chain.pem /etc/caddy/certs/booking.key
     reverse_proxy app:80
 }
+
+# Public-facing, but only for the LINE webhook. Reached via a Cloudflare
+# Tunnel (cloudflared, see docker-compose.prod.yml) whose Public Hostname
+# is configured to forward booking-hook.coasia.com to caddy:80 -- Cloudflare
+# terminates the real public HTTPS at their edge, so this only needs plain
+# HTTP (the `http://` prefix stops Caddy from attempting its own ACME/TLS
+# for this domain). Everything except the webhook path is rejected, so even
+# if the tunnel or DNS config is ever loosened, nothing else on this VM
+# becomes reachable through it.
+http://booking-hook.coasia.com {
+    handle /Web/line-webhook.php {
+        reverse_proxy app:80
+    }
+    handle {
+        respond 404
+    }
+}
