@@ -2017,3 +2017,39 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 `curl` 直接打首頁確認 `<title>CoAsia Booking - Log In</title>` 已經生效；登入頁標語的中文字串沒有直接用 curl 驗證（預設語系是 en_us，需要登入 session 的語系 cookie 才會顯示中文版，跟前幾輪其他 `lang/zh_tw.php` 字串改動一樣的驗證限制，使用者自己的瀏覽器 session 本來就是中文）。清過 `tpl_c`＋重啟容器，log 沒有 fatal error，PHPUnit 維持原本基準沒有新增失敗。`config/config.php` 的改動不進 git（gitignored），只有 `lang/zh_tw.php`／`README.md` 會進版控。
+
+## 62. 「我的帳號」重新設計：Profile 頁面改版、語言下拉選單、側邊欄簡化
+
+使用者反映登入後的語言、時區設定完全找不到入口。查了才發現這些功能其實早就做好了（`Domain/User.php` 的 `$timezone`／`ChangeTimezone()`、`Web/ajax/change_language.php` 整條路徑都是活的），只是在先前簡化導覽時被 `{if false}` 藏起來，從來沒有連結能點進去。
+
+- `tpl/globalheader.tpl`：「我的帳號」從一個展開式子選單（含 Profile／變更密碼／參與邀請／點數）簡化成單一直接連結，直接連到 Profile 頁面；子選單裡原本重複的「通知設定」連結拿掉（本來就有獨立的常駐入口，避免同一個 `#navNotification` id 出現兩次）
+- 側邊欄底部原本被藏起來的語言切換子選單整個拿掉，改成在 Profile 頁面本身加一個語言下拉選單，跟時區放在一起，選了立即透過既有的 `ajax/change_language.php` 存檔＋重新整理頁面
+- `tpl/MyAccount/profile.tpl` 從舊版純 Bootstrap 卡片整個重新設計成跟「通知設定」頁一致的 `shell`/`page-head`/`np-card` 視覺語言（新增 `Web/css/profile.css`），分成「帳號」「個人資料」「偏好設定」三張卡片。電話/組織/職稱這三個欄位原本考慮拿掉（覺得像是沒人用的欄位），查了程式碼才發現其實有被預約確認信（`lib/Email/Messages/ReservationEmailMessage.php`）跟參與者彈窗（`tpl/Ajax/user_popup.tpl`）用到，所以全部保留
+- 側邊欄收合（icon-only）模式下，剛恢復的「我的帳號」跟語言切換兩個項目文字沒有正確隱藏、疊字溢出——原因是沒有包在 `.sidebar-link-label` 這個 span 裡（收合的 CSS 規則只認這個 class），補上就正常了
+- 補上三個語言檔案（en_us／zh_tw／zh_cn）都缺的翻譯字串：`PersonalInformation`、`Preferences`；`zh_tw.php` 額外缺了 `ChangeLanguage`（這也是「切換語言」選單一直顯示英文字的原因，即使使用者介面其他部分都是繁中，因為 Smarty 的 `{translate}` 找不到 key 時會 fallback 回英文）
+
+## 63. 新帳號語言預設值改成繁中，並一次性修正既有 116 個帳號
+
+改完上面 §62 才發現一個更深的問題：登入頁（未登入狀態）看起來是繁體中文，但登入後整個介面卻變回英文，要手動去設定調整。
+
+**根本原因**：登入頁（`Presenters/LoginPresenter.php::SetSelectedLanguage`）跟登入後所有頁面（`lib/Common/Resources.php::GetLanguageCode`）用的是兩條不同的語言判斷邏輯——登入頁有 4 層 fallback，最後一層是瀏覽器 `Accept-Language`；但登入後只有 3 層（cookie → 使用者資料庫存的 `Language` 欄位 → 設定檔預設值），**完全沒有 `Accept-Language` 這一層**。兩個帳號建立流程（`Jobs/import-coasia-employees.php` 批次匯入、AD 首次登入自動建立）都把新帳號的 `Language` 欄位寫死成 `en_us`，這個資料庫值會直接蓋掉瀏覽器語言判斷，變成登入後看到的是「帳號建立時寫死的英文」，不是「瀏覽器實際語言」。
+
+- `Jobs/import-coasia-employees.php` 的 `DEFAULT_LANGUAGE` 常數改成 `zh_tw`，之後再跑批次匯入不會再有這個問題
+- 因為語言切換功能在 §62 之前完全沒有 UI 入口，可以確定沒有任何人手動選過語言——安全地跑了一次性 SQL，把所有還是 `en_us` 的帳號（113 個）改成 `zh_tw`（3 個原本就是 `zh_tw` 的內建帳號不受影響），資料庫現在 116 個帳號全部是 `zh_tw`
+- AD 首次登入自動建立帳號那條路徑（`plugins/Authentication/ActiveDirectory/ActiveDirectory.php`）目前仍然讀取 `Configuration::Instance()->GetKey(ConfigKeys::DEFAULT_LANGUAGE)`（設定檔的 `LB_DEFAULT_LANGUAGE`），沒有改程式碼，是靠正式環境的 `app.env` 設定值間接修正——這個設定檔不進版控，記在 `COASIA-DEPLOYMENT.md` 而不是這裡
+
+## 64. 修復三個資源的開放時間資料（Zoom TW／Google Meet2／台北 Taipei）
+
+使用者在「開放時間設定」發現 Zoom TW 的每週開放時間全部顯示「上午 12:00 - 上午 12:00」（起訖時間相同，等於完全沒開放）。查資料庫（`time_blocks` 表）確認不是顯示問題，是資料真的存錯：Zoom TW、Google Meet2、台北 Taipei 這三個時間表，星期一到六每天都只有一筆 `start_time=00:00:00, end_time=00:00:00` 的紀錄，而其他 9 個正常的時間表（上海、新加坡、Zoom CN、Google Meet1 等）用的是另一種「整天切成 30 分鐘一格、`day_of_week` 為 NULL」的正常格式。台北時間表還是被設成系統「預設」的那個，影響範圍不小。
+
+確認過三個都應該是「24 小時全天可訂」之後，沒有手動猜時間格式重寫，而是直接把同類型、已經確認正常運作的資源設定整組複製過去（Taipei ← 上海 Shanghai 的 layout；Zoom TW ← Zoom CN 的 layout；Google Meet2 ← Google Meet1 的 layout），降低格式猜錯的風險。開發環境測過確認無誤後，同一套 SQL 套用到正式環境——過程中發現正式環境「台北 Taipei」的 `layout_id` 是 16，跟開發環境的 13 不一樣（兩邊資料庫在這個 ID 上有落差，其餘資源的 layout_id 兩邊一致），套用前有先在正式環境重新查一次實際的 ID 對應，避免改錯資料。
+
+這是直接對資料庫跑的 SQL 修正，不是程式碼變更，不會出現在 git 歷史裡，記錄在這裡以免之後忘記發生過這件事。
+
+## 65. 管理後台兩個 UI 問題：預約列表排序、開放時間編輯的儲存按鈕被蓋住
+
+使用者做 UI 檢查時發現的兩個問題：
+
+- **預約管理列表**：預設排序是最舊的在最前面，使用者預期應該是最新的在前面。`Presenters/Admin/ManageReservationsPresenter.php` 呼叫 `LoadFiltered()` 時，沒有 `sort`/`dir` querystring 的情況下直接把 `null` 傳給排序參數，底層 SQL 樣板（`Queries.php` 的 `GET_RESERVATION_LIST_TEMPLATE`）預設是 `ORDER BY start_date ASC`。這個樣板同時被好幾個地方共用（行事曆檢視、待審核清單、忘記簽到清單），所以不能直接改樣板本身，而是在這個 presenter 裡把 `null` 換成明確的預設值（`start_date` / `desc`），只影響這一個頁面。這個列表本身沒有可點擊排序的欄位標題，改預設方向不會跟任何既有的互動排序功能衝突。
+
+- **開放時間編輯抽屜的儲存按鈕「消失」**：使用者回報怎麼找都找不到儲存按鈕，畫面上唯一看到的是一顆藍色圓形「?」按鈕，懷疑那顆才是儲存鈕。查了才發現那顆「?」其實跟這個抽屜完全無關——是每個後台頁面右下角都有的「回到頂部」浮動按鈕（`tpl/globalfooter.tpl` 的 `#button-up`），它固定在畫面右下角，剛好跟開放時間編輯抽屜（同樣是右側面板）的內容重疊，真正的儲存按鈕（`tpl/Admin/Schedules/manage_schedules.tpl` 裡的 `button.saveScheduleHours`）其實就在被蓋住的那個位置，只是完全看不到也點不到。修法：`Web/scripts/phpscheduleit.js` 監聽 Bootstrap 的 `shown.bs.offcanvas`/`hidden.bs.offcanvas` 事件，任何抽屜打開時就把這顆浮動按鈕隱藏，關閉後再依照當下捲動位置決定要不要顯示回來。
