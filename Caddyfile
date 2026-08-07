@@ -1,25 +1,10 @@
-# Internal-only: booking.coasia.com.tw is a record on the company's own AD
-# DNS (dc7.coasia.com.tw), not on the public Cloudflare-managed coasia.com
-# zone -- nothing here is meant to be reachable from outside the office
-# network.
-#
-# `tls internal` makes Caddy mint its own local CA and issue a cert for this
-# name automatically. Every domain-joined machine will show a browser
-# warning until that CA is trusted, either manually or (better) pushed via
-# Group Policy. If IT confirms AD CS (an internal Certificate Authority
-# already integrated with the domain) is available, switch to that instead
-# -- domain-joined machines trust it automatically, no GPO/manual trust
-# step needed:
-#
-#   booking.coasia.com.tw {
-#       tls /etc/caddy/certs/booking.crt /etc/caddy/certs/booking.key
-#       reverse_proxy app:80
-#   }
-#
-# (also add a matching volume mount, e.g. ./certs:/etc/caddy/certs:ro, in
-# docker-compose.prod.yml)
-
+# Issued by the company's AD CS (coasia-CSSRV-CA), so every domain-joined
+# machine trusts it automatically -- no per-machine warning, no GPO push
+# needed. chain.pem holds the leaf cert followed by the issuing CA cert;
+# booking.key is the private key generated alongside the CSR that was
+# submitted to the CA. Neither file is committed -- see docker-compose.prod.yml
+# for the bind mount, and keep both readable only by the VM's own user.
 booking.coasia.com.tw {
-    tls internal
+    tls /etc/caddy/certs/chain.pem /etc/caddy/certs/booking.key
     reverse_proxy app:80
 }
