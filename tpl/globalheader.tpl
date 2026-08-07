@@ -253,12 +253,17 @@
                            matching JS removal and Web/css/overview.css + overview_fullcalendar.css
                            for the matching .mini-cal* CSS removal. *}
 
-                        {* CoAsia: hidden for now — day-to-day usage only needs Overview + Bookings below. Remove `{if false}` to restore. *}
+                        {* CoAsia: Dashboard link stays hidden — day-to-day usage only needs Overview + Bookings below. Remove `{if false}` to restore. *}
                         {if false}
                         <a class="sidebar-link" id="navDashboard" href="{$Path}{Pages::DASHBOARD}">
                             <i class="bi bi-speedometer2"></i>{translate key="Dashboard"}
                         </a>
+                        {/if}
 
+                        {* CoAsia: restored — gives access to per-user settings (Timezone on the
+                           Profile page, etc.) that only live here. NotificationPreferences is left
+                           out of this submenu since it already has its own always-visible link
+                           above (navNotification) — including it here too would duplicate that id. *}
                         <div class="sidebar-group" id="navMyAccountDropdown">
                             <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
                                 data-bs-target="#sidebarMyAccount">
@@ -268,7 +273,6 @@
                             <div class="collapse sidebar-submenu" id="sidebarMyAccount">
                                 <a id="navProfile" class="sidebar-sublink" href="{$Path}{Pages::PROFILE}">{translate key="Profile"}</a>
                                 <a id="navPassword" class="sidebar-sublink" href="{$Path}{Pages::PASSWORD}">{translate key="ChangePassword"}</a>
-                                <a id="navNotification" class="sidebar-sublink" href="{$Path}{Pages::NOTIFICATION_PREFERENCES}">{translate key="NotificationPreferences"}</a>
                                 {if isset($ShowParticipation) && $ShowParticipation}
                                     <a id="navInvitations" class="sidebar-sublink" href="{$Path}{Pages::PARTICIPATION}">{translate key="OpenInvitations"}</a>
                                 {/if}
@@ -277,7 +281,6 @@
                                 {/if}
                             </div>
                         </div>
-                        {/if}
 
                         {* CoAsia: day-to-day nav trimmed to just this one link — Overview itself is reached
                            via the logo and the mini calendar above, so a redundant "總覽" link isn't needed.
@@ -443,8 +446,9 @@
                        location anymore per explicit request; the page itself still works if
                        reached directly. *}
 
-                    {* CoAsia: hidden for now — language switcher/help aren't part of the trimmed-down day-to-day nav. Remove `{if false}` to restore. *}
-                    {if false}
+                    {* CoAsia: restored so users can switch language post-login, not just at the
+                       login screen. See globalfooter.tpl for the click handler that posts to
+                       ajax/change_language.php. *}
                     {if isset($LoggedIn) && $LoggedIn && count($AvailableLanguages) > 1}
                         <div class="sidebar-group" id="navLanguageDropdown">
                             <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
@@ -467,6 +471,8 @@
                         </div>
                     {/if}
 
+                    {* CoAsia: Help dropdown stays hidden — wasn't part of this request. Remove `{if false}` to restore. *}
+                    {if false}
                     <div class="sidebar-group" id="navHelpDropdown">
                         <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
                             data-bs-target="#sidebarHelp">
