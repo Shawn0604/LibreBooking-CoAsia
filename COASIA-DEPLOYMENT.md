@@ -17,23 +17,26 @@
 - ✅ 資料庫已從測試環境搬過來（`mysqldump` → `mysql` 還原，schema version 4.2）
 - ✅ 踩到並修好一個環境變數蓋掉 `config.php` 的坑（見下方「部署時踩到的坑」），修好後 `curl http://localhost/Web/` 回 `200 OK`
 - ✅ 用臨時 port（繞過 Caddy）在瀏覽器上實際打開過登入頁，畫面正常
+- ✅ 確定走**內網限定**方案，不對外公開（見下方「TLS／DNS 決策」），Caddy／`docker-compose.prod.yml` 已改成對應設定
 - ⬜ 還沒清掉測試預約資料（`COASIA-GOLIVE-CHECKLIST.md` 提到的 57 筆）
 - ⬜ 還沒用瀏覽器實際測試完整登入流程（含 AD 帳密登入、LINE 通知）
-- ⬜ TLS 憑證策略、DNS、NAS 備份協定、GitLab Runner 部署方式仍待決定（見下方「尚待確認的決策」）
+- ⬜ 內部 DNS（`booking.coasia.com.tw` → `10.1.8.32`）還沒請 IT 加
+- ⬜ 還沒確認公司有沒有 AD CS，先用 Caddy 自簽憑證頂著
+- ⬜ NAS 備份協定、GitLab Runner 部署方式仍待決定（見下方「尚待確認的決策」）
 - ⬜ 還沒有自動化的 CI/CD pipeline，目前全部是手動在 VM 上跑指令
 
 ---
 
 ## 目標架構
 
-正式網址（規劃）：`https://booking.coasia.com.tw`（DNS 尚未設定，目前只能用內網 IP 測試）。虛線代表還沒接上／規劃中的部分。
+正式網址：`https://booking.coasia.com.tw`——**內網限定**，不對外公開（見下方「TLS／DNS 決策」）。虛線代表還沒接上／規劃中的部分。
 
 ```mermaid
 flowchart TD
     Dev["Windows 開發機<br/>docker-compose.dev.yml"]
     GH["GitHub（備份）<br/>Shawn0604/LibreBooking-CoAsia"]
     GL["公司 GitLab<br/>coasiait/coasia-booking"]
-    User(["員工瀏覽器"])
+    User(["員工瀏覽器<br/>（僅限公司內網／VPN）"])
 
     Dev -->|git push| GH
     Dev -->|git push| GL
@@ -43,7 +46,7 @@ flowchart TD
         direction TB
         subgraph Compose["docker-compose.prod.yml"]
             direction LR
-            Caddy["caddy<br/>反向代理／HTTPS<br/>TLS 策略未定"]
+            Caddy["caddy<br/>反向代理／HTTPS<br/>tls internal（自簽）"]
             App["app<br/>Apache + PHP 8.2<br/>(Dockerfile.prod)"]
             DB[("db<br/>MySQL 8.0")]
             Caddy --> App --> DB
@@ -56,7 +59,8 @@ flowchart TD
         Secrets -.-> App
     end
 
-    User -->|"https://booking.coasia.com.tw<br/>DNS 尚未設定"| Caddy
+    DNS["內部 AD DNS（dc7.coasia.com.tw）<br/>booking.coasia.com.tw → 10.1.8.32<br/>尚未設定"] -.-> User
+    User -->|"80/443 直連，無 NAT／port-forward"| Caddy
 
     App --> DC["公司 AD DC<br/>LDAP :389"]
     App --> SMTP["公司 SMTP Relay<br/>10.1.3.140:25"]
@@ -397,9 +401,28 @@ docker stop temp-test-proxy
 
 ---
 
-## 十三、尚待確認的決策
+## 十三、TLS／DNS 決策：內網限定，不對外公開
 
-- **HTTPS 憑證策略**：`booking.coasia.com.tw` 的 DNS 是否對外可解析？可解析才能用 Let's Encrypt（`Caddyfile` 預設值）；純內網的話要改用 `Caddyfile` 裡已經寫好的內部 CA 或 Caddy 內建 CA 選項
+**已決定**：`booking.coasia.com.tw` 只給公司內網／VPN 內的使用者連，不開放公網存取。理由：這是深度綁定 AD 的內部工具（員工訂公司會議室），使用情境本來就是內部員工，不對外公開可以省掉整套公網暴露相關的麻煩（NAT/port-forward、公開攻擊面、憑證續期依賴外部服務）。
+
+### 過程中考慮過、後來放棄的做法
+
+一度想接 **Cloudflare Tunnel**（公司剛好在 Cloudflare 上管理 `coasia.com` 這個公開網域，`cloudflared` 也是先前測 LINE webhook 用過的熟悉工具），好處是完全不用開任何對外 port、憑證由 Cloudflare 自動處理。但實際去 Cloudflare 後台设定時發現：
+
+1. 要用的網址其實該是 `booking.coasia.com`（`.com`，不是 `.com.tw`）——公司在 Cloudflare 上只有 `coasia.com` 這個公開區域
+2. 要啟用 Tunnel 得先進 **Zero Trust**，而 Zero Trust 首次啟用會要求輸入信用卡（就算是免費額度也要留卡）
+3. 更根本的問題：這整套是為了「讓外部網路連得到」而設計的，但這個系統的使用情境本來就是內部員工——沒有对外開放的實際需求，等於是為了不存在的需求繞了一大圈
+
+同事之前架的 `app.coasia.com`（Cloudflare Proxy／橘色雲朵模式）也考慮過，但那個做法需要公司防火牆把某個公網 IP 的 port-forward 到這台 VM，一樣是「先製造出對外暴露的需求，再解決它」，跟內網限定的方向相反，所以也放棄了。
+
+### 目前設定
+
+- **內部 DNS**：要請 IT 在 `dc7.coasia.com.tw` 的 DNS（跟前面設 DHCP 保留同一台）加一筆 `booking.coasia.com.tw → 10.1.8.32`，這步還沒做
+- **憑證**：`Caddyfile` 目前用 `tls internal`，Caddy 自己簽發、自己當 CA，功能正常但每台員工電腦瀏覽器會跳「不安全」警告，除非手動信任那個自簽 CA
+- **待確認**：公司有沒有架 **AD CS**（Active Directory Certificate Services）？如果有，所有已加入網域的電腦會自動信任它簽出的憑證，完全不會跳警告，是比自簽更好的長期解法，換過去只要改 `Caddyfile` 的 TLS 那行指到真正的憑證檔案即可（`Caddyfile` 裡已經留好註解版的設定範例）
+
+### 其他待確認的決策
+
 - **NAS 備份協定**：SMB／NFS／rsync，保留天數政策；備份腳本還沒寫
 - **GitLab Runner 部署方式**：建議直接裝在 `BookingServer` 這台 VM 上（最簡單），或必須透過既有共用 Runner + SSH
 

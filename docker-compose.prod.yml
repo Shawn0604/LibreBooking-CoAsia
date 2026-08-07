@@ -31,27 +31,26 @@ services:
       db:
         condition: service_healthy
 
-  # No published ports: nothing on this VM is reachable from the network
-  # directly. cloudflared makes an outbound-only connection to Cloudflare;
-  # Cloudflare terminates public HTTPS and forwards to caddy over that
-  # tunnel. There is nothing to open in any firewall for this to work.
+  # Internal-only: published on the VM so anyone on the 10.1.0.0/16 network
+  # can reach it directly via the internal DNS name, but nothing is NAT'd
+  # or port-forwarded out to the public internet.
   caddy:
     image: caddy:2
     restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - app
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      - caddy
 
 volumes:
   lb_prod_db_data:
   lb_prod_uploads:
   lb_prod_uploads_images:
   lb_prod_uploads_tos:
+  caddy_data:
+  caddy_config:
