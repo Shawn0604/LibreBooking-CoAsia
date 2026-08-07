@@ -35,7 +35,7 @@ JobCop::EnsureCommandLine();
 
 const EMAIL_DOMAIN = 'coasia.com';
 const DEFAULT_TIMEZONE = 'Asia/Taipei';
-const DEFAULT_LANGUAGE = 'en_us';
+const DEFAULT_LANGUAGE = 'zh_tw';
 
 const ATTR_EMPLOYEE_ID = 'Employee ID';
 const ATTR_CHINESE_NAME = 'Chinese Name';
