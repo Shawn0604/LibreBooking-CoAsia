@@ -6,33 +6,102 @@
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue?logo=docker)](docker-compose.dev.yml)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE.md)
 
-CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開源專案 [LibreBooking](https://github.com/LibreBooking/librebooking) 客製化而成，把它從一套通用的資源排程工具，改造成整合公司既有系統（AD 網域、LINE 官方帳號、內部 SMTP）的內部服務。
+CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開源專案 [LibreBooking](https://github.com/LibreBooking/librebooking) 客製化而成，把它從一套通用的資源排程工具，改造成整合公司既有系統（AD 網域、LINE 官方帳號、內部 SMTP、AD CS 憑證）的內部服務。
 
-- 內部網址（規劃中）：`https://booking.coasia.com.tw`
-- 程式碼保存於公司 GitLab（`coasiait/coasia-booking`）與個人 GitHub（[Shawn0604/LibreBooking-CoAsia](https://github.com/Shawn0604/LibreBooking-CoAsia)，備份用）
+**現況：`https://booking.coasia.com.tw` 已在公司內網正式運作**（僅限內網／VPN，不對外公開），AD 帳密登入、HTTPS（公司 AD CS 簽發、所有網域電腦自動信任）都已生效。開放給全體員工前還有少數收尾事項，見 [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md)。
+
+- 程式碼保存於公司 GitLab（`coasiait/coasia-booking`）與個人 GitHub（[Shawn0604/LibreBooking-CoAsia](https://github.com/Shawn0604/LibreBooking-CoAsia)，備份用），每次變更同時推兩邊
+- 正式環境：`BookingServer`（`10.1.8.32`，Ubuntu 26.04 LTS，ESXi VM），Docker Compose 跑三個服務（`app`／`db`／`caddy`）
 - 上游原始專案：[LibreBooking/librebooking](https://github.com/LibreBooking/librebooking)（追蹤 `develop` branch，未來可 `git fetch upstream` 合併官方更新）
+
+---
+
+## 目錄
+
+- [這個 fork 做了什麼客製化](#這個-fork-做了什麼客製化)
+- [技術棧](#技術棧)
+- [架構](#架構)
+- [開發環境](#開發環境)
+- [正式環境](#正式環境)
+- [文件索引](#文件索引)
+- [授權與致謝](#授權與致謝)
 
 ---
 
 ## 這個 fork 做了什麼客製化
 
-跟原版 LibreBooking 相比，主要差異：
+跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §61）：
 
-- **Active Directory 網域登入**：員工用既有的 AD 帳密登入，首次登入自動建立帳號（預設一般員工權限），既有管理員身份完整保留
-- **LINE 官方帳號通知**：預約建立/提醒等通知透過 LINE 推播，取代/補充 email
-- **視訊會議資訊自動帶入**：預約 Zoom / Google Meet 等視訊資源時，確認頁、確認信、提醒信自動帶出對應的連結、會議 ID、密碼；實體會議室完全不受影響
-- **重新設計的管理後台與預約介面**：Quick Create 快速建立、統一日期時間選擇器、參與者/外部訪客邀請（含 ICS 行事曆邀請）
-- **員工帳號批次匯入**：串接 HR/AD 匯出的名單批次建立帳號，讓從未登入過的員工也能立即被搜尋、邀請
-- **連接公司內部服務**：SMTP 改走內部 relay，不再掛在個人信箱底下
+### 身份驗證與帳號
 
-完整異動記錄與每項改動的原因，見 [COASIA-CHANGES.md](COASIA-CHANGES.md)。
+- **Active Directory 網域登入**：員工用既有的 AD 帳密登入，首次登入自動建立帳號（預設一般員工權限，不是管理員），既有管理員身份完整保留；LDAP 服務帳號目前走明文 389（暫時方案，見 `COASIA-GOLIVE-CHECKLIST.md`）
+- **員工帳號批次匯入**：串接 HR/AD 匯出的名單批次建立帳號，讓從未登入過的員工也能立即被「新增參與者」搜尋到，AD 登入時會自動接上這筆預建帳號，不會產生重複帳號
+- **資源權限模型**：全體員工預設開放所有資源，部門/資源層級可個別限制，修掉了新帳號/AD 帳號的權限漏洞
+
+### 通知系統
+
+- **LINE 官方帳號推播**：預約建立、提醒等通知透過 LINE 推播，取代/補充 email；修過綁定卡住、同支手機重複綁定產生殭屍帳號等 bug
+- **Email 通知重新設計**：確認信、提醒信版面重新設計，含視訊會議主持人資訊整合、ICS 附件修正一批真實 RFC 5545 錯誤
+- **SMTP 改接公司內部郵件伺服器**：取代原本掛在個人信箱底下的 Gmail relay
+
+### 視訊會議整合
+
+- **視訊會議資訊自動帶入**：預約 Zoom TW/CN/Oversea、Google Meet 等視訊資源時，確認頁、確認信、提醒信自動帶出該資源的連結、會議 ID、密碼；判斷依據是資源的 `video_url` 自訂屬性是否有值，實體會議室完全不受影響、不顯示任何視訊區塊
+
+### 預約引擎與資料安全
+
+- **併發安全**：resource lock + optimistic version locking + idempotency，處理多人同時搶同一個時段的競爭條件
+- **政策變更**：所有預約禁止跨日
+- **時段判斷修正**：修正「此時段可用」誤判前一場會議剛結束時段為衝突的 bug
+
+### UI／UX
+
+- **整套介面重建為 Google Calendar／Material 3 風格**：取代原版介面，包含週檢視、月曆、事件卡片
+- **Quick Create 快速建立彈窗**：取代舊版跳轉表單，Grid 版面、單一資源選擇器、真實可用性查詢，經過多輪細節打磨
+- **統一日期時間選擇器**：Quick Create 跟「更多選項」完整表單共用同一套邏輯
+- **參與者/外部訪客邀請**：Drawer 內建參與者搜尋＋chip，支援內部同事與外部訪客，含 ICS 行事曆邀請
+- **管理後台整體重整**：資訊架構、共用版型、管理總覽儀表板、會議室使用分析，預約/會議室/開放時間管理三頁重新設計
+- **CoAsia 品牌視覺**：CoAsia Blue 主色、統一 Design Token 系統、全站字體統一為 Noto Sans TC、登入頁重新設計
+- **側邊欄多輪重構**：收合/展開、圖示排版系統化、新增預約與通知設定移出主導覽
+
+---
 
 ## 技術棧
 
-- PHP 8.2+ / Apache
-- MySQL 8.0
-- Smarty 樣板、Bootstrap 5 前端
-- Docker Compose（開發與正式環境都用容器跑）
+| 分類 | 技術 |
+| --- | --- |
+| 後端 | PHP 8.2+、Apache |
+| 資料庫 | MySQL 8.0 |
+| 樣板/前端 | Smarty、Bootstrap 5、FullCalendar |
+| 容器化 | Docker、Docker Compose（開發與正式環境分別用 `Dockerfile.dev`/`Dockerfile.prod`） |
+| 反向代理／TLS | Caddy 2 |
+| 身份驗證 | Active Directory（LDAP） |
+| 通知 | LINE Messaging API、SMTP |
+| 版本控制 | Git，公司 GitLab + 個人 GitHub 雙推送 |
+| CI（現行） | GitHub Actions（`.github/workflows`）：lint、phpstan、phpunit |
+
+---
+
+## 架構
+
+```mermaid
+flowchart LR
+    Dev["Windows 開發機"] -->|git push| GH["GitHub（備份）"]
+    Dev -->|git push| GL["公司 GitLab"]
+    GL -.->|手動 git pull| VM
+
+    subgraph VM["BookingServer（10.1.8.32）"]
+        Caddy["caddy<br/>HTTPS，AD CS 憑證"] --> App["app<br/>PHP 8.2 + Apache"] --> DB[("db<br/>MySQL 8.0")]
+    end
+
+    User(["員工瀏覽器<br/>公司內網／VPN"]) -->|"https://booking.coasia.com.tw"| Caddy
+    App --> DC["公司 AD DC<br/>LDAP"]
+    App --> SMTP["內部 SMTP Relay"]
+```
+
+正式環境的完整架構圖（含 volumes、機密檔案管理）在 [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) 裡有更詳細的版本。
+
+---
 
 ## 開發環境
 
@@ -40,29 +109,52 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-啟動後：App 在 `http://localhost:8080`，Mailpit（假 SMTP，攔截開發時寄出的信）在 `http://localhost:8025`，MySQL 對外開在 `3307`。詳細設定見 [Dockerfile.dev](Dockerfile.dev) / [docker-compose.dev.yml](docker-compose.dev.yml)。
+啟動後：
+- App：`http://localhost:8080`
+- Mailpit（假 SMTP，攔截開發時寄出的信）：`http://localhost:8025`
+- MySQL：對外開在 `3307`（方便用 GUI 工具直連）
+
+詳細設定見 [Dockerfile.dev](Dockerfile.dev) / [docker-compose.dev.yml](docker-compose.dev.yml)。開發環境的 opcache 關掉了 timestamp 檢查換效能（bind mount 下這個很重要），改完 PHP 程式碼如果沒生效，跑 `docker compose -f docker-compose.dev.yml restart app`。
+
+首次啟動前，把 `config/config.dist.php` 複製成 `config/config.php` 並填入本機設定（這個檔案不進版控）。
 
 常用指令：
 
 ```bash
-composer install          # PHP 依賴
-composer preflight         # 檢查環境（PHP 版本、擴充套件、config.php、資料庫連線）
-composer phpunit           # 跑單元測試
-composer phpstan           # 靜態分析
+composer install                       # PHP 依賴
+composer preflight                     # 檢查環境（PHP 版本、擴充套件、config.php、資料庫連線）
+composer phpunit                       # 跑單元測試
+composer phpstan                       # 靜態分析
 npm install && npm run lint:frontend   # 前端 lint（JS/CSS）
 ```
 
-## 正式環境部署
+---
 
-正式環境跑在公司內網的 Linux VM 上，用 `Dockerfile.prod` / `docker-compose.prod.yml` / `Caddyfile` 這一組容器設定，跟開發環境的容器分開。完整的部署架構、操作步驟、以及部署過程中踩過的坑，見 **[COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md)**。
+## 正式環境
+
+正式環境用完全獨立的一組容器設定（`Dockerfile.prod` / `docker-compose.prod.yml` / `Caddyfile`），不共用開發環境的設定，程式碼直接 bake 進 image、不用 bind mount。
+
+**現行架構**：
+- Linux VM `BookingServer`（`10.1.8.32`，Ubuntu 26.04 LTS）跑在公司 ESXi 上，固定 IP（DHCP 保留）
+- 三個 Docker Compose 服務：`caddy`（反向代理／HTTPS）→ `app`（PHP+Apache）→ `db`（MySQL 8.0）
+- 內部 DNS：`booking.coasia.com.tw` → `10.1.8.32`（公司自己的 AD DNS，非公開網域）
+- HTTPS 憑證由公司 AD CS（`coasia-CSSRV-CA`）簽發，所有網域電腦自動信任，不會跳警告
+- **僅限內網／VPN 存取**，沒有對外開放任何 port，攻擊面極小
+- 機密設定（資料庫密碼、AD 服務帳號、SMTP）都用 bind mount 從 VM 上的實體檔案掛進容器，不進版控、不進 image
+
+完整的部署架構、每一步操作指令、以及部署過程中踩過的坑（含一個排查很久的環境變數覆蓋 bug），見 **[COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md)**。
+
+---
 
 ## 文件索引
 
 | 文件 | 內容 |
 | --- | --- |
-| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改 |
+| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§61） |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 正式對全體員工開放前，還缺什麼 |
-| [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 正式環境部署架構與操作手冊 |
+| [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 正式環境部署架構與操作手冊，含完整 VM 建置、Docker、憑證、資料庫遷移步驟 |
+
+---
 
 ## 授權與致謝
 
