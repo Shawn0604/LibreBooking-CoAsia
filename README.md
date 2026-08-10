@@ -30,7 +30,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 
 ## 這個 fork 做了什麼客製化
 
-跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §69）：
+跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §70）：
 
 ### 身份驗證與帳號
 
@@ -76,7 +76,6 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 - **「系統設定」重做成「系統診斷」狀態儀表板**：AD／SMTP／LINE／檔案權限四項即時健康檢查（正常/異常/尚未設定＋處理建議），取代原本只有伺服器時間/目錄路徑/外掛清單的除錯資訊；新增系統架構圖、維運文件兩個文件頁面
 - 修正使用分析頁「匯出 Excel」功能（closure 忘記帶入外層變數，點擊直接噴錯）
 - 修正使用者管理「最後登入」時間顯示錯誤：預設時區從 LibreBooking 上游沿用的 `Europe/London` 改成 `Asia/Taipei`，列表改讀目前登入管理員自己的 session 時區而非系統設定值
-- **新增 GitLab CI/CD**：`.gitlab-ci.yml`（test/build/deploy 三個 stage）+ `deploy/apply-migrations.sh`，push tag 觸發自動測試、build、部署到正式環境，取代手動 SSH 操作；直接對應部署時實際踩過的兩個坑（`restart` 不會套用新程式碼、migration 忘記指定字元集）
 - 修正開放時間管理「開啟」某天並儲存會靜默失敗的 bug（缺少自動補齊前後空隙的 blocked 時段，導致後端「必須覆蓋整天」的驗證沒過，且錯誤訊息寫進畫面不會顯示的節點）——「關閉」某天則不受影響
 
 ---
@@ -94,7 +93,6 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 | 通知 | LINE Messaging API、SMTP |
 | 版本控制 | Git，公司 GitLab + 個人 GitHub 雙推送 |
 | CI（現行） | GitHub Actions（`.github/workflows`）：lint、phpstan、phpunit |
-| CI/CD（正式環境部署） | GitLab CI/CD（`.gitlab-ci.yml`），Runner 裝在正式環境 VM 上，push tag 觸發 |
 
 ---
 
@@ -104,7 +102,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 flowchart LR
     Dev["Windows 開發機"] -->|git push| GH["GitHub（備份）"]
     Dev -->|git push| GL["公司 GitLab"]
-    GL -.->|"push tag 觸發<br/>GitLab CI/CD"| VM
+    GL -.->|"手動 git pull"| VM
     LINE(["LINE 平台"]) -->|"僅 webhook 路徑<br/>Cloudflare Tunnel"| Caddy
 
     subgraph VM["BookingServer（10.1.8.32）"]
@@ -169,7 +167,7 @@ npm install && npm run lint:frontend   # 前端 lint（JS/CSS）
 
 | 文件 | 內容 |
 | --- | --- |
-| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§69） |
+| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§70） |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 正式對全體員工開放前，還缺什麼 |
 | [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 正式環境部署架構與操作手冊，含完整 VM 建置、Docker、憑證、資料庫遷移步驟 |
 

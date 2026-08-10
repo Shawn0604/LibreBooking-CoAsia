@@ -2116,7 +2116,7 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 1. **`docker compose restart app` 不會套用新程式碼**：正式環境的 `app` 服務是用 `Dockerfile.prod` 把程式碼 `COPY` 進 image（不像開發環境用 bind mount），`git pull` 只更新了 VM 上的原始碼資料夾，沒有重新 build image，`restart` 只是重啟同一個舊 image。要看到新程式碼必須 `docker compose build app` 再 `up -d`。
 2. **套 `database_schema/upgrades/4.4/schema.sql` 忘記帶 `--default-character-set=utf8mb4`**：導致新插入的「實體會議室」「線上會議」兩個 `resource_type_name` 值被錯誤轉碼，網頁上顯示亂碼（不是終端機顯示問題，是資料庫裡實際存的位元組壞了）。新增 `database_schema/upgrades/4.4/fix-encoding.sql`（刻意不叫 `schema.sql`，不會被升級腳本自動重跑）用正確編碼把這兩筆資料 UPDATE 回去修復。
 
-## 68. 新增 GitLab CI/CD：push tag 自動測試/build/部署到正式環境
+## 68. 新增 GitLab CI/CD：push tag 自動測試/build/部署到正式環境（已於 §70 移除）
 
 上面這兩個部署失誤直接促成這次的自動化——`restart` vs 重新 build 搞混、忘記資料庫連線字元集，都是「人工照著文件打指令」這個流程本身容易出錯的地方，用 pipeline 把這些步驟寫死可以直接消除這整類問題。README 的架構圖裡本來就寫著「未來：Tag 觸發 CI/CD」，這次做出第一版。
 
@@ -2179,3 +2179,16 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 - 69.2：讀 `Domain/ScheduleLayout.php`／`lib/Common/Validators/LayoutValidator.php` 原始碼確認「必須覆蓋整天」的驗證邏輯與失敗時錯誤訊息寫進哪個（畫面不會顯示的）DOM 節點，`php -l` 確認 JS 對應的 PHP 端沒有變動、修改僅限 `schedule.js`。
 - 69.3：追過 `NewReservationPage::GetStartDate()`／`ReservationDateBinder::Bind()` 的呼叫鏈確認 `Date::Now()` 無進位邏輯，比對 `overview_fullcalendar.js` 既有 `window.overviewFullCalendarOpenQuickCreate` 的進位算法（`Math.ceil(nowMinutes/30)*30`），新增的重導向邏輯呼叫的是同一支函式，非另外複製一份。
 - 每次改完 `.tpl`／`.php`／`lang/*.php` 都清過容器內 `tpl_c/` 編譯快取（`cache.templates=true` 時 Smarty 不會自動偵測檔案變更），語言檔額外 `docker restart` 過一次確認 OPcache 問題解決。畫面實際觀感（顏色/間距/是否好看）由使用者登入後親自確認並回饋了三輪，本節最終版本已反映所有回饋。
+
+## 70. 移除 GitLab CI/CD，回到手動部署
+
+§68 做的第一版 pipeline 在 GitLab 上一直卡在「擱置中」——`test`/`build`/`deploy` 三個 job 都指定了 `tags: [coasia-vm]`，但正式環境 VM 上從沒實際完成過 Runner 註冊這個一次性手動步驟，所以 job 永遠找不到 Runner 可以撿走執行。權衡下決定不繼續維護這條路，撤掉 `.gitlab-ci.yml`，部署流程退回 §68 之前的手動 SSH 操作。
+
+- 刪除 `.gitlab-ci.yml`。
+- **保留 `deploy/apply-migrations.sh`**：這支腳本本身不依賴 GitLab CI/CD，純粹是把 §66／§67 踩過的 `--default-character-set=utf8mb4` 坑寫死成腳本，手動部署時執行 `./deploy/apply-migrations.sh` 一樣能避開那個編碼問題，比純手動下 `mysql` 指令安全，所以留著繼續用。
+- **同步修正文件**：`README.md` 移除 GitLab CI/CD 相關的異動亮點、技術棧表格列，架構圖的部署箭頭改回「手動 git pull」；`COASIA-DEPLOYMENT.md` 原本就還沒更新成「已有 CI/CD」的狀態（一直寫著「還沒有自動化的 CI/CD pipeline」），這次不用改，本來就跟現況一致。
+- Protected tags、Runner 相關的 GitLab 專案設定沒有動（本來就是 §68 提到「需要使用者自己在 GitLab 專案設定裡操作」的部分），之後如果要重新啟用 CI/CD，`.gitlab-ci.yml` 的內容還在 git 歷史裡（§68 那次 commit）可以直接找回來參考。
+
+### 驗證
+
+`git status`／`git diff` 確認只刪了 `.gitlab-ci.yml`、改了 `README.md`／`COASIA-CHANGES.md` 兩份文件，沒有動到 `deploy/apply-migrations.sh` 或任何應用程式程式碼。
