@@ -2108,3 +2108,24 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 開發環境的 `config/config.php` 本來就已經手動設過 `Asia/Taipei`（跟正式站不同步，這正是使用者只在正式站發現問題的原因），所以這輪主要靠讀程式碼＋比對既有正確頁面的寫法定位問題，而非在開發環境重現時區差異。`php -l` 確認 `ManageUsersPage.php`／`ConfigKeys.php` 語法正確，重新產生的 `.env.example`／`config.dist.php` 內容經人工比對只有預期中的欄位變動。
+
+### 部署這兩輪時踩到的坑
+
+§66／§67 實際手動部署到正式站時，連續踩了兩個問題，都直接促成了下面 §68 的 CI/CD 自動化：
+
+1. **`docker compose restart app` 不會套用新程式碼**：正式環境的 `app` 服務是用 `Dockerfile.prod` 把程式碼 `COPY` 進 image（不像開發環境用 bind mount），`git pull` 只更新了 VM 上的原始碼資料夾，沒有重新 build image，`restart` 只是重啟同一個舊 image。要看到新程式碼必須 `docker compose build app` 再 `up -d`。
+2. **套 `database_schema/upgrades/4.4/schema.sql` 忘記帶 `--default-character-set=utf8mb4`**：導致新插入的「實體會議室」「線上會議」兩個 `resource_type_name` 值被錯誤轉碼，網頁上顯示亂碼（不是終端機顯示問題，是資料庫裡實際存的位元組壞了）。新增 `database_schema/upgrades/4.4/fix-encoding.sql`（刻意不叫 `schema.sql`，不會被升級腳本自動重跑）用正確編碼把這兩筆資料 UPDATE 回去修復。
+
+## 68. 新增 GitLab CI/CD：push tag 自動測試/build/部署到正式環境
+
+上面這兩個部署失誤直接促成這次的自動化——`restart` vs 重新 build 搞混、忘記資料庫連線字元集，都是「人工照著文件打指令」這個流程本身容易出錯的地方，用 pipeline 把這些步驟寫死可以直接消除這整類問題。README 的架構圖裡本來就寫著「未來：Tag 觸發 CI/CD」，這次做出第一版。
+
+- **`.gitlab-ci.yml`**：三個 stage，`test`（push `develop` 或 push tag 都會跑：`composer test`／`phpstan`／`config-dist:check`／`env-example:check`，用 `Dockerfile.dev` 建一次性映像檔跑，不含 GitHub Actions 那邊上游遺留的完整 lint 陣列）→ `build`（只有 tag：`docker compose -f docker-compose.prod.yml build app`）→ `deploy`（只有 tag：套 migration、`up -d`、`composer preflight` + `curl` 驗證）。
+- **Runner 拓樸**：直接裝在正式環境 VM 上、shell executor，理由是 Runner 要能直接呼叫 VM 本機已經在跑的 `docker compose`，不需要額外處理跨機器 SSH 或 docker-in-docker 的複雜度，風險等級跟現在手動 SSH 上去操作是一樣的，不是新增的信任面。**Runner 的 `builds_dir` 必須設定成 checkout 到既有的 `~/coasia-booking` 目錄**（不是 Runner 預設自己管理的 build 資料夾），因為 `docker-compose.prod.yml` 用相對路徑掛載 `config/config.php`／`app.env`／`Caddyfile` 這些不進版控、只存在於這個目錄的實體檔案，checkout 到別的路徑會直接找不到這些檔案。
+- **`deploy/apply-migrations.sh`（新增）**：邏輯照抄 `phing-tasks/UpgradeDbTask.php` 的資料夾掃描順序（`database_schema/upgrades/<version>/`，依版號排序，只認 `schema.sql`／`data.sql` 這兩個檔名，`fix-encoding.sql` 這種一次性 hotfix 不會被自動重跑），但用純 bash 迴圈實作，不需要額外裝 phing/phive 工具鏈。資料庫帳密直接讀 VM 本機的 `.env`（Runner 就在同一台機器上，不需要透過 GitLab CI/CD Variables 傳密碼，少一個要維護的密鑰）。**每一條 `mysql` 指令都寫死帶 `--default-character-set=utf8mb4`**——直接對應上面 §67 附錄記錄的那次編碼事故，之後不會再有人手動下指令時忘記加這個參數。
+- **安全性**：部署觸發完全靠 push tag，唯一的守門機制是 GitLab 的 Protected tags 設定（只有 Maintainer 角色能建立/推送 tag）——這一步需要使用者自己在 GitLab 專案設定裡開，這份文件沒辦法幫忙做。
+- **已知限制（刻意留到之後）**：`deploy` job 沒有自動回滾，驗證步驟失敗只會讓 pipeline 顯示失敗（GitLab 預設會通知），新版本已經在跑不會自動切回舊版；要回滾得手動 checkout 前一個 tag 重新跑一次 pipeline。
+
+### 驗證
+
+`.gitlab-ci.yml` 用 Python 的 `yaml.safe_load` 驗證過語法正確；`deploy/apply-migrations.sh` 用 `bash -n` 驗證過語法正確，並且用 `git update-index --chmod=+x` 標記成可執行檔。Runner 註冊、`builds_dir` 設定、Protected tags 這幾項需要使用者自己在 VM／GitLab 專案設定裡操作，沒辦法在這個對話裡直接驗證——第一次 push tag 觸發完整 pipeline 時才會是真正的端對端測試。
