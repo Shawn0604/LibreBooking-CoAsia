@@ -105,6 +105,13 @@ class zh_cn extends en_us
         $strings['Announcements'] = '通告';
         $strings['NoUpcomingReservations'] = '您没有即将到来的预约';
         $strings['UpcomingReservations'] = '即将到来的预约';
+        $strings['MyMeetings'] = '我的会议';
+        $strings['NextMeeting'] = '下一场会议';
+        $strings['NoUpcomingMeetingsSoon'] = '近期没有安排会议';
+        $strings['JoinMeeting'] = '加入会议';
+        $strings['CountdownMinutesSuffix'] = '分钟后';
+        $strings['CountdownHoursSuffix'] = '小时后';
+        $strings['CountdownDaysSuffix'] = '天后';
         $strings['ShowHide'] = '显示/隐藏';
         $strings['Copy'] = '复制';
         $strings['Export'] = '导出';

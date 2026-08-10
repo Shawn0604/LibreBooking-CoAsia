@@ -236,10 +236,21 @@
                             <i class="bi bi-calendar3"></i><span class="sidebar-link-label">{translate key='CalendarHome'}</span>
                         </a>
 
-                        {* Top-level now (was previously tucked inside the account-menu dropdown under
-                           the user info row) — same .sidebar-link component as 行事曆首頁 immediately
-                           above, so row height/icon column/text start/hover/active are all identical
-                           by construction, not by separately matching numbers. *}
+                        {* "我的會議" — plain nav link (same pattern as 通知設定 right below: click
+                           through to see content, nothing rendered inline in the sidebar itself).
+                           Sits here, between 行事曆首頁 and 通知設定, per explicit placement request.
+                           Previously dropped in favor of the Overview toolbar's 全體／只看我的 scope
+                           tabs (tpl/Overview/overview_fullcalendar.tpl) as a "just mine" entry
+                           point, then briefly tried again as an inline sidebar widget — that read
+                           as visually heavy for a rail this narrow, so it's a page of its own
+                           instead (see my-meetings.php's "下一場會議" card). *}
+                        <a class="sidebar-link" id="navMyMeetings" href="{$Path}{Pages::MY_MEETINGS}">
+                            <i class="bi bi-calendar-check"></i><span class="sidebar-link-label">{translate key="MyMeetings"}</span>
+                        </a>
+
+                        {* Same .sidebar-link component as 行事曆首頁/我的會議 above, so row
+                           height/icon column/text start/hover/active are all identical by
+                           construction, not by separately matching numbers. *}
                         <a class="sidebar-link" id="navNotification" href="{$Path}{Pages::NOTIFICATION_PREFERENCES}"
                             title="{translate key='NotificationPreferences'}">
                             <i class="bi bi-bell"></i><span class="sidebar-link-label">{translate key='NotificationPreferences'}</span>
@@ -273,18 +284,6 @@
                            via the logo and the mini calendar above, so a redundant "總覽" link isn't needed.
                            Everything else in the old "Schedule" group is hidden below but still there
                            (`{if false}`) if it's needed later. *}
-
-                        {* CoAsia P2: dropped the sidebar's own "我的會議" entry — the Overview
-                           toolbar's 全體／只看我的 scope tabs (tpl/Overview/overview_fullcalendar.tpl)
-                           already filter the main calendar to "just mine", so this was a second,
-                           separate entry point to the same idea. my-meetings.php itself is untouched
-                           (still reachable directly) in case it's wanted back; remove `{if false}` to
-                           restore the nav link. *}
-                        {if false}
-                        <a class="sidebar-link" id="navMyMeetings" href="{$Path}{Pages::MY_MEETINGS}">
-                            <i class="bi bi-calendar-check"></i>{translate key="MyMeetings"}
-                        </a>
-                        {/if}
 
                         {* CoAsia: 通知設定 moved to the user-info dropdown above (#sidebarAccount) —
                            it's account-level settings, not a day-to-day nav destination, so it no
@@ -572,9 +571,15 @@
             {* "+新增預約" — opens the same quick-create modal the calendar's own click/drag
                does, via a hook overview_fullcalendar.js exposes only on the calendar page
                itself. Everywhere else (this button renders site-wide, via this shared
-               template) window.overviewFullCalendarOpenQuickCreate is simply undefined, so the
-               click falls through to the plain href and lands on the classic reservation.php
-               form instead — a real fallback, not a dead end. *}
+               template) window.overviewFullCalendarOpenQuickCreate is undefined because the
+               calendar (and its resource grid, needed to default a resource/time) hasn't been
+               built yet — so instead of falling through to the classic reservation.php form
+               (whose own default start/end time is just raw Date::Now(), e.g. "15:06", not
+               rounded to a slot boundary the way quick-create's is), we navigate to the
+               calendar page with a marker querystring flag; overview_fullcalendar.js checks
+               for that flag once its own quick-create hook is ready and opens it there,
+               getting the exact same rounded-to-next-half-hour default this button already
+               produces when clicked from the calendar page itself. *}
             <script>
                 (function () {
                     var createBtn = document.getElementById('sidebarCreateBtn');
@@ -585,6 +590,9 @@
                         if (typeof window.overviewFullCalendarOpenQuickCreate === 'function') {
                             e.preventDefault();
                             window.overviewFullCalendarOpenQuickCreate();
+                        } else {
+                            e.preventDefault();
+                            window.location.href = '{$Path}{Pages::OVERVIEW_FULLCALENDAR}?openQuickCreate=1';
                         }
                     });
                 })();

@@ -131,3 +131,113 @@
   padding: 8px 2px;
   margin: 0;
 }
+
+/* "下一場會議" hero card -- same card surface (#fff, box-shadow, border-radius) as
+   .day-group-items below it, so it reads as one visual system rather than a bolted-on widget.
+   The left accent bar reuses the same --dot-color idea .meeting-row uses further down (here
+   just a fixed accent since there's no per-resource color to key off outside a real reservation). */
+#page-my-meetings .next-meeting-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #fff;
+  border-radius: var(--bs-border-radius-lg, 0.85rem);
+  box-shadow: var(--bs-box-shadow);
+  padding: 16px 18px 16px 16px;
+  border-left: 4px solid #2f5fc4;
+}
+
+/* Empty state ("近期沒有安排會議") -- same card shell as the populated state (never bare text
+   floating on the page background), just centered and quieter since there's nothing to act on. */
+#page-my-meetings .next-meeting-card-empty {
+  border-left-color: #e2e5ec;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 18px;
+}
+
+#page-my-meetings .next-meeting-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #9aa1b3;
+  font-size: 13.5px;
+}
+
+#page-my-meetings .next-meeting-empty i {
+  font-size: 22px;
+  color: #c2c8d6;
+}
+
+#page-my-meetings .next-meeting-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#page-my-meetings .next-meeting-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1c2333;
+}
+
+#page-my-meetings .next-meeting-countdown {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2f5fc4;
+  background: #eaf1fd;
+  padding: 3px 10px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+
+#page-my-meetings .next-meeting-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #6c7488;
+}
+
+#page-my-meetings .next-meeting-meta i {
+  font-size: 13.5px;
+  flex-shrink: 0;
+}
+
+#page-my-meetings .next-meeting-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+#page-my-meetings .next-meeting-btn {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 16px;
+  border-radius: 100px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+#page-my-meetings .next-meeting-btn-ghost {
+  color: #1c2333;
+  background: #fff;
+  border: 1px solid #e2e5ec;
+}
+
+#page-my-meetings .next-meeting-btn-ghost:hover {
+  background: var(--bs-tertiary-bg, #f8f9fb);
+}
+
+#page-my-meetings .next-meeting-btn-primary {
+  color: #fff;
+  background: #1f3159;
+  border: 1px solid #1f3159;
+}
+
+#page-my-meetings .next-meeting-btn-primary:hover {
+  opacity: 0.9;
+}

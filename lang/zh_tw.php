@@ -639,6 +639,12 @@ class zh_tw extends en_us
         $strings['PhysicalRooms'] = '實體會議室';
         $strings['VideoConferenceResources'] = '視訊會議';
         $strings['MyMeetings'] = '我的會議';
+        $strings['NextMeeting'] = '下一場會議';
+        $strings['NoUpcomingMeetingsSoon'] = '近期沒有安排會議';
+        $strings['JoinMeeting'] = '加入會議';
+        $strings['CountdownMinutesSuffix'] = '分鐘後';
+        $strings['CountdownHoursSuffix'] = '小時後';
+        $strings['CountdownDaysSuffix'] = '天後';
         $strings['ReservationScopeAll'] = '全體';
         $strings['ReservationScopeMine'] = '只看我的';
         $strings['ConfirmDeleteReservation'] = '確定要刪除這筆預約嗎？';

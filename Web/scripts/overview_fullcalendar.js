@@ -1138,6 +1138,19 @@ $(function () {
 
     initResourcePicker();
 
+    // Landed here from the sidebar's "+新增預約" button on a page that doesn't have this
+    // calendar loaded (tpl/globalheader.tpl appends ?openQuickCreate=1 in that case, since
+    // window.overviewFullCalendarOpenQuickCreate is only defined once we get here). Open the
+    // same modal that button opens when clicked from the calendar itself, then drop the flag
+    // from the URL so a reload/back-navigation doesn't reopen it.
+    if (/(?:^|[?&])openQuickCreate=1(?:&|$)/.test(window.location.search)) {
+        window.overviewFullCalendarOpenQuickCreate();
+        var cleanedUrl = window.location.pathname +
+            window.location.search.replace(/[?&]openQuickCreate=1/, '').replace(/^&/, '?') +
+            window.location.hash;
+        window.history.replaceState(null, '', cleanedUrl);
+    }
+
     $('#fcPrevBtn').on('click', function (e) {
         e.preventDefault();
         calendar.prev();

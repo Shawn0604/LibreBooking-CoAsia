@@ -123,8 +123,8 @@
                         </div>
                         <div class="qc-time-error d-none" id="rpTimeError"></div>
                         <input type="text" id="BeginDate" class="d-none" {formname key=BEGIN_DATE} value="{formatdate date=$StartDate key=system}" />
-                        <input type="text" id="BeginPeriod" class="d-none" {formname key=BEGIN_PERIOD} value="{if $SelectedStart}{$SelectedStart->Begin()}{else}09:00:00{/if}" />
-                        <input type="text" id="EndPeriod" class="d-none" {formname key=END_PERIOD} value="{if $SelectedEnd}{$SelectedEnd->End()}{else}09:30:00{/if}" />
+                        <input type="text" id="BeginPeriod" class="d-none" {formname key=BEGIN_PERIOD} value="{if $StartDate}{formatdate date=$StartDate format='H:i:s'}{else}09:00:00{/if}" />
+                        <input type="text" id="EndPeriod" class="d-none" {formname key=END_PERIOD} value="{if $EndDate}{formatdate date=$EndDate format='H:i:s'}{else}09:30:00{/if}" />
                         <input type="text" id="EndDate" class="d-none" {formname key=END_DATE} value="{formatdate date=$StartDate key=system}" />
                         {/if}
                     </div>
@@ -595,8 +595,8 @@
                 return parseInt(str.slice(0, 2), 10) * 60 + parseInt(str.slice(3, 5), 10);
             }
 
-            var rpBeginMinutes = parseHHMM('{if $SelectedStart}{$SelectedStart->Begin()}{else}09:00:00{/if}');
-            var rpEndMinutes = parseHHMM('{if $SelectedEnd}{$SelectedEnd->End()}{else}09:30:00{/if}');
+            var rpBeginMinutes = parseHHMM('{if $StartDate}{formatdate date=$StartDate format="H:i:s"}{else}09:00:00{/if}');
+            var rpEndMinutes = parseHHMM('{if $EndDate}{formatdate date=$EndDate format="H:i:s"}{else}09:30:00{/if}');
 
             var rpAllDropdownClosers = [];
             function rpCloseAllDropdowns() {

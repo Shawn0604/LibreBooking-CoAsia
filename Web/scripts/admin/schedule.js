@@ -502,7 +502,20 @@ function ScheduleManagement(opts) {
 
       if (isOpen && start && end) {
         $('#reservableEdit_' + day).val(start + ' - ' + end);
-        $('#blockedEdit_' + day).val('');
+
+        // LayoutValidator requires every day's periods to cover the full 24
+        // hours with no gaps (first period must start at 00:00, last must
+        // end at 00:00) -- same rule createQuickLayout() already fills in
+        // for above. A bare reservable range without these leaves a gap
+        // whenever it isn't the full day, and the save silently fails.
+        var blocked = '';
+        if (start !== '00:00') {
+          blocked += '00:00 - ' + start + '\n';
+        }
+        if (end !== '00:00') {
+          blocked += end + ' - 00:00';
+        }
+        $('#blockedEdit_' + day).val(blocked);
       } else {
         $('#reservableEdit_' + day).val('');
         $('#blockedEdit_' + day).val('00:00 - 00:00');

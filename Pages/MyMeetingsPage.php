@@ -17,7 +17,8 @@ class MyMeetingsPage extends SecurePage implements IMyMeetingsPage
 
         $this->presenter = new MyMeetingsPresenter(
             $this,
-            new ReservationViewRepository()
+            new ReservationViewRepository(),
+            new AttributeRepository()
         );
     }
 
@@ -25,6 +26,11 @@ class MyMeetingsPage extends SecurePage implements IMyMeetingsPage
     {
         $this->presenter->PageLoad(ServiceLocator::GetServer()->GetUserSession());
         $this->Display('MyMeetings/my-meetings.tpl');
+    }
+
+    public function SetNextMeeting($nextMeeting)
+    {
+        $this->Set('NextMeeting', $nextMeeting);
     }
 
     public function SetUpcoming($days)

@@ -1000,6 +1000,12 @@ class en_us extends Language
         $strings['PhysicalRooms'] = 'Physical Rooms';
         $strings['VideoConferenceResources'] = 'Video Conference';
         $strings['MyMeetings'] = 'My Meetings';
+        $strings['NextMeeting'] = 'Next Meeting';
+        $strings['NoUpcomingMeetingsSoon'] = 'No meetings scheduled soon';
+        $strings['JoinMeeting'] = 'Join Meeting';
+        $strings['CountdownMinutesSuffix'] = 'min';
+        $strings['CountdownHoursSuffix'] = 'hr';
+        $strings['CountdownDaysSuffix'] = 'd';
         $strings['ReservationScopeAll'] = 'All';
         $strings['ReservationScopeMine'] = 'Mine Only';
         $strings['ConfirmDeleteReservation'] = 'Are you sure you want to delete this reservation?';
