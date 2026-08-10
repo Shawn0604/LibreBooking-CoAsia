@@ -1,0 +1,55 @@
+# CoAsia Booking CI/CD -- Runner lives on the production VM itself (shell executor), registered
+# with builds_dir pointed at ~/coasia-booking (the directory docker-compose.prod.yml's relative
+# volume mounts -- config/config.php, app.env, Caddyfile, etc. -- already live in). See
+# COASIA-DEPLOYMENT.md for the manual Runner registration / protected-tags setup steps; those
+# can't be done from this file, they're one-time GitLab/VM configuration.
+#
+# test runs on every push to develop and on every tag. build/deploy only run on tags -- pushing
+# a tag is the deploy trigger, gated by GitLab's "Protected tags" setting so only Maintainers can
+# actually ship to prod.
+
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  GIT_CLONE_PATH: $CI_BUILDS_DIR/coasia-booking
+
+test:
+  stage: test
+  tags:
+    - coasia-vm
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop"
+    - if: $CI_COMMIT_TAG
+  script:
+    - docker build -f Dockerfile.dev -t coasia-booking-ci:$CI_PIPELINE_ID .
+    - docker run --rm coasia-booking-ci:$CI_PIPELINE_ID composer test
+    - docker run --rm coasia-booking-ci:$CI_PIPELINE_ID composer phpstan
+    - docker run --rm coasia-booking-ci:$CI_PIPELINE_ID composer config-dist:check
+    - docker run --rm coasia-booking-ci:$CI_PIPELINE_ID composer env-example:check
+  after_script:
+    - docker rmi coasia-booking-ci:$CI_PIPELINE_ID || true
+
+build:
+  stage: build
+  tags:
+    - coasia-vm
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - docker compose -f docker-compose.prod.yml build app
+
+deploy:
+  stage: deploy
+  tags:
+    - coasia-vm
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - ./deploy/apply-migrations.sh
+    - docker compose -f docker-compose.prod.yml up -d
+    - sleep 5
+    - docker compose -f docker-compose.prod.yml exec -T app composer preflight -- --no-color
+    - docker compose -f docker-compose.prod.yml exec -T app curl -sf http://localhost/Web/ > /dev/null
