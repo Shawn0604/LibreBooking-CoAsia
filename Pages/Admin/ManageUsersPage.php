@@ -220,7 +220,7 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
 
         $config = Configuration::Instance();
 
-        $this->Set('Timezone', $config->GetDefaultTimezone());
+        $this->Set('Timezone', $this->server->GetUserSession()->Timezone);
         $this->Set('Timezones', $GLOBALS['APP_TIMEZONES']);
         $this->Set('Languages', $GLOBALS['APP_TIMEZONES']);
         $this->Set('ManageGroupsUrl', Pages::MANAGE_GROUPS);

@@ -59,7 +59,7 @@ class ConfigKeys extends AbstractConfigKeys
     public const DEFAULT_TIMEZONE = [
         'key' => 'default.timezone',
         'type' => 'string',
-        'default' => 'Europe/London',
+        'default' => 'Asia/Taipei',
         'label' => 'Default Timezone',
         'description' => 'Look up here http://php.net/manual/en/timezones.php',
         'config_file_comment' => "Default timezone.\nOptions: Look up here https://php.net/manual/en/timezones.php",

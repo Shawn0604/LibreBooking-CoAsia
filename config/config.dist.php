@@ -40,7 +40,7 @@ return [
 
         # Default timezone.
         # Options: Look up here https://php.net/manual/en/timezones.php
-        'default.timezone' => 'Europe/London',
+        'default.timezone' => 'Asia/Taipei',
 
         # Default language.
         # Options: Find your language in the lang directory
@@ -202,6 +202,82 @@ return [
             'default.from.name' => '',
         ],
 
+        ######
+        # Line
+        ######
+
+        'line' => [
+            # Enable or disable LINE push notifications for reservation
+            # reminders/confirmations (true/false)
+            'enabled' => false,
+
+            # LINE Messaging API channel secret
+            'channel.secret' => '',
+
+            # LINE Messaging API channel access token
+            'channel.access.token' => '',
+
+            # LINE Official Account Basic ID, e.g. @883belmh
+            'official.account.id' => '',
+        ],
+
+        ##############
+        # Reservations
+        ##############
+
+        'reservation' => [
+            # Random key for encrypting video conference host passwords at rest -- generate once, never rotate without a migration plan
+            'video.conference.host.encryption.key' => '',
+
+            # Disable reservation participation/invitations and hide participant/invitee
+            # lists in the reservation UI (true/false)
+            'prevent.participation' => false,
+
+            # Disable recurring reservations (true/false)
+            'prevent.recurrence' => false,
+
+            # Allow non-registered users (guests) to participate in reservations (true/false)
+            'allow.guest.participation' => false,
+
+            # Enable a waitlist for fully booked reservations (true/false)
+            'allow.wait.list' => false,
+
+            # Restrict start times (e.g., 'future', 'none', 'current')
+            # Note: In the standard reservation create/update flow, exemptions from this constraint apply only in specific cases:
+            #   - Application admins are always exempt.
+            #   - Group admins are exempt only when acting as admin for the reservation user.
+            #   - Resource and schedule admins are exempt only when they administer all resources in the reservation.
+            # Options: none, future, current
+            'start.time.constraint' => 'future',
+
+            # Require approval when an existing reservation is updated (true/false)
+            'updates.require.approval' => false,
+
+            # Require a title for all reservations (true/false)
+            'title.required' => false,
+
+            # Require a description for all reservations (true/false)
+            'description.required' => false,
+
+            # Number of minutes before start when check-in is allowed
+            'checkin.minutes.prior' => 5,
+
+            # Restrict check-in functionality to administrators only (true/false)
+            'checkin.admin.only' => false,
+
+            # Restrict check-out functionality to administrators only (true/false)
+            'checkout.admin.only' => false,
+
+            # Enable reminder notifications for upcoming reservations (true/false)
+            'reminders.enabled' => false,
+
+            # Default reminder time before reservation start (e.g., '15 minutes', '1 hours', '1 days')
+            'default.start.reminder' => '',
+
+            # Default reminder time before reservation end (e.g., '15 minutes', '1 hours', '1 days')
+            'default.end.reminder' => '',
+        ],
+
         #########
         # Logging
         #########
@@ -321,60 +397,6 @@ return [
 
             # Load simplified mobile views on small devices (true/false)
             'load.mobile.views' => true,
-        ],
-
-        ##############
-        # Reservations
-        ##############
-
-        'reservation' => [
-            # Disable reservation participation/invitations and hide participant/invitee
-            # lists in the reservation UI (true/false)
-            'prevent.participation' => false,
-
-            # Disable recurring reservations (true/false)
-            'prevent.recurrence' => false,
-
-            # Allow non-registered users (guests) to participate in reservations (true/false)
-            'allow.guest.participation' => false,
-
-            # Enable a waitlist for fully booked reservations (true/false)
-            'allow.wait.list' => false,
-
-            # Restrict start times (e.g., 'future', 'none', 'current')
-            # Note: In the standard reservation create/update flow, exemptions from this constraint apply only in specific cases:
-            #   - Application admins are always exempt.
-            #   - Group admins are exempt only when acting as admin for the reservation user.
-            #   - Resource and schedule admins are exempt only when they administer all resources in the reservation.
-            # Options: none, future, current
-            'start.time.constraint' => 'future',
-
-            # Require approval when an existing reservation is updated (true/false)
-            'updates.require.approval' => false,
-
-            # Require a title for all reservations (true/false)
-            'title.required' => false,
-
-            # Require a description for all reservations (true/false)
-            'description.required' => false,
-
-            # Number of minutes before start when check-in is allowed
-            'checkin.minutes.prior' => 5,
-
-            # Restrict check-in functionality to administrators only (true/false)
-            'checkin.admin.only' => false,
-
-            # Restrict check-out functionality to administrators only (true/false)
-            'checkout.admin.only' => false,
-
-            # Enable reminder notifications for upcoming reservations (true/false)
-            'reminders.enabled' => false,
-
-            # Default reminder time before reservation start (e.g., '15 minutes', '1 hours', '1 days')
-            'default.start.reminder' => '',
-
-            # Default reminder time before reservation end (e.g., '15 minutes', '1 hours', '1 days')
-            'default.end.reminder' => '',
         ],
 
         #############################
