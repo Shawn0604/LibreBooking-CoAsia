@@ -26,9 +26,32 @@ class LineWebhookPresenter
      */
     public function HandleEvents(array $events)
     {
+        $this->RecordLastSeen();
+
         foreach ($events as $event) {
             $this->HandleEvent($event);
         }
+    }
+
+    /**
+     * Liveness marker for the 系統診斷 dashboard's LINE card -- written on every webhook call
+     * (including LINE's empty-events verify ping), not just successful link events, since the
+     * point is "is LINE actually reaching us" rather than "did a link succeed". A flat file
+     * under the existing, already-required-writable logging folder rather than a new DB table
+     * or column -- this is the simplest mechanism that still answers the question.
+     */
+    private function RecordLastSeen()
+    {
+        $path = self::LastSeenMarkerPath();
+        if (@file_put_contents($path, date('Y-m-d H:i:s')) === false) {
+            Log::Error('LINE webhook: failed writing last-seen marker to %s', $path);
+        }
+    }
+
+    public static function LastSeenMarkerPath()
+    {
+        $loggingFolder = rtrim(Configuration::Instance()->GetKey(ConfigKeys::LOGGING_FOLDER), '/');
+        return $loggingFolder . '/line-webhook-last-seen.txt';
     }
 
     private function HandleEvent($event)

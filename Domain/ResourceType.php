@@ -3,6 +3,13 @@
 class ResourceType
 {
     /**
+     * Matched by name rather than a dedicated column -- same idiom this codebase already uses
+     * to recognize video_url/video_meeting_id/video_passcode custom attributes by label. Drives
+     * which fields the admin resource-edit drawer shows (manage_resource_drawer_content.tpl).
+     */
+    public const VIDEO_CONFERENCE_NAME = '線上會議';
+
+    /**
      * @var int
      */
     private $id;
@@ -67,6 +74,14 @@ class ResourceType
     public function Description()
     {
         return $this->description;
+    }
+
+    /**
+     * @return bool
+     */
+    public function IsVideoConference()
+    {
+        return $this->name === self::VIDEO_CONFERENCE_NAME;
     }
 
     /**

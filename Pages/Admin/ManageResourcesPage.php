@@ -5,6 +5,7 @@ require_once(ROOT_DIR . 'Pages/IPageable.php');
 require_once(ROOT_DIR . 'Pages/Ajax/AutoCompletePage.php');
 require_once(ROOT_DIR . 'Presenters/Admin/ManageSchedulesPresenter.php');
 require_once(ROOT_DIR . 'Domain/Access/ScheduleRepository.php');
+require_once(ROOT_DIR . 'Domain/Access/VideoConferenceHostRepository.php');
 require_once(ROOT_DIR . 'lib/Application/Attributes/namespace.php');
 
 interface IUpdateResourcePage
@@ -153,6 +154,16 @@ interface IUpdateResourcePage
      * @return int
      */
     public function GetMaxConcurrentReservations();
+
+    /**
+     * @return string
+     */
+    public function GetVideoHostAccount();
+
+    /**
+     * @return string
+     */
+    public function GetVideoHostPassword();
 }
 
 interface IManageResourcesPage extends IUpdateResourcePage, IActionPage, IPageable
@@ -461,6 +472,16 @@ interface IManageResourcesPage extends IUpdateResourcePage, IActionPage, IPageab
      * @return string
      */
     public function GetStatusChangeMessage();
+
+    /**
+     * @param VideoConferenceHostCredentials|null $credentials
+     */
+    public function SetVideoConferenceHostJson($credentials);
+
+    /**
+     * @param VideoConferenceHostCredentials[] $credentialsByResourceId keyed by resource id
+     */
+    public function BindVideoConferenceHostCredentials($credentialsByResourceId);
 }
 
 class ManageResourcesPage extends ActionPage implements IManageResourcesPage
@@ -482,7 +503,8 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
             new GroupRepository(),
             new AttributeService(new AttributeRepository()),
             new UserPreferenceRepository(),
-            new ReservationViewRepository()
+            new ReservationViewRepository(),
+            new VideoConferenceHostRepository()
         );
 
         /**
@@ -1174,6 +1196,29 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
     public function GetStatusChangeMessage()
     {
         return $this->GetForm(FormKeys::EMAIL_CONTENTS);
+    }
+
+    public function GetVideoHostAccount()
+    {
+        return $this->GetForm(FormKeys::RESOURCE_VIDEO_HOST_ACCOUNT);
+    }
+
+    public function GetVideoHostPassword()
+    {
+        return $this->GetForm(FormKeys::RESOURCE_VIDEO_HOST_PASSWORD);
+    }
+
+    public function SetVideoConferenceHostJson($credentials)
+    {
+        $this->SetJsonResponse([
+            'hostAccount' => $credentials?->HostAccount ?? '',
+            'hostPassword' => $credentials?->HostPassword ?? '',
+        ]);
+    }
+
+    public function BindVideoConferenceHostCredentials($credentialsByResourceId)
+    {
+        $this->Set('VideoHostCredentials', $credentialsByResourceId);
     }
 }
 

@@ -58,10 +58,10 @@
 								</div>
 							</td>
 							<td>
-								{if $schedule->GetIsDefault()}
-									<span class="admin-badge admin-badge-upcoming">{translate key=Default}</span>
-								{elseif array_key_exists($id, $Resources) && $Resources[$id]|count > 0}
+								{if array_key_exists($id, $Resources) && $Resources[$id]|count > 0}
 									<span class="admin-badge admin-badge-inprogress">{translate key=AdminScheduleInUse}</span>
+								{elseif $schedule->GetIsDefault()}
+									<span class="admin-badge admin-badge-upcoming">{translate key=Default}</span>
 								{else}
 									<span class="admin-badge admin-badge-ended">{translate key=AdminScheduleUnused}</span>
 								{/if}
@@ -197,7 +197,7 @@
 							</div>
 						{/foreach}
 						<button type="button" class="btn btn-primary btn-sm saveScheduleHours mt-1"
-							data-schedule-id="{$id}">{translate key=Save}</button>
+							data-schedule-id="{$id}">儲存</button>
 						<div id="scheduleHoursError{$id}" class="error d-none mt-2"></div>
 					</div>
 

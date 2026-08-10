@@ -11,6 +11,7 @@ function ResourceManagement(opts) {
     durationDialog: $('#durationDialog'),
     capacityDialog: $('#capacityDialog'),
     accessDialog: $('#accessDialog'),
+    videoHostDialog: $('#videoHostDialog'),
 
     imageForm: $('#imageForm'),
     removeImageForm: $('#removeImageForm'),
@@ -20,6 +21,9 @@ function ResourceManagement(opts) {
     capacityForm: $('#capacityForm'),
     accessForm: $('#accessForm'),
     statusForm: $('#statusForm'),
+    videoHostForm: $('#videoHostForm'),
+    videoHostAccount: $('#videoHostAccount'),
+    videoHostPassword: $('#videoHostPassword'),
 
     statusReasons: '.reasonId',
     statusOptions: '.statusId',
@@ -202,6 +206,12 @@ function ResourceManagement(opts) {
 
     elements.resourcesList.on('click', '.changeAccess', function (e) {
       showAccessPrompt(e);
+    });
+
+    elements.resourcesList.on('click', '.changeVideoHost', function (e) {
+      e.preventDefault();
+      setActiveResourceId($(this).closest('.resourceDetails').attr('data-resourceId'));
+      showVideoHostPrompt();
     });
 
     elements.resourcesList.on('click', '.changeUserPermission', function (e) {
@@ -611,6 +621,9 @@ function ResourceManagement(opts) {
       null,
       errorHandler
     );
+    ConfigureAsyncForm(elements.videoHostForm, defaultSubmitCallback(elements.videoHostForm), function () {
+      elements.videoHostDialog.modal('hide');
+    });
     ConfigureAsyncForm(elements.copyForm, defaultSubmitCallback(elements.copyForm));
     ConfigureAsyncForm(elements.importForm, defaultSubmitCallback(elements.importForm), importHandler);
     ConfigureAsyncForm(elements.bulkDeleteForm, defaultSubmitCallback(elements.bulkDeleteForm));
@@ -799,6 +812,15 @@ function ResourceManagement(opts) {
     showHideConcurrent();
 
     elements.accessDialog.modal('show');
+  };
+
+  var showVideoHostPrompt = function () {
+    var resourceId = getActiveResourceId();
+    $.getJSON(opts.permissionsUrl + '?dr=videoHost', { rid: resourceId }, function (data) {
+      elements.videoHostAccount.val((data && data.hostAccount) || '');
+      elements.videoHostPassword.val((data && data.hostPassword) || '');
+      elements.videoHostDialog.modal('show');
+    });
   };
 
   var showHideAutoRelease = function () {

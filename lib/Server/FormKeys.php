@@ -228,6 +228,8 @@ class FormKeys
     public const RESOURCE_NOTES = 'resourceNotes';
     public const RESOURCE_SORT_ORDER = 'RESOURCE_SORT_ORDER';
     public const RESOURCE_TYPE_ID = 'RESOURCE_TYPE_ID';
+    public const RESOURCE_VIDEO_HOST_ACCOUNT = 'RESOURCE_VIDEO_HOST_ACCOUNT';
+    public const RESOURCE_VIDEO_HOST_PASSWORD = 'RESOURCE_VIDEO_HOST_PASSWORD';
     public const ROLE = 'role';
     public const RESOURCE_TYPE_DESCRIPTION = 'RESOURCE_TYPE_DESCRIPTION';
     public const RESOURCE_TYPE_NAME = 'RESOURCE_TYPE_NAME';

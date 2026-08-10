@@ -3,8 +3,21 @@
    item, now an offcanvas drawer body, see manage_resources.tpl). $resource and $id must already
    be assigned by the caller before including this. *}
 
+{* Physical rooms (ResourceType != 線上會議) only need a Name to edit; video-conference
+   resources (ResourceType::IsVideoConference()) get a dedicated "info sent to the booker"
+   section instead of the full generic field set below. Resources with no ResourceType
+   assigned yet fall back to the full legacy field set, so a brand-new resource stays
+   configurable before an admin has picked its type. See Domain/ResourceType.php and
+   database_schema/upgrades/4.4/schema.sql. *}
+{assign var=isTypedResource value=$resource->HasResourceType()}
+{assign var=isVideoConferenceResource value=false}
+{if $isTypedResource}
+	{assign var=isVideoConferenceResource value=$ResourceTypes[$resource->GetResourceTypeId()]->IsVideoConference()}
+{/if}
+
 <input type="hidden" class="id" value="{$id}" />
 <div class="row">
+	{if !$isTypedResource}
 	<div class="col-12 col-sm-2 p-2">
 		<div class="resourceImage">
 			{if $resource->HasImage()}
@@ -69,7 +82,8 @@
 			</div>
 		</div>
 	</div>
-	<div class="col-12 col-sm-10">
+	{/if}
+	<div class="col-12 {if !$isTypedResource}col-sm-10{/if}">
 		<div class="row row-cols-auto row-cols-sm-3 ">
 			<div class="col d-block">
 				<div>
@@ -123,6 +137,7 @@
 							class="statusReason">{$StatusReasons[$resource->GetStatusReasonId()]->Description()}</span>
 					{/if}
 				</div>
+				{if !$isTypedResource}
 				<div>
 					<label
 						class="inline fw-bold">{translate key='Schedule'}</label>
@@ -260,8 +275,10 @@
 						</div>
 					{/strip}
 				</div>
+				{/if}
 			</div>
 		</div>
+		{if !$isTypedResource}
 		<details class="admin-drawer-advanced">
 			<summary class="admin-drawer-advanced-summary">{translate key=AdminResourceAdvancedSettings}</summary>
 			<div class="row row-cols-auto row-cols-sm-2 mt-2">
@@ -416,5 +433,45 @@
 					<i class="bi bi-qr-code"></i></a>
 			</div>
 		</div>
+		{elseif $isVideoConferenceResource}
+			<hr class="hr" />
+			<div class="mb-4">
+				<span class="fs-6 fw-bold">{translate key=AdminVideoConferenceInfo}</span>
+				<div class="videoConferenceInfoAttributes">
+					{foreach from=$AttributeList|default:array() item=attribute}
+						{if $attribute->AppliesToEntity($id)}
+							{assign var=videoLabelKey value=''}
+							{if $attribute->Label() == 'video_url'}
+								{assign var=videoLabelKey value='VideoLink'}
+							{elseif $attribute->Label() == 'video_meeting_id'}
+								{assign var=videoLabelKey value='MeetingId'}
+							{elseif $attribute->Label() == 'video_passcode'}
+								{assign var=videoLabelKey value='Passcode'}
+							{/if}
+							{if $videoLabelKey != ''}
+								{include file="Admin/Resources/manage_resources_video_attribute.tpl" id=$id attribute=$attribute labelKey=$videoLabelKey value=$resource->GetAttributeValue($attribute->Id())}
+							{/if}
+						{/if}
+					{/foreach}
+				</div>
+
+				<div class="mt-2">
+					<span class="fs-6 fw-bold">{translate key=VideoConferenceHostLogin}</span>
+					<a class="update changeVideoHost link-primary" title="{translate key='Edit'}" href="#">
+						<span class="visually-hidden">{translate key=VideoConferenceHostLogin}</span>
+						<span class="bi bi-pencil-square"></span>
+					</a>
+					{assign var=hostCredentials value=$VideoHostCredentials[$id]|default:null}
+					<div class="mt-2">
+						<label class="inline fw-bold">{translate key=VideoConferenceHostAccount}</label>
+						<div>{if $hostCredentials}{$hostCredentials->HostAccount}{else}-{/if}</div>
+					</div>
+					<div>
+						<label class="inline fw-bold">{translate key=VideoConferenceHostPassword}</label>
+						<div>{if $hostCredentials}{$hostCredentials->HostPassword}{else}-{/if}</div>
+					</div>
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>

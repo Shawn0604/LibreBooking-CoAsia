@@ -18,7 +18,8 @@ class ResourceAdminManageResourcesPage extends ManageResourcesPage
             new GroupRepository(),
             new AttributeService(new AttributeRepository()),
             new UserPreferenceRepository(),
-            new ReservationViewRepository()
+            new ReservationViewRepository(),
+            new VideoConferenceHostRepository()
         );
     }
 }

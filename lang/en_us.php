@@ -1308,6 +1308,36 @@ class en_us extends Language
         $strings['DataTablesProcessing'] = 'Processing...';
         //End Datatables
 
+        $strings['AdminOtherTools'] = 'Other Tools';
+        $strings['DiagnosticDocsHeading'] = 'Documentation';
+        $strings['DiagnosticLastChecked'] = 'Last checked';
+        $strings['DiagnosticRecheckAll'] = 'Recheck all';
+        $strings['DiagnosticStatusOk'] = 'OK';
+        $strings['DiagnosticStatusError'] = 'Error';
+        $strings['DiagnosticStatusUnconfigured'] = 'Not configured';
+        $strings['DiagnosticStatusChecking'] = 'Checking...';
+        $strings['DiagnosticLastWebhookReceived'] = 'Last webhook received';
+        $strings['DiagnosticNeverReceived'] = 'Never received';
+        $strings['DiagnosticSmtpTitle'] = 'SMTP email';
+        $strings['DiagnosticLineTitle'] = 'LINE notifications';
+        $strings['DiagnosticFilesTitle'] = 'File permissions';
+        $strings['DiagnosticAdNotConfigured'] = 'Active Directory is not the configured authentication method.';
+        $strings['DiagnosticAdConfigMissing'] = 'The Active Directory plugin is selected, but its config file is missing.';
+        $strings['DiagnosticAdConnectionFailed'] = "Couldn't bind to the AD/LDAP server. Check the domain controller address and service account credentials.";
+        $strings['DiagnosticSmtpNotConfigured'] = 'Email or SMTP is not enabled.';
+        $strings['DiagnosticSmtpConnectionFailed'] = "Couldn't connect to the mail server. Check the SMTP host, port, and network access.";
+        $strings['DiagnosticLineNotConfigured'] = 'LINE notifications are not enabled.';
+        $strings['DiagnosticLineTokenInvalid'] = 'The LINE channel access token was rejected. It may be expired or revoked.';
+        $strings['DiagnosticLineConnectionFailed'] = "Couldn't reach the LINE API. Check network access to api.line.me.";
+        $strings['DiagnosticFilesNotWritable'] = 'A required directory (tpl_c or the image upload folder) is missing or not writable. Check its permissions.';
+        $strings['DiagnosticArchitecture'] = 'System architecture';
+        $strings['DiagnosticArchitectureDescription'] = 'How the frontend, backend, and database fit together';
+        $strings['DiagnosticOpsDoc'] = 'Operations guide';
+        $strings['DiagnosticOpsDocDescription'] = 'Deployment, infrastructure, and troubleshooting notes';
+        $strings['AdminVideoConferenceInfo'] = 'Video Conference Info';
+        $strings['VideoConferenceHostLogin'] = 'Host Login';
+        $strings['VideoConferenceHostLoginHint'] = 'Click edit to view or update the host login used to start this meeting.';
+
         $this->Strings = $strings;
 
         return $this->Strings;

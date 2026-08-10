@@ -358,8 +358,8 @@
                                         href="{$Path}admin/manage_schedules.php">{translate key="AdminNavSchedules"}</a>
                                     <a class="sidebar-sublink {if $AdminCurrentScript == 'manage_usage_analytics.php'}active{/if}"
                                         href="{$Path}admin/manage_usage_analytics.php">{translate key="AdminUsageAnalytics"}</a>
-                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'system_settings.php'}active{/if}"
-                                        href="{$Path}admin/system_settings.php">{translate key="AdminSystemSettings"}</a>
+                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'server_settings.php'}active{/if}"
+                                        href="{$Path}admin/server_settings.php">{translate key="ServerSettings"}</a>
                                 </div>
                             </div>
                         {/if}

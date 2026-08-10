@@ -900,6 +900,35 @@ class zh_tw extends en_us
         //End Schedule Resource Permissions
         //END NEEDS CHECKING
 
+        $strings['AdminOtherTools'] = '其他工具';
+        $strings['DiagnosticDocsHeading'] = '文件';
+        $strings['DiagnosticLastChecked'] = '最後檢查';
+        $strings['DiagnosticRecheckAll'] = '重新檢查全部';
+        $strings['DiagnosticStatusOk'] = '正常';
+        $strings['DiagnosticStatusError'] = '異常';
+        $strings['DiagnosticStatusUnconfigured'] = '尚未設定';
+        $strings['DiagnosticStatusChecking'] = '檢查中...';
+        $strings['DiagnosticLastWebhookReceived'] = '最後收到 webhook';
+        $strings['DiagnosticNeverReceived'] = '尚未收到過';
+        $strings['DiagnosticSmtpTitle'] = 'SMTP 郵件';
+        $strings['DiagnosticLineTitle'] = 'LINE 通知';
+        $strings['DiagnosticFilesTitle'] = '檔案權限';
+        $strings['DiagnosticAdNotConfigured'] = '目前的登入驗證方式不是 Active Directory。';
+        $strings['DiagnosticAdConfigMissing'] = '已選擇 Active Directory 外掛，但找不到對應的設定檔。';
+        $strings['DiagnosticAdConnectionFailed'] = '無法連線到 AD/LDAP 伺服器，請確認網域控制站位址與服務帳號設定。';
+        $strings['DiagnosticSmtpNotConfigured'] = '尚未啟用郵件或 SMTP 功能。';
+        $strings['DiagnosticSmtpConnectionFailed'] = '無法連線到郵件伺服器，請確認 SMTP 主機、連接埠與網路連線。';
+        $strings['DiagnosticLineNotConfigured'] = '尚未啟用 LINE 通知功能。';
+        $strings['DiagnosticLineTokenInvalid'] = 'LINE 頻道權杖驗證失敗，可能已過期或被撤銷。';
+        $strings['DiagnosticLineConnectionFailed'] = '無法連線到 LINE API，請確認能連到 api.line.me。';
+        $strings['DiagnosticFilesNotWritable'] = '有必要目錄（tpl_c 或圖片上傳目錄）不存在或無法寫入，請確認目錄權限設定。';
+        $strings['DiagnosticArchitecture'] = '系統架構圖';
+        $strings['DiagnosticArchitectureDescription'] = '前後端與資料庫串接說明';
+        $strings['DiagnosticOpsDoc'] = '維運文件';
+        $strings['DiagnosticOpsDocDescription'] = '部署架構、基礎設施與疑難排解紀錄';
+        $strings['AdminVideoConferenceInfo'] = '線上會議資訊';
+        $strings['VideoConferenceHostLogin'] = '主持人登入資訊';
+        $strings['VideoConferenceHostLoginHint'] = '點擊編輯以查看或修改啟動此會議所需的主持人登入帳號密碼。';
 
         $this->Strings = $strings;
 

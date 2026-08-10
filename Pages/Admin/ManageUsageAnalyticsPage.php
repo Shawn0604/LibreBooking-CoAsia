@@ -310,7 +310,7 @@ class ManageUsageAnalyticsPage extends AdminPage
         $locationSheet->setTitle(mb_substr($resources->GetString('AdminUsageAnalyticsByLocation'), 0, 31));
         $locationSheet->fromArray(array_merge(
             [[$resources->GetString('Location'), $resources->GetString('AdminUsageAnalyticsTotalReservations'), $resources->GetString('AdminUsageAnalyticsTotalHours')]],
-            array_map(function ($row) {
+            array_map(function ($row) use ($resources) {
                 $label = $row['location'] === '__unassigned__' ? $resources->GetString('AdminUsageAnalyticsUnassignedLocation') : $row['location'];
                 return [$label, $row['count'], $row['hours']];
             }, $byLocation)

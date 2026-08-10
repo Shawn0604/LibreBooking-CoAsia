@@ -697,6 +697,38 @@
 		</form>
 	</div>
 
+	<div id="videoHostDialog" class="modal" tabindex="-1" role="dialog" aria-labelledby="videoHostModalLabel"
+		aria-hidden="true">
+		<form id="videoHostForm" method="post" role="form" ajaxAction="{ManageResourcesActions::ActionChangeVideoHost}">
+			<div class="modal-dialog">
+				<div class="modal-content">
+					<div class="modal-header">
+						<h5 class="modal-title" id="videoHostModalLabel">{translate key=VideoConferenceHostLogin}</h5>
+						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
+					</div>
+					<div class="modal-body">
+						<div class="note fst-italic mb-2">{translate key=VideoConferenceHostLoginHint}</div>
+						<div class="form-group mb-2">
+							<label class="fw-bold" for="videoHostAccount">{translate key=VideoConferenceHostAccount}</label>
+							<input type="text" class="form-control" id="videoHostAccount"
+								{formname key=RESOURCE_VIDEO_HOST_ACCOUNT} />
+						</div>
+						<div class="form-group mb-2">
+							<label class="fw-bold" for="videoHostPassword">{translate key=VideoConferenceHostPassword}</label>
+							<input type="text" class="form-control" id="videoHostPassword"
+								{formname key=RESOURCE_VIDEO_HOST_PASSWORD} />
+						</div>
+					</div>
+					<div class="modal-footer">
+						{cancel_button}
+						{update_button}
+						{indicator}
+					</div>
+				</div>
+			</div>
+		</form>
+	</div>
+
 	<div id="statusDialog" class="modal" tabindex="-1" role="dialog" aria-labelledby="statusModalLabel"
 		aria-hidden="true">
 		<form id="statusForm" method="post" role="form" ajaxAction="{ManageResourcesActions::ActionChangeStatus}">

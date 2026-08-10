@@ -45,6 +45,7 @@ class ManageResourcesActions
     public const ImportResources = 'importResources';
     public const ActionChangeGroupPermission = 'changeGroupPermission';
     public const ActionBulkDelete = 'bulkDelete';
+    public const ActionChangeVideoHost = 'changeVideoHost';
 }
 
 class ManageResourcesPresenter extends ActionPresenter
@@ -89,6 +90,11 @@ class ManageResourcesPresenter extends ActionPresenter
      */
     private $reservationViewRepository;
 
+    /**
+     * @var IVideoConferenceHostRepository
+     */
+    private $videoConferenceHostRepository;
+
     public function __construct(
         IManageResourcesPage $page,
         IResourceRepository $resourceRepository,
@@ -97,7 +103,8 @@ class ManageResourcesPresenter extends ActionPresenter
         IGroupViewRepository $groupRepository,
         IAttributeService $attributeService,
         IUserPreferenceRepository $userPreferenceRepository,
-        IReservationViewRepository $reservationViewRepository
+        IReservationViewRepository $reservationViewRepository,
+        IVideoConferenceHostRepository $videoConferenceHostRepository
     ) {
         parent::__construct($page);
 
@@ -109,6 +116,7 @@ class ManageResourcesPresenter extends ActionPresenter
         $this->attributeService = $attributeService;
         $this->userPreferenceRepository = $userPreferenceRepository;
         $this->reservationViewRepository = $reservationViewRepository;
+        $this->videoConferenceHostRepository = $videoConferenceHostRepository;
 
         $this->AddAction(ManageResourcesActions::ActionAdd, 'Add');
         $this->AddAction(ManageResourcesActions::ActionChangeAdmin, 'ChangeAdmin');
@@ -141,6 +149,7 @@ class ManageResourcesPresenter extends ActionPresenter
         $this->AddAction(ManageResourcesActions::ActionChangeGroupPermission, 'ChangeGroupPermission');
         $this->AddAction(ManageResourcesActions::ActionChangeUserPermission, 'ChangeUserPermission');
         $this->AddAction(ManageResourcesActions::ActionBulkDelete, 'BulkDelete');
+        $this->AddAction(ManageResourcesActions::ActionChangeVideoHost, 'ChangeVideoConferenceHost');
     }
 
     public function PageLoad()
@@ -178,6 +187,27 @@ class ManageResourcesPresenter extends ActionPresenter
             $resourceTypeList[$resourceType->Id()] = $resourceType;
         }
         $this->page->BindResourceTypes($resourceTypeList);
+
+        $videoConferenceResourceTypeId = null;
+        foreach ($resourceTypes as $resourceType) {
+            if ($resourceType->IsVideoConference()) {
+                $videoConferenceResourceTypeId = $resourceType->Id();
+                break;
+            }
+        }
+
+        $videoHostCredentials = [];
+        if ($videoConferenceResourceTypeId !== null) {
+            foreach ($resources as $resource) {
+                if ($resource->GetResourceTypeId() == $videoConferenceResourceTypeId) {
+                    $credentials = $this->videoConferenceHostRepository->GetByResourceId($resource->GetResourceId());
+                    if ($credentials !== null) {
+                        $videoHostCredentials[$resource->GetResourceId()] = $credentials;
+                    }
+                }
+            }
+        }
+        $this->page->BindVideoConferenceHostCredentials($videoHostCredentials);
 
         $statusReasons = $this->resourceRepository->GetStatusReasons();
         $statusReasonList = [];
@@ -579,6 +609,16 @@ class ManageResourcesPresenter extends ActionPresenter
         $resource = $this->resourceRepository->LoadById($resourceId);
         $resource->SetSortOrder($sortOrder);
         $this->resourceRepository->Update($resource);
+    }
+
+    public function ChangeVideoConferenceHost()
+    {
+        $resourceId = $this->page->GetResourceId();
+        $hostAccount = $this->page->GetVideoHostAccount();
+        $hostPassword = $this->page->GetVideoHostPassword();
+        Log::Debug('Changing video conference host credentials for resource %s', $resourceId);
+
+        $this->videoConferenceHostRepository->Save($resourceId, $hostAccount, $hostPassword);
     }
 
     public function ChangeResourceType()
@@ -1126,6 +1166,11 @@ class ManageResourcesPresenter extends ActionPresenter
         switch ($dataRequest) {
             case 'all': {
                 $this->page->SetResourcesJson(array_map(['AdminResourceJson', 'FromBookable'], $this->resourceRepository->GetResourceList()));
+                break;
+            }
+            case 'videoHost': {
+                $credentials = $this->videoConferenceHostRepository->GetByResourceId($this->page->GetResourceId());
+                $this->page->SetVideoConferenceHostJson($credentials);
                 break;
             }
             case 'users': {
