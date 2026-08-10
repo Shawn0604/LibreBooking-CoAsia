@@ -2093,3 +2093,18 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 會議室管理、系統診斷兩個功能都在使用者本機的 Docker dev 環境裡實測：套用 `database_schema/upgrades/4.4/schema.sql` 並確認冪等（重複執行不出錯）、資源類型正確分類並反映在列表與抽屜、線上會議資訊區塊顯示的資料與既有截圖吻合、主持人登入帳密的讀取/加密儲存/解密回顯全流程驗證過、實體會議室抽屜維持只顯示名稱＋狀態。系統診斷儀表板由使用者自己登入實測，抓到並回報了兩個遺漏的 `require_once`，當場修復重驗。使用分析 Excel 匯出的根因（closure 缺少 `use`）也是使用者實測「未知錯誤」頁面截圖直接定位到的，不是靠猜。
+
+## 67. 使用者管理「最後登入」時間顯示錯誤：預設時區寫死是 Europe/London
+
+使用者發現「使用者管理」列表的「最後登入」時間跟實際差 7 小時（顯示 04:31，應該是台北時間 11:31），推斷正式站可能在用 `Europe/London` 夏令時間（UTC+1），跟台北（UTC+8）剛好差 7 小時。
+
+- **根因確認**：`ConfigKeys::DEFAULT_TIMEZONE`（`lib/Config/ConfigKeys.php`）的預設值原本就是 LibreBooking 上游沿用下來的 `'Europe/London'`，這個 fork 從來沒改過。`.env.example`／`config/config.dist.php` 也是同一個值。
+- **兩處修正**：
+  1. `ConfigKeys::DEFAULT_TIMEZONE` 的 `'default'` 改成 `'Asia/Taipei'`，用專案既有的 `scripts/generate-env-example.php --write`／`scripts/generate-config-dist.php --write` 重新產生 `.env.example`／`config/config.dist.php`（不是手改，避免跟 CI 的 `env-example:check`／`config-dist:check` 一致性檢查對不上）。跑產生器時順便發現這兩份範本檔案早就漏掉 LINE 相關設定跟視訊主持人加密金鑰（先前幾輪加了對應的 ConfigKeys 但沒重新產生範本檔），一併補齊。
+  2. `Pages/Admin/ManageUsersPage.php` 原本固定讀系統設定的 `$config->GetDefaultTimezone()`，改成讀「目前登入管理員自己的 session 時區」（`$this->server->GetUserSession()->Timezone`）——這是「預約管理」列表頁（`ManageReservationsPage.php`）本來就在用的既有正確模式，照抄而已，不是新發明的邏輯。使用者列表本身用的 `{format_date ... timezone=$Timezone}` Smarty 語法完全沒變，只改了 `$Timezone` 這個變數的來源。
+- **沒有動資料庫**：使用者特別交代不要改資料庫裡的 UTC 原始時間，這次全程只動顯示層的時區轉換依據，資料庫裡儲存的時間戳記完全沒有觸碰。
+- **正式環境需要額外一步**：`config/config.php` 不進版控（gitignored），程式碼層的預設值修正不會影響正式站已經明確設定過的值，需要使用者自己登入正式站確認並手動把 `default.timezone`（或 `app.env` 的 `LB_DEFAULT_TIMEZONE`）改成 `Asia/Taipei`——這份文件記一筆，實際操作記在 `COASIA-DEPLOYMENT.md`。
+
+### 驗證
+
+開發環境的 `config/config.php` 本來就已經手動設過 `Asia/Taipei`（跟正式站不同步，這正是使用者只在正式站發現問題的原因），所以這輪主要靠讀程式碼＋比對既有正確頁面的寫法定位問題，而非在開發環境重現時區差異。`php -l` 確認 `ManageUsersPage.php`／`ConfigKeys.php` 語法正確，重新產生的 `.env.example`／`config.dist.php` 內容經人工比對只有預期中的欄位變動。
