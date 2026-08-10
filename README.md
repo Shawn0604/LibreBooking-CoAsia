@@ -30,7 +30,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 
 ## 這個 fork 做了什麼客製化
 
-跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §68）：
+跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §69）：
 
 ### 身份驗證與帳號
 
@@ -54,6 +54,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 - **併發安全**：resource lock + optimistic version locking + idempotency，處理多人同時搶同一個時段的競爭條件
 - **政策變更**：所有預約禁止跨日
 - **時段判斷修正**：修正「此時段可用」誤判前一場會議剛結束時段為衝突的 bug
+- **編輯預約時間錯誤修正**：修正編輯既有預約時，表單時間被時間表區段的起訖時間覆蓋（誤把「開放時間起點」當成預約開始時間）的 bug——只改標題按更新，原本的時間也會被改掉
 
 ### UI／UX
 
@@ -65,6 +66,8 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 - **CoAsia 品牌視覺**：CoAsia Blue 主色、統一 Design Token 系統、全站字體統一為 Noto Sans TC、登入頁重新設計
 - **側邊欄多輪重構**：收合/展開、圖示排版系統化、新增預約與通知設定移出主導覽
 - **「我的帳號」重新設計**：Profile 頁面改成跟通知設定一致的卡片風格，時區、登入後語言切換（英/繁中/簡中）都在同一頁完成，側邊欄簡化成單一直接連結
+- **側邊欄「新增預約」統一走快速預約**：非行事曆頁面點擊時改成導到行事曆頁面自動開快速預約（時間預設值同步改成跟快速預約一致的「進位到下一個半點」），取代原本會退回舊版完整表單、時間直接用「現在」的行為
+- **新增「我的會議」頁面**：側邊欄新導覽連結，內容含「下一場會議」卡片（倒數、查看詳情、線上會議一鍵加入）與既有的完整預約清單
 
 ### 資料完整性／管理後台修正
 
@@ -74,6 +77,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 - 修正使用分析頁「匯出 Excel」功能（closure 忘記帶入外層變數，點擊直接噴錯）
 - 修正使用者管理「最後登入」時間顯示錯誤：預設時區從 LibreBooking 上游沿用的 `Europe/London` 改成 `Asia/Taipei`，列表改讀目前登入管理員自己的 session 時區而非系統設定值
 - **新增 GitLab CI/CD**：`.gitlab-ci.yml`（test/build/deploy 三個 stage）+ `deploy/apply-migrations.sh`，push tag 觸發自動測試、build、部署到正式環境，取代手動 SSH 操作；直接對應部署時實際踩過的兩個坑（`restart` 不會套用新程式碼、migration 忘記指定字元集）
+- 修正開放時間管理「開啟」某天並儲存會靜默失敗的 bug（缺少自動補齊前後空隙的 blocked 時段，導致後端「必須覆蓋整天」的驗證沒過，且錯誤訊息寫進畫面不會顯示的節點）——「關閉」某天則不受影響
 
 ---
 
@@ -165,7 +169,7 @@ npm install && npm run lint:frontend   # 前端 lint（JS/CSS）
 
 | 文件 | 內容 |
 | --- | --- |
-| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§65） |
+| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§69） |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 正式對全體員工開放前，還缺什麼 |
 | [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 正式環境部署架構與操作手冊，含完整 VM 建置、Docker、憑證、資料庫遷移步驟 |
 

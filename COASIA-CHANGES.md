@@ -2129,3 +2129,53 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 `.gitlab-ci.yml` 用 Python 的 `yaml.safe_load` 驗證過語法正確；`deploy/apply-migrations.sh` 用 `bash -n` 驗證過語法正確，並且用 `git update-index --chmod=+x` 標記成可執行檔。Runner 註冊、`builds_dir` 設定、Protected tags 這幾項需要使用者自己在 VM／GitLab 專案設定裡操作，沒辦法在這個對話裡直接驗證——第一次 push tag 觸發完整 pipeline 時才會是真正的端對端測試。
+
+## 69. 三個獨立 bug 修復（預約編輯頁時間錯誤／開放時間「開啟」儲存失敗／新增預約進入點）＋新增「我的會議」頁面
+
+同一輪工作，四件事彼此獨立，合併記錄。
+
+### 69.1 編輯預約時，時間被時間表的區段起訖時間覆蓋
+
+使用者回報：同一筆台北預約，行事曆跟詳細卡片都正確顯示 `09:30–10:30`，但點鉛筆進「編輯預約」後變成 `00:00–00:30`，且不只是畫面顯示問題——表單準備送出的值也已經是 `00:00:00`／`00:30:00`，只改標題按更新就會把原本的時間改掉。
+
+**根因**：`tpl/Reservation/create.tpl` 組出 `BeginPeriod`／`EndPeriod` 這兩個隱藏欄位（以及對應的 JS 時間選擇器初始值）時，用的是 `$SelectedStart->Begin()` / `$SelectedEnd->End()`——時間表**區段**的起訖時間，不是這筆預約**本身**的起訖時間。台北的時間表是「全天單一區段」（`00:00 → 00:00`，星期日關閉），這個區段的 `Begin()`/`End()` 永遠是 `00:00:00`/`00:30:00`，跟預約實際幾點開始完全無關；真正帶正確時分秒的 `$StartDate`/`$EndDate`（已經由 `ExistingReservationInitializer::SetSelectedDates()` 正確從 `reservationView->StartDate/EndDate` 設定好）在表單裡卻只被拿來取「日期」部分。
+
+**修法**：`create.tpl` 的隱藏欄位初始值與 JS 時間選擇器初始分鐘數，一律改成從 `$StartDate`/`$EndDate` 本身取時分秒（`{formatdate ... format='H:i:s'}`），不再用時間表區段的 `Begin()`/`End()`。新增預約流程不受影響，因為那邊 `$StartDate`/`$EndDate` 本來就已經帶著正確時間。
+
+### 69.2 開放時間管理：「開啟」某天並儲存會靜默失敗，「關閉」永遠成功
+
+使用者發現「開放時間設定」的每週開放時間編輯器，關閉某天再儲存沒問題，但開啟某天（例如把星期日從關閉切成 09:00–18:00）儲存卻完全沒反應，畫面上看不到任何錯誤訊息。
+
+**根因**：`Web/scripts/admin/schedule.js` 的 `saveScheduleHours()` 組出送出資料時，「開啟」某天只寫了 `reservableEdit_{day}`（例如 `09:00 - 18:00`），`blockedEdit_{day}` 留空字串。但後端 `LayoutValidator` 要求每一天的時段合起來必須完整覆蓋 24 小時、中間不能有空隙（第一段要從 `00:00` 開始、最後一段要在 `00:00` 結束）——只填 `09:00–18:00` 這一段，`00:00–09:00` 跟 `18:00–00:00` 完全沒有任何 reservable 或 blocked 紀錄，等於留了空隙，驗證直接失敗。而且這個失敗訊息是寫進舊版對話框（`#changeLayoutDialog`）裡一個新版畫面完全不會顯示出來的 `.validationSummary` 區塊，所以使用者完全看不到任何錯誤，就是「按下去沒反應」。「關閉」永遠成功是因為固定寫 `blockedEdit_{day} = "00:00 - 00:00"`，單獨一段就完整覆蓋全天，天生不會有空隙。
+
+**修法**：比照同一個檔案裡 `createQuickLayout()` 本來就有的模式，開啟某天時自動把該時段前後的空隙補成 blocked（`00:00` 到開始時間、結束時間到 `00:00`），確保送出的每一天永遠完整覆蓋 24 小時。
+
+### 69.3 側邊欄「新增預約」在非行事曆頁面會用錯的預設時間開完整表單
+
+使用者發現在「通知設定」「我的帳號」「管理中心」等頁面點側邊欄「新增預約」，時間預設值是原始的「現在時間」（例如 `15:06`），不是像快速預約那樣「無條件進位到下一個半點」；並認為這個按鈕應該一律開快速預約，不是完整表單。
+
+**根因**：這顆按鈕原本設計成在行事曆頁面呼叫 `overview_fullcalendar.js` 暴露的 `window.overviewFullCalendarOpenQuickCreate()`（開快速預約，預設時間已經有「進位到下一個半點」邏輯），在其他頁面因為行事曆沒被載入、這個 hook 是 `undefined`，退回到連到 `reservation.php` 完整表單的 fallback——而完整表單在沒有帶任何日期時間 querystring 時，後端 `ReservationDateBinder::Bind()` 直接用 `Date::Now()` 當開始時間，完全沒有進位邏輯。
+
+**修法**：不修表單本身的預設時間邏輯，改成讓這顆按鈕在任何頁面點擊都一律走快速預約——在其他頁面點擊時改成導到行事曆頁面並帶 `?openQuickCreate=1` 標記，行事曆頁面載入完成後偵測到這個標記就自動呼叫跟在行事曆上點擊時完全相同的 `overviewFullCalendarOpenQuickCreate()`，然後用 `history.replaceState` 把網址上的標記清掉，避免使用者重新整理或返回時又跳出一次。
+
+### 69.4 新增「我的會議」頁面：下一場會議倒數卡片＋完整清單
+
+新功能，使用者要求側邊欄空白區加一個「我的會議」入口，顯示下一場尚未開始的會議（含倒數、查看詳情、線上會議加入連結）跟接下來幾筆預約。
+
+第一版做成側邊欄內嵌小工具（`Controls/MyMeetingsSidebarControl.php` 直接渲染進 `globalheader.tpl`），使用者實測後回饋「這樣很醜」，要求改成跟「通知設定」一樣——純導覽連結，點進去才看得到內容。整個內嵌小工具（Control／Presenter／獨立樣板／側邊欄專用 CSS）全部撤掉，改成：
+
+- **沿用既有但一直被 `{if false}` 藏起來的 `my-meetings.php`**（`Pages/MyMeetingsPage.php`／`tpl/MyMeetings/my-meetings.tpl`），只是把導覽連結恢復顯示，位置放在「行事曆首頁」和「通知設定」中間（第一次復原時位置沒放對、跑到「我的帳號」下面，使用者發現後才移到正確位置）。
+- **`Presenters/MyMeetingsPresenter.php` 新增「下一場會議」邏輯**：從既有的 `Upcoming` 清單挑出時間最早的一筆，額外查該筆會議室的 `video_url` 自訂屬性（跟預約確認信「加入會議」用的同一個屬性）決定要不要顯示「加入會議」按鈕。下一場會議一樣會出現在下方完整清單的第一列，不特地排除——一個頁面內重複顯示同一筆是常見、可接受的「置頂摘要＋完整清單」模式，不用另外做一份「接下來 3–5 筆」的精簡清單。
+- **`tpl/MyMeetings/my-meetings.tpl` 加一張卡片**：標題、倒數（純前端 `setInterval` 每 30 秒重新計算，不用整頁重新整理）、日期時間、會議室、查看詳情、（若有）加入會議；沒有下一場會議時卡片不會整個消失變成孤零零一行文字，而是同一個白色卡片外殼裡置中顯示行事曆圖示＋「近期沒有安排會議」，跟有內容時是同一套視覺系統。
+- 三個語言檔（zh_tw／en_us／zh_cn）補上 `NextMeeting`／`JoinMeeting`／`NoUpcomingMeetingsSoon`／倒數用的分鐘/小時/天數後綴字串，其餘沿用既有的 `MyMeetings`／`ViewDetails`／`Untitled`／`AdminOverviewInProgress`（「進行中」）。
+
+**過程中又踩到一次 §51.6 記過的老坑**：改完 `lang/zh_tw.php` 之後畫面上新字串全部顯示成「?」——這個 dev 容器的 `opcache.validate_timestamps=Off`，改 `.php` 檔案要 `docker restart` 容器才會生效，光改檔案不夠。`docker restart` 之後重新驗證過三個語言檔的新字串都正確載入。
+
+### 驗證
+
+四項都用容器內 CLI 直接驅動實際程式碼驗證，沒有登入帳密沒辦法在瀏覽器裡實測：
+
+- 69.1／69.4：用真實帳號 `shawn.admin`（id=2）跑過 `MyMeetingsPresenter`／`ExistingReservationInitializer` 的實際查詢，正確抓到使用者當時那筆 `2026-08-11 09:30–10:30`「test」預約，`Presenters/MyMeetingsPresenter.php` 的 `BuildNextMeeting()` 與 `tpl/MyMeetings/my-meetings.tpl` 整段樣板透過 `SmartyPage` 直接渲染，確認無 PHP/Smarty 錯誤且輸出內容正確（含空狀態、繁中字串）。
+- 69.2：讀 `Domain/ScheduleLayout.php`／`lib/Common/Validators/LayoutValidator.php` 原始碼確認「必須覆蓋整天」的驗證邏輯與失敗時錯誤訊息寫進哪個（畫面不會顯示的）DOM 節點，`php -l` 確認 JS 對應的 PHP 端沒有變動、修改僅限 `schedule.js`。
+- 69.3：追過 `NewReservationPage::GetStartDate()`／`ReservationDateBinder::Bind()` 的呼叫鏈確認 `Date::Now()` 無進位邏輯，比對 `overview_fullcalendar.js` 既有 `window.overviewFullCalendarOpenQuickCreate` 的進位算法（`Math.ceil(nowMinutes/30)*30`），新增的重導向邏輯呼叫的是同一支函式，非另外複製一份。
+- 每次改完 `.tpl`／`.php`／`lang/*.php` 都清過容器內 `tpl_c/` 編譯快取（`cache.templates=true` 時 Smarty 不會自動偵測檔案變更），語言檔額外 `docker restart` 過一次確認 OPcache 問題解決。畫面實際觀感（顏色/間距/是否好看）由使用者登入後親自確認並回饋了三輪，本節最終版本已反映所有回饋。
