@@ -2053,3 +2053,43 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 - **預約管理列表**：預設排序是最舊的在最前面，使用者預期應該是最新的在前面。`Presenters/Admin/ManageReservationsPresenter.php` 呼叫 `LoadFiltered()` 時，沒有 `sort`/`dir` querystring 的情況下直接把 `null` 傳給排序參數，底層 SQL 樣板（`Queries.php` 的 `GET_RESERVATION_LIST_TEMPLATE`）預設是 `ORDER BY start_date ASC`。這個樣板同時被好幾個地方共用（行事曆檢視、待審核清單、忘記簽到清單），所以不能直接改樣板本身，而是在這個 presenter 裡把 `null` 換成明確的預設值（`start_date` / `desc`），只影響這一個頁面。這個列表本身沒有可點擊排序的欄位標題，改預設方向不會跟任何既有的互動排序功能衝突。
 
 - **開放時間編輯抽屜的儲存按鈕「消失」**：使用者回報怎麼找都找不到儲存按鈕，畫面上唯一看到的是一顆藍色圓形「?」按鈕，懷疑那顆才是儲存鈕。查了才發現那顆「?」其實跟這個抽屜完全無關——是每個後台頁面右下角都有的「回到頂部」浮動按鈕（`tpl/globalfooter.tpl` 的 `#button-up`），它固定在畫面右下角，剛好跟開放時間編輯抽屜（同樣是右側面板）的內容重疊，真正的儲存按鈕（`tpl/Admin/Schedules/manage_schedules.tpl` 裡的 `button.saveScheduleHours`）其實就在被蓋住的那個位置，只是完全看不到也點不到。修法：`Web/scripts/phpscheduleit.js` 監聽 Bootstrap 的 `shown.bs.offcanvas`/`hidden.bs.offcanvas` 事件，任何抽屜打開時就把這顆浮動按鈕隱藏，關閉後再依照當下捲動位置決定要不要顯示回來。
+
+## 66. 會議室管理依資源類型簡化、系統設定重做成系統診斷儀表板、使用分析 Excel 匯出修復
+
+三個獨立子任務，同一輪做完。
+
+### 會議室管理抽屜：實體會議室只留名稱，線上會議改顯示預約後要給使用者的資訊
+
+使用者看著「會議室管理」的編輯抽屜（時間表/地區/聯繫/說明/筆記/進階設定/自訂屬性/Public 一大串欄位）覺得對實體會議室來說根本用不到，而線上會議（Zoom/Google Meet）真正該讓管理員編輯的，是預約成功後要傳給使用者的資訊（連結/會議ID/密碼/主持人登入帳密），不是這堆通用欄位。
+
+- **新增 ResourceType 判斷依據**：資料庫裡原本 12 個資源的 `resource_type_id` 全是 NULL，只能靠有沒有 `video_url` 自訂屬性值間接推測是不是視訊資源（新資源在填值前無法判斷）。新增 `database_schema/upgrades/4.4/schema.sql`，建立「實體會議室」「線上會議」兩個 ResourceType（比對既有的 `GET_RESOURCE_TYPE_BY_NAME` 查詢寫法，用名稱比對而非新增獨立欄位），並把 12 個既有資源分類過去（1-7 號實體、8-12 號線上）。`Domain/ResourceType.php` 新增 `IsVideoConference()`，用名稱比對「線上會議」。
+- **抽屜三種分支**（`tpl/Admin/Resources/manage_resource_drawer_content.tpl`）：
+  - 實體會議室：只留名稱＋狀態（狀態开关有跟使用者確認過要保留，避免管理員無法停用房間），其餘全部隱藏
+  - 線上會議：名稱＋狀態＋新的「線上會議資訊」區塊——會議連結/會議ID/密碼沿用既有的自訂屬性 inline 編輯機制（`Admin/InlineAttributeEdit.tpl` 的模式），只是改用專屬翻譯字串當標籤，不再顯示屬性本身的原始 label（`video_url` 這種內部字串不能改成好看的中文，因為 `ReservationEmailTemplateContext.php` 靠它精確比對）
+  - 尚未設定 ResourceType 的資源：維持顯示原本全部欄位，讓新資源在分類前還能設定
+- **主持人登入帳密（全新功能）**：`resource_video_conference_host` 這張表跟加密邏輯（AES-256-CBC）本來就有，但完全沒有 admin 介面可以寫入，唯一寫入方式是一支一次性 CLI 匯入腳本。新增 Presenter action `ChangeVideoConferenceHost`＋`dr=videoHost` 讀取端點，搭配一個新的全域 Modal。使用者一開始要求帳密要點擊編輯才顯示（避免每次打開資源列表，5 個視訊資源的主持人密碼就全部解密寫進頁面原始碼），後來看畫面覺得應該跟連結/會議ID一樣直接顯示，改成 `PageLoad()` 批次解密（只針對當前頁面上的線上會議資源，範圍跟列表本身一致）直接綁進抽屜初始 HTML。
+- 過程中漏掉兩個 `require_once`（`ActiveDirectoryConfigKeys.php`、`LineWebhookPresenter.php`），造成 AD／LINE 兩張診斷卡片 500——這是下一段系統診斷儀表板留下的坑，一併記在這裡。
+
+### 系統設定 → 系統診斷：從除錯資訊改成真正的狀態儀表板
+
+原本的「系統設定」是一個 5 張卡片的啟動頁（通知信件/AD同步/自訂屬性/系統診斷/資料清理），「系統診斷」本身只有伺服器時間、上傳目錄權限、樣板快取路徑、外掛清單——對日常維運沒有實際用處。
+
+- 側邊欄「系統設定」項目直接改名「系統診斷」，連結改指向 `server_settings.php`（原本的 5 卡片啟動頁 `system_settings.php` 保留在磁碟上，只是不再連結，沒有刪除任何頁面程式碼）
+- `ServerSettingsPage.php` 新增 4 張即時健康檢查卡（AD／SMTP／LINE／檔案權限），透過 `dr=checkAd`/`checkSmtp`/`checkLine`/`checkFiles` 各自回傳 JSON，頁面載入時用新的 `Web/scripts/admin/server-settings.js` 平行觸發 AJAX（不同步阻塞頁面——AD/SMTP 都是真的網路連線，對方掛掉可能要等 timeout），「重新檢查全部」按鈕可重新觸發
+  - AD：比對 `ConfigKeys::PLUGIN_AUTHENTICATION` 是否為 `'ActiveDirectory'`，是的話用既有的 `AdLdapWrapper::Connect()` 做服務帳號 LDAP bind 測試（失敗會拋例外）
+  - SMTP：比對 `EMAIL_ENABLED`／`PHPMAILER_MAILER`，複製 `EmailService` 建構子組 `PHPMailer` 設定的邏輯，呼叫其內建但先前從未被呼叫過的 `smtpConnect()` 做連線測試
+  - LINE：比對 `LINE_ENABLED`，用 `Unirest\Request::get()` 打 LINE 的 `/v2/bot/info` 驗證 channel access token 是否有效。「最後收到 webhook」這個時間點，目前完全沒有任何記錄機制（只有等級可能被設定過濾掉的一般日誌），改在 `LineWebhookPresenter::HandleEvents()` 開頭寫入一個時間戳記到 `LOGGING_FOLDER` 底下的標記檔（不新增資料庫表，這個目錄本來就是必須可寫的）——使用者原本要一併加上排程服務（cron）的執行紀錄追蹤，後來決定拿掉這張卡片，成本效益比太差（完全沒有任何現成的執行紀錄機制）
+  - 檔案權限：比照既有的 `fileperms()` 邏輯與 `lib/preflight.php` 的檢查手法，檢查 `tpl_c`／圖片上傳目錄是否存在且可寫入
+- 新增兩個文件頁面，都比照 `AdSyncStatusPage` 的最小 shell 模式：「系統架構圖」（`system_architecture.php`，內容現場重寫，含手繪 inline SVG 流程圖——這個 app 沒有載入 Mermaid.js，不為了一張圖新增前端相依套件）、「維運文件」（`operations_doc.php`，直接讀取並用 `<pre>` 顯示 `COASIA-DEPLOYMENT.md` 原始內容，不重寫也不加 Markdown 渲染套件，避免這份持續在維護的部署文件分裂成兩份要各自更新）
+- 使用者一開始想把架構圖／文件連結指到公司 GitLab，後來改口要求現場重寫內容直接放進系統裡，不連外部連結
+- 「其他工具」那排連結（通知信件/AD同步/自訂屬性/資料清理）先加進儀表板，使用者看畫面後又要求整排拿掉
+
+### 使用分析 Excel 匯出：closure 忘記 `use` 外層變數
+
+使用者點「匯出 Excel」直接跳「未知錯誤」頁，畫面上還連帶印出一行 PHP Warning。查 `ManageUsageAnalyticsPage.php::ExportExcel()`，四個要寫入分頁的 `array_map()` 裡有一個（`$locationSheet` 那個，把 `location === '__unassigned__'` 的資料轉成翻譯字串的那段）用到外層的 `$resources`，但傳進去的匿名函式沒有 `use ($resources)`，PHP 視為 undefined variable，接著呼叫 `->GetString()` 在 null 上直接掛掉。同一個方法裡另外兩個 `array_map()` 剛好都沒有在 closure 內用到 `$resources`，所以沒有踩到這個問題，只有這一處需要補 `use ($resources)`。
+
+`vendor/phpoffice/phpspreadsheet` 本身在 Docker 開發環境裡是正常安裝、可以運作的（獨立測試過產生 xlsx 檔案成功），純粹是這一行程式碼的 bug，不是套件安裝問題。
+
+### 驗證
+
+會議室管理、系統診斷兩個功能都在使用者本機的 Docker dev 環境裡實測：套用 `database_schema/upgrades/4.4/schema.sql` 並確認冪等（重複執行不出錯）、資源類型正確分類並反映在列表與抽屜、線上會議資訊區塊顯示的資料與既有截圖吻合、主持人登入帳密的讀取/加密儲存/解密回顯全流程驗證過、實體會議室抽屜維持只顯示名稱＋狀態。系統診斷儀表板由使用者自己登入實測，抓到並回報了兩個遺漏的 `require_once`，當場修復重驗。使用分析 Excel 匯出的根因（closure 缺少 `use`）也是使用者實測「未知錯誤」頁面截圖直接定位到的，不是靠猜。
