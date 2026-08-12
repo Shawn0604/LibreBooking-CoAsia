@@ -881,6 +881,26 @@ $(function () {
         // feedback and doesn't recompute or vary by resource color.
         selectable: true,
         selectMirror: false,
+        // timeGridWeek would otherwise let a drag run sideways across day columns (e.g. Mon
+        // 22:00 -> Tue 02:00) — reservations can't cross midnight (ResourceCrossDayRule.php),
+        // so refuse to grow the selection once it reaches the next day's slots. FullCalendar
+        // just keeps the highlight at the last in-range extent instead of extending it, which
+        // reads as "the drag stops at the end of the day" rather than a rejected selection.
+        // An end that lands exactly on the next day's midnight (the last slot of the start
+        // day, 23:30-24:00, or a month-view single-day click, which is a 00:00-to-next-00:00
+        // allDay range under the hood) still counts as "today" — only an end that's actually
+        // past midnight gets rejected. Deliberately doesn't branch on selectInfo.view: this
+        // callback is also invoked by FullCalendar's internal re-validation of an
+        // already-committed selection, which calls it with a plain {start, end, allDay} span
+        // and no view — reading selectInfo.view.type there throws and silently breaks
+        // selecting entirely, so the same day/day-of(end-1ms) comparison has to work
+        // unconditionally for both week/day drags and month-view day clicks.
+        selectAllow: function (selectInfo) {
+            var start = selectInfo.start;
+            var end = selectInfo.end;
+            var effectiveEnd = end.getTime() > start.getTime() ? new Date(end.getTime() - 1) : end;
+            return isoUTC(start) === isoUTC(effectiveEnd);
+        },
         select: function (info) {
             calendar.unselect();
             var resourceId = defaultResourceId();
@@ -901,10 +921,9 @@ $(function () {
                 });
                 return;
             }
-            // timeGridWeek lets a drag run sideways across day columns (e.g. Mon 22:00 -> Tue
-            // 02:00) — reservations can't cross midnight (ResourceCrossDayRule.php), so clamp
-            // the selection to the end of the start day instead of carrying info.end's later
-            // date through to the modal.
+            // selectAllow above already keeps the drag itself same-day; this only still
+            // catches the exact-midnight edge (last slot of the day, 23:30-24:00) where
+            // info.end legitimately reports the next day's 00:00.
             var startDate = isoUTC(info.start);
             var endDate = isoUTC(info.end);
             var endHours = info.end.getUTCHours();
@@ -1163,6 +1182,13 @@ $(function () {
         e.preventDefault();
         if (!$(this).hasClass('disabled')) {
             calendar.today();
+        }
+    });
+
+    $('#tourHelpBtn').on('click', function (e) {
+        e.preventDefault();
+        if (window.CoAsiaTour) {
+            window.CoAsiaTour.start();
         }
     });
 

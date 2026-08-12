@@ -1,0 +1,170 @@
+/* CoAsia User Guide page (Web/user-guide.php) */
+
+#page-user-guide {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+#page-user-guide .page-head {
+  padding: 24px 0 20px;
+  border-bottom: 1px solid var(--coasia-border, #e4e7ee);
+  margin-bottom: 28px;
+}
+
+#page-user-guide h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--coasia-text-primary, #1c2333);
+}
+
+#page-user-guide .page-subhead {
+  margin: 0;
+  color: var(--coasia-text-secondary, #6c7488);
+  font-size: 14.5px;
+}
+
+#page-user-guide .guide-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+/* Table of contents -- sticky under the app header so it stays reachable while
+   the (long) content column scrolls past it. */
+#page-user-guide .guide-toc {
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13.5px;
+}
+
+#page-user-guide .guide-toc-group-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--coasia-text-secondary, #6c7488);
+  margin: 0 2px 8px;
+}
+
+#page-user-guide .guide-toc-group-label-admin {
+  margin-top: 20px;
+}
+
+#page-user-guide .guide-toc a {
+  display: block;
+  padding: 7px 10px;
+  border-radius: var(--coasia-radius-control, 10px);
+  color: var(--coasia-text-primary, #1c2333);
+  text-decoration: none;
+  line-height: 1.35;
+}
+
+#page-user-guide .guide-toc a:hover {
+  background: var(--coasia-surface-muted, #f6f7fb);
+}
+
+#page-user-guide .guide-toc a.active {
+  background: var(--sidebar-active, #e8eef7);
+  color: var(--primary, #1a3f73);
+  font-weight: 600;
+}
+
+#page-user-guide .guide-content {
+  min-width: 0;
+}
+
+#page-user-guide .guide-group + .guide-group {
+  margin-top: 12px;
+  padding-top: 28px;
+  border-top: 1px solid var(--coasia-border, #e4e7ee);
+}
+
+#page-user-guide .guide-group-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--coasia-text-secondary, #6c7488);
+  margin: 0 0 8px;
+}
+
+#page-user-guide .guide-section {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--coasia-border, #e4e7ee);
+  scroll-margin-top: 24px;
+}
+
+#page-user-guide .guide-section:last-child {
+  border-bottom: none;
+}
+
+#page-user-guide .guide-section h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  color: var(--coasia-text-primary, #1c2333);
+}
+
+#page-user-guide .guide-body {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--coasia-text-primary, #1c2333);
+}
+
+#page-user-guide .guide-body p {
+  margin: 0 0 10px;
+}
+
+#page-user-guide .guide-body p:last-child {
+  margin-bottom: 0;
+}
+
+#page-user-guide .guide-body ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+#page-user-guide .guide-body li {
+  margin-bottom: 10px;
+}
+
+#page-user-guide .guide-body li:last-child {
+  margin-bottom: 0;
+}
+
+#page-user-guide .guide-body strong {
+  color: var(--coasia-text-primary, #1c2333);
+}
+
+@media (max-width: 860px) {
+  #page-user-guide .guide-layout {
+    grid-template-columns: 1fr;
+  }
+
+  #page-user-guide .guide-toc {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--coasia-border, #e4e7ee);
+    margin-bottom: 8px;
+  }
+
+  #page-user-guide .guide-toc-group-label,
+  #page-user-guide .guide-toc-group-label-admin {
+    width: 100%;
+    margin: 4px 2px 4px;
+  }
+
+  #page-user-guide .guide-toc a {
+    padding: 6px 10px;
+    background: var(--coasia-surface-muted, #f6f7fb);
+  }
+}

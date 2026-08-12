@@ -2,7 +2,7 @@
    hand-rolled week grid. Deliberately does not touch overview.tpl; this is a fully separate
    template that happens to {include} the same shared globalheader.tpl so the left sidebar
    (including the resource checklist) looks and behaves identically. *}
-{include file='globalheader.tpl' cssFiles='css/overview_fullcalendar.css'}
+{include file='globalheader.tpl' cssFiles='css/overview_fullcalendar.css,css/onboarding-tour.css'}
 
 <div class="shell" id="page-overview-fc">
 
@@ -119,6 +119,15 @@
                     <button type="button" class="view-picker-item" data-view="dayGridMonth">{translate key='Month'}</button>
                 </div>
             </div>
+
+            {* Same 40x40 shared control shape as fcTodayBtn -- restarts the onboarding tour
+               on demand (Web/scripts/onboarding-tour.js). This is a shortcut alongside the
+               sidebar "Help" menu's own replay link, not a replacement for it, since this
+               button only exists on this page. *}
+            <button type="button" class="coasia-control tour-help-btn" id="tourHelpBtn"
+                title="{translate key='TourReplayMenuItem'}" aria-label="{translate key='TourReplayMenuItem'}">
+                <i class="bi bi-question-circle"></i>
+            </button>
         </div>
     </div>
 
@@ -456,6 +465,60 @@
         }
     };
 </script>
+<script type="text/javascript">
+    {* Web/scripts/onboarding-tour.js reads this the same way overview_fullcalendar.js reads
+       overviewFullCalendarOpts.translations above -- pre-localized here since the .js file
+       itself is static and never touched by Smarty. Step targets are CSS selectors for
+       elements on THIS page only (the resource picker, calendar grid, and toolbar), plus one
+       in the shared sidebar (#navMyMeetings) -- see onboarding-tour.js's positionForTarget(). *}
+    window.coasiaTourConfig = {
+        steps: [
+            {
+                target: null,
+                title: '{translate key='TourWelcomeTitle'|escape:'javascript'}',
+                body: '{translate key='TourWelcomeBody'|escape:'javascript'}'
+            },
+            {
+                target: '#appSidebar',
+                title: '{translate key='TourSidebarTitle'|escape:'javascript'}',
+                body: '{translate key='TourSidebarBody'|escape:'javascript'}'
+            },
+            {
+                target: '#resourcePickerTrigger',
+                title: '{translate key='TourResourceTitle'|escape:'javascript'}',
+                body: '{translate key='TourResourceBody'|escape:'javascript'}'
+            },
+            {
+                target: '.toolbar-col-right',
+                title: '{translate key='TourAvailabilityTitle'|escape:'javascript'}',
+                body: '{translate key='TourAvailabilityBody'|escape:'javascript'}'
+            },
+            {
+                target: '#fullcalendarRoot',
+                title: '{translate key='TourDragCreateTitle'|escape:'javascript'}',
+                body: '{translate key='TourDragCreateBody'|escape:'javascript'}'
+            },
+            {
+                target: '#fullcalendarRoot',
+                title: '{translate key='TourEditCancelTitle'|escape:'javascript'}',
+                body: '{translate key='TourEditCancelBody'|escape:'javascript'}'
+            },
+            {
+                target: '#navMyMeetings',
+                title: '{translate key='TourMyMeetingsTitle'|escape:'javascript'}',
+                body: '{translate key='TourMyMeetingsBody'|escape:'javascript'}'
+            }
+        ],
+        strings: {
+            skip: '{translate key='TourSkipButton'|escape:'javascript'}',
+            back: '{translate key='TourBackButton'|escape:'javascript'}',
+            next: '{translate key='TourNextButton'|escape:'javascript'}',
+            done: '{translate key='TourDoneButton'|escape:'javascript'}',
+            stepOf: '{translate key='TourStepOf'|escape:'javascript'}'
+        }
+    };
+</script>
+{jsfile src="onboarding-tour.js"}
 {jsfile src="participant-picker.js"}
 {jsfile src="reservation-datetime-picker.js"}
 {jsfile src="overview_fullcalendar.js"}

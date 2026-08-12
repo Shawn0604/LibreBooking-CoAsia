@@ -1,0 +1,116 @@
+/* CoAsia first-run product tour overlay -- see Web/scripts/onboarding-tour.js */
+
+.coasia-tour-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+}
+
+.coasia-tour-overlay.coasia-tour-open {
+  display: block;
+}
+
+/* The "hole" is a giant box-shadow around a small positioned box, rather than an actual
+   cutout -- no canvas/SVG needed, and it animates for free via the transition below. */
+.coasia-tour-spotlight {
+  position: fixed;
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(15, 20, 35, 0.6);
+  transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
+  pointer-events: none;
+}
+
+.coasia-tour-spotlight-center {
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+
+.coasia-tour-card {
+  position: fixed;
+  z-index: 2001;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  background: var(--coasia-surface, #fff);
+  border-radius: var(--coasia-radius-surface, 16px);
+  box-shadow: var(--coasia-shadow-elevated, 0 8px 24px rgba(20, 30, 55, 0.14));
+  padding: 20px;
+  transition: top 0.25s ease, left 0.25s ease;
+}
+
+.coasia-tour-card-center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.coasia-tour-progress {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--coasia-text-secondary, #6c7488);
+  margin-bottom: 8px;
+}
+
+.coasia-tour-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: var(--coasia-text-primary, #1c2333);
+}
+
+.coasia-tour-body {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--coasia-text-primary, #1c2333);
+  margin-bottom: 18px;
+}
+
+.coasia-tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.coasia-tour-actions-right {
+  display: flex;
+  gap: 8px;
+}
+
+.coasia-tour-skip,
+.coasia-tour-back,
+.coasia-tour-next {
+  border: none;
+  border-radius: var(--coasia-radius-control, 10px);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+.coasia-tour-skip {
+  background: transparent;
+  color: var(--coasia-text-secondary, #6c7488);
+}
+
+.coasia-tour-skip:hover {
+  background: var(--coasia-surface-muted, #f6f7fb);
+}
+
+.coasia-tour-back {
+  background: var(--coasia-surface-muted, #f6f7fb);
+  color: var(--coasia-text-primary, #1c2333);
+}
+
+.coasia-tour-next {
+  background: var(--primary, #1a3f73);
+  color: #fff;
+}
+
+.coasia-tour-next:hover {
+  filter: brightness(1.08);
+}

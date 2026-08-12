@@ -936,6 +936,90 @@ class zh_tw extends en_us
         $strings['VideoConferenceHostLogin'] = '主持人登入資訊';
         $strings['VideoConferenceHostLoginHint'] = '點擊編輯以查看或修改啟動此會議所需的主持人登入帳號密碼。';
 
+        // Onboarding tour
+        $strings['TourWelcomeTitle'] = '歡迎使用 CoAsia 會議室預約系統';
+        $strings['TourWelcomeBody'] = '花 30 秒帶你認識怎麼找空檔、怎麼訂會議室。之後隨時可以在左側「幫助」→「操作教學」重新看這段導覽。';
+        $strings['TourSidebarTitle'] = '認識左側導覽列';
+        $strings['TourSidebarBody'] = '<ul><li><strong>+新增預約</strong>：快速開啟建立預約視窗，效果跟在行事曆上拖曳一樣。</li><li><strong>行事曆首頁</strong>：回到會議室行事曆。</li><li><strong>我的會議</strong>：查看你自己即將到來與過去的預約。</li><li><strong>通知設定</strong>：調整要接收哪些通知。</li><li><strong>我的帳號</strong>：查看與編輯個人資料、變更密碼。</li><li><strong>幫助</strong>：重新看這段導覽，或打開完整使用手冊。</li><li>若帳號有管理權限，還會看到<strong>管理中心</strong>，用來管理會議室、使用者與系統設定。</li></ul>';
+        $strings['TourResourceTitle'] = '先選你要的會議室';
+        $strings['TourResourceBody'] = '點這裡可以搜尋、切換會議室，清單會分成「實體會議室」和「視訊會議」兩區。';
+        $strings['TourAvailabilityTitle'] = '一眼看出哪些時段還空著';
+        $strings['TourAvailabilityBody'] = '白色代表可預約，彩色色塊是已被訂走的時段。可以切換日／週／月檢視，右上角還能切換「只看我的」。';
+        $strings['TourDragCreateTitle'] = '直接在行事曆上拖曳就能訂';
+        $strings['TourDragCreateBody'] = '在空白時段按住滑鼠拖曳，放開後會跳出快速建立視窗，填標題、參與者就能送出。拖曳只能限在同一天內喔。側邊欄的「+新增預約」按鈕也會開啟同一個視窗，只是不用先選時段。';
+        $strings['TourEditCancelTitle'] = '修改或取消已訂的會議';
+        $strings['TourEditCancelBody'] = '點一下已訂的時段會跳出小卡片，可以查看詳情、編輯或取消；如果是重複性會議，取消時可以選擇只取消這一次還是全部。';
+        $strings['TourMyMeetingsTitle'] = '這裡看你自己的所有會議';
+        $strings['TourMyMeetingsBody'] = '即將開始的會議、歷史記錄都在這裡，視訊會議還會直接顯示「加入會議」按鈕。';
+        $strings['TourStartButton'] = '開始導覽';
+        $strings['TourSkipButton'] = '略過';
+        $strings['TourNextButton'] = '下一步';
+        $strings['TourBackButton'] = '上一步';
+        $strings['TourDoneButton'] = '完成，開始使用';
+        $strings['TourStepOf'] = '第 {n} / {total} 步';
+        $strings['TourReplayMenuItem'] = '操作教學';
+
+        // User guide page
+        $strings['UserGuide'] = '使用手冊';
+        $strings['UserGuideIntro'] = '從找會議室、訂會議室，到管理你的會議，這裡都有說明。';
+        $strings['UserGuideGeneralSection'] = '一般使用者';
+        $strings['UserGuideAdminSection'] = '管理員';
+
+        $strings['UserGuideLoginTitle'] = '登入與首頁介紹';
+        $strings['UserGuideLoginBody'] = '<p>使用你的公司帳號（帳號或 Email）與密碼登入，登入後會直接進入行事曆首頁。</p><p>左側導覽列由上到下依序是：</p><ul><li><strong>+新增預約</strong>——快速開啟建立預約視窗，效果跟在行事曆上拖曳一樣。</li><li><strong>行事曆首頁</strong>——回到會議室行事曆。</li><li><strong>我的會議</strong>——查看你自己即將到來與過去的預約。</li><li><strong>通知設定</strong>——調整要接收哪些通知。</li><li><strong>我的帳號</strong>——查看與編輯個人資料、變更密碼。</li><li><strong>管理中心</strong>——只有具備管理權限的帳號才會看到。</li><li><strong>幫助</strong>——重新播放操作教學，或打開這份使用手冊。</li><li>最下方是登出。</li></ul><p>側邊欄最上方有一個收合按鈕，可以收合成只顯示圖示，讓畫面更寬敞。</p>';
+
+        $strings['UserGuideResourcePickerTitle'] = '選擇與篩選會議室';
+        $strings['UserGuideResourcePickerBody'] = '<p>行事曆左上角的會議室選擇器，點開後可以用搜尋框快速找會議室，清單會分成「實體會議室」與「視訊會議」兩區。</p><p>系統一次只會顯示一間會議室的行事曆，選好之後畫面會切換成該會議室的時段。</p>';
+
+        $strings['UserGuideAvailabilityTitle'] = '查看空閒時段';
+        $strings['UserGuideAvailabilityBody'] = '<p>行事曆上白色空白代表可預約，彩色色塊是已經被訂走的時段，每間會議室有固定的顏色。右上角可以切換「日」「週」「月」三種檢視，也可以用「只看我的」篩選只顯示自己的預約。</p>';
+
+        $strings['UserGuideDragCreateTitle'] = '建立新預約：行事曆拖曳';
+        $strings['UserGuideDragCreateBody'] = '<p>在行事曆空白處按住滑鼠拖曳出想要的時段，放開後會跳出「快速建立」視窗，填寫標題、確認會議室、加入參與者，按下「建立」即可完成。</p><p>拖曳只能限定在同一天內，無法跨到隔天。</p>';
+
+        $strings['UserGuideFullFormTitle'] = '建立新預約：完整表單與週期性預約';
+        $strings['UserGuideFullFormBody'] = '<p>如果需要設定重複性會議（例如每週固定會議），請在「快速建立」視窗點選「更多選項」，會進入完整的預約表單，可以設定重複規則（每天/每週/自訂日期）、提醒時間、附件等進階選項，這些是「快速建立」視窗沒有的。</p>';
+
+        $strings['UserGuideEditCancelTitle'] = '編輯與取消預約';
+        $strings['UserGuideEditCancelBody'] = '<p>點擊行事曆上已存在的預約，會跳出小卡片顯示標題、時間、地點與建立者，卡片上有「編輯」與「刪除」按鈕（只有你自己或有權限的人才看得到）。編輯會進入完整的預約表單頁面。</p><p>刪除時如果是重複性會議，可以選擇只取消這一次、取消未來所有場次，或整個系列都取消。</p>';
+
+        $strings['UserGuideMyMeetingsTitle'] = '查看「我的會議」';
+        $strings['UserGuideMyMeetingsBody'] = '<p>側邊欄「我的會議」會列出你即將到來與過去的所有預約：最上方是「下一場會議」卡片並附倒數計時，接著是依日期分組的即將到來清單，最下方可以展開查看歷史紀錄。如果是視訊會議，符合條件時會直接顯示「加入會議」按鈕。</p>';
+
+        $strings['UserGuideRoomTypesTitle'] = '實體會議室與視訊會議室的差異';
+        $strings['UserGuideRoomTypesBody'] = '<p>會議室分成「實體會議室」與「視訊會議」兩種。有設定線上會議連結的會議室會被歸類為視訊會議，預約後系統會在「我的會議」與行事曆事件卡片上顯示「加入會議」按鈕，點擊即可直接進入線上會議；實體會議室則單純只是空間預約，沒有這個按鈕。</p>';
+
+        $strings['UserGuideNotificationsAccountTitle'] = '通知設定與我的帳號';
+        $strings['UserGuideNotificationsAccountBody'] = '<p>「通知設定」可以調整你要透過 Email 或 LINE 收到哪些種類的通知（例如預約成功、即將開始提醒、被取消等）。「我的帳號」可以查看與編輯個人資料、變更密碼。</p>';
+
+        $strings['UserGuideFaqTitle'] = '常見問題及錯誤訊息';
+        $strings['UserGuideFaqBody'] = '<ul><li><strong>「此時段與其他預約衝突」</strong>——代表這段時間已經被訂走了，請換一個時段。</li><li><strong>「開始時間在過去」或日期時間錯誤</strong>——請檢查你選的日期與時間是否正確。</li><li><strong>「預約不能跨日」</strong>——單筆預約的開始與結束必須在同一天，跨日的會議請拆成兩筆分開預約，或改用完整表單設定重複規則。</li><li><strong>「標題為必填」</strong>——請填寫會議標題再送出。</li><li><strong>「超過此會議室允許的最長預約時間」</strong>——每間會議室都有各自的最長可預約時數，請縮短時間，或聯絡管理員調整設定。</li><li><strong>「已達配額上限」</strong>——代表你或你的部門在某個時間範圍內的預約數量或時數已達上限，請等額度釋放或聯絡管理員。</li><li><strong>「此時段不在開放時間內」</strong>——該會議室在這個時間並未開放預約（例如非上班時段），請選擇開放時間內的時段。</li></ul>';
+
+        // Admin section
+        $strings['UserGuideAdminOverviewTitle'] = '管理中心總覽';
+        $strings['UserGuideAdminOverviewBody'] = '<p>只有具備管理權限的帳號，側邊欄才會出現「管理中心」。系統分成兩種管理層級：完整管理員可以看到全部 7 個管理項目；被指派為「群組管理員」「會議室管理員」或「排程管理員」的使用者，則會在「主要職責」看到對應範圍的管理功能。一般使用者完全不會看到這兩個選單。</p>';
+
+        $strings['UserGuideAdminReservationsTitle'] = '預約管理';
+        $strings['UserGuideAdminReservationsBody'] = '<p>可以查看、篩選、審核（如果會議室需要審核）或代為取消所有使用者的預約，適合處理糾紛或協助使用者調整預約。</p>';
+
+        $strings['UserGuideAdminResourcesTitle'] = '會議室管理';
+        $strings['UserGuideAdminResourcesBody'] = '<p>新增、編輯、停用會議室，設定容量、所在位置、是否需要審核、線上會議連結（決定它會不會被歸類到前台的「視訊會議」分組並顯示加入會議按鈕）等屬性。</p><p>這裡另外還有一個獨立的「是否為視訊會議室」分類標記，只用在管理後台自己的篩選與分組，跟前面提到、真正決定前台顯示與加入會議按鈕的線上會議連結設定是兩回事。設定視訊會議室時建議兩個都檢查，只設定其中一個是常見的疏漏。</p>';
+
+        $strings['UserGuideAdminUsersTitle'] = '使用者與權限管理';
+        $strings['UserGuideAdminUsersBody'] = '<p>管理帳號的啟用或停用、指派角色權限（完整管理員，或群組／會議室／排程管理員等委任角色）、群組成員設定。</p>';
+
+        $strings['UserGuideAdminSchedulesTitle'] = '排程管理';
+        $strings['UserGuideAdminSchedulesBody'] = '<p>設定每個時間表的開放時段、公休日、特殊開放或關閉日，決定使用者實際能在行事曆上選到哪些時段。</p>';
+
+        $strings['UserGuideAdminAnalyticsTitle'] = '使用量分析';
+        $strings['UserGuideAdminAnalyticsBody'] = '<p>查看會議室使用率、預約量趨勢等統計資訊，協助評估會議室數量是否足夠或需要調整。</p>';
+
+        $strings['UserGuideAdminSettingsTitle'] = '系統設定';
+        $strings['UserGuideAdminSettingsBody'] = '<p>系統層級設定與診斷，包含 Email／SMTP、LINE 通知、AD 同步、系統健康檢查等。</p>';
+
+        $strings['UserGuideAdminTroubleshootingTitle'] = '管理端常見疑難排解';
+        $strings['UserGuideAdminTroubleshootingBody'] = '<p>說明配額規則、停用時段（blackout）、額度（credits）等進階規則設定之後，使用者端會看到的錯誤訊息與對應的排查方向，方便快速判斷是規則設定造成的還是真正的系統問題。</p>';
+
         $this->Strings = $strings;
 
         return $this->Strings;

@@ -187,6 +187,18 @@
   pointer-events: none;
 }
 
+/* Same square 40x40 shape, replays the onboarding tour (Web/scripts/onboarding-tour.js). */
+#page-overview-fc .tour-help-btn {
+  width: 40px;
+  padding: 0;
+  justify-content: center;
+}
+
+#page-overview-fc .tour-help-btn i {
+  font-size: var(--gcal-icon-size, 20px);
+  line-height: 1;
+}
+
 /* ---- Date switcher (toolbar center) — prev/month/next as one bordered 40px-tall group
    instead of three separate controls; a fixed-width month label keeps the group's overall
    width constant as the text itself changes length between months ("月份變化時整組寬度不可

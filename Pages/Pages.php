@@ -43,6 +43,7 @@ class Pages
     public const OVERVIEW = 'overview.php';
     public const OVERVIEW_FULLCALENDAR = 'overview_fullcalendar.php';
     public const MY_MEETINGS = 'my-meetings.php';
+    public const USER_GUIDE = 'user-guide.php';
     public const SEARCH_RESERVATIONS = 'search-reservations.php';
     public const VIEW_CALENDAR = 'view-calendar.php';
     public const VIEW_RESERVATION = 'view-reservation.php';

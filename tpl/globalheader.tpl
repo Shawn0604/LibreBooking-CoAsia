@@ -460,23 +460,24 @@
                     {/if}
                     {/if}
 
-                    {* CoAsia: Help dropdown stays hidden — wasn't part of this request. Remove `{if false}` to restore. *}
-                    {if false}
+                    {* CoAsia: onboarding tour + user guide entry point. Was a hidden, upstream-docs-
+                       linking dropdown; repointed at our own content instead of restoring as-is.
+                       "操作教學" always does a real navigation (rather than calling
+                       CoAsiaTour.start() directly) so it works from every page, not just the
+                       calendar the tour's targets live on -- overview_fullcalendar.tpl reads the
+                       ?tour=1 flag and force-starts the tour once that page has loaded. *}
                     <div class="sidebar-group" id="navHelpDropdown">
                         <button class="sidebar-link sidebar-group-toggle" type="button" data-bs-toggle="collapse"
                             data-bs-target="#sidebarHelp">
-                            <i class="bi bi-question-circle"></i>{translate key="Help"}
+                            <i class="bi bi-question-circle"></i><span class="sidebar-link-label">{translate key="Help"}</span>
                             <i class="bi bi-chevron-right ms-auto sidebar-chevron"></i>
                         </button>
                         <div class="collapse sidebar-submenu" id="sidebarHelp">
-                            <a id="navHelp" class="sidebar-sublink" href="https://librebooking.readthedocs.io/en/latest/">{translate key=Help}</a>
-                            {if isset($CanViewAdmin) && $CanViewAdmin}
-                                <a id="navHelpAdmin" class="sidebar-sublink" href="https://librebooking.readthedocs.io/en/latest/ADMINISTRATION.html">{translate key=Administration}</a>
-                            {/if}
+                            <a id="navReplayTour" class="sidebar-sublink" href="{$Path}{Pages::OVERVIEW_FULLCALENDAR}?tour=1">{translate key=TourReplayMenuItem}</a>
+                            <a id="navUserGuide" class="sidebar-sublink" href="{$Path}{Pages::USER_GUIDE}">{translate key=UserGuide}</a>
                             <a id="navAbout" class="sidebar-sublink" href="{$Path}help.php?ht=about">{translate key=About}</a>
                         </div>
                     </div>
-                    {/if}
 
                     {if isset($LoggedIn) && $LoggedIn}
                         <a class="sidebar-link" id="navSignOut" href="{$Path}logout.php">

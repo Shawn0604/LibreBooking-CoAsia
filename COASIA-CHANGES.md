@@ -2192,3 +2192,45 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 `git status`／`git diff` 確認只刪了 `.gitlab-ci.yml`、改了 `README.md`／`COASIA-CHANGES.md` 兩份文件，沒有動到 `deploy/apply-migrations.sh` 或任何應用程式程式碼。
+
+## 71. 新增首次登入導覽與使用手冊
+
+使用者要求規劃兩層教學：登入後的系統內快速導覽，以及一份完整使用者手冊，且一般使用者／管理員內容要分開。先產出規劃文件（導覽步驟文案、手冊目錄、截圖清單、入口位置建議、預計異動檔案），使用者確認後才動手實作。
+
+### 71.1 首次登入導覽
+
+新增 `Web/scripts/onboarding-tour.js`／`Web/css/onboarding-tour.css`：純 vanilla JS 寫的聚光燈＋提示卡元件（沒有另外引入 intro.js／shepherd 之類的第三方套件，風格比照 `overview_fullcalendar.js` 既有的自製 Quick Create 彈窗），「已看過」狀態存在 `localStorage`（`lbTourSeen_v1`），沒有做成資料庫欄位——換瀏覽器或清快取會重新看到導覽，是刻意接受的 MVP 取捨。
+
+導覽只掛在行事曆首頁（`tpl/Overview/overview_fullcalendar.tpl`），因為所有 spotlight 目標元素都只存在於這一頁。內容原本規劃 6 步，使用者實測後回饋「側邊欄新增預約也是一種建立方式」「側邊欄每一項都要說明」，追加一步變成 7 步：
+
+1. 歡迎（無指向元素，置中彈窗）
+2. 認識左側導覽列（`#appSidebar`，逐項條列 +新增預約／行事曆首頁／我的會議／通知設定／我的帳號／幫助／管理中心）
+3. 選擇會議室（`#resourcePickerTrigger`）
+4. 查看空閒時段（`.toolbar-col-right`，涵蓋日/週/月切換＋只看我的）
+5. 拖曳建立預約（`#fullcalendarRoot`，補充側邊欄「+新增預約」是同一個視窗的另一個入口）
+6. 編輯或取消預約（`#fullcalendarRoot`）
+7. 我的會議（`#navMyMeetings`）
+
+重播入口兩處：側邊欄「幫助」下拉選單裡的「操作教學」（`?tour=1` querystring，導到行事曆頁後強制重播，離開該頁前先用 `history.replaceState` 清掉標記避免重整又跳一次），以及行事曆頁工具列右側新增的「？」圖示按鈕（跟既有 `#fcTodayBtn` 同一套 40×40 `.coasia-control` 樣式）。
+
+### 71.2 使用手冊頁面
+
+新增 `Web/user-guide.php`／`Pages/UserGuidePage.php`／`tpl/Help/user-guide.tpl`（沒有沿用上游既有的 `Pages/HelpPage.php`，那支是伺服器診斷/credits 頁，跟這次要做的操作手冊性質不同），左側是 sticky 章節導覽（`Web/scripts/user-guide.js` 做 scroll-spy 高亮目前章節），右側是內容。一般使用者 10 章、管理員 8 章，管理員區塊整段包在 `{if isset($CanViewAdmin) && $CanViewAdmin}` 裡——沿用全站既有的權限判斷慣例（`Pages/Page.php` 對每一頁都會 assign 這個變數），不是額外自己刻一套，一般使用者連 DOM 都不會拿到管理員章節的內容。
+
+側邊欄「幫助」下拉的「使用手冊」連結（`Pages::USER_GUIDE`）指過去。
+
+### 71.3 中英雙語
+
+使用者要求中英文都做（沒有預設先做中文）。全部字串（導覽 7 步的標題/內文/按鈕文字、手冊 18 章標題/內文、選單標籤）都同步寫進 `lang/zh_tw.php` 和 `lang/en_us.php`——因為 `zh_tw extends en_us`，`_LoadStrings()` 是「先繼承 en_us 全部字串，再覆寫指定 key」，只寫其中一邊會導致另一個語言顯示錯誤語言的文字，不會直接報錯，容易被忽略，所以每次改文案都刻意兩邊一起改。
+
+### 71.4 開發過程中修的三個問題
+
+**a) `Fatal error: Undefined constant Pages::USER_GUIDE`**：`Pages/Pages.php` 明明已經加了這個常數，但畫面還是噴錯。根因跟 §69.4 記過的老坑一樣——這個 dev 容器 `opcache.validate_timestamps=Off`，容器已經跑了 11 天，PHP 端的 `.php` 檔案變更不會被自動偵測到，要 `docker restart` 容器（清 opcache）才會生效，光改檔案不夠。這次額外確認了一次：純靜態的 `.js`／`.css` 檔案改完不需要重啟，只有 `.php`／`lang/*.php` 需要，之後每次改完 PHP 都直接固定跑一次 `docker restart librebooking-coasia-app-1`。
+
+**b) `ArgumentCountError: 3 arguments are required, 2 given`（使用者自己在 log 裡查出根因）**：`TourStepOf` 語言字串原本是 `'第 %s / %s 步'`，但模板呼叫 `{translate key='TourStepOf'}` 沒有帶 `args`。`lib/Common/SmartyPage.php` 的 `SmartyTranslate()` 在沒有 `args` 時，仍然會呼叫 `Resources::GetString($key, '')`，而 `GetString()` 內部 `!is_array($args)` 會把這個空字串包成 `['']`——PHP 的 `empty(['']) `是 `false`（陣列有一個元素，即使該元素是空字串），所以照樣會跑進 `sprintf()` 分支，用 1 個空字串參數去餵一個需要 2 個 `%s` 的格式字串，PHP 8 直接丟 `ArgumentCountError`。修法：把語言字串裡的 `%s %s` 改成不含 `%` 的純文字佔位符 `{n}`／`{total}`，`sprintf()` 遇到格式字串裡沒有任何 `%` 指令時，多餘的參數會被忽略、不會噴錯；`onboarding-tour.js` 改用 `.replace('{n}', ...)`／`.replace('{total}', ...)` 自己組字串。
+
+**c) 導覽卡片跑到畫面外**：第 5、6 步的 spotlight 目標是 `#fullcalendarRoot`，高度幾乎撐滿整個視窗，原本的定位邏輯只會嘗試放在目標「下方」或「上方」，兩個方向都放不下時仍然照放（下方優先），卡片因此被推到視窗底部之外，完全看不到。改成依序嘗試下、上、右、左四個方向，最後不管落在哪個方向都強制夾在視窗範圍內（`Math.min(Math.max(...))`），確保卡片一定完整可見；順便修正另一個角落案例——同一個目標元素若跟起點正好貼著午夜邊界（凌晨 00:00），置中運算不會把它誤判到前一天。
+
+### 驗證
+
+`node --check` 過 `onboarding-tour.js`／`user-guide.js`／改動的 `overview_fullcalendar.js`；容器內 `php -l` 過 `Pages.php`／`UserGuidePage.php`／`user-guide.php`／`lang/zh_tw.php`／`lang/en_us.php`，皆無語法錯誤。未登入狀態下 `curl` 測試 `user-guide.php`／`overview_fullcalendar.php?tour=1` 均乾淨導向登入頁（302），確認路由層沒有壞掉。實際登入畫面驗證（導覽 7 步逐步操作、手冊頁面渲染、管理員區塊顯示/隱藏）由使用者 `shawn.admin` 本人操作，過程中回報並確認修好了上述 (a)(b)(c) 三個問題，以及兩輪內容調整（「說明」文案改成實際存在的「幫助→操作教學」路徑、追加側邊欄逐項說明步驟）。

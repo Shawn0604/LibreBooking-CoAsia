@@ -1344,6 +1344,90 @@ class en_us extends Language
         $strings['VideoConferenceHostLogin'] = 'Host Login';
         $strings['VideoConferenceHostLoginHint'] = 'Click edit to view or update the host login used to start this meeting.';
 
+        // Onboarding tour
+        $strings['TourWelcomeTitle'] = 'Welcome to the CoAsia Room Booking system';
+        $strings['TourWelcomeBody'] = 'A 30-second walkthrough of how to find an open slot and book a room. You can replay this anytime from Help → Product Tour in the sidebar.';
+        $strings['TourSidebarTitle'] = 'Getting to know the sidebar';
+        $strings['TourSidebarBody'] = '<ul><li><strong>+ New Reservation</strong>: quickly opens the booking window, same as dragging on the calendar.</li><li><strong>Calendar Home</strong>: back to the room calendar.</li><li><strong>My Meetings</strong>: your own upcoming and past reservations.</li><li><strong>Notification Preferences</strong>: control which notifications you get.</li><li><strong>My Account</strong>: view and edit your profile, change your password.</li><li><strong>Help</strong>: replay this tour or open the full user guide.</li><li>If your account has admin permissions, you will also see <strong>Admin Center</strong> for managing rooms, users, and system settings.</li></ul>';
+        $strings['TourResourceTitle'] = 'Pick a room first';
+        $strings['TourResourceBody'] = 'Click here to search and switch rooms. The list is grouped into Physical Rooms and Video Conference.';
+        $strings['TourAvailabilityTitle'] = 'See what is open at a glance';
+        $strings['TourAvailabilityBody'] = 'White space is open, colored blocks are already booked. Switch between Day, Week, and Month view, or use "Mine Only" in the top right to filter to just your own reservations.';
+        $strings['TourDragCreateTitle'] = 'Drag on the calendar to book';
+        $strings['TourDragCreateBody'] = 'Click and drag across an open slot, then let go to open Quick Create. Fill in a title and participants and you are done. A drag can only cover one day at a time. The "+ New Reservation" button in the sidebar opens the same window without needing to drag a time first.';
+        $strings['TourEditCancelTitle'] = 'Edit or cancel a booking';
+        $strings['TourEditCancelBody'] = 'Click any existing booking to open a small card with details, Edit, and Delete. For recurring meetings, cancelling lets you choose just this one, future ones, or the whole series.';
+        $strings['TourMyMeetingsTitle'] = 'Everything you booked, in one place';
+        $strings['TourMyMeetingsBody'] = 'My Meetings shows what is coming up and your past bookings, with a Join Meeting button for video-conference rooms.';
+        $strings['TourStartButton'] = 'Start tour';
+        $strings['TourSkipButton'] = 'Skip';
+        $strings['TourNextButton'] = 'Next';
+        $strings['TourBackButton'] = 'Back';
+        $strings['TourDoneButton'] = 'Done, let\'s go';
+        $strings['TourStepOf'] = 'Step {n} of {total}';
+        $strings['TourReplayMenuItem'] = 'Product Tour';
+
+        // User guide page
+        $strings['UserGuide'] = 'User Guide';
+        $strings['UserGuideIntro'] = 'Everything you need to know to find a room, book it, and manage your meetings.';
+        $strings['UserGuideGeneralSection'] = 'For Everyone';
+        $strings['UserGuideAdminSection'] = 'For Administrators';
+
+        $strings['UserGuideLoginTitle'] = 'Signing In and the Home Screen';
+        $strings['UserGuideLoginBody'] = '<p>Sign in with your company account (username or email) and password. You will land directly on the calendar home screen.</p><p>The left sidebar, top to bottom:</p><ul><li><strong>+ New Reservation</strong> — quickly opens the booking window, same as dragging on the calendar.</li><li><strong>Calendar Home</strong> — back to the room calendar.</li><li><strong>My Meetings</strong> — your own upcoming and past reservations.</li><li><strong>Notification Preferences</strong> — control which notifications you get.</li><li><strong>My Account</strong> — view and edit your profile, change your password.</li><li><strong>Admin Center</strong> — only shown for accounts with admin permissions.</li><li><strong>Help</strong> — replay the product tour or open this user guide.</li><li>Sign out is at the very bottom.</li></ul><p>The collapse button at the top of the sidebar shrinks it down to icons only for more screen space.</p>';
+
+        $strings['UserGuideResourcePickerTitle'] = 'Choosing and Filtering Rooms';
+        $strings['UserGuideResourcePickerBody'] = '<p>The room picker in the top-left of the calendar toolbar lets you search for a room by name. The list is grouped into "Physical Rooms" and "Video Conference".</p><p>The calendar always shows one room at a time — pick a different room and the calendar switches to that room\'s schedule.</p>';
+
+        $strings['UserGuideAvailabilityTitle'] = 'Reading Availability on the Calendar';
+        $strings['UserGuideAvailabilityBody'] = '<p>White space is open, colored blocks are already booked — each room has its own color. Switch between Day, Week, and Month view in the top-right toolbar, and use "Mine Only" to filter the calendar down to just your own reservations.</p>';
+
+        $strings['UserGuideDragCreateTitle'] = 'Creating a Reservation by Dragging';
+        $strings['UserGuideDragCreateBody'] = '<p>Click and hold on an open slot, drag to the time you want, and let go. A Quick Create window opens where you fill in a title, confirm the room, and add participants, then click Create.</p><p>A single drag can only cover one day — it cannot be dragged across midnight into the next day.</p>';
+
+        $strings['UserGuideFullFormTitle'] = 'The Full Form and Recurring Meetings';
+        $strings['UserGuideFullFormBody'] = '<p>For a recurring meeting (e.g. a weekly standup), open Quick Create and click "More Options" to go to the full reservation form. There you can set a repeat rule (daily, weekly, or custom dates), reminders, attachments, and other advanced options that are not on the Quick Create form.</p>';
+
+        $strings['UserGuideEditCancelTitle'] = 'Editing and Cancelling a Reservation';
+        $strings['UserGuideEditCancelBody'] = '<p>Click any existing reservation on the calendar to open a small card showing its title, time, location, and owner, with Edit and Delete buttons (only shown if you have permission). Edit opens the full reservation form.</p><p>Deleting a recurring reservation lets you choose to cancel just this occurrence, all future occurrences, or the entire series.</p>';
+
+        $strings['UserGuideMyMeetingsTitle'] = 'Using My Meetings';
+        $strings['UserGuideMyMeetingsBody'] = '<p>The "My Meetings" link in the sidebar lists everything you have booked: a "Next Meeting" card with a live countdown at the top, an upcoming list grouped by day below it, and a collapsible Past Reservations section at the bottom. Video-conference rooms show a Join Meeting button right on the card when it is available.</p>';
+
+        $strings['UserGuideRoomTypesTitle'] = 'Physical Rooms vs. Video Conference';
+        $strings['UserGuideRoomTypesBody'] = '<p>Rooms fall into two groups: Physical Rooms and Video Conference. A room is treated as video-conference whenever it has an online meeting link configured — bookings on it get a Join Meeting button on the reservation card and in My Meetings, taking you straight to the call. Physical rooms are a plain space booking with no such button.</p>';
+
+        $strings['UserGuideNotificationsAccountTitle'] = 'Notification Preferences and My Account';
+        $strings['UserGuideNotificationsAccountBody'] = '<p>"Notification Preferences" controls which events (booking confirmed, starting soon, cancelled, etc.) you get notified about by email or LINE. "My Account" is where you view and edit your profile and change your password.</p>';
+
+        $strings['UserGuideFaqTitle'] = 'FAQ and Error Messages';
+        $strings['UserGuideFaqBody'] = '<ul><li><strong>"This time conflicts with another reservation"</strong> — the room is already booked for part of that range. Pick a different time.</li><li><strong>"Start time is in the past" / date-time errors</strong> — double check the date and time you selected.</li><li><strong>"Reservations cannot span multiple days"</strong> — a single booking has to start and end on the same day. Split a cross-midnight meeting into two bookings, or use the full form\'s recurrence rules instead.</li><li><strong>"A title is required"</strong> — give the meeting a title before submitting.</li><li><strong>"Exceeds the maximum reservation length"</strong> — each room has its own maximum booking length; shorten the reservation or ask an administrator to adjust it.</li><li><strong>"Quota exceeded"</strong> — you or your group have hit a booking-count or hours limit for a period. Wait for it to reset or contact an administrator.</li><li><strong>"Outside this room\'s available hours"</strong> — the room is not open for booking at that time (e.g. outside business hours); pick a time within its open hours.</li></ul>';
+
+        // Admin section
+        $strings['UserGuideAdminOverviewTitle'] = 'Admin Center Overview';
+        $strings['UserGuideAdminOverviewBody'] = '<p>"Admin Center" only appears in the sidebar for accounts with admin permissions. There are two tiers: a full administrator sees all 7 admin sections; someone delegated as a Group, Resource, or Schedule administrator instead sees a "Responsibilities" menu scoped to just that area. Regular users never see either menu.</p>';
+
+        $strings['UserGuideAdminReservationsTitle'] = 'Reservation Management';
+        $strings['UserGuideAdminReservationsBody'] = '<p>View, filter, approve (for rooms that require approval), or cancel any user\'s reservation on their behalf — useful for resolving conflicts or helping a user adjust a booking.</p>';
+
+        $strings['UserGuideAdminResourcesTitle'] = 'Room Management';
+        $strings['UserGuideAdminResourcesBody'] = '<p>Add, edit, or disable rooms, and set their capacity, location, approval requirement, and online-meeting link (this link is what puts a room in the "Video Conference" group and gives it a Join Meeting button on the booking calendar).</p><p>There is a separate "is video conference room" flag here used only for filtering inside this admin screen — it is independent of the online-meeting-link setting above, which is what actually drives the public calendar\'s grouping and Join Meeting button. Check both when setting up a video room; setting one and forgetting the other is a common mistake.</p>';
+
+        $strings['UserGuideAdminUsersTitle'] = 'Users and Permissions';
+        $strings['UserGuideAdminUsersBody'] = '<p>Activate or deactivate accounts, assign roles (full administrator or a delegated Group/Resource/Schedule administrator), and manage group membership.</p>';
+
+        $strings['UserGuideAdminSchedulesTitle'] = 'Schedule Management';
+        $strings['UserGuideAdminSchedulesBody'] = '<p>Configure each schedule\'s open hours, holidays, and special open/closed days — this is what determines which slots users can actually pick on the calendar.</p>';
+
+        $strings['UserGuideAdminAnalyticsTitle'] = 'Usage Analytics';
+        $strings['UserGuideAdminAnalyticsBody'] = '<p>Review room utilization and booking-volume trends to help decide whether you need more rooms or should adjust existing ones.</p>';
+
+        $strings['UserGuideAdminSettingsTitle'] = 'System Settings';
+        $strings['UserGuideAdminSettingsBody'] = '<p>System-level configuration and diagnostics, including email/SMTP, LINE notifications, Active Directory sync, and general system health checks.</p>';
+
+        $strings['UserGuideAdminTroubleshootingTitle'] = 'Admin Troubleshooting';
+        $strings['UserGuideAdminTroubleshootingBody'] = '<p>Covers how quota rules, blackout periods, and credit rules translate into the error messages end users see, so you can tell quickly whether it is a configuration choice working as intended or an actual problem.</p>';
+
         $this->Strings = $strings;
 
         return $this->Strings;
