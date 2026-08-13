@@ -237,8 +237,18 @@
                 e.preventDefault();
 
                 const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+                const $dropdown = $('#timezoneDropDown');
 
-                $('#timezoneDropDown').val(timezone);
+                // The dropdown only lists ~30 curated representative zones (see
+                // lib/Common/SimplifiedTimezones.php), not all ~400 real IANA identifiers --
+                // if the browser's own zone isn't one of them, add it as a plain extra option
+                // first so selecting it below doesn't leave the dropdown showing nothing
+                // selected.
+                if ($dropdown.find('option[value="' + timezone + '"]').length === 0) {
+                    $dropdown.append($('<option>', {value: timezone, text: timezone}));
+                }
+
+                $dropdown.val(timezone);
             });
 
             var registrationPage = new Registration();

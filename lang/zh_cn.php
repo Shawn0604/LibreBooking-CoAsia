@@ -697,6 +697,123 @@ class zh_cn extends en_us
         //End Schedule Resource Permissions
         //END NEEDS CHECKING
 
+        // Onboarding tour
+        $strings['TourWelcomeTitle'] = '欢迎使用 CoAsia 会议室预约系统';
+        $strings['TourWelcomeBody'] = '花 30 秒带你认识怎么找空档、怎么订会议室。之后随时可以在左侧"帮助"→"操作教程"重新看这段导览。';
+        $strings['TourSidebarTitle'] = '认识左侧导航栏';
+        $strings['TourSidebarBody'] = '<ul><li><strong>+新增预约</strong>：快速打开创建预约窗口，效果跟在日历上拖拽一样。</li><li><strong>日历首页</strong>：回到会议室日历。</li><li><strong>我的会议</strong>：查看你自己即将到来与过去的预约。</li><li><strong>通知设定</strong>：调整要接收哪些通知。</li><li><strong>我的账号</strong>：查看与编辑个人资料、修改密码。</li><li><strong>帮助</strong>：重新看这段导览，或打开完整使用手册。</li><li>若账号有管理权限，还会看到<strong>管理中心</strong>，用来管理会议室、用户与系统设置。</li></ul>';
+        $strings['TourResourceTitle'] = '先选你要的会议室';
+        $strings['TourResourceBody'] = '点这里可以搜索、切换会议室，列表会分成"实体会议室"和"视频会议"两区。';
+        $strings['TourAvailabilityTitle'] = '一眼看出哪些时段还空着';
+        $strings['TourAvailabilityBody'] = '白色代表可预约，彩色色块是已被订走的时段。可以切换日／周／月视图，右上角还能切换"只看我的"。';
+        $strings['TourDragCreateTitle'] = '直接在日历上拖拽就能订';
+        $strings['TourDragCreateBody'] = '在空白时段按住鼠标拖拽，放开后会弹出快速创建窗口，填标题、参与者就能提交。拖拽只能限在同一天内哦。侧边栏的"+新增预约"按钮也会打开同一个窗口，只是不用先选时段。';
+        $strings['TourEditCancelTitle'] = '修改或取消已订的会议';
+        $strings['TourEditCancelBody'] = '点一下已订的时段会弹出小卡片，可以查看详情、编辑或取消；如果是重复性会议，取消时可以选择只取消这一次还是全部。';
+        $strings['TourMyMeetingsTitle'] = '这里看你自己的所有会议';
+        $strings['TourMyMeetingsBody'] = '即将开始的会议、历史记录都在这里，视频会议还会直接显示"加入会议"按钮。';
+        $strings['TourStartButton'] = '开始导览';
+        $strings['TourSkipButton'] = '跳过';
+        $strings['TourNextButton'] = '下一步';
+        $strings['TourBackButton'] = '上一步';
+        $strings['TourDoneButton'] = '完成，开始使用';
+        $strings['TourStepOf'] = '第 {n} / {total} 步';
+        $strings['TourReplayMenuItem'] = '操作教程';
+
+        // User guide page
+        $strings['UserGuide'] = '使用手册';
+        $strings['UserGuideIntro'] = '从找会议室、订会议室，到管理你的会议，这里都有说明。';
+        $strings['UserGuideGeneralSection'] = '普通用户';
+        $strings['UserGuideAdminSection'] = '管理员';
+
+        $strings['UserGuideLoginTitle'] = '登录与首页介绍';
+        $strings['UserGuideLoginBody'] = '<p>使用你的公司账号（账号或 Email）与密码登录，登录后会直接进入日历首页。</p><p>左侧导航栏由上到下依次是：</p><ul><li><strong>+新增预约</strong>——快速打开创建预约窗口，效果跟在日历上拖拽一样。</li><li><strong>日历首页</strong>——回到会议室日历。</li><li><strong>我的会议</strong>——查看你自己即将到来与过去的预约。</li><li><strong>通知设定</strong>——调整要接收哪些通知。</li><li><strong>我的账号</strong>——查看与编辑个人资料、修改密码。</li><li><strong>管理中心</strong>——只有具备管理权限的账号才会看到。</li><li><strong>帮助</strong>——重新播放操作教程，或打开这份使用手册。</li><li>最下方是退出登录。</li></ul><p>侧边栏最上方有一个折叠按钮，可以折叠成只显示图标，让画面更宽敞。</p>';
+
+        $strings['UserGuideResourcePickerTitle'] = '选择与筛选会议室';
+        $strings['UserGuideResourcePickerBody'] = '<p>日历左上角的会议室选择器，点开后可以用搜索框快速找会议室，列表会分成"实体会议室"与"视频会议"两区。</p><p>系统一次只会显示一间会议室的日历，选好之后画面会切换成该会议室的时段。</p>';
+
+        $strings['UserGuideAvailabilityTitle'] = '查看空闲时段';
+        $strings['UserGuideAvailabilityBody'] = '<p>日历上白色空白代表可预约，彩色色块是已经被订走的时段，每间会议室有固定的颜色。右上角可以切换"日""周""月"三种视图，也可以用"只看我的"筛选只显示自己的预约。</p>';
+
+        $strings['UserGuideDragCreateTitle'] = '创建新预约：日历拖拽';
+        $strings['UserGuideDragCreateBody'] = '<p>在日历空白处按住鼠标拖拽出想要的时段，放开后会弹出"快速创建"窗口，填写标题、确认会议室、加入参与者，点击"创建"即可完成。</p><p>拖拽只能限定在同一天内，无法跨到第二天。</p>';
+
+        $strings['UserGuideFullFormTitle'] = '创建新预约：完整表单与周期性预约';
+        $strings['UserGuideFullFormBody'] = '<p>如果需要设定重复性会议（例如每周固定会议），请在"快速创建"窗口点选"更多选项"，会进入完整的预约表单，可以设定重复规则（每天/每周/自定义日期）、提醒时间、附件等高级选项，这些是"快速创建"窗口没有的。</p>';
+
+        $strings['UserGuideEditCancelTitle'] = '编辑与取消预约';
+        $strings['UserGuideEditCancelBody'] = '<p>点击日历上已存在的预约，会弹出小卡片显示标题、时间、地点与创建者，卡片上有"编辑"与"删除"按钮（只有你自己或有权限的人才看得到）。编辑会进入完整的预约表单页面。</p><p>删除时如果是重复性会议，可以选择只取消这一次、取消未来所有场次，或整个系列都取消。</p>';
+
+        $strings['UserGuideMyMeetingsTitle'] = '查看"我的会议"';
+        $strings['UserGuideMyMeetingsBody'] = '<p>侧边栏"我的会议"会列出你即将到来与过去的所有预约：最上方是"下一场会议"卡片并附倒计时，接着是按日期分组的即将到来列表，最下方可以展开查看历史记录。如果是视频会议，符合条件时会直接显示"加入会议"按钮。</p>';
+
+        $strings['UserGuideRoomTypesTitle'] = '实体会议室与视频会议室的差异';
+        $strings['UserGuideRoomTypesBody'] = '<p>会议室分成"实体会议室"与"视频会议"两种。设定了在线会议链接的会议室会被归类为视频会议，预约后系统会在"我的会议"与日历事件卡片上显示"加入会议"按钮，点击即可直接进入在线会议；实体会议室则单纯只是空间预约，没有这个按钮。</p>';
+
+        $strings['UserGuideNotificationsAccountTitle'] = '通知设定与我的账号';
+        $strings['UserGuideNotificationsAccountBody'] = '<p>"通知设定"可以调整你要通过 Email 或 LINE 收到哪些种类的通知（例如预约成功、即将开始提醒、被取消等）。"我的账号"可以查看与编辑个人资料、修改密码。</p>';
+
+        $strings['UserGuideFaqTitle'] = '常见问题及错误提示';
+        $strings['UserGuideFaqBody'] = '<ul><li><strong>"此时段与其他预约冲突"</strong>——代表这段时间已经被订走了，请换一个时段。</li><li><strong>"开始时间在过去"或日期时间错误</strong>——请检查你选的日期与时间是否正确。</li><li><strong>"预约不能跨天"</strong>——单笔预约的开始与结束必须在同一天，跨天的会议请拆成两笔分开预约，或改用完整表单设定重复规则。</li><li><strong>"标题为必填"</strong>——请填写会议标题再提交。</li><li><strong>"超过此会议室允许的最长预约时间"</strong>——每间会议室都有各自的最长可预约时长，请缩短时间，或联系管理员调整设定。</li><li><strong>"已达配额上限"</strong>——代表你或你的部门在某个时间范围内的预约数量或时长已达上限，请等额度释放或联系管理员。</li><li><strong>"此时段不在开放时间内"</strong>——该会议室在这个时间并未开放预约（例如非上班时段），请选择开放时间内的时段。</li></ul>';
+
+        // Admin section
+        $strings['UserGuideAdminOverviewTitle'] = '管理中心总览';
+        $strings['UserGuideAdminOverviewBody'] = '<p>只有具备管理权限的账号，侧边栏才会出现"管理中心"。系统分成两种管理层级：完整管理员可以看到全部 7 个管理项目；被指派为"群组管理员""会议室管理员"或"日程管理员"的用户，则会在"主要职责"看到对应范围的管理功能。普通用户完全不会看到这两个菜单。</p>';
+
+        $strings['UserGuideAdminReservationsTitle'] = '预约管理';
+        $strings['UserGuideAdminReservationsBody'] = '<p>可以查看、筛选、审核（如果会议室需要审核）或代为取消所有用户的预约，适合处理纠纷或协助用户调整预约。</p>';
+
+        $strings['UserGuideAdminResourcesTitle'] = '会议室管理';
+        $strings['UserGuideAdminResourcesBody'] = '<p>新增、编辑、停用会议室，设定容量、所在位置、是否需要审核、在线会议链接（决定它会不会被归类到前台的"视频会议"分组并显示加入会议按钮）等属性。</p><p>这里另外还有一个独立的"是否为视频会议室"分类标记，只用在管理后台自己的筛选与分组，跟前面提到、真正决定前台显示与加入会议按钮的在线会议链接设定是两回事。设定视频会议室时建议两个都检查，只设定其中一个是常见的疏漏。</p>';
+
+        $strings['UserGuideAdminUsersTitle'] = '用户与权限管理';
+        $strings['UserGuideAdminUsersBody'] = '<p>管理账号的启用或停用、指派角色权限（完整管理员，或群组／会议室／日程管理员等委任角色）、群组成员设定。</p>';
+
+        $strings['UserGuideAdminSchedulesTitle'] = '日程管理';
+        $strings['UserGuideAdminSchedulesBody'] = '<p>设定每个日程表的开放时段、公休日、特殊开放或关闭日，决定用户实际能在日历上选到哪些时段。</p>';
+
+        $strings['UserGuideAdminAnalyticsTitle'] = '使用量分析';
+        $strings['UserGuideAdminAnalyticsBody'] = '<p>查看会议室使用率、预约量趋势等统计信息，协助评估会议室数量是否足够或需要调整。</p>';
+
+        $strings['UserGuideAdminSettingsTitle'] = '系统设置';
+        $strings['UserGuideAdminSettingsBody'] = '<p>系统层级设定与诊断，包含 Email／SMTP、LINE 通知、AD 同步、系统健康检查等。</p>';
+
+        $strings['UserGuideAdminTroubleshootingTitle'] = '管理端常见疑难排解';
+        $strings['UserGuideAdminTroubleshootingBody'] = '<p>说明配额规则、停用时段（blackout）、额度（credits）等高级规则设定之后，用户端会看到的错误提示与对应的排查方向，方便快速判断是规则设定造成的还是真正的系统问题。</p>';
+
+        // Simplified timezone picker region labels (lib/Common/SimplifiedTimezones.php)
+        $strings['TzDateLineWest'] = '国际换日线西侧';
+        $strings['TzSamoa'] = '萨摩亚、中途岛';
+        $strings['TzHawaii'] = '夏威夷';
+        $strings['TzAlaska'] = '阿拉斯加';
+        $strings['TzPacific'] = '太平洋时间（美加）';
+        $strings['TzMountain'] = '山地时间（美加）';
+        $strings['TzCentral'] = '中部时间（美加）';
+        $strings['TzEastern'] = '东部时间（美加）';
+        $strings['TzAtlanticCanada'] = '大西洋时间（加拿大）';
+        $strings['TzBrasilia'] = '巴西利亚';
+        $strings['TzAzores'] = '亚速尔群岛';
+        $strings['TzLondon'] = '格林尼治标准时间、伦敦';
+        $strings['TzCentralEurope'] = '巴黎、柏林、阿姆斯特丹';
+        $strings['TzEasternEurope'] = '雅典、开罗';
+        $strings['TzMoscow'] = '莫斯科、巴格达';
+        $strings['TzTehran'] = '德黑兰';
+        $strings['TzDubai'] = '迪拜、巴库';
+        $strings['TzKabul'] = '喀布尔';
+        $strings['TzKarachi'] = '卡拉奇';
+        $strings['TzIndia'] = '新德里、孟买';
+        $strings['TzKathmandu'] = '加德满都';
+        $strings['TzDhaka'] = '阿斯塔纳、达卡';
+        $strings['TzYangon'] = '仰光';
+        $strings['TzBangkok'] = '曼谷、雅加达';
+        $strings['TzTaipei'] = '北京、新加坡、台北';
+        $strings['TzSeoul'] = '首尔、东京';
+        $strings['TzAdelaide'] = '达尔文、阿德莱德';
+        $strings['TzSydney'] = '关岛、堪培拉、悉尼';
+        $strings['TzNewCaledonia'] = '新喀里多尼亚';
+        $strings['TzAuckland'] = '奥克兰、斐济';
+        $strings['TzTonga'] = '汤加';
+        $strings['TzKiritimati'] = '基里巴斯';
 
         $this->Strings = $strings;
 

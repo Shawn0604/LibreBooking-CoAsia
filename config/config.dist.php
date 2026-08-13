@@ -53,7 +53,7 @@ return [
         # Language codes must match those defined in lang/AvailableLanguages.php.
         # If the value of `default.language` is not included in this list, the
         # application will fall back to 'en_us' and log an error.
-        'enabled.languages' => '',
+        'enabled.languages' => 'zh_tw,zh_cn,en_us',
 
         ##########
         # Frontend

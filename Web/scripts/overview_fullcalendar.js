@@ -989,6 +989,17 @@ $(function () {
                 rr.className = 'rr';
                 rr.textContent = arg.timeText;
                 wrapper.appendChild(rr);
+
+                // First name only (never last name/full name/email) -- already blanked out
+                // server-side for events this viewer isn't allowed to see the details of, so
+                // an empty string here means "don't render a third line", not "name missing".
+                var ownerFirstName = arg.event.extendedProps.ownerFirstName;
+                if (ownerFirstName) {
+                    var fn = document.createElement('div');
+                    fn.className = 'fn';
+                    fn.textContent = ownerFirstName;
+                    wrapper.appendChild(fn);
+                }
             }
 
             return { domNodes: [wrapper] };

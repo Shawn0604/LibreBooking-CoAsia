@@ -220,9 +220,16 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
 
         $config = Configuration::Instance();
 
-        $this->Set('Timezone', $this->server->GetUserSession()->Timezone);
-        $this->Set('Timezones', $GLOBALS['APP_TIMEZONES']);
-        $this->Set('Languages', $GLOBALS['APP_TIMEZONES']);
+        $adminTimezone = $this->server->GetUserSession()->Timezone;
+        $this->Set('Timezone', $adminTimezone);
+        $timezoneValues = [];
+        $timezoneLabels = [];
+        foreach (SimplifiedTimezones::GetOptions($adminTimezone) as $option) {
+            $timezoneValues[] = $option->Zone;
+            $timezoneLabels[] = SimplifiedTimezones::FormatLabel($option->Zone, $option->LabelKey);
+        }
+        $this->Set('Timezones', $timezoneValues);
+        $this->Set('TimezoneLabels', $timezoneLabels);
         $this->Set('ManageGroupsUrl', Pages::MANAGE_GROUPS);
         $this->Set('ManageReservationsUrl', Pages::MANAGE_RESERVATIONS);
         $this->Set('FilterStatusId', $this->GetFilterStatusId());
@@ -494,8 +501,14 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
 
     public function ShowUserUpdate(User $user, $attributes)
     {
-        $this->Set('Timezones', $GLOBALS['APP_TIMEZONES']);
-        $this->Set('Languages', $GLOBALS['APP_TIMEZONES']);
+        $timezoneValues = [];
+        $timezoneLabels = [];
+        foreach (SimplifiedTimezones::GetOptions($user->Timezone()) as $option) {
+            $timezoneValues[] = $option->Zone;
+            $timezoneLabels[] = SimplifiedTimezones::FormatLabel($option->Zone, $option->LabelKey);
+        }
+        $this->Set('Timezones', $timezoneValues);
+        $this->Set('TimezoneLabels', $timezoneLabels);
         $this->Set('User', $user);
         $this->Set('Attributes', $attributes);
         // Computed here rather than calling $User->IsInRole(RoleLevel::APPLICATION_ADMIN)

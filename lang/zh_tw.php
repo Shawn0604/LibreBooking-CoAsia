@@ -1020,6 +1020,40 @@ class zh_tw extends en_us
         $strings['UserGuideAdminTroubleshootingTitle'] = '管理端常見疑難排解';
         $strings['UserGuideAdminTroubleshootingBody'] = '<p>說明配額規則、停用時段（blackout）、額度（credits）等進階規則設定之後，使用者端會看到的錯誤訊息與對應的排查方向，方便快速判斷是規則設定造成的還是真正的系統問題。</p>';
 
+        // Simplified timezone picker region labels (lib/Common/SimplifiedTimezones.php)
+        $strings['TzDateLineWest'] = '國際換日線西側';
+        $strings['TzSamoa'] = '薩摩亞、中途島';
+        $strings['TzHawaii'] = '夏威夷';
+        $strings['TzAlaska'] = '阿拉斯加';
+        $strings['TzPacific'] = '太平洋時間（美加）';
+        $strings['TzMountain'] = '山地時間（美加）';
+        $strings['TzCentral'] = '中部時間（美加）';
+        $strings['TzEastern'] = '東部時間（美加）';
+        $strings['TzAtlanticCanada'] = '大西洋時間（加拿大）';
+        $strings['TzBrasilia'] = '巴西利亞';
+        $strings['TzAzores'] = '亞速爾群島';
+        $strings['TzLondon'] = '格林威治標準時間、倫敦';
+        $strings['TzCentralEurope'] = '巴黎、柏林、阿姆斯特丹';
+        $strings['TzEasternEurope'] = '雅典、開羅';
+        $strings['TzMoscow'] = '莫斯科、巴格達';
+        $strings['TzTehran'] = '德黑蘭';
+        $strings['TzDubai'] = '杜拜、巴庫';
+        $strings['TzKabul'] = '喀布爾';
+        $strings['TzKarachi'] = '喀拉蚩';
+        $strings['TzIndia'] = '新德里、孟買';
+        $strings['TzKathmandu'] = '加德滿都';
+        $strings['TzDhaka'] = '阿斯塔納、達卡';
+        $strings['TzYangon'] = '仰光';
+        $strings['TzBangkok'] = '曼谷、雅加達';
+        $strings['TzTaipei'] = '北京、新加坡、台北';
+        $strings['TzSeoul'] = '首爾、東京';
+        $strings['TzAdelaide'] = '達爾文、阿得雷德';
+        $strings['TzSydney'] = '關島、坎培拉、雪梨';
+        $strings['TzNewCaledonia'] = '新喀里多尼亞';
+        $strings['TzAuckland'] = '奧克蘭、斐濟';
+        $strings['TzTonga'] = '東加';
+        $strings['TzKiritimati'] = '吉里巴斯';
+
         $this->Strings = $strings;
 
         return $this->Strings;

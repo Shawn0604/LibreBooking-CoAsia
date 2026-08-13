@@ -164,9 +164,9 @@ class ProfilePresenter extends ActionPresenter
         $timezoneValues = [];
         $timezoneOutput = [];
 
-        foreach ($GLOBALS['APP_TIMEZONES'] as $timezone) {
-            $timezoneValues[] = $timezone;
-            $timezoneOutput[] = $timezone;
+        foreach (SimplifiedTimezones::GetOptions($this->page->GetTimezone()) as $option) {
+            $timezoneValues[] = $option->Zone;
+            $timezoneOutput[] = SimplifiedTimezones::FormatLabel($option->Zone, $option->LabelKey);
         }
 
         $this->page->SetTimezones($timezoneValues, $timezoneOutput);

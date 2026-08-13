@@ -899,9 +899,29 @@
   font-size: 10.5px;
 }
 
+/* Reservation owner's first name (title/time/name, three lines total) -- same left-aligned
+   block as .tt/.rr, no icon or indent, bold per spec so it reads as a distinct third line
+   rather than more of the muted time text above it. */
+#fullcalendarRoot .fc-timegrid-event .fn {
+  display: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 700;
+  font-size: 10.5px;
+}
+
 /* ~60min slot or taller at the current grid scale (matches overview.css's threshold). */
 @container eventCard (min-height: 32px) {
   #fullcalendarRoot .fc-timegrid-event .rr {
+    display: block;
+  }
+}
+
+/* Taller still before the third line joins -- min-height: 32px is tuned for exactly two
+   lines (title + time); three lines need more room before it stops clipping. */
+@container eventCard (min-height: 46px) {
+  #fullcalendarRoot .fc-timegrid-event .fn {
     display: block;
   }
 }

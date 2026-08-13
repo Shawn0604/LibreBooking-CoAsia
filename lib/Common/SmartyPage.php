@@ -197,6 +197,7 @@ class SmartyPage extends Smarty
     protected function RegisterFunctions()
     {
         $this->registerPlugin('function', 'translate', $this->SmartyTranslate(...));
+        $this->registerPlugin('function', 'translate_js', $this->SmartyTranslateJs(...));
         $this->registerPlugin('function', 'formatdate', $this->FormatDate(...));
         $this->registerPlugin('function', 'format_date', $this->FormatDate(...));
         $this->registerPlugin('function', 'html_link', $this->PrintLink(...));
@@ -320,6 +321,24 @@ class SmartyPage extends Smarty
             return $this->Resources->GetString($params['key'], '');
         }
         return $this->Resources->GetString($params['key'], explode(',', $params['args']));
+    }
+
+    /**
+     * Same lookup as {translate}, but for embedding a translated string as a JavaScript/JSON
+     * string literal (e.g. inside an inline <script> block). {translate key=...|escape:'javascript'}
+     * looks right but is wrong: that modifier chain binds to the 'key' attribute's own value
+     * (the literal key name, which never needs escaping), not to this function's return value
+     * -- Smarty has no built-in way to pipe a modifier onto a custom function tag's output. The
+     * translated text itself was going out completely unescaped, silently, for every language
+     * whose strings never happened to contain a JS-string-breaking character (a quote,
+     * backslash, or raw newline) -- which every en_us/zh_cn string with an English contraction
+     * like "let's" does. json_encode() both escapes correctly and supplies the wrapping quotes,
+     * so callers write `title: {translate_js key='X'}` with no quotes of their own around it.
+     */
+    public function SmartyTranslateJs($params, $smarty)
+    {
+        $value = $this->SmartyTranslate($params, $smarty);
+        return json_encode($value, JSON_UNESCAPED_UNICODE);
     }
 
     public function FormatDate($params, $smarty)

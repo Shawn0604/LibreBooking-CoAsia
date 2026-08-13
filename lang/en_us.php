@@ -1428,6 +1428,40 @@ class en_us extends Language
         $strings['UserGuideAdminTroubleshootingTitle'] = 'Admin Troubleshooting';
         $strings['UserGuideAdminTroubleshootingBody'] = '<p>Covers how quota rules, blackout periods, and credit rules translate into the error messages end users see, so you can tell quickly whether it is a configuration choice working as intended or an actual problem.</p>';
 
+        // Simplified timezone picker region labels (lib/Common/SimplifiedTimezones.php)
+        $strings['TzDateLineWest'] = 'International Date Line West';
+        $strings['TzSamoa'] = 'Samoa, Midway';
+        $strings['TzHawaii'] = 'Hawaii';
+        $strings['TzAlaska'] = 'Alaska';
+        $strings['TzPacific'] = 'Pacific Time (US & Canada)';
+        $strings['TzMountain'] = 'Mountain Time (US & Canada)';
+        $strings['TzCentral'] = 'Central Time (US & Canada)';
+        $strings['TzEastern'] = 'Eastern Time (US & Canada)';
+        $strings['TzAtlanticCanada'] = 'Atlantic Time (Canada)';
+        $strings['TzBrasilia'] = 'Brasilia';
+        $strings['TzAzores'] = 'Azores';
+        $strings['TzLondon'] = 'Greenwich Mean Time, London';
+        $strings['TzCentralEurope'] = 'Paris, Berlin, Amsterdam';
+        $strings['TzEasternEurope'] = 'Athens, Cairo';
+        $strings['TzMoscow'] = 'Moscow, Baghdad';
+        $strings['TzTehran'] = 'Tehran';
+        $strings['TzDubai'] = 'Dubai, Baku';
+        $strings['TzKabul'] = 'Kabul';
+        $strings['TzKarachi'] = 'Karachi';
+        $strings['TzIndia'] = 'New Delhi, Mumbai';
+        $strings['TzKathmandu'] = 'Kathmandu';
+        $strings['TzDhaka'] = 'Astana, Dhaka';
+        $strings['TzYangon'] = 'Yangon';
+        $strings['TzBangkok'] = 'Bangkok, Jakarta';
+        $strings['TzTaipei'] = 'Beijing, Singapore, Taipei';
+        $strings['TzSeoul'] = 'Seoul, Tokyo';
+        $strings['TzAdelaide'] = 'Darwin, Adelaide';
+        $strings['TzSydney'] = 'Guam, Canberra, Sydney';
+        $strings['TzNewCaledonia'] = 'New Caledonia';
+        $strings['TzAuckland'] = 'Auckland, Fiji';
+        $strings['TzTonga'] = 'Tonga';
+        $strings['TzKiritimati'] = 'Kiritimati';
+
         $this->Strings = $strings;
 
         return $this->Strings;

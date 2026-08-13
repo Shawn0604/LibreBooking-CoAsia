@@ -65,7 +65,7 @@
 			<div class="form-group">
 				<label class="fw-bold" for="timezone">{translate key="Timezone"}</label>
 				<select {formname key='TIMEZONE'} id='timezone' class="form-select">
-					{html_options values=$Timezones output=$Timezones selected="{$User->Timezone()}"}
+					{html_options values=$Timezones output=$TimezoneLabels selected="{$User->Timezone()}"}
 				</select>
 			</div>
 		</div>

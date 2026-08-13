@@ -299,7 +299,7 @@
                             <div class="form-group has-feedback">
                                 <label class="fw-bold" for="addTimezone">{translate key="Timezone"}</label>
                                 <select id="addTimezone" {formname key='TIMEZONE'} class="form-select">
-                                    {html_options values=$Timezones output=$Timezones selected=$Timezone}
+                                    {html_options values=$Timezones output=$TimezoneLabels selected=$Timezone}
                                 </select>
                             </div>
                         </div>

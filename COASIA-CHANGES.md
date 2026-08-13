@@ -2234,3 +2234,77 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 `node --check` 過 `onboarding-tour.js`／`user-guide.js`／改動的 `overview_fullcalendar.js`；容器內 `php -l` 過 `Pages.php`／`UserGuidePage.php`／`user-guide.php`／`lang/zh_tw.php`／`lang/en_us.php`，皆無語法錯誤。未登入狀態下 `curl` 測試 `user-guide.php`／`overview_fullcalendar.php?tour=1` 均乾淨導向登入頁（302），確認路由層沒有壞掉。實際登入畫面驗證（導覽 7 步逐步操作、手冊頁面渲染、管理員區塊顯示/隱藏）由使用者 `shawn.admin` 本人操作，過程中回報並確認修好了上述 (a)(b)(c) 三個問題，以及兩輪內容調整（「說明」文案改成實際存在的「幫助→操作教學」路徑、追加側邊欄逐項說明步驟）。
+
+## 72. §71 遺留的兩個問題：翻譯字串跳脫在 JS 內完全沒作用、zh_cn 從未實際補齊
+
+英文／簡體中文的「操作教學」點了完全沒反應，使用者自己在瀏覽器 Console 抓到根因並提出診斷，跟後續獨立驗證完全吻合。
+
+### 72.1 `{translate key=...|escape:'javascript'}` 的 `escape` 其實作用在 `key` 參數上，不是翻譯後的輸出
+
+寫了一個獨立的 Smarty 測試腳本（不透過完整 app，直接 `new Smarty\Smarty()` 註冊一個假的 `translate` function plugin），印出編譯後的 PHP 直接證實：`{translate key='TourDoneButton'|escape:'javascript'}` 編譯出來的程式碼是 `getFunctionHandler('translate')->handle(array('key'=>strtr((string)'TourDoneButton', [轉義表])), ...)`——`escape:'javascript'` 這個修飾詞鏈是綁定在 `key` 這個屬性的字面值上（一個從來不需要跳脫的常數字串），完全沒有套用到 `translate` function 實際回傳的翻譯內容。輸出因此是完全沒跳脫的原始文字：`done: 'Done, let's go'`——中文版本一直沒事只是因為所有繁中字串剛好從來沒出現過會弄壞 JS 字串的字元（引號、反斜線），直到這次新增的英文 `let's` 才第一次撞到。
+
+這個寫法在 `tpl/Overview/overview_fullcalendar.tpl` 裡出現了 40 次左右（§71 新增的 `coasiaTourConfig` 區塊 19 次、更早就存在的 `overviewFullCalendarOpts.translations` 區塊 21 次），是全站性的潛在問題，不只是把 `let's` 改掉能解決的——照使用者要求做根本修正：
+
+- `lib/Common/SmartyPage.php` 新增 `{translate_js key=...}` function plugin（`SmartyTranslateJs()`），內部呼叫既有的 `SmartyTranslate()` 拿到翻譯內容後用 `json_encode($value, JSON_UNESCAPED_UNICODE)` 輸出——JSON 字串跳脫規則本來就是合法的 JS 字串字面值語法，順便自動補上外層引號，呼叫端不用再自己包 `'...'`。
+- 兩個 `<script>` 區塊裡所有 `'{translate key='X'|escape:'javascript'}'` 全部換成 `{translate_js key='X'}`（拿掉多餘的手動引號）。
+- 修好後重新跑一次同一支 Smarty 測試腳本驗證：輸出變成合法的 `done: "Done, let's go"`。
+
+### 72.2 `lang/zh_cn.php` 完全沒有這次新增的 61 個 key
+
+之前回報「英文／簡中翻譯 key 都完整」是誤判——當時的比對只做了 zh_tw 對 en_us，根本沒有另外檢查 zh_cn。使用者直接在 `lang/zh_cn.php` 裡 grep 這些 key 名稱，一個都找不到，才發現這個疏漏。補上全部 61 個 key 的簡體中文翻譯（不是直接抄 zh_tw 的字，用詞比照 `zh_cn.php` 檔案裡既有的慣例，例如「日曆」統一用「日历」而不是「行事历」的簡繁轉換，「設定」「帳號」等維持跟既有 CoAsia 字串一致的用字）。`zh_tw`／`en_us`／`zh_cn` 三個檔案的 61 個 key 現在完全對齊（各自用 `grep -oE` 抓出 key 名稱排序比對，零缺漏零多餘）。
+
+### 驗證
+
+獨立 Smarty 測試腳本（`Smarty\Smarty` 直接 fetch 一個最小 `.tpl`，印出編譯後的 PHP 原始碼）分別驗證了修正前會產生未跳脫輸出、修正後產生合法的 `json_encode` 輸出，測完即刪除，沒有留在專案裡。容器內 `php -l` 過 `SmartyPage.php`／`zh_cn.php`，無語法錯誤。`docker restart` 套用 opcache。三語言檔的 61 個 key 用 `comm -23`／`comm -13` 雙向比對確認零差異。
+
+## 73. 簡化「我的帳號」的語言與時區選項
+
+使用者要求：語言選單只保留 `zh_tw`／`zh_cn`／`en_us` 三種，且登入頁與個人帳號頁清單要一致，既有使用者若設定成其他語言要安全回退成英文；時區選單從幾百個 IANA 城市名稱簡化成以 GMT 偏移量為主、預設 `(GMT+08:00)`，同一偏移量只留一個代表選項，但後端仍要儲存合法 IANA timezone 以正確處理夏令時間。需同步檢查個人帳號頁、註冊頁、管理員編輯使用者頁、系統預設值、後端接受度、既有資料相容性。
+
+### 73.1 語言限制——純設定檔改動，沒有動任何樣板
+
+動手前先確認：`lib/Common/Resources.php` 的 `LoadAvailableLanguages()` 早就支援用 `enabled.languages`（`config/config.php`，逗號分隔）過濾語言清單，而且登入頁（`Pages/LoginPage.php` 的 `$Languages`）跟個人帳號頁（`Pages/Page.php` 對每一頁都會 assign 的 `$AvailableLanguages`）**兩邊本來就是讀同一個已過濾清單**——所以不需要改任何樣板，只要把 `config/config.php`（本機開發用，未進版控）與 `config/config.dist.php`（進版控的範本）的 `enabled.languages` 從空字串改成 `'zh_tw,zh_cn,en_us'`。
+
+「既有使用者設定成其他語言要安全回退英文」這個需求也已經是內建行為，不用額外寫程式碼：`Resources::GetLanguageCode()` 依序檢查 cookie → 使用者自己的 `LanguageCode` → 系統預設值，每一步都會過 `IsLanguageSupported()`（檢查是否在**過濾後**的清單裡），全部不符合才落到寫死的 `en_us`。個人帳號頁的語言切換 AJAX 端點（`Presenters/ChangeLanguagePresenter.php`）跟登入頁切換語言都一樣，送出前会呼叫同一個 `IsLanguageSupported()`，不在允許清單內的語言代碼會直接被拒絕、不會存進資料庫，後端已經天生只接受簡化後的值。
+
+用資料庫直接查過目前本機開發環境的既有資料：115 個帳號全部是 `Asia/Taipei`、113 個 `en_us`／2 個 `zh_tw`，沒有任何帳號的既有語言值會被這次限制擋到，风险很低。
+
+### 73.2 時區簡化——新增一個共用的「代表時區」清單，不動全站唯一的時區來源
+
+`config/timezones.php` 用 `DateTimeZone::listIdentifiers()` 把 PHP 認得的全部（約 400 個）IANA 時區塞進 `$GLOBALS['APP_TIMEZONES']`，個人帳號頁／註冊頁／管理員新增與編輯使用者頁的時區下拉選單，原本都是直接把這個全域變數整包丟進 `<select>`。刻意**沒有**改 `config/timezones.php`／`$GLOBALS['APP_TIMEZONES']` 本身——這個全域變數還有另外兩個沒在這次需求範圍內的用途（`ManageSchedulesPresenter`／`ManageConfigurationPage`，排程時區、系統預設時區設定），改了會波及沒被要求的畫面。
+
+新增 `lib/Common/SimplifiedTimezones.php`：手工整理一份約 32 個「代表時區」的清單（西到東固定排序，不會因為夏令時間換算而重新洗牌排序），每個 GMT 偏移量只保留一個代表 IANA 時區（例如 +08:00 只留 `Asia/Taipei`，不會同時列 `Asia/Shanghai`）。`FormatLabel()` 用 `DateTimeZone::getOffset()` **即時**算出目前的 GMT 偏移量組成顯示字串，不是寫死數字——這代表有夏令時間的地區（例如 `America/New_York`）會隨季節自動在 `(GMT-05:00)` 和 `(GMT-04:00)` 之間正確切換，不需要額外維護。**儲存的值永遠是清單裡挑的那個真正合法的 IANA 字串**（不是自創的偏移量代碼），所以預約引擎既有的 `Date`／`DateRange` 時間換算邏輯完全不受影響。
+
+使用者看過第一版（每個偏移量只帶一個城市名，例如單純「Taipei」）後，提供了一張參考截圖，希望改成每個偏移量列出幾個知名城市（例如「GMT+08:00 (北京，新加坡，臺北)」）。這代表標籤文字不能再是 PHP 裡寫死的英文——這個系統現在有三種語言，城市清單也必須跟著 `zh_tw`／`zh_cn`／`en_us` 走。改成清單裡每一列存的是一個翻譯 key（例如 `TzTaipei`）而不是字面文字，`FormatLabel()` 內部呼叫 `Resources::GetInstance()->GetString($labelKey)` 取得目前語言的翻譯（可以直接這樣呼叫，因為這是後端 PHP 程式碼本身在用 `Resources`，不是透過 Smarty 樣板），32 個 key 的三語言翻譯（例如 `TzTaipei`＝「北京、新加坡、台北」／「Beijing, Singapore, Taipei」）都寫進三個 `lang/*.php`。
+
+`GetOptions($currentValue)` 額外接受「這個使用者目前已經存的時區值」，如果不在代表清單裡（理論上的舊資料或跟清單裡某個時區偏移量相同但名稱不同的合法時區），會被附加成清單最後一個額外選項，確保「沒改時區、只改別的欄位再存檔」不會把使用者的時區資料靜默改掉；已經在清單裡的話則不會重複加一次。
+
+串接四個地方（前三個原本就已經分別各自跑一份 `foreach ($GLOBALS['APP_TIMEZONES'] as ...)`，改成呼叫同一個 `SimplifiedTimezones::GetOptions()`）：
+
+- `Presenters/ProfilePresenter.php`（個人帳號頁）——`$currentValue` 帶目前登入者自己的時區。
+- `Presenters/RegistrationPresenter.php`（自助註冊頁）——`$currentValue` 帶 postback 後的值，因為頁面上「偵測我的時區」按鈕可能透過瀏覽器 `Intl` API 帶入任何一個真實 IANA 時區、不一定在代表清單裡；同步修正 `tpl/register.tpl` 那顆按鈕的 JS，偵測到的時區不在下拉選單裡時先動態補一個 `<option>` 再選取，不然瀏覽器會因為 `.val()` 對不到任何選項而整個顯示空白。
+- `Pages/Admin/ManageUsersPage.php` 的 `ProcessPageLoad()`（管理員「新增使用者」表單，`$currentValue` 帶目前登入管理員自己的時區當預設值）與 `ShowUserUpdate()`（管理員「編輯使用者」頁，`$currentValue` 帶該使用者目前的實際時區）——這兩處原本用同一個陣列同時當 `<option>` 的 value 跟顯示文字，改成 `Timezones`（value）／`TimezoneLabels`（顯示文字）兩個平行陣列，`tpl/Admin/Users/manage_users.tpl`／`tpl/Admin/Users/user-update.tpl` 的 `{html_options}` 呼叫同步從 `output=$Timezones` 改成 `output=$TimezoneLabels`。
+
+**順手清掉一個既有但死掉的 bug**：`ManageUsersPage.php` 原本在這兩個地方都有 `$this->Set('Languages', $GLOBALS['APP_TIMEZONES']);`——把時區清單指派給一個叫 `Languages` 的樣板變數，明顯是複製貼上打錯。確認過 `tpl/Admin/Users/manage_users.tpl`／`user-update.tpl` 兩個樣板完全沒有用到 `$Languages`（管理員新增／編輯使用者頁本來就沒有語言欄位，只有時區），這行是無害但錯誤的死程式碼，直接刪掉，沒有另外造一個真正能用的管理員語言下拉選單，因為需求裡沒有要求新增這個功能，只要求檢查既有的。
+
+### 73.3 系統預設值
+
+`default.timezone` 本來就是 `'Asia/Taipei'`（config.php 與 config.dist.php 皆是），符合「預設 `(GMT+08:00)`」的要求，沒有改動。`default.language` 維持 `'en_us'`——沒有被要求改動，而且已經在新的 `enabled.languages` 允許清單內，不會觸發任何 fallback 警告；實際新帳號的語言判斷邏輯（瀏覽器語言偵測優先）是更早的 §62 修的，這次沒有動。
+
+### 驗證
+
+獨立寫了一支測試腳本直接呼叫 `SimplifiedTimezones::GetOptions()`／`FormatLabel()`（不經過完整 app），確認：32 個代表時區全部正確輸出當下的 GMT 偏移量標籤（`America/New_York` 在測試當下——8 月，北美夏令時間中——正確顯示 `(GMT-04:00) Eastern Time`，不是寫死的 `-05:00`）；帶入一個不在清單裡的值（`Europe/Berlin`）會被正確附加一筆、且格式化正常；帶入清單裡已有的值（`Asia/Taipei`）不會重複出現。改成翻譯 key 之後，另外寫了一支測試腳本直接用反射呼叫 `en_us`／`zh_tw`／`zh_cn` 三個語言類別的 `_LoadStrings()`，確認 5 個抽樣 key（`TzTaipei`／`TzSeoul`／`TzLondon`／`TzDateLineWest`／`TzKiritimati`）在三個語言裡都有值、且是對應語言的翻譯而非英文預設值。兩支測試腳本都測完即刪除，沒有留在專案裡。容器內 `php -l` 過所有改動的 `.php` 檔案（`SimplifiedTimezones.php`／`namespace.php`／`ProfilePresenter.php`／`RegistrationPresenter.php`／`ManageUsersPage.php`／`config.php`／`config.dist.php`／三個 `lang/*.php`），皆無語法錯誤。`docker restart` 套用 opcache 與新的 `enabled.languages` 設定。
+
+**需要使用者自己動手的部分**：`config/config.php` 沒有進版控，這次只改了本機開發環境跟 `config.dist.php`（範本），正式環境的 `config/config.php` 需要手動加上同一行 `'enabled.languages' => 'zh_tw,zh_cn,en_us',` 才會生效，這份文件沒辦法幫忙做。三種語言的實際畫面（登入頁、個人帳號頁語言/時區下拉、註冊頁、管理員新增/編輯使用者頁）與 `(GMT+08:00)` 下建立/顯示/編輯預約時間是否一致，需要使用者登入後親自逐一確認。
+
+## 74. 週／日行事曆的預約色塊加上預約者名字
+
+要求：色塊裡標題、時間之下再加一行預約者的名（只要 `firstName`，不要姓氏／全名／Email），粗體、跟前兩行一樣左對齊、名字前面不要圖示或空白。
+
+`Presenters/OverviewFullCalendarEventsPresenter.php` 組 FullCalendar 事件資料時，原本只把 `GetUserName()`（`FullName`，姓名合併）放進 `extendedProps.ownerName`，這個欄位在事件小卡片（popover）裡本來就用來顯示全名，不能直接拿來用在色塊上。改成額外多送一個 `extendedProps.ownerFirstName`，值來自 `ReservationItemView::$OwnerFirstName`（這個屬性本來就有、資料庫查詢也早就撈回來了，只是先前完全沒有任何地方讀取它），跟既有的隱私規則走同一條路——使用者看不到這筆預約詳情時（`$canViewDetails` 為否），`ownerFirstName` 跟 `ownerName` 一樣回傳空字串，不會透過這個新欄位洩漏是誰訂的。
+
+`Web/scripts/overview_fullcalendar.js` 的 `eventContent()` 在既有的 `.tt`（標題）／`.rr`（時間）之後，同一個 `arg.view.type !== 'dayGridMonth'` 判斷式裡（月檢視的方塊本來就沒有第二行時間、這次也一併不加第三行，符合「週／日行事曆」的要求範圍）多加一個 `.fn` div，`textContent` 直接設成 `extendedProps.ownerFirstName`（空字串時完全不建立這個 div，而不是建立一個空的三行）。`Web/css/overview_fullcalendar.css` 新增 `.fn` 規則：`font-weight: 700`，跟 `.tt`／`.rr` 一樣沒有額外的 icon／padding，左對齊沿用父層 `.evc` 預設的區塊排版。沿用 `.rr` 既有的 CSS container query 漸進顯示模式（事件方塊矮到放不下時間行就先隱藏 `.rr`）——三行比兩行需要更多高度，`.fn` 用一個比 `.rr` 的 32px 更高的門檻（46px）才顯示，避免方塊太矮時被截斷或跟其他行擠在一起。
+
+### 驗證
+
+`node --check` 過 `overview_fullcalendar.js`、容器內 `php -l` 過 `OverviewFullCalendarEventsPresenter.php`，皆無語法錯誤。跑了這支 presenter 既有的 PHPUnit 測試（16 個測試，45 個斷言），除了 1 個跟這次改動完全無關的既有失敗（`testEmptyTitleFallsBackToDefaultLabelWhenViewable`——單獨用 `--filter` 執行時 `Resources::GetInstance()->GetString('NoReservationTitle')` 沒有解析成中文字串，是這個測試在單獨執行時的資源載入問題，不是這次新增的 `ownerFirstName` 欄位造成的，diff 裡完全沒有動到標題相關的邏輯）之外全數通過。`docker restart` 套用 opcache。畫面上三行是否確實左對齊、粗體正確、矮方塊下的漸進顯示門檻是否好看，需要使用者登入後在真正的週/日行事曆上確認。

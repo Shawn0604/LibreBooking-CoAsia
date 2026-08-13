@@ -410,28 +410,31 @@
            processes it, so any {translate} tag written directly inside it would reach the
            browser as literal text. This is the bridge: translate here, reference via
            opts.translations.* in the JS. *}
+        {* {translate_js} (not {translate key=...|escape:'javascript'}) -- that escape chains
+           onto the 'key' attribute's own literal value, not this tag's translated output, so
+           it was a silent no-op here; see SmartyPage::SmartyTranslateJs()'s doc comment. *}
         translations: {
-            editReservation: '{translate key='EditReservation'|escape:'javascript'}',
-            newReservation: '{translate key='NewReservation'|escape:'javascript'}',
-            update: '{translate key='Update'|escape:'javascript'}',
-            create: '{translate key='Create'|escape:'javascript'}',
-            loadReservationFailed: '{translate key='LoadReservationFailed'|escape:'javascript'}',
-            networkErrorRetry: '{translate key='NetworkErrorRetry'|escape:'javascript'}',
-            unsavedChangesPrompt: '{translate key='UnsavedChangesPrompt'|escape:'javascript'}',
-            endBeforeStart: '{translate key='EndDateBeforeStartDate'|escape:'javascript'}',
-            reservationChanged: '{translate key='ReservationChanged'|escape:'javascript'}',
-            reloadLatest: '{translate key='ReloadLatest'|escape:'javascript'}',
-            repeatEndDateRequired: '{translate key='RepeatEndDateRequired'|escape:'javascript'}',
-            repeatWeekdayRequired: '{translate key='RepeatWeekdayRequired'|escape:'javascript'}',
-            repeatCustomDateRequired: '{translate key='RepeatCustomDateRequired'|escape:'javascript'}',
-            minutes: '{translate key='minutes'|escape:'javascript'}',
-            hours: '{translate key='hours'|escape:'javascript'}',
-            days: '{translate key='days'|escape:'javascript'}',
-            resourceAvailable: '{translate key='ResourceAvailable'|escape:'javascript'}',
-            resourceUnavailable: '{translate key='ResourceUnavailable'|escape:'javascript'}',
-            noMatchesFound: '{translate key='NoMatchesFound'|escape:'javascript'}',
-            inviteExternalEmail: '{translate key='InviteExternalEmail'|escape:'javascript'}',
-            externalParticipantBadge: '{translate key='ExternalParticipantBadge'|escape:'javascript'}'
+            editReservation: {translate_js key='EditReservation'},
+            newReservation: {translate_js key='NewReservation'},
+            update: {translate_js key='Update'},
+            create: {translate_js key='Create'},
+            loadReservationFailed: {translate_js key='LoadReservationFailed'},
+            networkErrorRetry: {translate_js key='NetworkErrorRetry'},
+            unsavedChangesPrompt: {translate_js key='UnsavedChangesPrompt'},
+            endBeforeStart: {translate_js key='EndDateBeforeStartDate'},
+            reservationChanged: {translate_js key='ReservationChanged'},
+            reloadLatest: {translate_js key='ReloadLatest'},
+            repeatEndDateRequired: {translate_js key='RepeatEndDateRequired'},
+            repeatWeekdayRequired: {translate_js key='RepeatWeekdayRequired'},
+            repeatCustomDateRequired: {translate_js key='RepeatCustomDateRequired'},
+            minutes: {translate_js key='minutes'},
+            hours: {translate_js key='hours'},
+            days: {translate_js key='days'},
+            resourceAvailable: {translate_js key='ResourceAvailable'},
+            resourceUnavailable: {translate_js key='ResourceUnavailable'},
+            noMatchesFound: {translate_js key='NoMatchesFound'},
+            inviteExternalEmail: {translate_js key='InviteExternalEmail'},
+            externalParticipantBadge: {translate_js key='ExternalParticipantBadge'}
         },
         resourceNames: {
             {foreach from=$PhysicalResources item=resource name=physicalNames}
@@ -470,51 +473,55 @@
        overviewFullCalendarOpts.translations above -- pre-localized here since the .js file
        itself is static and never touched by Smarty. Step targets are CSS selectors for
        elements on THIS page only (the resource picker, calendar grid, and toolbar), plus one
-       in the shared sidebar (#navMyMeetings) -- see onboarding-tour.js's positionForTarget(). *}
+       in the shared sidebar (#navMyMeetings) -- see onboarding-tour.js's positionForTarget().
+       {translate_js}, not {translate key=...|escape:'javascript'} -- see
+       SmartyPage::SmartyTranslateJs()'s doc comment for why that escape was a no-op (an
+       English apostrophe like "let's" broke the whole script block only in en_us/zh_cn,
+       never in zh_tw, which is what made this so easy to miss). *}
     window.coasiaTourConfig = {
         steps: [
             {
                 target: null,
-                title: '{translate key='TourWelcomeTitle'|escape:'javascript'}',
-                body: '{translate key='TourWelcomeBody'|escape:'javascript'}'
+                title: {translate_js key='TourWelcomeTitle'},
+                body: {translate_js key='TourWelcomeBody'}
             },
             {
                 target: '#appSidebar',
-                title: '{translate key='TourSidebarTitle'|escape:'javascript'}',
-                body: '{translate key='TourSidebarBody'|escape:'javascript'}'
+                title: {translate_js key='TourSidebarTitle'},
+                body: {translate_js key='TourSidebarBody'}
             },
             {
                 target: '#resourcePickerTrigger',
-                title: '{translate key='TourResourceTitle'|escape:'javascript'}',
-                body: '{translate key='TourResourceBody'|escape:'javascript'}'
+                title: {translate_js key='TourResourceTitle'},
+                body: {translate_js key='TourResourceBody'}
             },
             {
                 target: '.toolbar-col-right',
-                title: '{translate key='TourAvailabilityTitle'|escape:'javascript'}',
-                body: '{translate key='TourAvailabilityBody'|escape:'javascript'}'
+                title: {translate_js key='TourAvailabilityTitle'},
+                body: {translate_js key='TourAvailabilityBody'}
             },
             {
                 target: '#fullcalendarRoot',
-                title: '{translate key='TourDragCreateTitle'|escape:'javascript'}',
-                body: '{translate key='TourDragCreateBody'|escape:'javascript'}'
+                title: {translate_js key='TourDragCreateTitle'},
+                body: {translate_js key='TourDragCreateBody'}
             },
             {
                 target: '#fullcalendarRoot',
-                title: '{translate key='TourEditCancelTitle'|escape:'javascript'}',
-                body: '{translate key='TourEditCancelBody'|escape:'javascript'}'
+                title: {translate_js key='TourEditCancelTitle'},
+                body: {translate_js key='TourEditCancelBody'}
             },
             {
                 target: '#navMyMeetings',
-                title: '{translate key='TourMyMeetingsTitle'|escape:'javascript'}',
-                body: '{translate key='TourMyMeetingsBody'|escape:'javascript'}'
+                title: {translate_js key='TourMyMeetingsTitle'},
+                body: {translate_js key='TourMyMeetingsBody'}
             }
         ],
         strings: {
-            skip: '{translate key='TourSkipButton'|escape:'javascript'}',
-            back: '{translate key='TourBackButton'|escape:'javascript'}',
-            next: '{translate key='TourNextButton'|escape:'javascript'}',
-            done: '{translate key='TourDoneButton'|escape:'javascript'}',
-            stepOf: '{translate key='TourStepOf'|escape:'javascript'}'
+            skip: {translate_js key='TourSkipButton'},
+            back: {translate_js key='TourBackButton'},
+            next: {translate_js key='TourNextButton'},
+            done: {translate_js key='TourDoneButton'},
+            stepOf: {translate_js key='TourStepOf'}
         }
     };
 </script>

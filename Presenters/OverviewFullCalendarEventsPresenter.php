@@ -135,6 +135,7 @@ class OverviewFullCalendarEventsPresenter
             if ($canViewDetails) {
                 $title = !empty($reservation->Title) ? $reservation->Title : Resources::GetInstance()->GetString('NoReservationTitle');
                 $ownerName = (string)$reservation->GetUserName();
+                $ownerFirstName = (string)$reservation->OwnerFirstName;
             } else {
                 // Same privacy rule Domain/Access-level consumers already respect
                 // (lib/Application/Reservation/PrivacyFilter.php) — never leak the real
@@ -143,6 +144,7 @@ class OverviewFullCalendarEventsPresenter
                 // purpose of is still a privacy leak.
                 $title = '忙碌';
                 $ownerName = '';
+                $ownerFirstName = '';
             }
 
             // Real authorization check (ReservationAuthorization::CanEdit(), the same service
@@ -176,6 +178,7 @@ class OverviewFullCalendarEventsPresenter
                     'resourceId' => (string)$reservation->ResourceId,
                     'resourceName' => $reservation->ResourceName,
                     'ownerName' => $ownerName,
+                    'ownerFirstName' => $ownerFirstName,
                     'canEdit' => $canEdit,
                     'canDelete' => $canEdit,
                     'isRecurring' => (bool)$reservation->IsRecurring,

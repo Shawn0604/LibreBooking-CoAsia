@@ -176,21 +176,23 @@ class RegistrationPresenter extends ActionPresenter
 
     private function PopulateTimezones()
     {
-        $timezoneValues = [];
-        $timezoneOutput = [];
-
-        foreach ($GLOBALS['APP_TIMEZONES'] as $timezone) {
-            $timezoneValues[] = $timezone;
-            $timezoneOutput[] = $timezone;
-        }
-
-        $this->page->SetTimezones($timezoneValues, $timezoneOutput);
-
         $timezone = Configuration::Instance()->GetDefaultTimezone();
         if ($this->page->IsPostBack()) {
+            // Keeps a postback's value selected/visible even if it is not one of the curated
+            // zones -- e.g. the "detect my timezone" button can set any of PHP's ~400 real
+            // identifiers, not just the curated list.
             $timezone = $this->page->GetTimezone();
         }
 
+        $timezoneValues = [];
+        $timezoneOutput = [];
+
+        foreach (SimplifiedTimezones::GetOptions($timezone) as $option) {
+            $timezoneValues[] = $option->Zone;
+            $timezoneOutput[] = SimplifiedTimezones::FormatLabel($option->Zone, $option->LabelKey);
+        }
+
+        $this->page->SetTimezones($timezoneValues, $timezoneOutput);
         $this->page->SetTimezone($timezone);
     }
 
