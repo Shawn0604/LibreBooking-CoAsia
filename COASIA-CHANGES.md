@@ -2348,3 +2348,13 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 全部修復完成後，容器內完整跑一次 `vendor/bin/phpunit`：**1725 個測試、7744 個斷言、0 error、0 failure**（13 個既有 warning／6 個 deprecation／1 個 skipped，皆與這輪異動無關，跑之前就存在）——這是這個專案目前為止第一次全專案 PHPUnit 完全乾淨，先前每一輪 CHANGES 都還帶著「1 個既有 error + 1 個既有 failure」這句話。另外完整重跑一次 `tests/concurrency/run_concurrency_tests.php`：**9 個情境全數通過**。逐項對照表與哪些項目仍需要人工登入/多帳號/壓測工具驗證，見 [COASIA-TEST-REPORT.md](COASIA-TEST-REPORT.md)。
+
+## 76. 月檢視補上 hover 預覽效果
+
+使用者自評請求後，`COASIA-GOLIVE-CHECKLIST.md` 裡列了很久的「月檢視拖曳建立、hover 預覽格子：舊版有、新版目前沒做」被要求補齊。先查證這句話的前半段——實際去讀 `overview_fullcalendar.js` 的 `select` handler 才發現月檢視點擊/拖曳日期格子早就會開 Quick Create（固定預設 09:00–09:30，彈窗裡可以再調整），也早就不能拖曳跨日（跟週/日檢視共用同一個 `selectAllow`，§72 那次修好之後就統一套用到所有檢視，不分月/週/日）。回頭查舊版 `overview.tpl`／`overview.js`，發現月檢視根本是全新功能，舊版從來沒有過——這句話真正在講的其實只有「hover 預覽格子」這半段：週/日/月三種檢視的空白區塊點下去都有作用，但滑鼠移過去完全沒有任何視覺回饋，使用者不會知道這裡可以點/拖曳。
+
+問過使用者要補哪一種（新增 hover 效果／點擊直接切到日檢視／預設時間改智慧進位，三選一），選的是新增 hover 效果。`Web/css/overview_fullcalendar.css` 新增兩條規則：月檢視 `.fc-daygrid-day-frame:hover` 與週/日檢視 `.fc-timegrid-slot-lane:hover` 都疊一層很淡的 `--primary` 色調背景（`rgba(26, 63, 115, 0.05)`）。月檢視的規則疊在 `.fc-daygrid-day-frame`（`<td>` 底下的子層）而不是 `<td>` 本身，因為今天／週日格子的背景色是直接寫在 `<td>` 上並帶 `!important`，疊在子層上可以不用跟那個 `!important` 搶優先權，還是能正常疊出 hover 色。週/日檢視的規則只套用在背景格線本身（`.fc-timegrid-slot-lane`），不會影響格線裡已經有事件方塊的部分——事件方塊完全蓋在上面，hover 色只會在事件周圍的空白處看得到。
+
+### 驗證
+
+純 CSS 改動，寫了一個小腳本數大括號配對確認語法沒錯（282 對全部配對）；本機沒有裝 `stylelint`（`npm install` 沒跑過），沒有跑完整的 lint。是靜態檔案，`curl` 直接確認伺服器已經在吐新內容，不需要重啟容器。畫面上的 hover 觀感（顏色深淺、跟今天/週日既有底色疊起來好不好看）需要使用者自己在瀏覽器裡確認。

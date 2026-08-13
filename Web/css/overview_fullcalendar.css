@@ -1019,6 +1019,25 @@
   overflow-y: auto;
 }
 
+/* Hover preview: month-view day cells (click/drag here opens Quick Create, same as any
+   week/day slot) had no visual affordance at all that they were interactive -- a light tint
+   on hover now matches the "this is clickable" feel week/day view's own slot hover (below)
+   gives. Layered on the frame (a child of the <td>), not the day cell itself, so it still
+   shows through today's/Sunday's own !important background-color a few rules up instead of
+   needing to fight that specificity. */
+#fullcalendarRoot .fc-daygrid-day-frame:hover {
+  background-color: rgba(26, 63, 115, 0.05);
+}
+
+/* Same hover tint on week/day view's empty time slots -- previously only the cursor implied
+   these were clickable, with zero visual feedback until you'd already started dragging. Only
+   the background grid cell itself is targeted (not descendants), so an event sitting in that
+   slot still renders on top completely unaffected -- the tint only shows through the empty
+   portion of the slot around it. */
+#fullcalendarRoot .fc-timegrid-slot-lane:hover {
+  background-color: rgba(26, 63, 115, 0.05);
+}
+
 /* ---------- Quick-create modal + event popover (same booking UX as overview.php) ----------
    The modal below is a real grid layout now (see .qc-grid-row), not the margin/padding
    patchwork it started as — every row, including the title (empty icon-column spacer), uses
