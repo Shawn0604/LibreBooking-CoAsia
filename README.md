@@ -30,7 +30,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 
 ## 這個 fork 做了什麼客製化
 
-跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §74）：
+跟原版 LibreBooking 相比，主要差異分成幾類，完整異動記錄與每項改動的原因見 [COASIA-CHANGES.md](COASIA-CHANGES.md)（目前已寫到 §75）：
 
 ### 身份驗證與帳號
 
@@ -51,10 +51,13 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 
 ### 預約引擎與資料安全
 
-- **併發安全**：resource lock + optimistic version locking + idempotency，處理多人同時搶同一個時段的競爭條件
+- **併發安全**：resource lock + optimistic version locking + idempotency，處理多人同時搶同一個時段的競爭條件；[COASIA-TEST-REPORT.md](COASIA-TEST-REPORT.md) 用真實雙 MySQL 連線的併發測試框架驗證過 9 個情境全數通過
 - **政策變更**：所有預約禁止跨日
 - **時段判斷修正**：修正「此時段可用」誤判前一場會議剛結束時段為衝突的 bug
 - **編輯預約時間錯誤修正**：修正編輯既有預約時，表單時間被時間表區段的起訖時間覆蓋（誤把「開放時間起點」當成預約開始時間）的 bug——只改標題按更新，原本的時間也會被改掉
+- **Quick Create 補上重複送出保護**：原本只有完整表單有帶 idempotency 用的 requestId，Quick Create 從來沒真正生效過，網路逾時重送理論上可能建出重複預約，已補齊
+- **修正跨日驗證對不存在時間表時直接 500**：資源指向的時間表被刪除／不存在時，改成退回系統預設時區繼續驗證，不會讓整個預約請求崩潰
+- **行事曆自動更新**：分頁前景時每 30 秒自動刷新事件，回到分頁時立即刷新一次，不用再手動整理頁面才看得到別人剛建立的預約
 
 ### UI／UX
 
@@ -170,7 +173,8 @@ npm install && npm run lint:frontend   # 前端 lint（JS/CSS）
 
 | 文件 | 內容 |
 | --- | --- |
-| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§74） |
+| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§75） |
+| [COASIA-TEST-REPORT.md](COASIA-TEST-REPORT.md) | 多人使用測試矩陣（併發、隱私、多語言、負載等），逐項結果與修復紀錄 |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 正式對全體員工開放前，還缺什麼 |
 | [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 正式環境部署架構與操作手冊，含完整 VM 建置、Docker、憑證、資料庫遷移步驟 |
 

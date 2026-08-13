@@ -61,6 +61,29 @@ function ct_session($userId = 1)
 }
 
 /**
+ * A real, active user id to run every scenario as. ct_session()/UserSession() will happily
+ * wrap ANY integer with no DB lookup at all, but PermissionValidationRule's CanBookResource()
+ * check does look the user up -- a hardcoded id that does not correspond to an actual row
+ * (this harness used to hardcode 1, which does not exist in every dev DB) fails permission
+ * for every resource regardless of that resource's own access settings, which looks
+ * identical to a real permission bug from the scenario output alone. Resources here are
+ * expected to be open to any active user by default (autoassign) per this project's access
+ * model, so the specific user chosen should not matter as long as it is a real, active one.
+ */
+function ct_findTestUserId()
+{
+    $reader = ServiceLocator::GetDatabase()->Query(new SqlCommand('SELECT user_id FROM users WHERE status_id = 1 ORDER BY user_id LIMIT 1'));
+    $row = $reader->GetRow();
+    $reader->Free();
+
+    if (empty($row)) {
+        throw new Exception('No active user found in this database to run the concurrency tests as.');
+    }
+
+    return (int)$row['user_id'];
+}
+
+/**
  * Finds a reservable slot on the given resource, at least $minDaysOut days out, avoiding the
  * shared day-0 range every scenario in the same run uses by taking a distinct offset per call.
  */

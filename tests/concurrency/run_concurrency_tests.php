@@ -108,7 +108,8 @@ if (count($allResources) < 2) {
 }
 $resourceA = $allResources[0];
 $resourceB = $allResources[1];
-$session = ct_session(1);
+$testUserId = ct_findTestUserId();
+$session = ct_session($testUserId);
 // Randomized per run so repeated runs (e.g. re-running after a failure) never collide with
 // a previous run's slots — matters most when a previous run's cleanup didn't get to run.
 $dayBase = 100 + random_int(0, 5000);
@@ -121,8 +122,8 @@ fwrite(STDOUT, "Using resources: {$resourceA->GetName()} (id {$resourceA->GetId(
 $slot1 = ct_findSlot($resourceA, $session, $dayBase + 0);
 $startIso1 = $slot1->ToTimezone('UTC')->Format('Y-m-d H:i:s');
 $r = ct_runConcurrent([
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S1-A', 'startIso' => $startIso1, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => 1],
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S1-B', 'startIso' => $startIso1, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S1-A', 'startIso' => $startIso1, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => $testUserId],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S1-B', 'startIso' => $startIso1, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId],
 ]);
 ct_track($r[0]['referenceNumber'] ?? null);
 ct_track($r[1]['referenceNumber'] ?? null);
@@ -140,8 +141,8 @@ $slot2 = ct_findSlot($resourceA, $session, $dayBase + 1);
 $start2a = $slot2->ToTimezone('UTC')->Format('Y-m-d H:i:s');
 $start2b = $slot2->AddMinutes(15)->ToTimezone('UTC')->Format('Y-m-d H:i:s'); // overlaps the back half of A's 30-min slot
 $r = ct_runConcurrent([
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S2-A', 'startIso' => $start2a, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => 1],
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S2-B', 'startIso' => $start2b, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S2-A', 'startIso' => $start2a, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => $testUserId],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S2-B', 'startIso' => $start2b, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId],
 ]);
 ct_track($r[0]['referenceNumber'] ?? null);
 ct_track($r[1]['referenceNumber'] ?? null);
@@ -160,8 +161,8 @@ $slot3 = ct_findSlot($resourceA, $session, $dayBase + 2);
 $start3a = $slot3->ToTimezone('UTC')->Format('Y-m-d H:i:s');
 $start3b = $slot3->AddMinutes(30)->ToTimezone('UTC')->Format('Y-m-d H:i:s'); // starts exactly when A ends
 $r = ct_runConcurrent([
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S3-A', 'startIso' => $start3a, 'durationMinutes' => 30, 'slowMs' => 800, 'userId' => 1],
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S3-B', 'startIso' => $start3b, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S3-A', 'startIso' => $start3a, 'durationMinutes' => 30, 'slowMs' => 800, 'userId' => $testUserId],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S3-B', 'startIso' => $start3b, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId],
 ]);
 ct_track($r[0]['referenceNumber'] ?? null);
 ct_track($r[1]['referenceNumber'] ?? null);
@@ -179,8 +180,8 @@ ct_report(
 $slot4 = ct_findSlot($resourceA, $session, $dayBase + 3);
 $start4 = $slot4->ToTimezone('UTC')->Format('Y-m-d H:i:s');
 $r = ct_runConcurrent([
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S4-A', 'startIso' => $start4, 'durationMinutes' => 30, 'slowMs' => 800, 'userId' => 1],
-    ['action' => 'create', 'resourceIds' => [$resourceB->GetId()], 'title' => 'CT-S4-B', 'startIso' => $start4, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S4-A', 'startIso' => $start4, 'durationMinutes' => 30, 'slowMs' => 800, 'userId' => $testUserId],
+    ['action' => 'create', 'resourceIds' => [$resourceB->GetId()], 'title' => 'CT-S4-B', 'startIso' => $start4, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId],
 ]);
 ct_track($r[0]['referenceNumber'] ?? null);
 ct_track($r[1]['referenceNumber'] ?? null);
@@ -200,8 +201,8 @@ $slot5 = ct_findSlot($resourceA, $session, $dayBase + 4);
 $start5 = $slot5->ToTimezone('UTC')->Format('Y-m-d H:i:s');
 $deadlockStart = microtime(true);
 $r = ct_runConcurrent([
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId(), $resourceB->GetId()], 'title' => 'CT-S5-A', 'startIso' => $start5, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => 1],
-    ['action' => 'create', 'resourceIds' => [$resourceB->GetId(), $resourceA->GetId()], 'title' => 'CT-S5-B', 'startIso' => $start5, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId(), $resourceB->GetId()], 'title' => 'CT-S5-A', 'startIso' => $start5, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => $testUserId],
+    ['action' => 'create', 'resourceIds' => [$resourceB->GetId(), $resourceA->GetId()], 'title' => 'CT-S5-B', 'startIso' => $start5, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId],
 ]);
 $elapsed = microtime(true) - $deadlockStart;
 ct_track($r[0]['referenceNumber'] ?? null);
@@ -224,15 +225,15 @@ $slot6 = ct_findSlot($resourceA, $session, $dayBase + 5);
 $start6 = $slot6->ToTimezone('UTC')->Format('Y-m-d H:i:s');
 $otherSlot6 = ct_findSlot($resourceA, $session, $dayBase + 6); // where the "existing" reservation starts, before being moved
 // Seed an existing reservation elsewhere on resourceA, to be updated into start6's slot.
-$seedJob = ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S6-SEED', 'startIso' => $otherSlot6->ToTimezone('UTC')->Format('Y-m-d H:i:s'), 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1];
+$seedJob = ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S6-SEED', 'startIso' => $otherSlot6->ToTimezone('UTC')->Format('Y-m-d H:i:s'), 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId];
 $seedResult = ct_runConcurrent([$seedJob])[0];
 ct_track($seedResult['referenceNumber'] ?? null);
 if (!($seedResult['success'] ?? false)) {
     ct_report('Scenario 6: create-vs-update race for same slot', false, 'seed reservation failed to create: ' . json_encode($seedResult));
 } else {
     $r = ct_runConcurrent([
-        ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S6-CREATE', 'startIso' => $start6, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => 1],
-        ['action' => 'update', 'referenceNumber' => $seedResult['referenceNumber'], 'title' => 'CT-S6-MOVED', 'expectedVersion' => 0, 'slowMs' => 0, 'userId' => 1, 'newStartIso' => $start6, 'newDurationMinutes' => 30],
+        ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S6-CREATE', 'startIso' => $start6, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => $testUserId],
+        ['action' => 'update', 'referenceNumber' => $seedResult['referenceNumber'], 'title' => 'CT-S6-MOVED', 'expectedVersion' => 0, 'slowMs' => 0, 'userId' => $testUserId, 'newStartIso' => $start6, 'newDurationMinutes' => 30],
     ]);
     ct_track($r[0]['referenceNumber'] ?? null);
     $successCount = ($r[0]['success'] ? 1 : 0) + ($r[1]['success'] ? 1 : 0);
@@ -248,15 +249,15 @@ if (!($seedResult['success'] ?? false)) {
 // conflict (ReservationVersionConflictException), never silently overwrite.
 // ---------------------------------------------------------------------------------------
 $slot7 = ct_findSlot($resourceA, $session, $dayBase + 7);
-$seedJob7 = ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S7-SEED', 'startIso' => $slot7->ToTimezone('UTC')->Format('Y-m-d H:i:s'), 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1];
+$seedJob7 = ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S7-SEED', 'startIso' => $slot7->ToTimezone('UTC')->Format('Y-m-d H:i:s'), 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId];
 $seedResult7 = ct_runConcurrent([$seedJob7])[0];
 ct_track($seedResult7['referenceNumber'] ?? null);
 if (!($seedResult7['success'] ?? false)) {
     ct_report('Scenario 7: concurrent updates with same loaded version', false, 'seed failed: ' . json_encode($seedResult7));
 } else {
     $r = ct_runConcurrent([
-        ['action' => 'update', 'referenceNumber' => $seedResult7['referenceNumber'], 'title' => 'CT-S7-EDIT-A', 'expectedVersion' => 0, 'slowMs' => 1200, 'userId' => 1],
-        ['action' => 'update', 'referenceNumber' => $seedResult7['referenceNumber'], 'title' => 'CT-S7-EDIT-B', 'expectedVersion' => 0, 'slowMs' => 0, 'userId' => 1],
+        ['action' => 'update', 'referenceNumber' => $seedResult7['referenceNumber'], 'title' => 'CT-S7-EDIT-A', 'expectedVersion' => 0, 'slowMs' => 1200, 'userId' => $testUserId],
+        ['action' => 'update', 'referenceNumber' => $seedResult7['referenceNumber'], 'title' => 'CT-S7-EDIT-B', 'expectedVersion' => 0, 'slowMs' => 0, 'userId' => $testUserId],
     ]);
     $successCount = ($r[0]['success'] ? 1 : 0) + ($r[1]['success'] ? 1 : 0);
     $oneGotVersionConflict = ($r[0]['exception'] ?? '') === 'ReservationVersionConflictException'
@@ -276,8 +277,8 @@ $slot8 = ct_findSlot($resourceA, $session, $dayBase + 8);
 $start8 = $slot8->ToTimezone('UTC')->Format('Y-m-d H:i:s');
 $requestId8 = 'ct-scenario8-' . bin2hex(random_bytes(6));
 $r = ct_runConcurrent([
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S8', 'startIso' => $start8, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => 1, 'requestId' => $requestId8],
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S8', 'startIso' => $start8, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1, 'requestId' => $requestId8],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S8', 'startIso' => $start8, 'durationMinutes' => 30, 'slowMs' => 1200, 'userId' => $testUserId, 'requestId' => $requestId8],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S8', 'startIso' => $start8, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId, 'requestId' => $requestId8],
 ]);
 ct_track($r[0]['referenceNumber'] ?? null);
 ct_track($r[1]['referenceNumber'] ?? null);
@@ -310,12 +311,12 @@ ct_report(
 $slot9 = ct_findSlot($resourceA, $session, $dayBase + 9);
 $start9 = $slot9->ToTimezone('UTC')->Format('Y-m-d H:i:s');
 $throwResult = ct_runConcurrent([
-    ['action' => 'create_throw', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S9-SHOULD-NOT-EXIST', 'startIso' => $start9, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1],
+    ['action' => 'create_throw', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S9-SHOULD-NOT-EXIST', 'startIso' => $start9, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId],
 ])[0];
 $threwAsExpected = ($throwResult['success'] ?? true) === false && isset($throwResult['exception']);
 
 $followUp = ct_runConcurrent([
-    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S9-FOLLOWUP', 'startIso' => $start9, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => 1],
+    ['action' => 'create', 'resourceIds' => [$resourceA->GetId()], 'title' => 'CT-S9-FOLLOWUP', 'startIso' => $start9, 'durationMinutes' => 30, 'slowMs' => 0, 'userId' => $testUserId],
 ])[0];
 ct_track($followUp['referenceNumber'] ?? null);
 $followUpSucceeded = $followUp['success'] ?? false;

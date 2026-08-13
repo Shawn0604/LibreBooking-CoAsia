@@ -2308,3 +2308,43 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 `node --check` 過 `overview_fullcalendar.js`、容器內 `php -l` 過 `OverviewFullCalendarEventsPresenter.php`，皆無語法錯誤。跑了這支 presenter 既有的 PHPUnit 測試（16 個測試，45 個斷言），除了 1 個跟這次改動完全無關的既有失敗（`testEmptyTitleFallsBackToDefaultLabelWhenViewable`——單獨用 `--filter` 執行時 `Resources::GetInstance()->GetString('NoReservationTitle')` 沒有解析成中文字串，是這個測試在單獨執行時的資源載入問題，不是這次新增的 `ownerFirstName` 欄位造成的，diff 裡完全沒有動到標題相關的邏輯）之外全數通過。`docker restart` 套用 opcache。畫面上三行是否確實左對齊、粗體正確、矮方塊下的漸進顯示門檻是否好看，需要使用者登入後在真正的週/日行事曆上確認。
+
+## 75. 修復多人使用測試表（GPT 產出）裡的確定失敗項目
+
+使用者提供一份 GPT 執行的多人使用測試表（T01–T35，涵蓋併發、隱私、版本衝突、多語言、負載等面向），要求全盤了解後修補問題，並要求另外新增一份文件記錄測試內容與結果——見新增的 [COASIA-TEST-REPORT.md](COASIA-TEST-REPORT.md)，這份 CHANGES 條目只記錄程式碼層面的根因與修法，逐項的測試結果對照表在那份文件裡維護。
+
+### 75.1 T01–T09（併發測試）、T08：根因是測試帳號不存在，不是產品 bug
+
+專案裡本來就有一套完整的雙真實 MySQL 連線併發測試框架（`tests/concurrency/`，9 個情境，刻意獨立於 PHPUnit 之外，因為 PHPUnit 全程式在同一個 process 裡跑、只能用 FakeDatabase，沒辦法真正驗證 InnoDB row lock／transaction isolation）。GPT 執行時 9 個情境全部因為「You do not have permission to access one or more of the requested resources.」失敗——追查後發現框架寫死 `'userId' => 1`，但這個開發資料庫裡 `user_id=1`根本不存在（現存最小的是 `user_id=2`／`shawn.admin`），一個不存在的使用者對任何資源自然都沒有權限授權紀錄。
+
+修法：`tests/concurrency/bootstrap.php` 新增 `ct_findTestUserId()`，直接查資料庫抓一個真實存在、`status_id=1`（啟用中）的使用者 id，取代寫死的 `1`；`run_concurrency_tests.php` 裡全部 20 處 `'userId' => 1` 與 `ct_session(1)` 都改成這個動態值。改完重跑，9 個情境**全數通過**——包含 T08（同一筆預約重複送出）：一筆成功、一筆正確回報 `inProgress`，資料庫裡確認只有一筆、沒有重複參考編號，證明 GPT 原本回報的「兩個請求都回傳處理中」單純是同一個權限問題的連帶效應（兩邊都還沒真正拿到 idempotency claim 就先被權限擋下，殘留的 in-progress 狀態讓兩邊都落到那個分支），底層的 `IdempotencyService` 機制本身沒有問題。
+
+### 75.2 T10：行事曆完全沒有自動更新機制
+
+`Web/scripts/overview_fullcalendar.js` 之前只有在「這個使用者自己」建立/編輯/刪除完預約之後才會呼叫 `calendar.refetchEvents()`，沒有任何輪詢或推播——A 訂走一個時段之後，B 的畫面要手動整理頁面才看得到。
+
+沒有做 WebSocket／SSE 這種即時推播（範圍/成本都遠超過這次要修的問題），改成最單純的作法：分頁保持在前景時每 30 秒呼叫一次 `refetchEvents()`，另外監聽 `visibilitychange`，分頁重新變成前景時立刻補刷新一次（不用等到下一次 30 秒），背景分頁則完全不會觸發，避免不必要的請求。完全沒有動後端——events API 本來就支援隨時被重新查詢，只是之前只有使用者自己的動作會觸發而已。
+
+### 75.3 T12：Quick Create 從來沒有真正拿到 idempotency 保護
+
+`create.tpl`（完整表單）裡有一段註解說「Overview 頁面自己的 quick-create/quick-edit 已經在用同一套機制」，但實際去 grep 整個 `Web/` 目錄，`requestId` 只出現在 `create.tpl` 這一個地方——Quick Create（`overview_fullcalendar.js`）送出預約時的 POST body 完全沒有帶這個欄位。後端 `ReservationSavePresenter::HandleReservation()` 的 idempotency 檢查是 `if (!empty($requestId))` 才會啟動，沒收到就直接跳過，等於 Quick Create 上線以來這個保護一直是沒有生效的死角——網路逾時後重新點擊「建立」，理論上真的可能建出兩筆一樣的預約。
+
+修法：`overview_fullcalendar.js` 新增 `generateUuid()`（跟 `create.tpl` 完全同一套邏輯：優先用 `crypto.randomUUID()`，否則手刻一個 RFC4122 風格的 fallback），在 `openQuickCreate()` 每次開啟視窗（也就是每一次新的建立嘗試）時產生一個新的 UUID 存進 `pending.requestId`，同一次嘗試在視窗開著的狀態下重送（例如逾時後又點一次建立）都會帶著同一個 id；送出時把它加進 POST body。完全沒有動後端或任何樣板——Quick Create 跟完整表單本來就打同一支 `ajax/reservation_save.php`／同一套 `ReservationSavePresenter`／同一套 `save_successful.tpl`／`save_failed.tpl`，成功重播、失敗、`inProgress`（409 + 「另一個相同的預約請求正在處理中，請稍後再試」）這幾種既有的回應情境，Quick Create 原本的 `#reservation-created`／`#reservation-failed` 偵測邏輯已經能正確處理，不用另外加程式碼。
+
+### 75.4 T23／PHPUnit 既有 error：`ResourceCrossDayRule` 對 null 呼叫 `GetTimezone()`
+
+`ResourceCrossDayRule::Validate()` 無條件呼叫 `$this->scheduleRepository->LoadById($reservationSeries->ScheduleId())->GetTimezone()`；但 `ScheduleRepository::LoadById()` 在找不到對應資料列時就是回傳純 `null`（不像同一個 class 裡的 `LoadByPublicId()` 用 `Schedule::Null()` 這種 null-object），一筆資源指向不存在／已刪除時間表的預約（孤兒資料，或這次測試遇到的舊測試資料）會讓這個規則直接對 `null` 呼叫方法、整個請求 500。這同時也是先前幾輪 CHANGES 裡一直提到、PHPUnit 全專案跑起來的那個既有 error 的真正根因。
+
+修法：`$schedule` 是 `null` 時退回 `Configuration::Instance()->GetDefaultTimezone()`（這個環境是 `Asia/Taipei`）而不是直接崩潰，跨日檢查仍然會用一個合理的時區繼續執行。順便處理了 `tests/Application/Reservation/ResourceCrossDayRuleTest.php` 裡那個一直在噴 error 的舊測試——它原本要驗證「資源設定 `AllowMultiday` 時視為合法」，但這條規則在更早一輪 CoAsia 客製化（見規則本身的既有註解）就已經改成無條件都要檢查時間表時區、不再看 `AllowMultiday` 這個旗標，舊測試的 mock 完全沒有配置 `LoadById()`（因為原本的程式碼路徑根本不會走到那裡），改了程式碼之後這個舊測試就變成每次都在踩這個 null 崩潰。已經把它改寫成直接驗證這次新增的容錯行為（`testFallsBackToDefaultTimezoneWhenScheduleCannotBeLoaded`）。
+
+### 75.5 T24：不是產品 bug，是測試自己斷言錯
+
+`tests/Presenters/OverviewFullCalendarEventsPresenterTest.php::testEmptyTitleFallsBackToDefaultLabelWhenViewable` 斷言空標題會顯示 `'未命名預約'`，但單元測試環境裝的是 `tests/fakes/FakeResources.php`，它的 `GetString($key, $args)` 一律直接回傳 `$key . $argstring`（原始 key 本身，從來不會真的翻譯）——這個假物件的行為本來就跟整份測試檔案裡其他測試的既有慣例一致（例如同一個檔案裡 `'忙碌'` 那個斷言能過，是因為那個字串是直接寫死在 presenter 程式碼裡、根本沒有經過 `Resources`，不是同一種情況）。程式碼本身呼叫 `Resources::GetInstance()->GetString('NoReservationTitle')` 完全正確，走的是正常的三語言翻譯機制，瀏覽器裡的真實使用者看到的就是正確翻好的文字。修法：把斷言改成比對 `'NoReservationTitle'`，符合 `FakeResources` 一直以來的行為。
+
+### 75.6 T29：舊測試沒跟上這次刻意的時區清單簡化
+
+`tests/Presenters/RegisterPresenterTest.php::testLoadsAllTimezones` 斷言註冊頁時區下拉選單的數量要等於 `$GLOBALS[GlobalKeys::TIMEZONES]` 的完整數量（418 個）——這是 §73 刻意改掉的行為（改用 `SimplifiedTimezones::GetOptions()`，約 32 個代表時區），這個失敗完全是預期中的「測試沒跟著功能一起更新」，不是新 bug。改成斷言 `count(SimplifiedTimezones::GetOptions())`，測試名稱同步改成 `testLoadsCuratedTimezoneList` 反映新行為。
+
+### 驗證
+
+全部修復完成後，容器內完整跑一次 `vendor/bin/phpunit`：**1725 個測試、7744 個斷言、0 error、0 failure**（13 個既有 warning／6 個 deprecation／1 個 skipped，皆與這輪異動無關，跑之前就存在）——這是這個專案目前為止第一次全專案 PHPUnit 完全乾淨，先前每一輪 CHANGES 都還帶著「1 個既有 error + 1 個既有 failure」這句話。另外完整重跑一次 `tests/concurrency/run_concurrency_tests.php`：**9 個情境全數通過**。逐項對照表與哪些項目仍需要人工登入/多帳號/壓測工具驗證，見 [COASIA-TEST-REPORT.md](COASIA-TEST-REPORT.md)。

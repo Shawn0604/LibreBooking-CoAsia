@@ -228,6 +228,21 @@ $(function () {
         return n < 10 ? '0' + n : '' + n;
     }
 
+    // Same UUID generation tpl/Reservation/create.tpl's own inline script uses for the full
+    // form's #rpRequestId (crypto.randomUUID() where available, manual RFC4122-ish fallback
+    // otherwise) -- kept here instead of shared because that template's copy is static markup
+    // Smarty renders once at page load, not something this page includes.
+    function generateUuid() {
+        if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+            return window.crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            var r = (Math.random() * 16) | 0;
+            var v = c === 'x' ? r : (r & 0x3) | 0x8;
+            return v.toString(16);
+        });
+    }
+
     // arg.date (dayHeaderContent) and info.start/info.end (datesSet) are FullCalendar's
     // "fake-UTC" markers: with a named `timeZone` option, FullCalendar constructs these as
     // plain JS Date objects whose *UTC* getters already reflect the correct wall-clock
@@ -551,7 +566,13 @@ $(function () {
         }
         var beginMinutes = parseInt(p.beginTime.slice(0, 2), 10) * 60 + parseInt(p.beginTime.slice(3, 5), 10);
         var endMinutes = parseInt(p.endTime.slice(0, 2), 10) * 60 + parseInt(p.endTime.slice(3, 5), 10);
-        pending = { resourceId: p.resourceId, startDate: startDate, endDate: startDate, beginMinutes: beginMinutes, endMinutes: endMinutes };
+        // One requestId per open-modal create attempt (IdempotencyService.php) -- reused for
+        // every retry of THIS attempt (e.g. re-clicking Create after a timed-out fetch), same
+        // granularity as create.tpl's #rpRequestId (one UUID per page load there, one UUID per
+        // openQuickCreate() call here). The next openQuickCreate() call -- opening the modal
+        // again after a success or for an unrelated new slot -- always rebuilds `pending` from
+        // scratch, so a fresh id follows naturally without any explicit reset on success.
+        pending = { resourceId: p.resourceId, startDate: startDate, endDate: startDate, beginMinutes: beginMinutes, endMinutes: endMinutes, requestId: generateUuid() };
         activeResourceCategory = categoryOf(p.resourceId);
 
         $('#qcTitle').val('');
@@ -1134,6 +1155,26 @@ $(function () {
     // page — the toggle script guards on this being present before touching it.
     window.overviewFullCalendarInstance = calendar;
 
+    // Auto-refresh so a reservation someone else just created/edited/cancelled shows up
+    // without a manual reload -- previously there was no polling or push at all, so a second
+    // viewer's calendar only ever changed on their own next full page load. Deliberately a
+    // simple poll-on-a-timer plus an immediate refetch on tab refocus, not a websocket/SSE
+    // push -- the events endpoint already supports being refetched at any time
+    // (FullCalendar's own refetchEvents(), already used elsewhere on this page after this
+    // user's own actions), so this needed no backend changes, just also calling it on a
+    // timer/refocus instead of only after local actions. Skips the tick while the tab is
+    // hidden so a background tab isn't silently hammering the events endpoint.
+    setInterval(function () {
+        if (document.visibilityState === 'visible') {
+            calendar.refetchEvents();
+        }
+    }, 30000);
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') {
+            calendar.refetchEvents();
+        }
+    });
+
     // Exposed so the sidebar's restored "+新增預約" button (tpl/globalheader.tpl, rendered
     // site-wide) can open this exact page's quick-create modal instead of only being able to
     // link to the classic reservation.php form. Defaults to today + the next half-hour slot
@@ -1312,6 +1353,7 @@ $(function () {
         body.set('beginPeriod', minutesToHHMMSS(pending.beginMinutes));
         body.set('endDate', pending.endDate);
         body.set('endPeriod', minutesToHHMMSS(pending.endMinutes));
+        body.set('requestId', pending.requestId);
         qcParticipantPicker.getParticipants().forEach(function (p) {
             body.append(p.type === 'external' ? 'guestParticipationList[]' : 'participantList[]', p.type === 'external' ? p.email : p.id);
         });

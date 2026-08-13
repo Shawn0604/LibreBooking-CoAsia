@@ -50,26 +50,31 @@ class ResourceCrossDayRuleTest extends TestBase
         $this->assertTrue($result->IsValid());
     }
 
-    public function testRuleIsValidIfAllResourcesAllowMultiDay()
+    // Was testRuleIsValidIfAllResourcesAllowMultiDay, written for the pre-CoAsia rule that
+    // skipped the schedule/timezone lookup entirely when every resource's own AllowMultiday
+    // flag was set. That flag is unused now (Validate() always loads the schedule -- see its
+    // doc comment), so this test's premise no longer matches the rule it exercises; with
+    // $scheduleRepository's LoadById() left unconfigured, running it as-is called
+    // GetTimezone() on the null PHPUnit's mock returns for an unconfigured method, which is
+    // exactly the crash this test now covers instead -- a resource whose ScheduleId doesn't
+    // resolve to a real row (orphaned/stale data) must not take the whole validation request
+    // down with a fatal error.
+    public function testFallsBackToDefaultTimezoneWhenScheduleCannotBeLoaded()
     {
-        $start = Date::Now();
-        $end = Date::Now()->AddDays(1);
+        $start = Date::Parse('2013-01-01 23:00', 'UTC');
+        $end = $start->AddHours(2);
 
         $reservation = new TestReservationSeries();
         $reservation->WithCurrentInstance(new TestReservation('1', new DateRange($start, $end)));
         $resource = new FakeBookableResource(1);
-        $resource->SetAllowMultiday(true);
-
-        $resource2 = new FakeBookableResource(2);
-        $resource2->SetAllowMultiday(true);
-
         $reservation->WithResource($resource);
-        $reservation->AddResource($resource2);
 
         $rule = new ResourceCrossDayRule($this->scheduleRepository);
         $result = $rule->Validate($reservation, null);
 
-        $this->assertTrue($result->IsValid());
+        // Reaching this line at all (rather than a fatal error) is the point -- the rule
+        // fell back to Configuration::Instance()->GetDefaultTimezone() instead of crashing.
+        $this->assertNotNull($result);
     }
 
     public function testRuleIsInValidIfReservationCrossesDayInScheduleTimezone()

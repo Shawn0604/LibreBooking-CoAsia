@@ -100,9 +100,16 @@ class RegisterPresenterTest extends TestBase
         $this->assertEquals($this->page->_Timezone, $expectedTimezone);
     }
 
-    public function testLoadsAllTimezones()
+    public function testLoadsCuratedTimezoneList()
     {
-        $numberOfTimezones = count($GLOBALS[GlobalKeys::TIMEZONES]);
+        // Registration used to dump every one of PHP's ~418 raw IANA identifiers
+        // ($GLOBALS[GlobalKeys::TIMEZONES], still config/timezones.php's full list) straight
+        // into the dropdown; it now goes through SimplifiedTimezones::GetOptions() instead
+        // (see lib/Common/SimplifiedTimezones.php) -- a curated ~32-entry list of one
+        // representative zone per UTC offset. The default timezone this test's setup uses is
+        // already one of the curated zones, so GetOptions() does not append an extra entry
+        // for it.
+        $numberOfTimezones = count(SimplifiedTimezones::GetOptions());
 
         $this->ExpectAttributeServiceCalled();
 

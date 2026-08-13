@@ -179,7 +179,12 @@ class OverviewFullCalendarEventsPresenterTest extends TestBase
             $this->UserSession(false)
         );
 
-        $this->assertEquals('未命名預約', $events[0]['title']);
+        // FakeResources::GetString() always echoes the raw key back (never a translated
+        // string, unlike the '忙碌' case two tests up, which is hardcoded directly in the
+        // presenter and never goes through Resources at all) -- this assertion was checking
+        // for a translation the fake can never produce, so it failed on every run
+        // regardless of the real app's actual (correct) i18n behavior in the browser.
+        $this->assertEquals('NoReservationTitle', $events[0]['title']);
     }
 
     public function testEventShapeHasRequiredFieldsAndNoServerSideLayout()
