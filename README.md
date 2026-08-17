@@ -139,7 +139,7 @@ docker compose -f docker-compose.dev.yml up -d
 
 詳細設定見 [Dockerfile.dev](Dockerfile.dev) / [docker-compose.dev.yml](docker-compose.dev.yml)。開發環境的 opcache 關掉了 timestamp 檢查換效能（bind mount 下這個很重要），改完 PHP 程式碼如果沒生效，跑 `docker compose -f docker-compose.dev.yml restart app`。
 
-首次啟動前，把 `config/config.dist.php` 複製成 `config/config.php` 並填入本機設定（這個檔案不進版控）。
+首次啟動前，把 `config/config.dist.php` 複製成 `config/config.php` 並填入本機設定（這個檔案不進版控）。從零開始（全新電腦、資料庫也要建）的完整步驟見 **[COASIA-DEV-SETUP.md](COASIA-DEV-SETUP.md)**。
 
 常用指令：
 
@@ -173,6 +173,7 @@ npm install && npm run lint:frontend   # 前端 lint（JS/CSS）
 
 | 文件 | 內容 |
 | --- | --- |
+| [COASIA-DEV-SETUP.md](COASIA-DEV-SETUP.md) | 本機開發環境從 0 到 1 完整搭建指南（全新電腦也適用，不需要任何公司內部密碼） |
 | [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§76） |
 | [COASIA-TEST-REPORT.md](COASIA-TEST-REPORT.md) | 多人使用測試矩陣（併發、隱私、多語言、負載等），逐項結果與修復紀錄 |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 正式對全體員工開放前，還缺什麼 |
