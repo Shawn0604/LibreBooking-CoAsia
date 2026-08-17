@@ -10,7 +10,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 
 **現況：`https://booking.coasia.com.tw` 已在公司內網正式運作**（僅限內網／VPN，不對外公開），AD 帳密登入、HTTPS（公司 AD CS 簽發、所有網域電腦自動信任）都已生效。開放給全體員工前還有少數收尾事項，見 [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md)。
 
-- 程式碼保存於公司 GitLab（`coasiait/coasia-booking`）與個人 GitHub（[Shawn0604/LibreBooking-CoAsia](https://github.com/Shawn0604/LibreBooking-CoAsia)，備份用），每次變更同時推兩邊
+- 程式碼保存於公司 GitLab（`coasiait/coasia-booking`）
 - 正式環境：`BookingServer`（`10.1.8.32`，Ubuntu 26.04 LTS，ESXi VM），Docker Compose 跑三個服務（`app`／`db`／`caddy`）
 - 上游原始專案：[LibreBooking/librebooking](https://github.com/LibreBooking/librebooking)（追蹤 `develop` branch，未來可 `git fetch upstream` 合併官方更新）
 
@@ -98,7 +98,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 | 反向代理／TLS | Caddy 2 |
 | 身份驗證 | Active Directory（LDAP） |
 | 通知 | LINE Messaging API、SMTP |
-| 版本控制 | Git，公司 GitLab + 個人 GitHub 雙推送 |
+| 版本控制 | Git，公司 GitLab |
 | CI（現行） | GitHub Actions（`.github/workflows`）：lint、phpstan、phpunit |
 
 ---
@@ -107,8 +107,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 
 ```mermaid
 flowchart LR
-    Dev["Windows 開發機"] -->|git push| GH["GitHub（備份）"]
-    Dev -->|git push| GL["公司 GitLab"]
+    Dev["Windows 開發機"] -->|git push| GL["公司 GitLab"]
     GL -.->|"手動 git pull"| VM
     LINE(["LINE 平台"]) -->|"僅 webhook 路徑<br/>Cloudflare Tunnel"| Caddy
 

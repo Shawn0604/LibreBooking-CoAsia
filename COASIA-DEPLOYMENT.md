@@ -8,11 +8,11 @@
 
 ## 目前進度
 
-- ✅ 程式碼已推上公司 GitLab（`coasiait/coasia-booking`），同時保留推上個人 GitHub（`Shawn0604/LibreBooking-CoAsia`）當備份，兩邊維持同步
+- ✅ 程式碼已推上公司 GitLab（`coasiait/coasia-booking`）
 - ✅ Linux VM 已建立：`BookingServer`（Ubuntu 26.04 LTS），固定 IP `10.1.8.32`
 - ✅ VM 到 GitLab（22/443）、SMTP relay（10.1.3.140:25）、AD LDAP（10.1.3.125:389）連線都測試成功
 - ✅ Docker 29.7.1 + Docker Compose v5.4.0 已安裝
-- ✅ `Dockerfile.prod`、`docker-compose.prod.yml`、`Caddyfile`、`.env.prod.example`、`.dockerignore` 已寫好並推上兩邊 repo
+- ✅ `Dockerfile.prod`、`docker-compose.prod.yml`、`Caddyfile`、`.env.prod.example`、`.dockerignore` 已寫好並推上 repo
 - ✅ 第一次在 VM 上 build／up 成功，`app`／`db`／`caddy` 三個服務都正常
 - ✅ 資料庫已從測試環境搬過來（`mysqldump` → `mysql` 還原，schema version 4.2）
 - ✅ 踩到並修好一個環境變數蓋掉 `config.php` 的坑（見「部署時踩到的坑」），修好後 `curl http://localhost/Web/` 回 `200 OK`
@@ -36,13 +36,11 @@
 ```mermaid
 flowchart TD
     Dev["Windows 開發機<br/>docker-compose.dev.yml"]
-    GH["GitHub（備份）<br/>Shawn0604/LibreBooking-CoAsia"]
     GL["公司 GitLab<br/>coasiait/coasia-booking"]
     User(["員工瀏覽器<br/>（僅限公司內網／VPN）"])
     LINE(["LINE 平台<br/>（公網）"])
     CF["Cloudflare Tunnel<br/>booking-hook.coasia.com<br/>只認 /Web/line-webhook.php"]
 
-    Dev -->|git push| GH
     Dev -->|git push| GL
     GL -.->|"目前：手動 git pull<br/>未來：Tag 觸發 CI/CD"| VM
 
