@@ -658,6 +658,21 @@
   overflow-y: auto;
 }
 
+/* 地區分組標籤 — inserted between rows whenever GetLiveResourceStatus()'s
+   ORDER BY r.location, r.name (Pages/Admin/ManageOverviewPage.php) moves to a new region. */
+.admin-list-group-label {
+  padding: 10px 4px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary, #9aa1b3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-list-group-label:first-child {
+  padding-top: 4px;
+}
+
 .admin-room-status-row {
   display: flex;
   align-items: baseline;

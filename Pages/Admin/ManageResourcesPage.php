@@ -865,6 +865,7 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
         $this->Set('ResourceNameFilter', $values->ResourceNameFilter);
         $this->Set('ScheduleIdFilter', $values->ScheduleIdFilter);
         $this->Set('ResourceTypeFilter', $values->ResourceTypeFilter);
+        $this->Set('LocationFilter', $values->LocationFilter);
         $this->Set('ResourceStatusFilterId', $values->ResourceStatusFilterId == '' ? '' : intval($values->ResourceStatusFilterId));
         $this->Set('ResourceStatusReasonFilterId', $values->ResourceStatusReasonFilterId == '' ? '' : intval($values->ResourceStatusReasonFilterId));
         $this->Set('CapacityFilter', $values->CapacityFilter);
@@ -880,6 +881,7 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
         $filterValues->ResourceNameFilter = $this->GetQuerystring(FormKeys::RESOURCE_NAME);
         $filterValues->ScheduleIdFilter = $this->GetQuerystring(FormKeys::SCHEDULE_ID);
         $filterValues->ResourceTypeFilter = $this->GetQuerystring(FormKeys::RESOURCE_TYPE_ID);
+        $filterValues->LocationFilter = $this->GetQuerystring(FormKeys::RESOURCE_LOCATION);
         $filterValues->ResourceStatusFilterId = $this->GetQuerystring(FormKeys::RESOURCE_STATUS_ID);
         $filterValues->ResourceStatusReasonFilterId = $this->GetQuerystring(FormKeys::RESOURCE_STATUS_REASON_ID);
         $filterValues->CapacityFilter = $this->GetQuerystring(FormKeys::MAX_PARTICIPANTS);
@@ -1227,6 +1229,7 @@ class ResourceFilterValues
     public $ResourceNameFilter;
     public $ScheduleIdFilter;
     public $ResourceTypeFilter;
+    public $LocationFilter;
     public $ResourceStatusFilterId;
     public $ResourceStatusReasonFilterId;
     public $CapacityFilter;
@@ -1288,6 +1291,15 @@ class ResourceFilterValues
                     ColumnNames::RESOURCE_TYPE_ID
                 ),
                 $this->ResourceTypeFilter
+            ));
+        }
+        if (!empty($this->LocationFilter)) {
+            $filter->_And(new SqlFilterEquals(
+                new SqlFilterColumn(
+                    TableNames::RESOURCES_ALIAS,
+                    ColumnNames::RESOURCE_LOCATION
+                ),
+                $this->LocationFilter
             ));
         }
         if ($this->ResourceStatusFilterId != '') {

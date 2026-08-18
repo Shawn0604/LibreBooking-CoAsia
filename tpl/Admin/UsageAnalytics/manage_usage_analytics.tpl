@@ -19,9 +19,17 @@
 				<input id="endDate" type="text" class="form-control form-control-sm" style="width:8.5em"
 					placeholder="{translate key='EndDate'}" />
 			</div>
+			{* Fixed 4-region whitelist (Domain/Values/ResourceLocation.php) -- explicit options
+			   (not {html_options} over $Locations) so this reads the fuller "台北實體會議室"-style
+			   label everywhere else in the admin center uses for the same 4 regions, even though
+			   the underlying value/GetUsageByLocation() bucket key stays the short 台北/深圳/上海/
+			   跨地區 string. *}
 			<select id="locationFilter" class="form-select form-select-sm admin-toolbar-select" aria-label="{translate key='Location'}">
 				<option value="">{translate key='AdminUsageAnalyticsAllLocations'}</option>
-				{html_options values=$Locations output=$Locations selected=$LocationFilter}
+				<option value="{ResourceLocation::TAIPEI}" {if $LocationFilter == ResourceLocation::TAIPEI}selected{/if}>{translate key=ResourceLocationTaipei}</option>
+				<option value="{ResourceLocation::SHENZHEN}" {if $LocationFilter == ResourceLocation::SHENZHEN}selected{/if}>{translate key=ResourceLocationShenzhen}</option>
+				<option value="{ResourceLocation::SHANGHAI}" {if $LocationFilter == ResourceLocation::SHANGHAI}selected{/if}>{translate key=ResourceLocationShanghai}</option>
+				<option value="{ResourceLocation::CROSS_REGION}" {if $LocationFilter == ResourceLocation::CROSS_REGION}selected{/if}>{translate key=ResourceLocationCrossRegion}</option>
 			</select>
 			<select id="resourceFilter" class="form-select form-select-sm admin-toolbar-select" aria-label="{translate key='Resource'}">
 				<option value="">{translate key='AllResources'}</option>

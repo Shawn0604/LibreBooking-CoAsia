@@ -89,7 +89,24 @@ class ManageReservationsPresenter extends ActionPresenter
         $session = ServiceLocator::GetServer()->GetUserSession();
 
         $this->page->BindSchedules($this->scheduleRepository->GetAll());
-        $this->page->BindResources($this->resourceRepository->GetResourceList());
+        $allResources = $this->resourceRepository->GetResourceList();
+        // 依地區排序（台北→深圳→上海→跨地區，同地區內依名稱排序）— GetResourceList() itself only
+        // orders by sort_order/name, same as Manage Resources' own list
+        // (Presenters/Admin/ManageResourcesPresenter.php), so the resource filter dropdown here
+        // reads the same way.
+        usort($allResources, function ($a, $b) {
+            $rankDiff = ResourceLocation::SortRank($a->GetLocation()) <=> ResourceLocation::SortRank($b->GetLocation());
+            return $rankDiff !== 0 ? $rankDiff : strcasecmp($a->GetName(), $b->GetName());
+        });
+        $this->page->BindResources($allResources);
+
+        // resourceId -> 地區 lookup for the "地區・會議室" display column below — built here
+        // (not threaded through the shared reservation-view SQL/ReservationItemView
+        // constructor, which many other call sites beyond this admin list depend on).
+        $resourceLocationsById = [];
+        foreach ($allResources as $r) {
+            $resourceLocationsById[$r->GetId()] = $r->GetLocation();
+        }
 
         $statusReasonList = [];
         foreach ($this->resourceRepository->GetStatusReasons() as $reason) {
@@ -108,6 +125,11 @@ class ManageReservationsPresenter extends ActionPresenter
 
         $scheduleId = $this->page->GetScheduleId();
         $resourceId = $this->page->GetResourceId();
+        // Deliberately NOT round-tripped through ReservationFilterPreferences below like the
+        // other filters — always read fresh from the querystring (empty/absent on a plain
+        // revisit), so a 地區 filter never persists across visits the way resourceId/
+        // scheduleId/etc. do.
+        $locationFilter = $this->page->GetLocationFilter();
         $userId = $this->page->GetUserId();
         $userName = $this->page->GetUserName();
         $reservationStatusId = $this->page->GetReservationStatusId();
@@ -179,6 +201,7 @@ class ManageReservationsPresenter extends ActionPresenter
         $this->page->SetReferenceNumber($referenceNumber);
         $this->page->SetScheduleId($scheduleId);
         $this->page->SetResourceId($resourceId);
+        $this->page->SetLocationFilter($locationFilter);
         $this->page->SetUserId($userId);
         $this->page->SetUserName($userName);
         $this->page->SetReservationStatusId($reservationStatusId);
@@ -205,7 +228,8 @@ class ManageReservationsPresenter extends ActionPresenter
             $title,
             $description,
             $missedCheckin,
-            $missedCheckout
+            $missedCheckout,
+            $locationFilter
         );
 
         $reservations = $this->manageReservationsService->LoadFiltered(
@@ -219,6 +243,9 @@ class ManageReservationsPresenter extends ActionPresenter
 
         /** @var ReservationItemView[] $reservationList */
         $reservationList = $reservations->Results();
+        foreach ($reservationList as $reservationItem) {
+            $reservationItem->Location = $resourceLocationsById[$reservationItem->GetResourceId()] ?? null;
+        }
         $this->page->BindReservations($reservationList);
         $this->page->BindPageInfo($reservations->PageInfo());
 

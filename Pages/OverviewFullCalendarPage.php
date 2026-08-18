@@ -25,7 +25,8 @@ class OverviewFullCalendarPage extends SecurePage implements IOverviewFullCalend
             $this,
             new ResourceRepository(),
             new AttributeRepository(),
-            new PermissionServiceFactory()
+            new PermissionServiceFactory(),
+            new UserRepository()
         );
     }
 
@@ -36,10 +37,11 @@ class OverviewFullCalendarPage extends SecurePage implements IOverviewFullCalend
         $this->Display('Overview/overview_fullcalendar.tpl');
     }
 
-    public function SetResources($physicalResources, $videoResources, $resourceColors)
+    public function SetResourceGroups($groups, $resourceColors, $explicitDefaultResourceId, $systemDefaultResourceId)
     {
-        $this->Set('PhysicalResources', $physicalResources);
-        $this->Set('VideoResources', $videoResources);
+        $this->Set('ResourceGroups', $groups);
         $this->Set('ResourceColors', $resourceColors);
+        $this->Set('ExplicitDefaultResourceId', $explicitDefaultResourceId);
+        $this->Set('SystemDefaultResourceId', $systemDefaultResourceId);
     }
 }

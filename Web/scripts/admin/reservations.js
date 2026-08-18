@@ -8,6 +8,7 @@ function ReservationManagement(opts, approval) {
     userId: $('#userId'),
     scheduleId: $('#scheduleId'),
     resourceId: $('#resourceId'),
+    locationId: $('#locationId'),
     statusId: $('#statusId'),
     referenceNumber: $('#referenceNumber'),
     reservationTable: $('#reservationTable'),
@@ -364,6 +365,8 @@ function ReservationManagement(opts, approval) {
       elements.scheduleId.val() +
       '&rid=' +
       elements.resourceId.val() +
+      '&loc=' +
+      elements.locationId.val() +
       '&uid=' +
       elements.userId.val() +
       '&un=' +

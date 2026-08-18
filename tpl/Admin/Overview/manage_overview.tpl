@@ -78,11 +78,22 @@
             </h2>
             {if $LiveResourceStatus|default:array()|count > 0}
                 <div class="admin-room-status-list">
+                    {* 依地區分組 — GetLiveResourceStatus() already ORDER BY r.location, r.name
+                       (Pages/Admin/ManageOverviewPage.php), so same-region rows are already
+                       contiguous; this just inserts a heading each time the region changes,
+                       tracking the previous row's location across iterations. Resources with no
+                       location set (blank string) fall back to AdminOverviewUnassignedLocation. *}
+                    {assign var=previousLocation value=''}
                     {foreach from=$LiveResourceStatus item=resource}
+                        {if $resource.location != $previousLocation}
+                            <div class="admin-list-group-label">
+                                {if $resource.location}{$resource.location|escape}{else}{translate key=AdminOverviewUnassignedLocation}{/if}
+                            </div>
+                            {assign var=previousLocation value=$resource.location}
+                        {/if}
                         <a class="admin-room-status-row" href="{$Path}admin/manage_resources.php">
                             <span class="admin-room-status-name">
                                 {$resource.name|escape}
-                                {if $resource.location}<span class="admin-cell-secondary">{$resource.location|escape}</span>{/if}
                             </span>
                             {if $resource.status == 'unavailable'}
                                 <span class="admin-badge admin-badge-unavailable">{translate key=AdminOverviewMaintenance}</span>

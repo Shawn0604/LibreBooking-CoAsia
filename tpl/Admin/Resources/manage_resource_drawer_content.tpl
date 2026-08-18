@@ -187,7 +187,7 @@
 				<div class="mt-2">
 					<label
 						class="inline fw-bold">{translate key='Location'}</label>
-					<span class="propertyValue locationValue" data-type="text"
+					<span class="propertyValue locationValue" data-type="select"
 						data-pk="{$id}" data-value="{$resource->GetLocation()}"
 						data-name="{FormKeys::RESOURCE_LOCATION}">
 						{if $resource->HasLocation()}

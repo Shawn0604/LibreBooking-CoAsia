@@ -50,6 +50,11 @@ interface IManageReservationsPage extends IPageable, IActionPage
     /**
      * @return string
      */
+    public function GetLocationFilter();
+
+    /**
+     * @return string
+     */
     public function GetReferenceNumber();
 
     /**
@@ -82,6 +87,11 @@ interface IManageReservationsPage extends IPageable, IActionPage
      * @param int $resourceId
      */
     public function SetResourceId($resourceId);
+
+    /**
+     * @param string $location
+     */
+    public function SetLocationFilter($location);
 
     /**
      * @param string $referenceNumber
@@ -440,6 +450,11 @@ class ManageReservationsPage extends ActionPage implements IManageReservationsPa
         return $this->GetQuerystring(QueryStringKeys::RESOURCE_ID);
     }
 
+    public function GetLocationFilter()
+    {
+        return $this->GetQuerystring(QueryStringKeys::LOCATION);
+    }
+
     public function SetUserId($userId)
     {
         $this->Set('UserIdFilter', $userId);
@@ -458,6 +473,11 @@ class ManageReservationsPage extends ActionPage implements IManageReservationsPa
     public function SetResourceId($resourceId)
     {
         $this->Set('ResourceId', $resourceId);
+    }
+
+    public function SetLocationFilter($location)
+    {
+        $this->Set('LocationFilter', $location);
     }
 
     public function BindSchedules($schedules)

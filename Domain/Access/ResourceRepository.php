@@ -5,6 +5,7 @@ require_once(ROOT_DIR . 'Domain/ResourceGroup.php');
 require_once(ROOT_DIR . 'Domain/ResourceType.php');
 require_once(ROOT_DIR . 'Domain/Access/IResourceRepository.php');
 require_once(ROOT_DIR . 'Domain/Values/ResourceStatus.php');
+require_once(ROOT_DIR . 'Domain/Values/ResourceLocation.php');
 require_once(ROOT_DIR . 'Domain/Values/AccountStatus.php');
 require_once(ROOT_DIR . 'Domain/Values/AccountStatus.php');
 

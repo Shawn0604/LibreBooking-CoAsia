@@ -166,10 +166,33 @@ class ManageResourcesPresenter extends ActionPresenter
             $filterValues->AsFilter($resourceAttributes)
         );
         $resources = $results->Results();
+        // 依地區分組（台北→深圳→上海→跨地區，同地區內依名稱排序）— the whole list, not just the
+        // current page, so client-side paging (AdminTablePaginate) still shows same-region
+        // rooms clustered together within whichever page they land on.
+        usort($resources, function ($a, $b) {
+            $rankDiff = ResourceLocation::SortRank($a->GetLocation()) <=> ResourceLocation::SortRank($b->GetLocation());
+            return $rankDiff !== 0 ? $rankDiff : strcasecmp($a->GetName(), $b->GetName());
+        });
         $this->page->BindResources($resources);
         $this->page->BindPageInfo($results->PageInfo());
 
         $schedules = $this->scheduleRepository->GetAll();
+
+        // 依地區排序（台北→深圳→上海→跨地區，同地區內依名稱排序）— every resource maps to exactly
+        // one dedicated schedule in this deployment, so this cross-references each schedule's own
+        // resource for its region (an UNFILTERED lookup, deliberately not reusing the possibly
+        // filtered $resources above -- this dropdown always needs to offer every schedule).
+        $scheduleLocationsById = [];
+        foreach ($this->resourceRepository->GetResourceList() as $r) {
+            $scheduleLocationsById[$r->GetScheduleId()] = $r->GetLocation();
+        }
+        usort($schedules, function ($a, $b) use ($scheduleLocationsById) {
+            $locationA = $scheduleLocationsById[$a->GetId()] ?? null;
+            $locationB = $scheduleLocationsById[$b->GetId()] ?? null;
+            $rankDiff = ResourceLocation::SortRank($locationA) <=> ResourceLocation::SortRank($locationB);
+            return $rankDiff !== 0 ? $rankDiff : strcasecmp($a->GetName(), $b->GetName());
+        });
+
         $scheduleList = [];
 
         /* @var Schedule $schedule */
@@ -381,9 +404,19 @@ class ManageResourcesPresenter extends ActionPresenter
 
     public function ChangeLocation()
     {
+        $location = $this->page->GetValue();
+
+        // Fixed 4-region whitelist (Domain/Values/ResourceLocation.php) — the drawer's own
+        // locationValue editable only ever offers these 4 plus "unset", so this only rejects a
+        // hand-crafted request; empty stays allowed (clears the region back to "not set", same
+        // as HasLocation()/NoLocationLabel already handled before this field had a whitelist).
+        if (!empty($location) && !ResourceLocation::IsValid($location)) {
+            return;
+        }
+
         $resource = $this->resourceRepository->LoadById($this->page->GetResourceId());
 
-        $resource->SetLocation($this->page->GetValue());
+        $resource->SetLocation($location);
 
         $this->resourceRepository->Update($resource);
     }
@@ -735,7 +768,7 @@ class ManageResourcesPresenter extends ActionPresenter
                 if ($this->ChangingDropDown($resourceTypeId)) {
                     $resource->SetResourceTypeId($resourceTypeId);
                 }
-                if ($this->ChangingValue($location)) {
+                if ($this->ChangingValue($location) && ResourceLocation::IsValid($location)) {
                     $resource->SetLocation($location);
                 }
                 if ($this->ChangingValue($contact)) {
@@ -1057,6 +1090,11 @@ class ManageResourcesPresenter extends ActionPresenter
                     $resourceStatusesIndexed
                 )) ? ResourceStatus::AVAILABLE : $resourceStatusesIndexed[$row->status];
                 $autoAssign = $row->autoAssign == 'true' || $row->autoAssign == '1';
+                // Fixed 4-region whitelist (Domain/Values/ResourceLocation.php) — same
+                // silent-fallback-to-unset treatment as an unrecognized resourceType/status
+                // above, not a hard row failure, since an imported CSV predates the whitelist
+                // and old exports/spreadsheets may carry arbitrary free-text location values.
+                $location = ResourceLocation::IsValid($row->location) ? $row->location : '';
 
                 $resource = null;
                 if ($shouldUpdate) {
@@ -1078,7 +1116,7 @@ class ManageResourcesPresenter extends ActionPresenter
                 if ($resource !== null) {
                     $resource->ChangeStatus($statusId);
                     $resource->SetResourceTypeId($resourceTypeId);
-                    $resource->SetLocation($row->location);
+                    $resource->SetLocation($location);
                     $resource->SetContact($row->contact);
                     $resource->SetDescription($row->description);
                     $resource->SetNotes($row->notes);

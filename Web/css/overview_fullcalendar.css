@@ -327,7 +327,7 @@
 
 #page-overview-fc .resource-picker-panel {
   left: 0;
-  min-width: 280px;
+  min-width: 320px;
   transform-origin: top left;
 }
 
@@ -359,7 +359,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 10px 12px;
   margin-bottom: 4px;
   border-radius: var(--bs-border-radius-sm);
   background: var(--bs-tertiary-bg, #f1f2f6);
@@ -367,7 +367,7 @@
 
 #page-overview-fc .resource-picker-search i {
   color: #9aa1b3;
-  font-size: 13px;
+  font-size: 14px;
   flex-shrink: 0;
 }
 
@@ -375,24 +375,81 @@
   border: none;
   background: transparent;
   outline: none;
-  font-size: 13px;
+  font-size: 15px;
   color: #3c4043;
   flex: 1 1 auto;
   min-width: 0;
 }
 
 #page-overview-fc .resource-picker-list {
-  max-height: 320px;
+  max-height: 360px;
   overflow-y: auto;
 }
 
-#page-overview-fc .resource-picker-section-label {
-  padding: 8px 10px 4px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #9aa1b3;
+/* ---- Two-level resource list: one collapsible group per resource_groups row (台北/深圳/
+   上海實體會議室 + 線上會議室 — see OverviewFullCalendarPresenter::PageLoad()), each holding
+   its own flat list of .resource-picker-item rooms. Replaces the old two static
+   .resource-picker-section-label headers (Physical/Video, never collapsible) now that there
+   are 4 sections instead of 2 and room names repeat across the 3 physical office groups. ---- */
+#page-overview-fc .resource-picker-group + .resource-picker-group {
+  margin-top: 2px;
+}
+
+#page-overview-fc .resource-picker-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #6b7385;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  text-align: left;
+  border-radius: var(--bs-border-radius-sm);
+}
+
+#page-overview-fc .resource-picker-group-toggle:hover {
+  color: #5c6b84;
+  background: var(--bs-tertiary-bg, #f1f2f6);
+}
+
+#page-overview-fc .resource-picker-group-chevron {
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+#page-overview-fc .resource-picker-group.collapsed .resource-picker-group-chevron {
+  transform: rotate(-90deg);
+}
+
+#page-overview-fc .resource-picker-group-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#page-overview-fc .resource-picker-group-count {
+  flex-shrink: 0;
+}
+
+/* Collapsed hides the group's rooms UNLESS a live search matched something inside it
+   (.force-expanded, set by filterResourcePickerList() in overview_fullcalendar.js) — a
+   manually collapsed group should still surface its own matches while searching, same as an
+   already-expanded one, and revert to collapsed again once the search term is cleared. */
+#page-overview-fc .resource-picker-group.collapsed:not(.force-expanded) .resource-picker-group-items {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #page-overview-fc .resource-picker-group-chevron {
+    transition: none;
+  }
 }
 
 #page-overview-fc .resource-picker-item,
@@ -412,6 +469,15 @@
   white-space: nowrap;
 }
 
+/* Bigger font + taller click target for the room list specifically (放大選單字體與可點擊
+   範圍) — kept as its own override rather than raising the shared base rule above, since
+   that rule also drives .view-picker-item (the unrelated day/week/month dropdown), which
+   wasn't part of this request and should stay its original compact size. */
+#page-overview-fc .resource-picker-item {
+  padding: 12px;
+  font-size: 15px;
+}
+
 #page-overview-fc .resource-picker-item:hover,
 #page-overview-fc .view-picker-item:hover {
   background: var(--bs-tertiary-bg, #f1f2f6);
@@ -424,12 +490,12 @@
 }
 
 #page-overview-fc .resource-picker-check {
-  width: 16px;
+  width: 18px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 15px;
   color: var(--primary);
   visibility: hidden;
 }
@@ -446,10 +512,64 @@
   flex: 1 1 auto;
 }
 
+/* ---- "設為預設" star (toolbar resource list only — see the tpl comment on
+   .resource-picker-item-row for why the Quick Create modal's copy doesn't get one). Two
+   sibling buttons instead of nesting the star inside .resource-picker-item, since a <button>
+   can't contain another <button>. ---- */
+#page-overview-fc .resource-picker-item-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+#page-overview-fc .resource-picker-item-row .resource-picker-item {
+  width: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Hidden by default — the star is a "hover to pin" affordance, not a permanent fixture on
+   every row (放 21 顆星在清單裡太雜訊). The one row that IS currently pinned (.is-default) is
+   the exception: its filled star always stays visible so "which room is my default" is
+   visible at a glance without having to hover every row to find it — that's the ONE star
+   that should read as "singular"/already-set. visibility (not display) so the row's own
+   height/hover background never shifts when the star fades in — hovering/focusing anywhere
+   in the row (:hover/:focus-within on .resource-picker-item-row) reveals its own star, so
+   keyboard navigation into the row's controls gets the same reveal a mouse hover would. */
+#page-overview-fc .resource-picker-item-star {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--bs-border-radius-sm);
+  font-size: 15px;
+  color: #c2c7d1;
+  visibility: hidden;
+}
+
+#page-overview-fc .resource-picker-item-row:hover .resource-picker-item-star,
+#page-overview-fc .resource-picker-item-row:focus-within .resource-picker-item-star,
+#page-overview-fc .resource-picker-item-star.is-default {
+  visibility: visible;
+}
+
+#page-overview-fc .resource-picker-item-star:hover {
+  background: var(--bs-tertiary-bg, #f1f2f6);
+  color: #9aa1b3;
+}
+
+#page-overview-fc .resource-picker-item-star.is-default {
+  color: #f4b400;
+}
+
 #page-overview-fc .resource-picker-empty {
   padding: 16px 10px;
   text-align: center;
-  font-size: 13px;
+  font-size: 14px;
   color: #9aa1b3;
 }
 

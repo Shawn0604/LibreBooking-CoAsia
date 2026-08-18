@@ -17,13 +17,19 @@
                one decision — "which resource is the calendar showing right now" — so they
                live together in one control instead of separate toolbar widgets (the old
                top-level physical/video tabs + the sidebar's own duplicate resource checklist,
-               both removed). Always exactly one specific resource is selected (no "全部資源"
-               option — dropped per explicit request, this page shows one room's calendar at
-               a time); the default is whichever resource's name matches Shanghai (see
-               defaultShanghaiResourceId() in overview_fullcalendar.js), falling back to the
-               first physical resource if no Shanghai room exists. overview_fullcalendar.js
-               drives all of it: opens/closes the panel, filters the list as you type, and
-               sets the trigger's label/dot/checkmark — see setSelectedResource() there. *}
+               both removed). Always at most one specific resource is selected (no "全部資源"
+               option — dropped per explicit request, this page shows one room's calendar at a
+               time); which one, on first load, follows a priority chain — the user's own
+               "設為預設" pick, then their last-selected room, then their classic default-
+               schedule setting, then nothing (a "請選擇會議室" placeholder, never an
+               auto-picked first room) — see resolveDefaultResourceId() in
+               overview_fullcalendar.js and OverviewFullCalendarPresenter::
+               ResolveDefaultResourceIds(). The four groups below always start collapsed
+               regardless of which resource that resolves to — expanding one to see/select a
+               room is a separate action from what's currently showing. overview_fullcalendar.js
+               drives all of it: opens/closes the panel, expands/collapses each group, filters
+               the list as you type, and sets the trigger's label/dot/checkmark — see
+               setSelectedResource() there. *}
             <div class="resource-picker" id="resourcePicker">
                 <button type="button" class="coasia-control resource-picker-trigger" id="resourcePickerTrigger"
                     aria-haspopup="listbox" aria-expanded="false">
@@ -37,26 +43,43 @@
                         <input type="text" id="resourcePickerSearch" placeholder="{translate key='SearchResources'}" autocomplete="off">
                     </div>
                     <div class="resource-picker-list" id="resourcePickerList">
-                        {if count($PhysicalResources) > 0}
-                            <div class="resource-picker-section-label" data-section="physical">{translate key='PhysicalRooms'}</div>
-                            {foreach from=$PhysicalResources item=resource}
-                                <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="physical">
-                                    <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
-                                    <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                    <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                        {* Two-level list: 台北/深圳/上海實體會議室 + 線上會議室 (resource_groups,
+                           see database_schema/coasia-resources-regions.sql and
+                           OverviewFullCalendarPresenter::PageLoad()) each render as an
+                           independently expandable/collapsible section — every physical office
+                           has its own set of rooms (some names repeat across offices, e.g. each
+                           office has its own "上海 Shanghai" room), and Video Conference stays a
+                           single shared section rather than repeating per office. *}
+                        {foreach from=$ResourceGroups item=group}
+                            <div class="resource-picker-group collapsed" data-group-id="{$group.id}" data-video="{if $group.isVideo}1{else}0{/if}">
+                                <button type="button" class="resource-picker-group-toggle" aria-expanded="false">
+                                    <i class="bi bi-chevron-down resource-picker-group-chevron"></i>
+                                    <span class="resource-picker-group-label">{$group.name|escape}</span>
+                                    <span class="resource-picker-group-count">（{$group.resources|@count}）</span>
                                 </button>
-                            {/foreach}
-                        {/if}
-                        {if count($VideoResources) > 0}
-                            <div class="resource-picker-section-label" data-section="video">{translate key='VideoConferenceResources'}</div>
-                            {foreach from=$VideoResources item=resource}
-                                <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="video">
-                                    <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
-                                    <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                    <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
-                                </button>
-                            {/foreach}
-                        {/if}
+                                <div class="resource-picker-group-items">
+                                    {foreach from=$group.resources item=resource}
+                                        {* .resource-picker-item-row wraps two SIBLING buttons (never nest a <button>
+                                           inside another) — the row-select button (unchanged from before) plus the
+                                           "設為預設" star (overview_fullcalendar.js: setResourcePickerDefault()/
+                                           updateResourcePickerStars()), independent of which resource is currently
+                                           selected/showing on the calendar. Only this toolbar list gets a star — the
+                                           Quick Create modal's own copy of this picker (below) is about choosing a
+                                           resource for the reservation being drafted, unrelated to a personal default. *}
+                                        <div class="resource-picker-item-row">
+                                            <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-group-id="{$group.id}">
+                                                <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                                <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                                <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                            </button>
+                                            <button type="button" class="resource-picker-item-star" data-resource-id="{$resource->GetId()}" aria-pressed="false">
+                                                <i class="bi bi-star"></i>
+                                            </button>
+                                        </div>
+                                    {/foreach}
+                                </div>
+                            </div>
+                        {/foreach}
                         <div class="resource-picker-empty d-none" id="resourcePickerEmpty">{translate key='NoMatchesFound'}</div>
                     </div>
                 </div>
@@ -220,26 +243,24 @@
                                         <input type="text" id="qcResourcePickerSearch" placeholder="{translate key='SearchResources'}" autocomplete="off">
                                     </div>
                                     <div class="resource-picker-list" id="qcResourcePickerList">
-                                        {if count($PhysicalResources) > 0}
-                                            <div class="resource-picker-section-label" data-section="physical">{translate key='PhysicalRooms'}</div>
-                                            {foreach from=$PhysicalResources item=resource}
-                                                <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="physical">
-                                                    <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
-                                                    <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                                    <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                        {foreach from=$ResourceGroups item=group}
+                                            <div class="resource-picker-group collapsed" data-group-id="{$group.id}" data-video="{if $group.isVideo}1{else}0{/if}">
+                                                <button type="button" class="resource-picker-group-toggle" aria-expanded="false">
+                                                    <i class="bi bi-chevron-down resource-picker-group-chevron"></i>
+                                                    <span class="resource-picker-group-label">{$group.name|escape}</span>
+                                                    <span class="resource-picker-group-count">（{$group.resources|@count}）</span>
                                                 </button>
-                                            {/foreach}
-                                        {/if}
-                                        {if count($VideoResources) > 0}
-                                            <div class="resource-picker-section-label" data-section="video">{translate key='VideoConferenceResources'}</div>
-                                            {foreach from=$VideoResources item=resource}
-                                                <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-section="video">
-                                                    <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
-                                                    <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                                    <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
-                                                </button>
-                                            {/foreach}
-                                        {/if}
+                                                <div class="resource-picker-group-items">
+                                                    {foreach from=$group.resources item=resource}
+                                                        <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-group-id="{$group.id}">
+                                                            <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                                            <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                                            <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                                        </button>
+                                                    {/foreach}
+                                                </div>
+                                            </div>
+                                        {/foreach}
                                         <div class="resource-picker-empty d-none" id="qcResourcePickerEmpty">{translate key='NoMatchesFound'}</div>
                                     </div>
                                 </div>
@@ -393,6 +414,9 @@
            call time. *}
         participantSearchUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_participant_search.php?term=',
         saveUrl: '{$ScriptUrl}/ajax/reservation_save.php',
+        {* Tier 1 of the resource picker's default-resource priority (the "設為預設" star) —
+           see OverviewFullCalendarPresenter::ResolveDefaultResourceIds(). *}
+        setDefaultResourceUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_set_default_resource.php',
         reservationDataUrl: '{$ScriptUrl}/ajax/overview_fullcalendar_reservation.php',
         {* Deliberately NOT ajax/reservation_update.php — see OverviewFullCalendarReservationUpdatePresenter's
            doc comment for why the Drawer's basic-field edit needs its own narrower endpoint. *}
@@ -434,38 +458,50 @@
             resourceUnavailable: {translate_js key='ResourceUnavailable'},
             noMatchesFound: {translate_js key='NoMatchesFound'},
             inviteExternalEmail: {translate_js key='InviteExternalEmail'},
-            externalParticipantBadge: {translate_js key='ExternalParticipantBadge'}
+            externalParticipantBadge: {translate_js key='ExternalParticipantBadge'},
+            selectResourcePlaceholder: {translate_js key='SelectResourcePlaceholder'},
+            setAsDefaultResource: {translate_js key='SetAsDefaultResource'},
+            removeDefaultResource: {translate_js key='RemoveDefaultResource'}
         },
+        {* Priority tiers 1 and 3 of the resource picker's default-resource resolution — see
+           loadStoredResourceSelection() in overview_fullcalendar.js and
+           OverviewFullCalendarPresenter::ResolveDefaultResourceIds(). Tier 2 (last selected)
+           lives entirely in localStorage; tier 4 is simply "none of the above" -> no resource
+           selected at all, never an auto-picked first resource. *}
+        explicitDefaultResourceId: {if $ExplicitDefaultResourceId}"{$ExplicitDefaultResourceId|escape:'javascript'}"{else}null{/if},
+        systemDefaultResourceId: {if $SystemDefaultResourceId}"{$SystemDefaultResourceId|escape:'javascript'}"{else}null{/if},
         resourceNames: {
-            {foreach from=$PhysicalResources item=resource name=physicalNames}
-                "{$resource->GetId()}": "{$resource->GetName()|escape:'javascript'}"{if !$smarty.foreach.physicalNames.last},{/if}
-            {/foreach}
-            {if count($PhysicalResources) > 0 && count($VideoResources) > 0},{/if}
-            {foreach from=$VideoResources item=resource name=videoNames}
-                "{$resource->GetId()}": "{$resource->GetName()|escape:'javascript'}"{if !$smarty.foreach.videoNames.last},{/if}
+            {foreach from=$ResourceGroups item=group name=groups}
+                {foreach from=$group.resources item=resource name=groupResources}
+                    "{$resource->GetId()}": "{$resource->GetName()|escape:'javascript'}"{if !($smarty.foreach.groups.last && $smarty.foreach.groupResources.last)},{/if}
+                {/foreach}
             {/foreach}
         },
         resourceColors: {
-            {foreach from=$PhysicalResources item=resource name=physicalColors}
-                "{$resource->GetId()}": "{$ResourceColors[$resource->GetId()].bg|escape:'javascript'}"{if !$smarty.foreach.physicalColors.last},{/if}
-            {/foreach}
-            {if count($PhysicalResources) > 0 && count($VideoResources) > 0},{/if}
-            {foreach from=$VideoResources item=resource name=videoColors}
-                "{$resource->GetId()}": "{$ResourceColors[$resource->GetId()].bg|escape:'javascript'}"{if !$smarty.foreach.videoColors.last},{/if}
+            {foreach from=$ResourceGroups item=group name=groups}
+                {foreach from=$group.resources item=resource name=groupResources}
+                    "{$resource->GetId()}": "{$ResourceColors[$resource->GetId()].bg|escape:'javascript'}"{if !($smarty.foreach.groups.last && $smarty.foreach.groupResources.last)},{/if}
+                {/foreach}
             {/foreach}
         },
-        resourceGroups: {
-            physical: [
-                {foreach from=$PhysicalResources item=resource name=physicalIds}
-                    {ldelim}id: "{$resource->GetId()}", name: "{$resource->GetName()|escape:'javascript'}"{rdelim}{if !$smarty.foreach.physicalIds.last},{/if}
-                {/foreach}
-            ],
-            video: [
-                {foreach from=$VideoResources item=resource name=videoIds}
-                    {ldelim}id: "{$resource->GetId()}", name: "{$resource->GetName()|escape:'javascript'}"{rdelim}{if !$smarty.foreach.videoIds.last},{/if}
-                {/foreach}
-            ]
-        }
+        {* opts.resourceGroups drives categoryOf()/allResourceIds()/defaultShanghaiResourceId()
+           in overview_fullcalendar.js — an ordered array (not the old {physical,video} pair)
+           since there are now 4 sections, one per resource_groups row (see
+           OverviewFullCalendarPresenter::PageLoad()), not just 2. *}
+        resourceGroups: [
+            {foreach from=$ResourceGroups item=group name=groups}
+                {ldelim}
+                    id: "{$group.id}",
+                    name: "{$group.name|escape:'javascript'}",
+                    isVideo: {if $group.isVideo}true{else}false{/if},
+                    resources: [
+                        {foreach from=$group.resources item=resource name=groupResources}
+                            {ldelim}id: "{$resource->GetId()}", name: "{$resource->GetName()|escape:'javascript'}"{rdelim}{if !$smarty.foreach.groupResources.last},{/if}
+                        {/foreach}
+                    ]
+                {rdelim}{if !$smarty.foreach.groups.last},{/if}
+            {/foreach}
+        ]
     };
 </script>
 <script type="text/javascript">

@@ -452,6 +452,18 @@ class ManageSchedulesPresenter extends ActionPresenter
         $sourceSchedules = $this->manageSchedulesService->GetSourceSchedules();
         $resources = $this->manageSchedulesService->GetResources();
 
+        // 依地區排序（台北→深圳→上海→跨地區，同地區內依名稱排序）— every resource maps to exactly
+        // one dedicated schedule in this deployment, so sorting schedules by their one resource's
+        // GetLocation() groups same-region rooms together the same way Manage Resources' own list
+        // does (Presenters/Admin/ManageResourcesPresenter.php). A schedule with no resource
+        // assigned yet sorts last (ResourceLocation::SortRank(null)).
+        usort($schedules, function ($a, $b) use ($resources) {
+            $locationA = ($resources[$a->GetId()][0] ?? null)?->GetLocation();
+            $locationB = ($resources[$b->GetId()][0] ?? null)?->GetLocation();
+            $rankDiff = ResourceLocation::SortRank($locationA) <=> ResourceLocation::SortRank($locationB);
+            return $rankDiff !== 0 ? $rankDiff : strcasecmp($a->GetName(), $b->GetName());
+        });
+
         $layouts = [];
         /* @var Schedule $schedule */
         foreach ($schedules as $schedule) {

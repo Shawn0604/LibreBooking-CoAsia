@@ -19,51 +19,65 @@ $(function () {
     // further down) still needs it and must not be touched by anything in this section. ----
     var RESOURCE_STORAGE_KEY = 'overview-fc-selected-resource';
 
+    // opts.resourceGroups is now an ORDERED ARRAY of sections (one per resource_groups row —
+    // 台北/深圳/上海實體會議室 + 線上會議室, see OverviewFullCalendarPresenter::PageLoad()),
+    // each { id, name, isVideo, resources: [{id, name}, ...] } — replaces the old flat
+    // {physical:[...], video:[...]} pair now that there are 4 sections instead of 2.
     function categoryOf(resourceId) {
-        var groups = opts.resourceGroups || { physical: [], video: [] };
-        var isVideo = groups.video.some(function (r) { return String(r.id) === String(resourceId); });
-        return isVideo ? 'video' : 'physical';
+        var groups = opts.resourceGroups || [];
+        for (var i = 0; i < groups.length; i++) {
+            if (groups[i].isVideo && groups[i].resources.some(function (r) { return String(r.id) === String(resourceId); })) {
+                return 'video';
+            }
+        }
+        return 'physical';
     }
 
     function allResourceIds() {
-        var groups = opts.resourceGroups || { physical: [], video: [] };
-        return (groups.physical || []).concat(groups.video || []).map(function (r) { return String(r.id); });
+        var groups = opts.resourceGroups || [];
+        var ids = [];
+        groups.forEach(function (g) {
+            g.resources.forEach(function (r) { ids.push(String(r.id)); });
+        });
+        return ids;
     }
 
-    // Default room when there's no (valid) stored selection yet: whichever physical resource
-    // is Shanghai's (resource names carry a flag emoji + English city name, e.g. "🇨🇳
-    // Shanghai" — confirmed live against the actual resources table), falling back to the
-    // first physical resource, then the first resource overall, so this never returns
-    // nothing as long as any resource exists.
-    function defaultShanghaiResourceId() {
-        var groups = opts.resourceGroups || { physical: [], video: [] };
-        var physical = groups.physical || [];
-        var shanghai = physical.filter(function (r) {
-            return /上海|shanghai/i.test(r.name);
-        })[0];
-        if (shanghai) {
-            return String(shanghai.id);
+    // Default-resource priority chain (independent of each group's own collapsed/expanded
+    // state — picking a default never auto-expands the group it lives in, per explicit
+    // request): 1) the user's own explicit "設為預設" pick (opts.explicitDefaultResourceId,
+    // server-side, set via the star button — see setDefaultResourceUrl further down), 2) the
+    // last resource this browser selected (localStorage), 3) the resource matching the
+    // user's classic default-schedule setting (opts.systemDefaultResourceId — see
+    // OverviewFullCalendarPresenter::ResolveDefaultResourceIds()), 4) nothing — show the
+    // "請選擇會議室" placeholder rather than guessing/auto-picking a first resource.
+    function resolveDefaultResourceId() {
+        var ids = allResourceIds();
+
+        if (opts.explicitDefaultResourceId && ids.indexOf(String(opts.explicitDefaultResourceId)) !== -1) {
+            return String(opts.explicitDefaultResourceId);
         }
-        var first = physical[0] || (groups.video && groups.video[0]);
-        return first ? String(first.id) : null;
-    }
 
-    function loadStoredResourceSelection() {
         try {
             var stored = localStorage.getItem(RESOURCE_STORAGE_KEY);
-            if (stored && allResourceIds().indexOf(stored) !== -1) {
+            if (stored && ids.indexOf(stored) !== -1) {
                 return stored;
             }
         } catch (e) {}
-        return defaultShanghaiResourceId();
+
+        if (opts.systemDefaultResourceId && ids.indexOf(String(opts.systemDefaultResourceId)) !== -1) {
+            return String(opts.systemDefaultResourceId);
+        }
+
+        return null;
     }
 
-    // selectedResourceId is the single source of truth for both the events() fetch filter
-    // and the resource picker's own checkmark/label — never read back from the DOM. Restored
-    // from localStorage on load (falling back to the Shanghai default if the stored id no
-    // longer exists, e.g. the resource was deleted since), and persisted on every change so
-    // the user's last choice survives a reload/revisit, per the "記住使用者最後選擇" requirement.
-    var selectedResourceId = loadStoredResourceSelection();
+    // selectedResourceId is the single source of truth for both the events() fetch filter and
+    // the resource picker's own checkmark/label — never read back from the DOM. May be null
+    // (tier 4 above: nothing to select yet) — every caller of it, and every place selectedResourceId
+    // feeds into (events() fetch, defaultResourceId() for quick-create, the trigger label),
+    // has to treat that as a valid, normal state rather than something to paper over with a
+    // guessed first resource.
+    var selectedResourceId = resolveDefaultResourceId();
 
     function updateResourcePickerTrigger() {
         var $items = $('#resourcePickerList .resource-picker-item');
@@ -71,13 +85,70 @@ $(function () {
         $items.filter('[data-resource-id="' + selectedResourceId + '"]').addClass('selected');
 
         var $dot = $('#resourcePickerDot');
-        var color = (opts.resourceColors || {})[selectedResourceId];
+        var color = selectedResourceId ? (opts.resourceColors || {})[selectedResourceId] : null;
         // jQuery's .css() doesn't reliably round-trip custom properties (`--dot-color`) across
         // versions — set it via the native CSSStyleDeclaration API instead.
         $dot.toggle(!!color);
         $dot.get(0).style.setProperty('--dot-color', color || '');
 
-        $('#resourcePickerLabel').text((opts.resourceNames || {})[selectedResourceId] || '');
+        var label = selectedResourceId
+            ? ((opts.resourceNames || {})[selectedResourceId] || '')
+            : opts.translations.selectResourcePlaceholder;
+        $('#resourcePickerLabel').text(label);
+
+        updateResourcePickerStars();
+    }
+
+    // Every star reflects opts.explicitDefaultResourceId (not selectedResourceId — the two
+    // are independent: "設為預設" pins a specific room regardless of what's currently showing
+    // on the calendar, see setResourcePickerDefault() below), so this runs whenever either one
+    // could have changed rather than being folded into updateResourcePickerTrigger() alone.
+    function updateResourcePickerStars() {
+        $('#resourcePickerList .resource-picker-item-star').each(function () {
+            var $star = $(this);
+            var isDefault = opts.explicitDefaultResourceId
+                && String($star.data('resource-id')) === String(opts.explicitDefaultResourceId);
+            $star.toggleClass('is-default', !!isDefault);
+            $star.find('i').toggleClass('bi-star-fill', !!isDefault).toggleClass('bi-star', !isDefault);
+            $star.attr('title', isDefault ? opts.translations.removeDefaultResource : opts.translations.setAsDefaultResource);
+            $star.attr('aria-label', $star.attr('title'));
+            $star.attr('aria-pressed', isDefault ? 'true' : 'false');
+        });
+    }
+
+    // Persists (or clears, if resourceId already IS the current default — a second click
+    // toggles it off) the user's own "設為預設" pick. Deliberately does NOT touch
+    // selectedResourceId/the calendar — pinning a default is independent of which resource is
+    // currently showing (see the CoAsia spec: 選擇 vs 設為預設 are two separate actions).
+    function setResourcePickerDefault(resourceId) {
+        var next = (opts.explicitDefaultResourceId && String(opts.explicitDefaultResourceId) === String(resourceId)) ? '' : resourceId;
+        var body = new URLSearchParams();
+        body.set('CSRF_TOKEN', opts.csrfToken);
+        body.set('resourceId', next);
+        fetch(opts.setDefaultResourceUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+            credentials: 'same-origin',
+        })
+            .then(function (res) { return res.json().catch(function () { return {}; }); })
+            .then(function (json) {
+                if (json && json.success) {
+                    opts.explicitDefaultResourceId = next || null;
+                    updateResourcePickerStars();
+                } else {
+                    // Doesn't surface a user-facing error (a failed "設為預設" pin isn't
+                    // worth a hard error banner — same treatment checkResourceAvailability()
+                    // further down gives a failed background request), but does leave a
+                    // trace in devtools instead of silently doing nothing, since a non-2xx/
+                    // non-JSON response here (e.g. a PHP fatal) would otherwise look
+                    // identical to "the click didn't register" to whoever's debugging it.
+                    console.error('setResourcePickerDefault failed', json);
+                }
+            })
+            .catch(function (err) {
+                console.error('setResourcePickerDefault request failed', err);
+            });
     }
 
     function setSelectedResource(resourceId) {
@@ -181,29 +252,88 @@ $(function () {
             }
         });
         $panel.on('click', function (e) { e.stopPropagation(); });
+
+        // Each group's own chevron header toggles just that group (accordion — see
+        // toggleResourcePickerGroup() — expanding one collapses any other open group in this
+        // same list) — stopPropagation so it doesn't also register as a .resource-picker-item
+        // click (there is none here, but consistent with every other delegated handler in
+        // this panel) or bubble up to the document-level closeAllDropdowns listener.
+        $panel.on('click', '.resource-picker-group-toggle', function (e) {
+            e.stopPropagation();
+            toggleResourcePickerGroup($(this).closest('.resource-picker-group'));
+        });
+
+        // A sibling of .resource-picker-item (see .resource-picker-item-row in the tpl), not
+        // nested inside it — two <button>s can't nest — so this never also matches the
+        // .resource-picker-item handler below; stopPropagation just keeps it from bubbling
+        // further, consistent with every other handler in this panel.
+        $panel.on('click', '.resource-picker-item-star', function (e) {
+            e.stopPropagation();
+            setResourcePickerDefault(String($(this).data('resource-id')));
+        });
+
         $panel.on('click', '.resource-picker-item', function () {
             setSelectedResource(String($(this).data('resource-id')));
             close();
         });
 
         $search.on('input', function () {
-            var term = $(this).val().trim().toLowerCase();
-            var anyVisible = { physical: false, video: false };
-            $('#resourcePickerList .resource-picker-item[data-section]').each(function () {
-                var label = $(this).find('.resource-picker-item-label').text().toLowerCase();
-                var match = label.indexOf(term) !== -1;
-                $(this).toggleClass('d-none', !match);
-                if (match) {
-                    anyVisible[$(this).data('section')] = true;
-                }
-            });
-            $('#resourcePickerList .resource-picker-section-label').each(function () {
-                $(this).toggleClass('d-none', !anyVisible[$(this).data('section')]);
-            });
-            $('#resourcePickerEmpty').toggleClass('d-none', anyVisible.physical || anyVisible.video);
+            filterResourcePickerList($('#resourcePickerList'), $(this).val(), $('#resourcePickerEmpty'));
         });
 
         updateResourcePickerTrigger();
+    }
+
+    // Shared between the toolbar's #resourcePickerList and Quick Create's own
+    // #qcResourcePickerList — filters each group's items by name, hides a group entirely
+    // once none of its items match, and force-reveals a matching group's items even if the
+    // user had manually collapsed it (see .resource-picker-group.force-expanded in
+    // overview_fullcalendar.css), reverting to whatever collapsed state it had once the
+    // search term is cleared.
+    // Accordion behavior, shared by both the toolbar's #resourcePickerList and Quick Create's
+    // own #qcResourcePickerList — at most one of the four groups open at a time within a given
+    // list. $group.siblings() naturally stays scoped to just that one list (each
+    // .resource-picker-group is a direct child of its own #resourcePickerList/
+    // #qcResourcePickerList, so this never reaches across into the other picker).
+    function toggleResourcePickerGroup($group) {
+        var willExpand = $group.hasClass('collapsed');
+        $group.siblings('.resource-picker-group')
+            .addClass('collapsed')
+            .find('.resource-picker-group-toggle')
+            .attr('aria-expanded', 'false');
+        $group.toggleClass('collapsed', !willExpand);
+        $group.find('.resource-picker-group-toggle').first().attr('aria-expanded', willExpand ? 'true' : 'false');
+    }
+
+    function filterResourcePickerList($list, rawTerm, $emptyEl) {
+        var term = rawTerm.trim().toLowerCase();
+        var hasTerm = term.length > 0;
+        var anyVisible = false;
+        $list.find('.resource-picker-group').each(function () {
+            var $group = $(this);
+            var groupHasMatch = false;
+            $group.find('.resource-picker-item').each(function () {
+                var $item = $(this);
+                var label = $item.find('.resource-picker-item-label').text().toLowerCase();
+                var match = label.indexOf(term) !== -1;
+                // Toolbar list items are wrapped in .resource-picker-item-row (alongside the
+                // "設為預設" star, a sibling button — see the tpl) so hiding has to target that
+                // whole row, not just the inner select-button, or a filtered-out row would
+                // leave its star floating with nothing next to it. The Quick Create modal's
+                // copy of this list has no such wrapper, so this falls back to the item itself.
+                var $row = $item.closest('.resource-picker-item-row');
+                ($row.length ? $row : $item).toggleClass('d-none', !match);
+                if (match) {
+                    groupHasMatch = true;
+                }
+            });
+            $group.toggleClass('d-none', !groupHasMatch);
+            $group.toggleClass('force-expanded', hasTerm && groupHasMatch);
+            if (groupHasMatch) {
+                anyVisible = true;
+            }
+        });
+        $emptyEl.toggleClass('d-none', anyVisible);
     }
 
     // ---- Reservation scope (全體／只看我的) — a SEPARATE dimension from resource
@@ -510,6 +640,14 @@ $(function () {
             }
         });
         $panel.on('click', function (e) { e.stopPropagation(); });
+
+        // Same accordion behavior as the toolbar picker's own group-toggle handler above —
+        // see toggleResourcePickerGroup().
+        $panel.on('click', '.resource-picker-group-toggle', function (e) {
+            e.stopPropagation();
+            toggleResourcePickerGroup($(this).closest('.resource-picker-group'));
+        });
+
         $panel.on('click', '.resource-picker-item', function () {
             pending.resourceId = String($(this).data('resource-id'));
             activeResourceCategory = categoryOf(pending.resourceId);
@@ -523,20 +661,7 @@ $(function () {
         });
 
         $search.on('input', function () {
-            var term = $(this).val().trim().toLowerCase();
-            var anyVisible = { physical: false, video: false };
-            $('#qcResourcePickerList .resource-picker-item[data-section]').each(function () {
-                var label = $(this).find('.resource-picker-item-label').text().toLowerCase();
-                var match = label.indexOf(term) !== -1;
-                $(this).toggleClass('d-none', !match);
-                if (match) {
-                    anyVisible[$(this).data('section')] = true;
-                }
-            });
-            $('#qcResourcePickerList .resource-picker-section-label').each(function () {
-                $(this).toggleClass('d-none', !anyVisible[$(this).data('section')]);
-            });
-            $('#qcResourcePickerEmpty').toggleClass('d-none', anyVisible.physical || anyVisible.video);
+            filterResourcePickerList($('#qcResourcePickerList'), $(this).val(), $('#qcResourcePickerEmpty'));
         });
     }
     initQcResourcePicker();
@@ -1115,6 +1240,13 @@ $(function () {
             }).addClass('show');
         },
         events: function (fetchInfo, successCallback, failureCallback) {
+            // No resource selected yet (priority-chain tier 4 — see resolveDefaultResourceId())
+            // — nothing to fetch or show; the filter below would reject every event anyway
+            // (String(resourceId) can never equal null), this just skips the pointless request.
+            if (!selectedResourceId) {
+                successCallback([]);
+                return;
+            }
             // Scope (mine/all) and resource type (physical/video) are independent filters —
             // both apply together, not one-or-the-other. mine=1 narrows the server-side
             // query to this user's own reservations (any role — see

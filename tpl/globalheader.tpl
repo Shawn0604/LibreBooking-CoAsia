@@ -229,8 +229,10 @@
                            in the app (notification settings, admin pages, ...), now that the sidebar
                            no longer has an always-visible "總覽" link of its own. Active state and the
                            mini-cal below both key off the exact same isset() check
-                           OverviewFullCalendarPresenter is the only presenter that ever sets. *}
-                        <a class="sidebar-link {if isset($PhysicalResources) || isset($VideoResources)}active{/if}"
+                           OverviewFullCalendarPresenter is the only presenter that ever sets
+                           (formerly $PhysicalResources/$VideoResources, now $ResourceGroups —
+                           see OverviewFullCalendarPresenter::PageLoad()). *}
+                        <a class="sidebar-link {if isset($ResourceGroups)}active{/if}"
                             id="navCalendarHome" href="{$Path}{Pages::OVERVIEW_FULLCALENDAR}"
                             title="{translate key='CalendarHome'}">
                             <i class="bi bi-calendar3"></i><span class="sidebar-link-label">{translate key='CalendarHome'}</span>

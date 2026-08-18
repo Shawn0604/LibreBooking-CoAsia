@@ -29,8 +29,11 @@
 							<td class="fw-bold">{$schedule->GetName()}</td>
 							<td>
 								{if array_key_exists($id, $Resources)}
+									{* 依地區顯示會議室 — same "地區・會議室" pairing as Admin Reservations
+									   (tpl/Admin/Reservations/manage_reservations.tpl), so a resource's region
+									   reads the same way everywhere in the admin center. *}
 									{foreach from=$Resources[$id] item=r name=resources_loop}
-										{$r->GetName()|escape}{if !$smarty.foreach.resources_loop.last}, {/if}
+										{if $r->HasLocation()}<span class="admin-cell-secondary">{$r->GetLocation()|escape} ・</span>{/if}{$r->GetName()|escape}{if !$smarty.foreach.resources_loop.last}, {/if}
 									{/foreach}
 								{else}
 									<span class="admin-cell-secondary">{translate key=None}</span>

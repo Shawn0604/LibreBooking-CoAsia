@@ -185,6 +185,11 @@ class zh_tw extends en_us
         $strings['AppearsOn'] = '根據 %s 顯示';
         $strings['Location'] = '地區';
         $strings['NoLocationLabel'] = '(沒有指定地區)';
+        $strings['AllLocations'] = '所有地區';
+        $strings['ResourceLocationTaipei'] = '台北實體會議室';
+        $strings['ResourceLocationShenzhen'] = '深圳實體會議室';
+        $strings['ResourceLocationShanghai'] = '上海實體會議室';
+        $strings['ResourceLocationCrossRegion'] = '線上會議室（跨地區）';
         $strings['Contact'] = '聯繫';
         $strings['NoContactLabel'] = '(沒有聯繫方式)';
         $strings['Description'] = '說明';
@@ -638,6 +643,9 @@ class zh_tw extends en_us
         $strings['YourReservations'] = '我的預約';
         $strings['PhysicalRooms'] = '實體會議室';
         $strings['VideoConferenceResources'] = '視訊會議';
+        $strings['SelectResourcePlaceholder'] = '請選擇會議室';
+        $strings['SetAsDefaultResource'] = '設為預設';
+        $strings['RemoveDefaultResource'] = '取消預設';
         $strings['MyMeetings'] = '我的會議';
         $strings['NextMeeting'] = '下一場會議';
         $strings['NoUpcomingMeetingsSoon'] = '近期沒有安排會議';

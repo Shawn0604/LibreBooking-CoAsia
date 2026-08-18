@@ -2358,3 +2358,64 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 純 CSS 改動，寫了一個小腳本數大括號配對確認語法沒錯（282 對全部配對）；本機沒有裝 `stylelint`（`npm install` 沒跑過），沒有跑完整的 lint。是靜態檔案，`curl` 直接確認伺服器已經在吐新內容，不需要重啟容器。畫面上的 hover 觀感（顏色深淺、跟今天/週日既有底色疊起來好不好看）需要使用者自己在瀏覽器裡確認。
+
+## 77. Overview 行事曆會議室選單改成兩層 Accordion，重寫預設會議室邏輯
+
+要求把左側／工具列的會議室選單，從「實體／線上」兩段式扁平清單，改成依地區分組的兩層可展開清單：台北／深圳／上海各自的實體會議室＋線上會議室（跨地區，不依地區重複顯示），並重新定義「預設會議室」的判斷順序。
+
+### 77.1 資料模型：沿用既有 `resource_groups`，新增地區與線上兩類分組
+
+`resource_groups`／`resource_group_assignment` 這兩張表本來就存在（`Domain/ResourceGroup.php` 的 `ResourceGroupTree`），但這個部署原本只有「台北會議室」「Video Conference」兩組、12 個資源。新增 `database_schema/coasia-resources-regions.sql`：把台北那組改名成「台北實體會議室」、Video Conference 改名成「線上會議室」，並且新增深圳（5 間：深圳／上海／首爾／台北／新加坡）、上海（4 間：上海／首爾／深圳／台北）兩個實體辦公室的會議室——這 9 間是全新資源，套用台北同名會議室的既有設定（時段表、容納人數等）當範本各自建一份獨立的 schedule/layout/resource（同一個房間名字在不同辦公室是不同的實體資源，不能共用同一張時段表）。`resources.location` 欄位另外用 `database_schema/coasia-resources-location.sql` 回填（見 §78），跟 `resource_groups` 是兩個獨立但保持一致的地區來源：前者驅動這個選單的分組顯示，後者驅動管理中心的地區篩選／排序。
+
+`Presenters/OverviewFullCalendarPresenter.php` 原本用 `video_url` 自訂屬性把資源硬分成「physical／video」兩個扁平陣列（`SetResources($physicalResources, $videoResources, ...)`），改成改讀 `IResourceRepository::GetResourceGroups()`，依 `GROUP_DISPLAY_ORDER`（台北→深圳→上海→線上）排序後組成 `$ResourceGroups`（`SetResourceGroups($groups, $resourceColors, ...)`），每組帶 `isVideo` 旗標（沿用 `video_url` 屬性判斷，只是現在用來標記整組而不是單一資源）。`tpl/globalheader.tpl` 判斷「行事曆」導覽項目 active 狀態原本檢查 `isset($PhysicalResources) || isset($VideoResources)`，這兩個變數已經不會再被設定，同步改成檢查 `isset($ResourceGroups)`，不然這個 active 高亮會永久失效。
+
+### 77.2 前端：Accordion 行為
+
+`tpl/Overview/overview_fullcalendar.tpl` 的資源選單（工具列版本＋Quick Create 彈窗內的副本）都改成 `{foreach from=$ResourceGroups}` 兩層結構：第一層是地區群組（含展開/收合 toggle、數量），第二層是實際會議室清單。`Web/scripts/overview_fullcalendar.js` 新增 `toggleResourcePickerGroup()`：四個群組**預設全部收合**，點擊某一組會先把同一份清單裡其他已展開的組收合，再展開被點的這組——同一時間只能有一組是展開的（accordion 單開，不是各自獨立的展開/收合），這是使用者看過第一版（各自獨立展開）之後追加的要求。搜尋框過濾時，符合搜尋字的群組會暫時強制展開（`.force-expanded`），清空搜尋字後恢復原本的收合狀態。
+
+### 77.3 預設會議室：四層優先序，跟展開/收合完全脫鉤
+
+使用者明確要求：群組的展開/收合狀態，跟「目前預設顯示哪個會議室」是兩件完全獨立的事——不能因為預設會議室是線上會議室，就自動展開線上會議室那組；使用者手動展開某組之後，才會在那組裡看到打勾的目前選取項目。
+
+`Web/scripts/overview_fullcalendar.js` 的 `resolveDefaultResourceId()` 依序判斷：① 使用者自己點過「設為預設」的會議室（新功能，見下）② 這個瀏覽器上次選過的會議室（`localStorage`，沿用既有邏輯）③ 使用者在舊版 Schedule 頁面既有的「預設 schedule」設定（`Domain/User.php` 的 `default_schedule_id`，這個部署裡每個資源對應唯一一個 schedule，所以能反查回對應的資源）④ 以上都沒有就顯示「請選擇會議室」的 placeholder，**不會**像舊版那樣自動挑第一個實體資源當預設。整個判斷鏈都不會去動任何 `.collapsed` class，符合「兩件事分開」的要求。
+
+新增「設為預設」：資源選單每一列滑鼠移過去（或該列本身就是目前的預設）才會顯示一顆星星，點擊會呼叫新的 `Web/ajax/overview_fullcalendar_set_default_resource.php`（`Pages/Ajax/OverviewFullCalendarSetDefaultResourcePage.php` → `Presenters/OverviewFullCalendarSetDefaultResourcePresenter.php`），把選擇寫進既有的 `user_preferences` key-value 表（`Domain/Values/UserPreferences.php` 新增 `OVERVIEW_DEFAULT_RESOURCE_ID` 常數，沿用跟 LINE 綁定同一套機制，見 §（帳號綁定那次），不需要新資料表）；再點一次同一顆星星會清掉這個偏好。伺服器端會驗證這個資源使用者是否真的有權限存取（`CanAccessResource()`），拒絕偽造的資源 id。選擇「設為預設」本身**不會**連動切換目前行事曆顯示的資源、**不會**自動關閉選單——這是獨立的「釘選」動作，跟點選會議室本身（會立即切換顯示、更新行事曆、關閉選單，但不會自動變成永久預設）是兩個分開的互動。
+
+### 77.4 選單字體與點擊範圍放大
+
+依要求放大 `.resource-picker-group-toggle`／`.resource-picker-item`／搜尋框的字級與 padding，並把面板最小寬度從 280px 加到 320px 避免文字被截斷；`.view-picker-item`（月/週/日切換，跟這個選單共用部分 CSS class）刻意排除在外，維持原本的緊湊尺寸。
+
+### 77.5 意外發現並修正：容器 opcache 卡舊版邏輯
+
+實作「設為預設」時，星星點了完全沒反應——查伺服器 log（`docker logs`）才發現請求其實有正確送達後端，但噴出 `Undefined constant UserPreferences::OVERVIEW_DEFAULT_RESOURCE_ID` 500 錯誤：PHP-FPM 的 opcache 快取了新增這個常數**之前**編譯好的 `UserPreferences.php`，而先前這次工作階段所有的 CLI 診斷腳本（`php -r "..."`）都是獨立行程、不共用 opcache，一直測試正常，造成「CLI 測試過了但瀏覽器還是舊行為」的誤判——跟 §16.4 記錄過的快取地雷是同一個模式（也再次確認了那條文件裡「改完 PHP 之後要對網頁請求重啟容器，CLI 測試不算數」的教訓）。修法：`docker compose restart app`，重啟後 log 裡的 500 錯誤消失，改成正常的未登入導向。
+
+### 驗證
+
+容器內 `php -l` 過所有新增/修改的 `.php` 檔案、`node --check` 過 `overview_fullcalendar.js`，皆無語法錯誤。寫了多支一次性 CLI 診斷腳本（測完即刪）直接呼叫 `OverviewFullCalendarPresenter::PageLoad()`／`OverviewFullCalendarSetDefaultResourcePresenter::PageLoad()`，用真實 shawn.admin 帳號對真實開發資料庫驗證：四個分組的名稱、順序、每組會議室數量／順序都跟規格一致；建立一個一次性測試帳號（測完連同其 `user_resource_permissions`／`user_preferences` 一起刪除）驗證「設為預設」的設定/清除/越權阻擋三種情境都正確；整頁 render 測試確認 Smarty 樣板編譯無誤、accordion 的 `collapsed` class 在工具列與 Quick Create 彈窗兩份清單都正確套用（第一輪漏了 Quick Create 那份，`replace_all` 因為兩處縮排不同沒吃到第二處，事後补上）。實際畫面上的視覺呈現、hover/點擊互動手感需要使用者登入後在瀏覽器裡確認。
+
+## 78. 管理中心新增「地區」分類，跨五個頁面＋匯入匯出
+
+延續 §77 的地區分組概念，要求管理中心比照辦理：會議室管理、預約管理、開放時間、管理總覽與使用分析、CSV 匯入匯出都要能依地區（台北／深圳／上海／線上會議室＝跨地區）分類，沿用既有但這個部署從未使用過的 `resources.location` 欄位（LibreBooking 上游本來就有這個 varchar 欄位跟完整的 domain/repository/表單存取，只是這個 fork 一直沒有填值、沒有 UI）。
+
+### 78.1 資料與白名單
+
+`database_schema/coasia-resources-location.sql` 把 21 間會議室的 `location` 回填成四個固定值：實體會議室存辦公室簡稱（`台北`／`深圳`／`上海`），線上會議室存 `跨地區`——刻意用簡短值而不是「台北實體會議室」這種完整詞面，因為要直接拿來組「地區・會議室」這種配對顯示格式。新增 `Domain/Values/ResourceLocation.php` 定義這四個值的白名單常數＋`IsValid()`／`SortRank()`（依「台北→深圳→上海→跨地區」排序用），取代原本的自由輸入文字欄位——會議室管理的 drawer 就地編輯、批次編輯、CSV 匯入這三個寫入路徑都加上白名單檢查，避免手滑打錯字就在使用分析頁面憑空多一個「幽靈地區」。篩選/新增介面上的完整詞面（「台北實體會議室」「線上會議室（跨地區）」）只存在 `lang/zh_tw.php`／`lang/en_us.php` 的翻譯字串裡，不是實際存進資料庫的值。
+
+### 78.2 逐頁改動
+
+- **會議室管理**（`Pages/Admin/ManageResourcesPage.php`／`Presenters/Admin/ManageResourcesPresenter.php`／`tpl/Admin/Resources/manage_resources.tpl`）：工具列新增地區篩選下拉；清單依地區＋名稱排序（同地區的房間會排在一起，不再散落各處）；drawer 就地編輯、批次編輯的地區欄位從自由輸入文字改成固定四選一下拉。
+- **預約管理**（`Pages/Admin/ManageReservationsPage.php`／`Presenters/Admin/ManageReservationsPresenter.php`／`lib/Application/Admin/ReservationFilter.php`）：新增地區篩選（直接在既有的 SQL filter 機制上加一個 `resources.location` 條件，跟 `resourceId`／`scheduleId` 篩選走同一套機制），會議室欄位顯示格式改成「地區・會議室」，CSV 匯出同步加地區欄。`ReservationItemView` 加一個 `$Location` 屬性（不是透過建構子，是查完之後在 presenter 端用 resourceId 對照表補上去——這個類別在整個專案裡被非常多其他地方共用，不想動共用的 SQL/建構子簽章）。地區篩選刻意**不**存進既有的 `ReservationFilterPreferences`（跨頁面記住上次篩選條件的機制）——每次都從網址參數重新讀，不像 resourceId/scheduleId 那樣跨次造訪還會記得。
+- **開放時間**（`Presenters/Admin/ManageSchedulesPresenter.php`／`tpl/Admin/Schedules/manage_schedules.tpl`）：這頁原本沒有任何篩選工具列，維持現狀，只在「資源」欄位每個會議室名稱前面加地區標籤；列表排序也改成依地區（每個資源對應唯一一個 schedule，用這個資源的 `location` 決定 schedule 的排序位置）。
+- **管理總覽**：「即時會議室狀態」清單本來就已經 `ORDER BY r.location, r.name`，只是沒有視覺分組，加上地區小標題（`admin-list-group-label`）。
+- **使用分析**：這頁其實原本就是地區感知的分析頁（含 Excel 匯出），地區篩選、依地區統計、Excel 分頁都已經存在；唯一的改動是把「動態抓資料庫裡有哪些 DISTINCT location」改成固定的四值白名單，避免舊的自由輸入髒資料污染統計結果。
+- **CSV 匯入匯出**：`resources_csv.tpl`／`import_resource_template_csv.tpl`／`ResourceImportCsv.php` 這幾個地方其實老早就支援 `location` 欄位（LibreBooking 上游原生功能），這次只補上前述的白名單驗證。
+
+「熱門會議室排行」（管理總覽）、「依會議室／依地區使用量排行」（使用分析）這幾個依使用量高低排名的清單刻意不改成地區優先排序——這些本來就是排行榜，不是單純的清單，硬套地區排序會讓排名失去意義。
+
+### 78.3 追加要求：全站排序統一改成地區優先
+
+使用者用一張「開放時間設定」的實際截圖回報：同名但不同辦公室的會議室（例如三個都叫「上海 Shanghai」但分屬台北／深圳／上海辦公室）因為清單依名稱字母排序而交錯出現，難以辨識。要求全部排序都改成地區優先、同地區內才依名稱排序。除了 §78.2 已經處理的會議室管理／開放時間，另外補上：預約管理的會議室篩選下拉、使用分析的會議室篩選下拉（原本 `ORDER BY name`，改成抓回 `location` 之後在 PHP 端用 `ResourceLocation::SortRank()` 排序，不直接下 `ORDER BY location`，因為 MySQL 預設 collation 不保證四個地區字串會照「台北→深圳→上海→跨地區」這個語意順序排）、會議室管理批次編輯的「移至時間表」下拉（時間表名稱其實就是房間名稱，有一樣的交錯問題，改成先查每個 schedule 對應資源的地區再排序）。
+
+### 驗證
+
+容器內 `php -l` 過全部新增/修改的 `.php` 檔案，皆無語法錯誤。用真實 shawn.admin 帳號、真實開發資料庫，寫多支一次性 CLI 診斷腳本（測完即刪）直接 render 五個頁面（會議室管理、預約管理、開放時間、管理總覽、使用分析），確認：地區篩選下拉存在且選項正確、篩選後的資料筆數符合預期（例如預約管理篩選「深圳」只回傳深圳資源的預約，用真實 141 筆預約資料驗證台北/跨地區兩種篩選互不污染）、開放時間頁改版後清單順序確認四個地區完全不再交錯（原本一輪測試漏了驗證這點，使用者用截圖回報後才補測）、預約管理與使用分析的資源下拉都確認台北七間排在最前面、批次編輯的時間表下拉同樣確認排序正確。第一輪 render 測試也意外抓到一個真的 bug：Quick Create 彈窗的資源清單漏了套用 accordion 預設收合（§77 的 `replace_all` 只吃到工具列版本），當場補上。第一次驗證預約管理排序修正時，測試腳本因為猜錯 `ManageReservationsPage` 建構子相依（跳過 `SecurePage` 的認證流程手動組 presenter）導致完全沒有輸出、誤判成錯誤，改用更輕量、只測核心 SQL filter 邏輯的方式重測才抓到問題其實出在測試腳本本身，不是產品程式碼。實際畫面上的視覺呈現需要使用者登入後在瀏覽器裡確認。

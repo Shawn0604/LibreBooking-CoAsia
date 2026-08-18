@@ -73,6 +73,14 @@
 				<option value="">{translate key=AllResourceTypes}</option>
 				{object_html_options options=$ResourceTypes key='Id' label="Name" selected=$ResourceTypeFilter}
 			</select>
+			<select id="filterResourceLocation" class="form-select form-select-sm admin-toolbar-select"
+				{formname key=RESOURCE_LOCATION} aria-label="{translate key=Location}">
+				<option value="">{translate key=AllLocations}</option>
+				<option value="{ResourceLocation::TAIPEI}" {if $LocationFilter == ResourceLocation::TAIPEI}selected{/if}>{translate key=ResourceLocationTaipei}</option>
+				<option value="{ResourceLocation::SHENZHEN}" {if $LocationFilter == ResourceLocation::SHENZHEN}selected{/if}>{translate key=ResourceLocationShenzhen}</option>
+				<option value="{ResourceLocation::SHANGHAI}" {if $LocationFilter == ResourceLocation::SHANGHAI}selected{/if}>{translate key=ResourceLocationShanghai}</option>
+				<option value="{ResourceLocation::CROSS_REGION}" {if $LocationFilter == ResourceLocation::CROSS_REGION}selected{/if}>{translate key=ResourceLocationCrossRegion}</option>
+			</select>
 			<select id="resourceStatusIdFilter" class="form-select form-select-sm admin-toolbar-select"
 				{formname key=RESOURCE_STATUS_ID} aria-label="{translate key=ResourceStatus}">
 				<option value="">{translate key=AllResourceStatuses}</option>
@@ -878,8 +886,16 @@
 										<div class="form-group mb-2">
 											<label for="bulkEditLocation"
 												class="fw-bold">{translate key=Location}:</label>
-											<input id="bulkEditLocation" type="text" class="form-control" maxlength="85"
-												{formname key=RESOURCE_LOCATION} />
+											{* Empty value = "leave unchanged" (BulkUpdate()'s ChangingValue() check, unchanged by
+											   this select conversion) — same fixed 4-region whitelist as the drawer's own
+											   locationValue editable (Domain/Values/ResourceLocation.php). *}
+											<select id="bulkEditLocation" class="form-select" {formname key=RESOURCE_LOCATION}>
+												<option value="">{translate key=Unchanged}</option>
+												<option value="{ResourceLocation::TAIPEI}">{translate key=ResourceLocationTaipei}</option>
+												<option value="{ResourceLocation::SHENZHEN}">{translate key=ResourceLocationShenzhen}</option>
+												<option value="{ResourceLocation::SHANGHAI}">{translate key=ResourceLocationShanghai}</option>
+												<option value="{ResourceLocation::CROSS_REGION}">{translate key=ResourceLocationCrossRegion}</option>
+											</select>
 										</div>
 
 										<div class="form-group mb-2">
@@ -1804,8 +1820,28 @@
 		url: updateUrl + '{ManageResourcesActions::ActionChangeSort}', emptytext: '0', min: 0, max: 999
 	});
 
+	{* Fixed 4-region whitelist (Domain/Values/ResourceLocation.php) — a select, not free text,
+	   so a typo here can no longer silently create a stray 5th "region" that only shows up
+	   later as an orphan bucket in Usage Analytics. *}
 	$('.locationValue').editable({
-		url: updateUrl + '{ManageResourcesActions::ActionChangeLocation}', emptytext: "{translate key='NoLocationLabel'|escape:'javascript'}"
+		url: updateUrl + '{ManageResourcesActions::ActionChangeLocation}',
+		emptytext: "{translate key='NoLocationLabel'|escape:'javascript'}",
+		source: [{
+				value: '', text: '-- {translate key=None|escape:'javascript'} --'
+			},
+			{
+				value: '{ResourceLocation::TAIPEI|escape:'javascript'}', text: "{translate key=ResourceLocationTaipei|escape:'javascript'}"
+			},
+			{
+				value: '{ResourceLocation::SHENZHEN|escape:'javascript'}', text: "{translate key=ResourceLocationShenzhen|escape:'javascript'}"
+			},
+			{
+				value: '{ResourceLocation::SHANGHAI|escape:'javascript'}', text: "{translate key=ResourceLocationShanghai|escape:'javascript'}"
+			},
+			{
+				value: '{ResourceLocation::CROSS_REGION|escape:'javascript'}', text: "{translate key=ResourceLocationCrossRegion|escape:'javascript'}"
+			}
+		]
 	});
 
 	$('.contactValue').editable({

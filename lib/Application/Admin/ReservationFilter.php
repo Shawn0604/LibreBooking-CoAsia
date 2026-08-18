@@ -28,6 +28,11 @@ class ReservationFilter
     private $resourceId = null;
 
     /**
+     * @var string|null
+     */
+    private $location = null;
+
+    /**
      * @var int|null
      */
     private $userId = null;
@@ -88,6 +93,7 @@ class ReservationFilter
      * @param string $description
      * @param bool $missedCheckin
      * @param bool $missedCheckout
+     * @param string $location
      */
     public function __construct(
         $startDate = null,
@@ -103,13 +109,15 @@ class ReservationFilter
         $title = null,
         $description = null,
         $missedCheckin = false,
-        $missedCheckout = false
+        $missedCheckout = false,
+        $location = null
     ) {
         $this->startDate = $startDate;
         $this->endDate = $endDate;
         $this->referenceNumber = $referenceNumber;
         $this->scheduleId = $scheduleId;
         $this->resourceId = $resourceId;
+        $this->location = $location;
         $this->userId = $userId;
         $this->statusId = $statusId;
         $this->resourceStatusId = $resourceStatusId;
@@ -166,6 +174,9 @@ class ReservationFilter
         }
         if (!empty($this->resourceId)) {
             $filter->_And(new SqlFilterEquals(new SqlFilterColumn(TableNames::RESOURCES, ColumnNames::RESOURCE_ID), $this->resourceId));
+        }
+        if (!empty($this->location)) {
+            $filter->_And(new SqlFilterEquals(new SqlFilterColumn(TableNames::RESOURCES, ColumnNames::RESOURCE_LOCATION), $this->location));
         }
         if (!empty($this->userId)) {
             $filter->_And(new SqlFilterEquals(new SqlFilterColumn(TableNames::USERS, ColumnNames::USER_ID), $this->userId));

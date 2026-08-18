@@ -167,6 +167,11 @@ class en_us extends Language
         $strings['AppearsOn'] = 'Appears On %s';
         $strings['Location'] = 'Location';
         $strings['NoLocationLabel'] = '(no location set)';
+        $strings['AllLocations'] = 'All Locations';
+        $strings['ResourceLocationTaipei'] = 'Taipei Physical Rooms';
+        $strings['ResourceLocationShenzhen'] = 'Shenzhen Physical Rooms';
+        $strings['ResourceLocationShanghai'] = 'Shanghai Physical Rooms';
+        $strings['ResourceLocationCrossRegion'] = 'Video Conference (Cross-region)';
         $strings['Contact'] = 'Contact';
         $strings['NoContactLabel'] = '(no contact information)';
         $strings['Description'] = 'Description';
@@ -999,6 +1004,9 @@ class en_us extends Language
         $strings['YourReservations'] = 'Your reservations';
         $strings['PhysicalRooms'] = 'Physical Rooms';
         $strings['VideoConferenceResources'] = 'Video Conference';
+        $strings['SelectResourcePlaceholder'] = 'Select a room';
+        $strings['SetAsDefaultResource'] = 'Set as default';
+        $strings['RemoveDefaultResource'] = 'Remove default';
         $strings['MyMeetings'] = 'My Meetings';
         $strings['NextMeeting'] = 'Next Meeting';
         $strings['NoUpcomingMeetingsSoon'] = 'No meetings scheduled soon';

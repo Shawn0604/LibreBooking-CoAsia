@@ -3,6 +3,7 @@
 require_once(ROOT_DIR . 'Pages/Admin/AdminPage.php');
 require_once(ROOT_DIR . 'Domain/Values/ResourceLevel.php');
 require_once(ROOT_DIR . 'Domain/Values/ReservationStatus.php');
+require_once(ROOT_DIR . 'Domain/Values/ResourceLocation.php');
 
 /**
  * "會議室使用分析" -- aggregate usage stats over a date range (reservation count/hours, average
@@ -239,33 +240,37 @@ class ManageUsageAnalyticsPage extends AdminPage
     }
 
     /**
-     * @return list<string> distinct non-empty resource locations, for the 城市 filter dropdown
+     * @return list<string> the fixed 4-region whitelist (Domain/Values/ResourceLocation.php),
+     *   for the 城市 filter dropdown. Was previously `SELECT DISTINCT location FROM
+     *   resources` -- a single typo in the old free-text field could silently add a stray 5th
+     *   "region" here; the whitelist write-path validation added alongside this (Manage
+     *   Resources' drawer/bulk-edit/CSV import) makes that no longer possible, so this can
+     *   just be the fixed list directly instead of re-deriving it from live data every load.
      */
     private function GetLocations($db)
     {
-        $reader = $db->Query(new SqlCommand(
-            "SELECT DISTINCT location FROM resources WHERE location IS NOT NULL AND TRIM(location) != '' ORDER BY location"
-        ));
-        $locations = [];
-        while ($row = $reader->GetRow()) {
-            $locations[] = $row['location'];
-        }
-        $reader->Free();
-
-        return $locations;
+        return ResourceLocation::All();
     }
 
     /**
-     * @return list<array{id: int, name: string}> for the 會議室 filter dropdown
+     * @return list<array{id: int, name: string}> for the 會議室 filter dropdown, 依地區排序
+     *   (台北→深圳→上海→跨地區，同地區內依名稱排序) -- ResourceLocation::SortRank() sorts in PHP
+     *   rather than `ORDER BY location`, since MySQL's default collation wouldn't necessarily
+     *   sort the 4 region strings in that intended order.
      */
     private function GetResourceOptions($db)
     {
-        $reader = $db->Query(new SqlCommand('SELECT resource_id, name FROM resources ORDER BY name'));
+        $reader = $db->Query(new SqlCommand('SELECT resource_id, name, location FROM resources'));
         $resources = [];
         while ($row = $reader->GetRow()) {
-            $resources[] = ['id' => (int) $row['resource_id'], 'name' => $row['name']];
+            $resources[] = ['id' => (int) $row['resource_id'], 'name' => $row['name'], 'location' => $row['location']];
         }
         $reader->Free();
+
+        usort($resources, function ($a, $b) {
+            $rankDiff = ResourceLocation::SortRank($a['location']) <=> ResourceLocation::SortRank($b['location']);
+            return $rankDiff !== 0 ? $rankDiff : strcasecmp($a['name'], $b['name']);
+        });
 
         return $resources;
     }

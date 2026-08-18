@@ -348,6 +348,17 @@ class ReservationItemView implements IReservedItemView
     public $ResourceId;
 
     /**
+     * 地區 (Domain/Values/ResourceLocation.php) — NOT populated by Populate()/the constructor;
+     * set post-fetch by ManageReservationsPresenter from a resourceId->location lookup built
+     * off IResourceRepository, same as $ResourceColor/$ResourceStatusId are conditionally set
+     * post-construction elsewhere in this class. Deliberately not threaded through the shared
+     * reservation-view SQL/constructor, which many other call sites beyond the admin
+     * reservations list depend on.
+     * @var string|null
+     */
+    public $Location = null;
+
+    /**
      * @var null|string
      */
     public $OwnerFirstName;

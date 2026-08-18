@@ -7,6 +7,12 @@ class UserPreferences
     public const CALENDAR_FILTER = 'CalendarFilter';
     public const LINE_USER_ID = 'LineUserId';
     public const LINE_LINK_CODE = 'LineLinkCode';
+    // The user's explicitly-chosen "設為預設" room on the Overview FullCalendar resource
+    // picker — highest-priority tier in its default-resource resolution, above both the
+    // last-selected room (localStorage, see overview-fc-selected-resource in
+    // overview_fullcalendar.js) and the classic app's own default-schedule mechanism (see
+    // OverviewFullCalendarPresenter::PageLoad()'s $systemDefaultResourceId).
+    public const OVERVIEW_DEFAULT_RESOURCE_ID = 'OverviewDefaultResourceId';
     // Unset/missing means "enabled" — a bound user who has never touched this toggle should
     // keep receiving pushes by default, same as how binding itself already implies wanting
     // notifications. Only an explicit '0' (see Get() callers) turns them off.

@@ -67,6 +67,13 @@
 						<option value="">{translate key=AllResources}</option>
 						{object_html_options options=$Resources key='GetId' label="GetName" selected=$ResourceId}
 					</select>
+					<select id="locationId" class="form-select form-select-sm admin-toolbar-select" aria-label="{translate key=Location}">
+						<option value="">{translate key=AllLocations}</option>
+						<option value="{ResourceLocation::TAIPEI}" {if $LocationFilter == ResourceLocation::TAIPEI}selected{/if}>{translate key=ResourceLocationTaipei}</option>
+						<option value="{ResourceLocation::SHENZHEN}" {if $LocationFilter == ResourceLocation::SHENZHEN}selected{/if}>{translate key=ResourceLocationShenzhen}</option>
+						<option value="{ResourceLocation::SHANGHAI}" {if $LocationFilter == ResourceLocation::SHANGHAI}selected{/if}>{translate key=ResourceLocationShanghai}</option>
+						<option value="{ResourceLocation::CROSS_REGION}" {if $LocationFilter == ResourceLocation::CROSS_REGION}selected{/if}>{translate key=ResourceLocationCrossRegion}</option>
+					</select>
 					<select id="statusId" class="form-select form-select-sm admin-toolbar-select" aria-label="{translate key=Status}">
 						<option value="">{translate key=AllReservations}</option>
 						<option value="{ReservationStatus::Pending}"
@@ -130,7 +137,11 @@
 									{formatdate date=$reservation->StartDate timezone=$Timezone key=general_date}</div>
 							</td>
 							<td>{if !empty($reservation->Title)}{$reservation->Title|escape:'html'}{else}{translate key='NoTitleLabel'}{/if}</td>
-							<td class="resource">{$reservation->ResourceName|escape:'html'}
+							<td class="resource">
+								{if !empty($reservation->Location)}
+									<span class="admin-cell-secondary">{$reservation->Location|escape:'html'} ・</span>
+								{/if}
+								{$reservation->ResourceName|escape:'html'}
 								{if $reservation->ResourceStatusId != ResourceStatus::AVAILABLE}
 									<i class="bi bi-exclamation-triangle-fill text-warning"
 										title="{translate key=Unavailable}"></i>
