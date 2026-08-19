@@ -644,8 +644,10 @@ class zh_tw extends en_us
         $strings['PhysicalRooms'] = '實體會議室';
         $strings['VideoConferenceResources'] = '視訊會議';
         $strings['SelectResourcePlaceholder'] = '請選擇會議室';
-        $strings['SetAsDefaultResource'] = '設為預設';
+        $strings['SetAsDefaultResource'] = '設為預設會議室';
         $strings['RemoveDefaultResource'] = '取消預設';
+        $strings['CurrentDefaultResource'] = '目前預設會議室';
+        $strings['DefaultResourceSet'] = '這是你預設的會議室';
         $strings['MyMeetings'] = '我的會議';
         $strings['NextMeeting'] = '下一場會議';
         $strings['NoUpcomingMeetingsSoon'] = '近期沒有安排會議';

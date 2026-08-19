@@ -2419,3 +2419,72 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 容器內 `php -l` 過全部新增/修改的 `.php` 檔案，皆無語法錯誤。用真實 shawn.admin 帳號、真實開發資料庫，寫多支一次性 CLI 診斷腳本（測完即刪）直接 render 五個頁面（會議室管理、預約管理、開放時間、管理總覽、使用分析），確認：地區篩選下拉存在且選項正確、篩選後的資料筆數符合預期（例如預約管理篩選「深圳」只回傳深圳資源的預約，用真實 141 筆預約資料驗證台北/跨地區兩種篩選互不污染）、開放時間頁改版後清單順序確認四個地區完全不再交錯（原本一輪測試漏了驗證這點，使用者用截圖回報後才補測）、預約管理與使用分析的資源下拉都確認台北七間排在最前面、批次編輯的時間表下拉同樣確認排序正確。第一輪 render 測試也意外抓到一個真的 bug：Quick Create 彈窗的資源清單漏了套用 accordion 預設收合（§77 的 `replace_all` 只吃到工具列版本），當場補上。第一次驗證預約管理排序修正時，測試腳本因為猜錯 `ManageReservationsPage` 建構子相依（跳過 `SecurePage` 的認證流程手動組 presenter）導致完全沒有輸出、誤判成錯誤，改用更輕量、只測核心 SQL filter 邏輯的方式重測才抓到問題其實出在測試腳本本身，不是產品程式碼。實際畫面上的視覺呈現需要使用者登入後在瀏覽器裡確認。
+
+## 79. Overview 會議室選單比照設計稿：地區配對標籤、開啟時自動展開目前選取的群組、選中列淡色背景
+
+使用者附了一張選單示意圖，要求把工具列的會議室選單（§77 那次改成的兩層 accordion）補齊四個尚未做到的細節：①觸發按鈕的文字要顯示「地區 · 會議室」（例如「上海 · 首爾 Seoul」），不能只顯示房間名稱；②每次打開選單，要自動展開「目前選取的會議室」所在的那個地區群組；③其餘群組維持收合，同一時間仍然只能有一組展開（沿用 §77 既有的 accordion 規則，不變）；④選單清單裡目前選中的那一列要有淡色背景，不能只靠打勾符號辨識。搜尋、彩色圓點、「設為預設」星星這三個既有功能維持不動。
+
+### 79.1 地區配對標籤：用會議室自己的 `location`，不是群組名稱
+
+一開始考慮直接拿 `resourceGroups[].name`（例如「上海實體會議室」）去掉「實體會議室」字尾湊出「上海」，但這個群組名稱是 §77 的 `resource_groups` 分組概念，跟 §78 新增、專門給「地區・會議室」配對顯示用的 `resources.location` 欄位（`Domain/Values/ResourceLocation.php` 四值白名單：台北／深圳／上海／跨地區）其實是兩個獨立但目前剛好一致的地區來源——直接沿用群組名稱等於在 JS 端重新發明一次已經在 §78 做好的簡短地區標籤，兩處未來萬一分家（例如同一地區群組底下混進另一地區的資源）也會跟著錯。改成在 `tpl/Overview/overview_fullcalendar.tpl` 新增一份 `opts.resourceLocations`（`{resourceId: 資源自己的 location}`），跟既有的 `resourceNames`／`resourceColors` 同樣的建構方式；`Web/scripts/overview_fullcalendar.js` 新增 `resourcePickerTriggerLabel()`，優先組成「`location` · `name`」，沒有 `location`（尚未分類的資源）就退回單純房間名稱。
+
+### 79.2 開啟選單時自動展開目前選取項目所在的群組
+
+§77 把「展開/收合狀態」跟「目前預設顯示哪個會議室」刻意設計成互不連動（見 §77.3），這個要求延續同一個原則、只是換了觸發時機：不是「選了某個預設就自動展開」，而是「每次打開選單這個動作本身，都重新計算一次目前的選取項目在哪個群組、展開那組」——選取狀態改變本身仍然不會主動展開/收合任何東西,只有「打開選單」這個動作會。新增 `expandResourcePickerGroupForSelection($list, resourceId)`：先把清單裡所有群組收合，再找出包含 `[data-resource-id=resourceId]` 的那個群組展開；`resourceId` 是 `null`（尚未選擇會議室，§77 優先序第四層）或指向清單裡不存在的資源時，`$target` 篩不出任何群組，結果就是四組全部收合，同時滿足「沒有選取會議室時，四個群組才全部收合」這個條件。工具列選單、Quick Create 彈窗各自的 `open()` 都呼叫這個函式（分別帶入 `selectedResourceId`／`pending.resourceId`），沿用同一份 accordion 規則，避免兩份清單的展開邏輯各寫一次、日後改一邊漏改另一邊。
+
+### 79.3 選中列淡色背景
+
+`Web/css/overview_fullcalendar.css` 原本 `.resource-picker-item.selected` 只有變色＋加粗文字，新增背景色沿用這個檔案裡其他「選中/focus」狀態同一套 `color-mix(in oklab, var(--primary) 12%, white)` 公式（例如 Quick Create 日期輸入框 focus 狀態），跟 `.view-picker-item.active`（月/週/日切換，共用部分基底樣式但沒被要求加背景）分開成獨立規則，避免誤傷後者。
+
+### 79.4 意外發現並修正：`$resource->GetLocation()` 呼叫在一個不是 `BookableResource` 的物件上
+
+第一輪改完，使用者實際登入瀏覽器測試，畫面直接噴「未知錯誤」。查容器 log（`docker compose logs app`）抓到真正的例外：`Call to undefined method ResourceGroupAssignment::GetLocation()`。原因是 79.1 想錯了資料型別——`tpl/Overview/overview_fullcalendar.tpl` 的 `{foreach from=$group.resources item=resource}` 裡，`$resource` 其實是 `Domain/ResourceGroup.php` 的 `ResourceGroupAssignment`（`OverviewFullCalendarPresenter::PageLoad()` 呼叫 `IResourceRepository::GetResourceGroups()`／`BuildResourceGroupTree()` 專門給群組樹狀結構用的輕量投影類別，只帶 color／schedule／admin-group 這些欄位），不是完整的 `BookableResource`，本來就沒有 `GetLocation()` 這個方法可以呼叫。
+
+修法：不去動 `ResourceGroupAssignment`（上游共用類別，牽動的呼叫點太多，風寫不划算），改成在 `OverviewFullCalendarPresenter` 新增 `GetResourceLocations()`：另外呼叫一次 `IResourceRepository::GetResourceList()`（拿到真正的 `BookableResource[]`，才查得到 `GetLocation()`），組出一份 `resourceId => location` 對照表，`PageLoad()` 把這份表透過 `SetResourceGroups()` 傳給頁面（新增 `$resourceLocations` 參數，`IOverviewFullCalendarPage` 介面、`OverviewFullCalendarPage::SetResourceGroups()` 同步更新簽章）。`.tpl` 改成查 `$ResourceLocations[$resource->GetId()]`，跟原本 `$ResourceColors[$resource->GetId()].bg` 同一套查表模式，不再假設 `$resource` 身上有完整的 domain 方法可呼叫。
+
+### 79.5 追加需求：會議室改用固定地區色系，不再每間不同色
+
+使用者反應會議室數量變多之後，每間各自一個顏色（`FALLBACK_COLORS` 依索引輪流指派）畫面太雜亂，要求改成依地區固定一種主色：台北＝藍色、深圳＝紫色、上海＝橘色、線上會議室＝青綠色，同地區的會議室共用同一個主色；選取狀態不能只靠圓點顏色判斷，要維持 79.3 已經做的淡色背景＋打勾符號＋（`var(--primary)`）較深文字這三個線索；工具列選單目前選取的會議室、選單清單裡的圓點、行事曆事件本身的顏色，這三處要保持一致。
+
+發現「保持一致」這個要求牽涉到兩個各自獨立的顏色指派邏輯，不是改一個地方就好：`OverviewFullCalendarPresenter::AssignColors()` 驅動選單（觸發按鈕圓點、清單圓點），`Presenters/OverviewFullCalendarEventsPresenter.php`（`Web/ajax/overview_fullcalendar_events.php` 的 JSON feed，行事曆事件本身的來源）有自己另一份幾乎一樣但獨立維護的 `AssignColors()`／`FALLBACK_COLORS`，兩邊各自照自己的資源順序輪色——這是 §77 那次評估階段刻意留下的重複（doc comment 當時寫「Kept identical... so all three surfaces agree on colors during the side-by-side evaluation」），只要其中一份漏改，選單跟行事曆事件的顏色就會兜不起來。
+
+不想把同一組色碼在兩個 presenter 裡各複製一份（未來只改一邊、兩邊分家的風險太高），改成在 `Domain/Values/ResourceLocation.php`（§78 已經是台北／深圳／上海／跨地區四值白名單的唯一權威來源）新增 `Color($location)` 靜態方法，回傳固定色碼（`#039be5` 藍／`#8e24aa` 紫／`#f4511e` 橘／`#00897b` 青綠，未分類則回傳中性灰 `#616161`），兩個 presenter 都改成呼叫這一個方法：
+
+- `OverviewFullCalendarPresenter::AssignColors()` 簽章從「依 `$resources` 陣列的索引輪 `FALLBACK_COLORS`」改成吃 79.4 剛做好的 `$resourceLocations` 對照表，逐一資源查 `ResourceLocation::Color()`；`FALLBACK_COLORS` 常數整個刪除。
+- `OverviewFullCalendarEventsPresenter::AssignColors()` 原本會優先採用會議室自己在管理中心設定的自訂顏色（`$resource->HasColor()`／`GetColor()`），沒設定才退回 `FALLBACK_COLORS` 輪色——這次改成不管有沒有自訂顏色都一律用地區固定色，因為這裡的資源本來就是完整 `BookableResource`，直接呼叫 `$resource->GetLocation()` 即可，不需要像 79.4 那樣另外查表；`FALLBACK_COLORS` 常數同樣整個刪除。
+
+事件本身的淺色底、深色邊框（`PastelColor()` 把地區色跟白色以 7:3 混色）邏輯本身沒有變，只是輸入的 `$colors['bg']` 現在來自固定地區色而不是輪替色，效果自然跟著換成地區配色。選單圓點（`.resource-picker-dot` 的 `--dot-color`）跟事件顏色都讀同一個 `opts.resourceColors`／`AssignColors()` 家族，本來就是同一份資料流出來的，不需要另外改前端程式碼。
+
+### 驗證
+
+容器內 `php -l` 過這次修改到的四個 `.php` 檔案（`Domain/Values/ResourceLocation.php`／`Presenters/OverviewFullCalendarPresenter.php`／`Presenters/OverviewFullCalendarEventsPresenter.php`／`Pages/OverviewFullCalendarPage.php`），`node --check` 過 `overview_fullcalendar.js`，皆無語法錯誤；`grep` 全專案確認沒有其他地方還在引用剛刪掉的 `OverviewFullCalendarPresenter::FALLBACK_COLORS`／`OverviewFullCalendarEventsPresenter::FALLBACK_COLORS`。跑 `OverviewFullCalendarEventsPresenterTest`（16 個測試，涵蓋權限過濾／隱私遮蔽／編輯權限／`mineOnly` 等既有案例）全部通過，確認拿掉 `HasColor()`／`GetColor()` 分支沒有動到事件本身的其他欄位；再跑整個 `presenters` test suite（375 個測試）確認沒有連帶弄壞其他頁面，唯一一個失敗（`ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided`）跟這次改動的檔案無關（這次完全沒碰 `ManageReservationsPresenter.php`），是既有的、與本次修改無關的既存問題。79.4 的 bug 修完後清了 `tpl_c/` 快取、重啟開發容器（本機開發容器 opcache `validate_timestamps=0`，改完 PHP 一定要重啟容器才會反映在瀏覽器），麻煩使用者重新整理瀏覽器確認：①選單觸發按鈕文字有地區前綴且不再報錯、②打開選單自動展開目前選取的群組、③選中列有淡色背景，以及這次新增的④會議室依地區顯示固定主色（台北藍／深圳紫／上海橘／線上青綠）、⑤選單圓點與行事曆事件顏色一致。
+
+## 80. 移除逐間會議室的星星，改成選單底部單一「設為預設會議室」按鈕，新增第一次登入預設值
+
+使用者附了同一張選單示意圖，要求把 §77 那次做的「每間會議室各自一顆 hover 才出現的星星」整個換掉：①移除所有會議室右側的星星；②選單底部（清單捲動區域之外）新增單一「設為預設會議室」按鈕，作用對象是目前選取／顯示在行事曆上的那間會議室；③設定成功後按鈕文字換成「✓ 目前預設會議室」，同時跳出成功提示（toast）；④第一次登入（使用者沒有設過預設、瀏覽器也沒有選過任何會議室、也沒有舊版「預設時間表」設定）預設選擇「台北 · 台北 Taipei」，取代原本「顯示請選擇會議室」的空白狀態；⑤優先順序改成三層明講＋一層隱含：使用者預設 → 上次選擇 → 系統預設（③④都延續 §77.3 已經定案、經使用者驗證過的四層鏈，只是這次多講了一次前三層、外加把原本「無 → 顯示 placeholder」的第四層換成有東西可以退回的「台北 · 台北 Taipei」）；⑥一般點選會議室（切換行事曆顯示）不能改變永久預設，只有按下底部按鈕才會寫入；⑦同一地區的會議室維持 §79.5 剛做好的固定色系（本節沒有再改動這部分，純粹重申需求沒有被這次改動破壞）。
+
+### 80.1 移除星星、扁平化清單項目
+
+`tpl/Overview/overview_fullcalendar.tpl` 原本每間會議室是 `.resource-picker-item-row` 包住兩個並排 `<button>`（選取用的 `.resource-picker-item` ＋ 設為預設用的 `.resource-picker-item-star`，`<button>` 不能互相巢狀所以用並排寫法）——這次拿掉整個 `.resource-picker-item-star` 按鈕跟它的 wrapper，`.resource-picker-item` 直接變回清單項目本身（跟 Quick Create 彈窗裡本來就沒有星星的那份清單同一種寫法）。`Web/scripts/overview_fullcalendar.js` 同步移除 `.resource-picker-item-star` 的點擊委派、`filterResourcePickerList()` 裡「隱藏整個 `.resource-picker-item-row` 而不是只隱藏按鈕本身」那段特判（不再需要，改成直接隱藏 `.resource-picker-item`）；`Web/css/overview_fullcalendar.css` 移除 `.resource-picker-item-row`／`.resource-picker-item-star` 相關規則。
+
+### 80.2 選單底部的單一按鈕
+
+在 `#resourcePickerList`（可捲動清單）之後、`#resourcePickerPanel` 內新增一個 `.resource-picker-footer` 區塊，放單一 `#resourcePickerSetDefault` 按鈕——是清單的**同層兄弟元素**，不在捲動區域裡面，捲再多會議室都固定釘在面板最下方。`overview_fullcalendar.js` 新增 `updateResourcePickerDefaultButton()`（取代舊的 `updateResourcePickerStars()`）：依「目前選取的 `selectedResourceId` 是否等於 `opts.explicitDefaultResourceId`」決定按鈕文字／圖示／`.is-default` 樣式，沒有選取任何會議室時整顆按鈕 `disabled`。`setResourcePickerDefault()` 沿用 §77.3 就有的既有端點（`ajax/overview_fullcalendar_set_default_resource.php`）跟「再點一次同一間會自動取消」的 toggle 行為，只是呼叫端從「這一列的 `data-resource-id`」改成永遠是 `selectedResourceId`（按鈕不再跟著清單裡某一列走，而是固定對應「目前顯示在行事曆上的房間」）。
+
+### 80.3 成功提示（toast）
+
+`tpl/globalfooter.tpl`（每一頁都會 include 的共用頁尾，`window.showToastById()` 這個共用 helper 定義在同樣每頁都載入的 `Web/scripts/phpscheduleit.js`）新增一個 `#resourcePickerDefaultSetToast`，跟既有的 `#defaultSetToast`（舊版「預設時間表」用，文案是「這是你預設的時間表」，語意是時間表不是會議室，故意沒有直接重複使用免得文不對題）用同一套 Bootstrap Toast 標記／CSS class。新增語言字串 `DefaultResourceSet`（zh_tw「這是你預設的會議室」／en_us "This is now your default meeting room"，跟 `DefaultScheduleSet` 同樣的措辭風格，`lang/zh_tw.php`／`lang/en_us.php` 一起改）、`CurrentDefaultResource`（按鈕在「已是預設」狀態下的可見文字「目前預設會議室」，前面另外接一個 `bi-check-lg` icon 湊出「✓ 目前預設會議室」）；把舊的 `SetAsDefaultResource` 字串內容從短版「設為預設」（星星 tooltip 用）直接改成使用者這次要求的完整版「設為預設會議室」（星星整個刪掉了，這個 key 現在只剩底部按鈕在用，改內容不會影響到別的地方）；`RemoveDefaultResource`（「取消預設」）維持原樣，繼續當作「已是預設」狀態下按鈕的 `title`/`aria-label`（可見文字是「✓ 目前預設會議室」，但滑鼠移過去或螢幕報讀器讀到的說明文字講「再點一次會取消」）。JS 端只有在「設定成功」這個方向（`isSetting === true`）才彈 toast，取消預設不彈——照原始需求「設定成功後顯示...與成功提示」字面上只講了設定這個方向。
+
+### 80.4 第一次登入預設「台北 · 台北 Taipei」
+
+新增 `OverviewFullCalendarPresenter::ResolveFirstLoginDefaultResourceId()`，作為 §77.3 四層優先序的第四層——只有在使用者沒有設過「設為預設」、瀏覽器 localStorage 沒有歷史選擇、也沒有舊版「預設時間表」設定（三層都落空）時才會用到，實務上就等於「這是一個全新使用者」。這個房間刻意**不是**硬寫死一個 resource id（換一個部署、或這行資料被刪掉重建，id 會變），而是用「名稱 `台北 Taipei` ＋ 自己的 `location` 是 `台北`」兩個條件一起比對——因為 `database_schema/coasia-resources-regions.sql` 讓每個辦公室群組底下都各自有一間同名的「台北 Taipei」房間（深圳／上海群組裡也各有一間叫這個名字的房間，只是屬於那個辦公室），只比對名稱會抓錯間；查不到就回傳 `null`，`overview_fullcalendar.js` 的 `resolveDefaultResourceId()` 第四層就跟以前一樣直接落空，顯示「請選擇會議室」placeholder，不會噴錯。`IOverviewFullCalendarPage::SetResourceGroups()`／`OverviewFullCalendarPage::SetResourceGroups()` 簽章加一個參數把這個 id 傳給樣板，`.tpl` 比照既有的 `ExplicitDefaultResourceId`／`SystemDefaultResourceId` 寫法多加一行 `firstLoginDefaultResourceId`。
+
+### 80.5 意外發現並修正：點會議室會直接收合選單，來不及按「設為預設」
+
+80.2 做完，使用者實際操作後回報一個真的很直覺的問題：清單裡的 `.resource-picker-item` 點擊處理常式沿用了 §77 以來就有的「選完立刻 `close()`」行為（跟 view-picker／scope-picker 那兩個單選下拉選單一樣的既有慣例）——這代表使用者想「點一間會議室、順便把它設為預設」時，選單在點下去那一瞬間就收合了，底部的「設為預設會議室」按鈕根本來不及點到，得先關掉再重新打開選單才按得到，等於這次新做的兩步驟流程（選會議室→設預設）在同一次開啟裡完全走不通。
+
+修法：拿掉工具列這份清單（`#resourcePickerList`，`initResourcePicker()` 裡）點擊項目時的 `close()`，讓選單在選完會議室後留在原地——checkmark／底部按鈕文字（可能還沒是預設）都會立刻更新，使用者可以緊接著按下同一個已經開著的選單裡的「設為預設會議室」，不用重新打開。選單還是會在點擊外部（既有的 `closeAllDropdowns()`）或再點一次觸發按鈕時關閉，只是不再「選完自動關」。刻意只改這一份清單——Quick Create 彈窗裡的另一份 `.resource-picker-item` 清單（`#qcResourcePickerList`）沒有「設為預設」這個後續動作，維持點選即關的原行為；view-picker／scope-picker 這兩個單選下拉也維持原行為，避免這次修法波及不相關的既有互動。
+
+### 驗證
+
+容器內 `php -l` 過改動到的四個 `.php` 檔案（`Presenters/OverviewFullCalendarPresenter.php`／`Pages/OverviewFullCalendarPage.php`／`lang/zh_tw.php`／`lang/en_us.php`），`node --check` 過 `overview_fullcalendar.js`，皆無語法錯誤；`grep` 全專案確認 `.resource-picker-item-star`／`.resource-picker-item-row`／`updateResourcePickerStars` 三個名字在 `.js`／`.css` 裡都已經不存在，沒有殘留的死引用；另外確認 QC 彈窗（`#qcResourcePickerList`）跟 view-picker／scope-picker 三處的 `close()` 呼叫都還在，80.5 只改到工具列那一份清單。寫了一支一次性 CLI 診斷腳本（測完即刪，跟 §77/§78 用的是同一種手法——直接組 `OverviewFullCalendarPresenter` 帶一個假的 `IOverviewFullCalendarPage` 去接 `SetResourceGroups()` 的參數，不經過 `SecurePage` 的 HTTP 認證流程），用真實 shawn.admin 帳號、真實開發資料庫呼叫 `PageLoad()`：確認四個分組筆數正確（台北 7／深圳 5／上海 4／線上 5）、`resourceColors` 逐一資源查出來的色碼跟地區完全對應（上海四間 `#f4511e`、台北兩間 `#039be5`，抽樣印出來人工比對）、`firstLoginDefaultResourceId` 正確解析成 resource_id 1（名稱「台北 Taipei」、`location` 為「台北」），沒有拋出例外。額外用一個不需要登入的頁面（登入頁本身，`http_status=200`）驗證這次改到的 `tpl/globalfooter.tpl`（每一頁都會 include 的共用頁尾）加了新的 toast 標記後沒有連帶弄壞全站共用樣板——這個檔案改錯的影響範圍是整個網站，特別多測一次。手上依然沒有這個開發資料庫裡任何帳號的密碼，這次同樣沒能直接登入瀏覽器操作按鈕點擊/toast 彈出的實際畫面效果，麻煩使用者重新整理瀏覽器確認：①星星都不見了、②選單最下方有「設為預設會議室」按鈕、③點擊後文字變成「✓ 目前預設會議室」並跳出成功提示、④切換到別的會議室看行事曆不會動到這個永久預設、⑤（需要一個全新測試帳號才能看到）第一次登入直接顯示「台北 · 台北 Taipei」而不是空白的請選擇會議室、⑥點會議室之後選單不會自動收合，可以緊接著按底部的設為預設按鈕。

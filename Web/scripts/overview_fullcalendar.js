@@ -44,12 +44,15 @@ $(function () {
 
     // Default-resource priority chain (independent of each group's own collapsed/expanded
     // state — picking a default never auto-expands the group it lives in, per explicit
-    // request): 1) the user's own explicit "設為預設" pick (opts.explicitDefaultResourceId,
-    // server-side, set via the star button — see setDefaultResourceUrl further down), 2) the
-    // last resource this browser selected (localStorage), 3) the resource matching the
-    // user's classic default-schedule setting (opts.systemDefaultResourceId — see
-    // OverviewFullCalendarPresenter::ResolveDefaultResourceIds()), 4) nothing — show the
-    // "請選擇會議室" placeholder rather than guessing/auto-picking a first resource.
+    // request): 1) the user's own explicit "設為預設會議室" pick (opts.explicitDefaultResourceId,
+    // server-side, set via the bottom "設為預設會議室" button — see setDefaultResourceUrl
+    // further down), 2) the last resource this browser selected (localStorage), 3) the
+    // resource matching the user's classic default-schedule setting
+    // (opts.systemDefaultResourceId — see OverviewFullCalendarPresenter::
+    // ResolveDefaultResourceIds()), 4) opts.firstLoginDefaultResourceId — Taipei office's own
+    // "台北 Taipei" room (OverviewFullCalendarPresenter::ResolveFirstLoginDefaultResourceId()),
+    // for a genuinely first-time user with none of the above. Still null (the "請選擇會議室"
+    // placeholder) if even that resource doesn't exist/isn't viewable.
     function resolveDefaultResourceId() {
         var ids = allResourceIds();
 
@@ -68,6 +71,10 @@ $(function () {
             return String(opts.systemDefaultResourceId);
         }
 
+        if (opts.firstLoginDefaultResourceId && ids.indexOf(String(opts.firstLoginDefaultResourceId)) !== -1) {
+            return String(opts.firstLoginDefaultResourceId);
+        }
+
         return null;
     }
 
@@ -78,6 +85,16 @@ $(function () {
     // has to treat that as a valid, normal state rather than something to paper over with a
     // guessed first resource.
     var selectedResourceId = resolveDefaultResourceId();
+
+    // "地區 · 會議室" pairing (e.g. "上海 · 首爾 Seoul") per the CoAsia picker mockup —
+    // opts.resourceLocations is the room's OWN resources.location value (Domain/Values/
+    // ResourceLocation.php), not its group's name. Falls back to the bare name when a
+    // resource hasn't been classified yet (empty location).
+    function resourcePickerTriggerLabel(resourceId) {
+        var name = (opts.resourceNames || {})[resourceId] || '';
+        var location = (opts.resourceLocations || {})[resourceId] || '';
+        return location ? (location + ' · ' + name) : name;
+    }
 
     function updateResourcePickerTrigger() {
         var $items = $('#resourcePickerList .resource-picker-item');
@@ -92,36 +109,49 @@ $(function () {
         $dot.get(0).style.setProperty('--dot-color', color || '');
 
         var label = selectedResourceId
-            ? ((opts.resourceNames || {})[selectedResourceId] || '')
+            ? resourcePickerTriggerLabel(selectedResourceId)
             : opts.translations.selectResourcePlaceholder;
         $('#resourcePickerLabel').text(label);
 
-        updateResourcePickerStars();
+        updateResourcePickerDefaultButton();
     }
 
-    // Every star reflects opts.explicitDefaultResourceId (not selectedResourceId — the two
-    // are independent: "設為預設" pins a specific room regardless of what's currently showing
-    // on the calendar, see setResourcePickerDefault() below), so this runs whenever either one
-    // could have changed rather than being folded into updateResourcePickerTrigger() alone.
-    function updateResourcePickerStars() {
-        $('#resourcePickerList .resource-picker-item-star').each(function () {
-            var $star = $(this);
-            var isDefault = opts.explicitDefaultResourceId
-                && String($star.data('resource-id')) === String(opts.explicitDefaultResourceId);
-            $star.toggleClass('is-default', !!isDefault);
-            $star.find('i').toggleClass('bi-star-fill', !!isDefault).toggleClass('bi-star', !isDefault);
-            $star.attr('title', isDefault ? opts.translations.removeDefaultResource : opts.translations.setAsDefaultResource);
-            $star.attr('aria-label', $star.attr('title'));
-            $star.attr('aria-pressed', isDefault ? 'true' : 'false');
-        });
+    // The bottom "設為預設會議室" button reflects whether the CURRENTLY SELECTED resource
+    // (selectedResourceId, not just opts.explicitDefaultResourceId in isolation) is the
+    // user's pinned default — it acts on "whatever room is showing on the calendar right
+    // now", so its label has to be re-derived whenever either one could have changed, not
+    // folded into updateResourcePickerTrigger() alone. Disabled with no resource selected at
+    // all (nothing to pin yet — see resolveDefaultResourceId()'s tier 4 doc comment for when
+    // that can still happen).
+    function updateResourcePickerDefaultButton() {
+        var $btn = $('#resourcePickerSetDefault');
+        var isDefault = !!selectedResourceId
+            && opts.explicitDefaultResourceId
+            && String(selectedResourceId) === String(opts.explicitDefaultResourceId);
+
+        $btn.prop('disabled', !selectedResourceId);
+        $btn.toggleClass('is-default', !!isDefault);
+        $btn.find('i')
+            .toggleClass('bi-check-lg', !!isDefault)
+            .toggleClass('bi-star', !isDefault);
+        $('#resourcePickerSetDefaultLabel').text(
+            isDefault ? opts.translations.currentDefaultResource : opts.translations.setAsDefaultResource
+        );
+        $btn.attr('title', isDefault ? opts.translations.removeDefaultResource : opts.translations.setAsDefaultResource);
+        $btn.attr('aria-label', $btn.attr('title'));
+        $btn.attr('aria-pressed', isDefault ? 'true' : 'false');
     }
 
-    // Persists (or clears, if resourceId already IS the current default — a second click
-    // toggles it off) the user's own "設為預設" pick. Deliberately does NOT touch
-    // selectedResourceId/the calendar — pinning a default is independent of which resource is
-    // currently showing (see the CoAsia spec: 選擇 vs 設為預設 are two separate actions).
+    // Persists (or clears, if resourceId already IS the current default — clicking the
+    // bottom button again toggles it off) the user's own "設為預設會議室" pick for whichever
+    // resource is passed in — always selectedResourceId, from the one call site below.
+    // Deliberately does NOT touch selectedResourceId/the calendar — pinning a default is
+    // independent of which resource is currently showing (see the CoAsia spec: 選擇 vs
+    // 設為預設 are two separate actions; only this button persists a default, never just
+    // clicking a room in the list).
     function setResourcePickerDefault(resourceId) {
-        var next = (opts.explicitDefaultResourceId && String(opts.explicitDefaultResourceId) === String(resourceId)) ? '' : resourceId;
+        var isSetting = !(opts.explicitDefaultResourceId && String(opts.explicitDefaultResourceId) === String(resourceId));
+        var next = isSetting ? resourceId : '';
         var body = new URLSearchParams();
         body.set('CSRF_TOKEN', opts.csrfToken);
         body.set('resourceId', next);
@@ -135,7 +165,14 @@ $(function () {
             .then(function (json) {
                 if (json && json.success) {
                     opts.explicitDefaultResourceId = next || null;
-                    updateResourcePickerStars();
+                    updateResourcePickerDefaultButton();
+                    // Only on the SET transition (not on clearing back to no default) — "設定
+                    // 成功後顯示...與成功提示" in the CoAsia spec describes confirming a
+                    // successful pin, not a clear. Toast markup/id shared with every other
+                    // "saved" confirmation on this page — see tpl/globalfooter.tpl.
+                    if (isSetting && window.showToastById) {
+                        window.showToastById('resourcePickerDefaultSetToast');
+                    }
                 } else {
                     // Doesn't surface a user-facing error (a failed "設為預設" pin isn't
                     // worth a hard error banner — same treatment checkResourceAvailability()
@@ -235,6 +272,7 @@ $(function () {
             $picker.addClass('open');
             $trigger.attr('aria-expanded', 'true');
             $search.val('').trigger('input');
+            expandResourcePickerGroupForSelection($('#resourcePickerList'), selectedResourceId);
             setTimeout(function () { $search.trigger('focus'); }, 0);
         }
         function close() {
@@ -263,18 +301,27 @@ $(function () {
             toggleResourcePickerGroup($(this).closest('.resource-picker-group'));
         });
 
-        // A sibling of .resource-picker-item (see .resource-picker-item-row in the tpl), not
-        // nested inside it — two <button>s can't nest — so this never also matches the
-        // .resource-picker-item handler below; stopPropagation just keeps it from bubbling
-        // further, consistent with every other handler in this panel.
-        $panel.on('click', '.resource-picker-item-star', function (e) {
-            e.stopPropagation();
-            setResourcePickerDefault(String($(this).data('resource-id')));
-        });
-
+        // Deliberately does NOT close() the panel on selection (unlike the view/scope pickers
+        // further down, and unlike Quick Create's own copy of this same picker below) — a
+        // user picking a room here often wants to immediately follow up with "設為預設會議室"
+        // on that same room, and closing on every click would force them to reopen the panel
+        // just to reach the button. The panel still dismisses on an outside click, the trigger
+        // being clicked again, or opening a different dropdown (closeAllDropdowns()).
         $panel.on('click', '.resource-picker-item', function () {
             setSelectedResource(String($(this).data('resource-id')));
-            close();
+        });
+
+        // Pinned below the scrolling list (see the tpl's own comment on
+        // .resource-picker-footer) — always acts on selectedResourceId, the room currently
+        // showing on the calendar, never on whichever row happens to be under the cursor.
+        // Deliberately does NOT close() the panel, so the "✓ 目前預設會議室"/toast
+        // confirmation is visible before the user dismisses it themselves.
+        $('#resourcePickerSetDefault').on('click', function (e) {
+            e.stopPropagation();
+            if (!selectedResourceId) {
+                return;
+            }
+            setResourcePickerDefault(selectedResourceId);
         });
 
         $search.on('input', function () {
@@ -305,6 +352,24 @@ $(function () {
         $group.find('.resource-picker-group-toggle').first().attr('aria-expanded', willExpand ? 'true' : 'false');
     }
 
+    // Runs every time either picker panel opens (see the two open() functions below) — expands
+    // whichever group holds the current selection and collapses the rest, same single-group-
+    // open rule toggleResourcePickerGroup() enforces on a manual header click, just applied
+    // automatically instead of waiting for one. With no selection yet (resourceId is null, or
+    // stale/no longer present in this list) every group collapses instead, so the panel never
+    // opens on an arbitrarily-expanded group.
+    function expandResourcePickerGroupForSelection($list, resourceId) {
+        var $groups = $list.find('.resource-picker-group');
+        var $target = resourceId
+            ? $groups.filter(function () {
+                return $(this).find('.resource-picker-item[data-resource-id="' + resourceId + '"]').length > 0;
+            })
+            : $();
+        $groups.addClass('collapsed').find('.resource-picker-group-toggle').attr('aria-expanded', 'false');
+        $target.removeClass('collapsed');
+        $target.find('.resource-picker-group-toggle').first().attr('aria-expanded', 'true');
+    }
+
     function filterResourcePickerList($list, rawTerm, $emptyEl) {
         var term = rawTerm.trim().toLowerCase();
         var hasTerm = term.length > 0;
@@ -316,13 +381,7 @@ $(function () {
                 var $item = $(this);
                 var label = $item.find('.resource-picker-item-label').text().toLowerCase();
                 var match = label.indexOf(term) !== -1;
-                // Toolbar list items are wrapped in .resource-picker-item-row (alongside the
-                // "設為預設" star, a sibling button — see the tpl) so hiding has to target that
-                // whole row, not just the inner select-button, or a filtered-out row would
-                // leave its star floating with nothing next to it. The Quick Create modal's
-                // copy of this list has no such wrapper, so this falls back to the item itself.
-                var $row = $item.closest('.resource-picker-item-row');
-                ($row.length ? $row : $item).toggleClass('d-none', !match);
+                $item.toggleClass('d-none', !match);
                 if (match) {
                     groupHasMatch = true;
                 }
@@ -623,6 +682,7 @@ $(function () {
             positionDropdownVertically($trigger, $panel);
             $picker.addClass('open');
             $trigger.attr('aria-expanded', 'true');
+            expandResourcePickerGroupForSelection($('#qcResourcePickerList'), pending.resourceId);
             setTimeout(function () { $search.trigger('focus'); }, 0);
         }
         function close() {

@@ -21,14 +21,6 @@ require_once(ROOT_DIR . 'Pages/Pages.php');
  */
 class OverviewFullCalendarEventsPresenter
 {
-    /** Kept identical to OverviewPresenter::FALLBACK_COLORS and
-     * OverviewFullCalendarPresenter::FALLBACK_COLORS so all three surfaces agree on colors
-     * during the side-by-side evaluation. */
-    private const FALLBACK_COLORS = [
-        '#d50000', '#e67c73', '#f4511e', '#f6bf26', '#33b679', '#0b8043',
-        '#039be5', '#3f51b5', '#7986cb', '#8e24aa', '#616161',
-    ];
-
     /**
      * @var IResourceRepository
      */
@@ -214,15 +206,22 @@ class OverviewFullCalendarEventsPresenter
         ));
     }
 
+    /**
+     * Fixed per-region palette (Domain/Values/ResourceLocation::Color()) — every resource in
+     * the same region shares one event color now instead of the old per-resource color
+     * cycle/each-resource's-own-custom-color, which stopped being readable once a region had
+     * more than a handful of rooms. Same source OverviewFullCalendarPresenter::AssignColors()
+     * (the resource picker's dots/trigger) calls, so events and the picker can't drift out of
+     * sync — see that method's own doc comment.
+     *
+     * @param BookableResource[] $resources
+     * @return array<int, array{bg: string}> resource id => color
+     */
     private function AssignColors($resources)
     {
         $colors = [];
-        foreach ($resources as $index => $resource) {
-            if ($resource->HasColor()) {
-                $colors[$resource->GetId()] = ['bg' => $resource->GetColor()];
-            } else {
-                $colors[$resource->GetId()] = ['bg' => self::FALLBACK_COLORS[$index % count(self::FALLBACK_COLORS)]];
-            }
+        foreach ($resources as $resource) {
+            $colors[$resource->GetId()] = ['bg' => ResourceLocation::Color($resource->GetLocation())];
         }
         return $colors;
     }

@@ -37,11 +37,19 @@ class OverviewFullCalendarPage extends SecurePage implements IOverviewFullCalend
         $this->Display('Overview/overview_fullcalendar.tpl');
     }
 
-    public function SetResourceGroups($groups, $resourceColors, $explicitDefaultResourceId, $systemDefaultResourceId)
-    {
+    public function SetResourceGroups(
+        $groups,
+        $resourceColors,
+        $resourceLocations,
+        $explicitDefaultResourceId,
+        $systemDefaultResourceId,
+        $firstLoginDefaultResourceId
+    ) {
         $this->Set('ResourceGroups', $groups);
         $this->Set('ResourceColors', $resourceColors);
+        $this->Set('ResourceLocations', $resourceLocations);
         $this->Set('ExplicitDefaultResourceId', $explicitDefaultResourceId);
         $this->Set('SystemDefaultResourceId', $systemDefaultResourceId);
+        $this->Set('FirstLoginDefaultResourceId', $firstLoginDefaultResourceId);
     }
 }

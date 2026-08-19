@@ -53,4 +53,33 @@ class ResourceLocation
         $rank = array_search($location, self::All(), true);
         return $rank === false ? count(self::All()) : $rank;
     }
+
+    private const COLORS = [
+        self::TAIPEI => '#039be5', // blue
+        self::SHENZHEN => '#8e24aa', // purple
+        self::SHANGHAI => '#f4511e', // orange
+        self::CROSS_REGION => '#00897b', // teal / cyan-green
+    ];
+
+    private const DEFAULT_COLOR = '#616161';
+
+    /**
+     * Fixed background color per region — the single source both
+     * OverviewFullCalendarPresenter::AssignColors() (resource picker dots + trigger) and
+     * OverviewFullCalendarEventsPresenter::AssignColors() (calendar event colors) call, so
+     * the two surfaces can't drift out of sync. Replaces the old per-resource color cycle
+     * (every room got its own distinct color), which stopped being readable once a region
+     * had more than a handful of rooms in it — every room in the same region now shares one
+     * color, and the picker/calendar rely on the checkmark, selected-row background tint,
+     * and the resource NAME instead of color to tell same-region rooms apart. Anything not
+     * in the whitelist (empty/unset, or a stray pre-whitelist free-text value) gets a
+     * neutral gray rather than erroring.
+     *
+     * @param string|null $location
+     * @return string hex color
+     */
+    public static function Color($location)
+    {
+        return self::COLORS[$location] ?? self::DEFAULT_COLOR;
+    }
 }

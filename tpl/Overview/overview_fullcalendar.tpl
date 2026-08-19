@@ -20,11 +20,11 @@
                both removed). Always at most one specific resource is selected (no "全部資源"
                option — dropped per explicit request, this page shows one room's calendar at a
                time); which one, on first load, follows a priority chain — the user's own
-               "設為預設" pick, then their last-selected room, then their classic default-
-               schedule setting, then nothing (a "請選擇會議室" placeholder, never an
-               auto-picked first room) — see resolveDefaultResourceId() in
+               "設為預設會議室" pick, then their last-selected room, then their classic default-
+               schedule setting, then (for a genuinely first-time user with none of the above)
+               Taipei office's own "台北 Taipei" room — see resolveDefaultResourceId() in
                overview_fullcalendar.js and OverviewFullCalendarPresenter::
-               ResolveDefaultResourceIds(). The four groups below always start collapsed
+               ResolveDefaultResourceIds()/ResolveFirstLoginDefaultResourceId(). The four groups below always start collapsed
                regardless of which resource that resolves to — expanding one to see/select a
                room is a separate action from what's currently showing. overview_fullcalendar.js
                drives all of it: opens/closes the panel, expands/collapses each group, filters
@@ -59,28 +59,33 @@
                                 </button>
                                 <div class="resource-picker-group-items">
                                     {foreach from=$group.resources item=resource}
-                                        {* .resource-picker-item-row wraps two SIBLING buttons (never nest a <button>
-                                           inside another) — the row-select button (unchanged from before) plus the
-                                           "設為預設" star (overview_fullcalendar.js: setResourcePickerDefault()/
-                                           updateResourcePickerStars()), independent of which resource is currently
-                                           selected/showing on the calendar. Only this toolbar list gets a star — the
-                                           Quick Create modal's own copy of this picker (below) is about choosing a
-                                           resource for the reservation being drafted, unrelated to a personal default. *}
-                                        <div class="resource-picker-item-row">
-                                            <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-group-id="{$group.id}">
-                                                <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
-                                                <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
-                                                <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
-                                            </button>
-                                            <button type="button" class="resource-picker-item-star" data-resource-id="{$resource->GetId()}" aria-pressed="false">
-                                                <i class="bi bi-star"></i>
-                                            </button>
-                                        </div>
+                                        <button type="button" class="resource-picker-item" data-resource-id="{$resource->GetId()}" data-group-id="{$group.id}">
+                                            <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
+                                            <span class="resource-picker-dot" style="--dot-color:{$ResourceColors[$resource->GetId()].bg};"></span>
+                                            <span class="resource-picker-item-label">{$resource->GetName()|escape}</span>
+                                        </button>
                                     {/foreach}
                                 </div>
                             </div>
                         {/foreach}
                         <div class="resource-picker-empty d-none" id="resourcePickerEmpty">{translate key='NoMatchesFound'}</div>
+                    </div>
+                    {* Pinned below the scrolling list (a sibling of #resourcePickerList, not
+                       inside it) — sets/clears the CURRENTLY SELECTED resource (selectedResourceId
+                       in overview_fullcalendar.js) as this user's permanent default, replacing the
+                       old per-row star (setResourcePickerDefault()/updateResourcePickerDefaultButton()
+                       there). Deliberately still independent of "which resource the calendar is
+                       currently showing" only in the sense that clicking a room in the list above
+                       never calls this on its own — it's the only control that persists a default;
+                       switching rooms to look at them is not the same action. Toolbar-only, same as
+                       the star it replaces — Quick Create's own copy of this picker (below) is about
+                       choosing a resource for the reservation being drafted, unrelated to a personal
+                       default, so it doesn't get this control either. *}
+                    <div class="resource-picker-footer">
+                        <button type="button" class="resource-picker-set-default" id="resourcePickerSetDefault" aria-pressed="false">
+                            <i class="bi bi-star"></i>
+                            <span id="resourcePickerSetDefaultLabel">{translate key='SetAsDefaultResource'}</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -461,15 +466,22 @@
             externalParticipantBadge: {translate_js key='ExternalParticipantBadge'},
             selectResourcePlaceholder: {translate_js key='SelectResourcePlaceholder'},
             setAsDefaultResource: {translate_js key='SetAsDefaultResource'},
-            removeDefaultResource: {translate_js key='RemoveDefaultResource'}
+            removeDefaultResource: {translate_js key='RemoveDefaultResource'},
+            currentDefaultResource: {translate_js key='CurrentDefaultResource'}
         },
-        {* Priority tiers 1 and 3 of the resource picker's default-resource resolution — see
-           loadStoredResourceSelection() in overview_fullcalendar.js and
-           OverviewFullCalendarPresenter::ResolveDefaultResourceIds(). Tier 2 (last selected)
-           lives entirely in localStorage; tier 4 is simply "none of the above" -> no resource
-           selected at all, never an auto-picked first resource. *}
+        {* Priority tiers 1, 3 and 4 of the resource picker's default-resource resolution — see
+           resolveDefaultResourceId() in overview_fullcalendar.js and
+           OverviewFullCalendarPresenter::ResolveDefaultResourceIds()/
+           ResolveFirstLoginDefaultResourceId(). Tier 2 (last selected) lives entirely in
+           localStorage. *}
         explicitDefaultResourceId: {if $ExplicitDefaultResourceId}"{$ExplicitDefaultResourceId|escape:'javascript'}"{else}null{/if},
         systemDefaultResourceId: {if $SystemDefaultResourceId}"{$SystemDefaultResourceId|escape:'javascript'}"{else}null{/if},
+        {* Tier 4: a genuinely first-time user (no explicit pin, no browser history, no classic
+           default-schedule setting) lands on Taipei office's own "台北 Taipei" room instead of
+           the "請選擇會議室" placeholder — see ResolveFirstLoginDefaultResourceId()'s own doc
+           comment for why this is resolved by name+location match server-side rather than a
+           hardcoded resource id here. *}
+        firstLoginDefaultResourceId: {if $FirstLoginDefaultResourceId}"{$FirstLoginDefaultResourceId|escape:'javascript'}"{else}null{/if},
         resourceNames: {
             {foreach from=$ResourceGroups item=group name=groups}
                 {foreach from=$group.resources item=resource name=groupResources}
@@ -481,6 +493,23 @@
             {foreach from=$ResourceGroups item=group name=groups}
                 {foreach from=$group.resources item=resource name=groupResources}
                     "{$resource->GetId()}": "{$ResourceColors[$resource->GetId()].bg|escape:'javascript'}"{if !($smarty.foreach.groups.last && $smarty.foreach.groupResources.last)},{/if}
+                {/foreach}
+            {/foreach}
+        },
+        {* Per-resource region label (resources.location — 台北/深圳/上海/跨地區, see
+           Domain/Values/ResourceLocation.php and database_schema/coasia-resources-location.sql)
+           for the picker trigger's "地區 · 會議室" pairing — deliberately the room's OWN
+           location, not its group's name, since a resource's region and the group it's
+           displayed under happen to coincide today but aren't the same concept. $resource here
+           is a ResourceGroupAssignment (Domain/ResourceGroup.php), which doesn't carry
+           location itself, so this reads OverviewFullCalendarPresenter::GetResourceLocations()'s
+           own id => location map instead — same pattern $ResourceColors already uses just
+           below. Empty string for a resource that hasn't been classified yet; the JS falls
+           back to the bare name. *}
+        resourceLocations: {
+            {foreach from=$ResourceGroups item=group name=groups}
+                {foreach from=$group.resources item=resource name=groupResources}
+                    "{$resource->GetId()}": "{$ResourceLocations[$resource->GetId()]|escape:'javascript'}"{if !($smarty.foreach.groups.last && $smarty.foreach.groupResources.last)},{/if}
                 {/foreach}
             {/foreach}
         },

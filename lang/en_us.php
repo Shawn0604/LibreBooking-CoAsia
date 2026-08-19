@@ -1005,8 +1005,10 @@ class en_us extends Language
         $strings['PhysicalRooms'] = 'Physical Rooms';
         $strings['VideoConferenceResources'] = 'Video Conference';
         $strings['SelectResourcePlaceholder'] = 'Select a room';
-        $strings['SetAsDefaultResource'] = 'Set as default';
+        $strings['SetAsDefaultResource'] = 'Set as default room';
         $strings['RemoveDefaultResource'] = 'Remove default';
+        $strings['CurrentDefaultResource'] = 'Current default room';
+        $strings['DefaultResourceSet'] = 'This is now your default meeting room';
         $strings['MyMeetings'] = 'My Meetings';
         $strings['NextMeeting'] = 'Next Meeting';
         $strings['NoUpcomingMeetingsSoon'] = 'No meetings scheduled soon';
