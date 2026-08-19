@@ -47,6 +47,34 @@ $page->PageLoad();
 
 單一頁面內部的「子路由」是靠 querystring，不是 URL path：`ActionPage::PageLoad()`（`Pages/ActionPage.php:23-38`）依 `?action=` 分派到 `ProcessAction()`、`?dr=`（data request）分派到 `ProcessDataRequest()`，都沒有的話才走 `ProcessPageLoad()`。Action 名稱是字串常數，例如 `ManageResourcesActions`（`Presenters/Admin/ManageResourcesPresenter.php:15-49`，光這一頁就定義了約 30 個 action）。
 
+一次完整請求怎麼流過整個系統（含往回渲染 HTML、AJAX 頁面的 JSON 分支）：
+
+```mermaid
+flowchart TD
+    Browser(["瀏覽器"]) -->|"HTTP request"| Route["Web/*.php<br/>本身就是路由，沒有中央 router"]
+    Route --> PageCtor["Page 建構子<br/>SecurePage 檢查登入"]
+    PageCtor --> Dispatch{"querystring 有<br/>?action= 或 ?dr= 嗎？"}
+    Dispatch -->|"沒有"| PageLoad["ProcessPageLoad()"]
+    Dispatch -->|"?action=xxx"| ActionDispatch["ProcessAction()<br/>字串常數對應到 Presenter 方法"]
+    Dispatch -->|"?dr=xxx"| DataRequest["ProcessDataRequest()"]
+
+    PageLoad --> Presenter["Presenter<br/>只依賴 IXxxPage／IXxxRepository 介面"]
+    ActionDispatch --> Presenter
+    DataRequest --> Presenter
+
+    Presenter --> Repo["Domain/Access/*Repository<br/>組出 SqlCommand"]
+    Repo --> DB[("MySQL")]
+    DB --> Repo
+    Repo -->|"回傳 Domain 物件"| Presenter
+
+    Presenter -->|"透過介面回呼<br/>$this->page->SetXxx(...)"| Assign["Page：Smarty assign"]
+    Assign --> Smarty["SmartyPage 渲染 tpl/**/*.tpl"]
+    Smarty -->|"HTML"| Browser
+
+    Presenter -.->|"AJAX 頁面改用<br/>Page::SetJson()"| Json["JSON 回應"]
+    Json -.-> Browser
+```
+
 ---
 
 ## 後端架構
@@ -56,6 +84,39 @@ $page->PageLoad();
 - **Page**：視圖轉接層。持有 Smarty 實例，讀取 HTTP 輸入（`GetForm`／`GetQuerystring`／`GetCheckbox`，`Pages/Page.php:329-388`），對外暴露宣告在 `IXxxPage` 介面上的 `GetXxx()`／`SetXxx()`，最後呼叫 `Display('xxx.tpl')`。Page 的建構子會自己 `new` 一個 Presenter，把具體的 Repository 實例注入進去。
 - **Presenter**：真正的邏輯層。只依賴 `IXxxPage` 介面跟各種 Repository 介面，完全不碰 `$_POST`、不碰 Smarty。
 - **Repository**（`Domain/Access/`）：SQL 層。回傳 Domain 物件。
+
+各目錄之間的依賴方向（實線＝直接呼叫／建構，虛線＝共用基礎設施）：
+
+```mermaid
+flowchart TB
+    Pages["Pages/<br/>IXxxPage 介面 + Page 類別<br/>持有 Smarty、讀 HTTP 輸入"]
+    Presenters["Presenters/<br/>邏輯層，只依賴介面"]
+    App["lib/Application/<br/>跨聚合根服務層<br/>Admin／Attributes／Authentication／<br/>Authorization／Reservation／Schedule"]
+    Entities["Domain/<br/>實體／聚合根<br/>ReservationSeries、BookableResource、User…"]
+    Values["Domain/Values/<br/>值物件／列舉<br/>ResourceStatus、ResourceLocation…"]
+    Access["Domain/Access/<br/>Repository，唯一碰資料庫的地方"]
+    DBCmd["lib/Database/Commands/<br/>Queries.php + Commands.php<br/>無 ORM，手刻命令物件"]
+    MySQL[("MySQL")]
+    Common["lib/Common/<br/>ServiceLocator／SmartyPage／<br/>PluginManager／Resources(i18n)"]
+    Server["lib/Server/<br/>Server／UserSession／FormKeys"]
+    Email["lib/Email/<br/>EmailService／Messages"]
+
+    Pages --> Presenters
+    Presenters --> App
+    Presenters --> Access
+    App --> Access
+    App --> Entities
+    Access --> Entities
+    Access --> Values
+    Access --> DBCmd
+    DBCmd --> MySQL
+
+    Pages -.->|"用"| Common
+    Presenters -.->|"用"| Common
+    Pages -.->|"用"| Server
+    App -.->|"觸發通知"| Email
+    Email -.->|"用"| Common
+```
 
 #### 為什麼要多一層 `IXxxPage` 介面：可測試性
 
@@ -170,6 +231,59 @@ return strtoupper('LB_' . preg_replace('/[.\-]+/', '_', $canonicalKey));
 **沒有任何單一檔案能看到「目前完整的 schema」。** 要知道 `resources` 表到底有哪些欄位，得先讀 `create-schema.sql:184-210`，**再**去 15 個 upgrade 資料夾裡 grep `ALTER TABLE \`resources\``。這正是為什麼 `resources.location` 跟 `resource_groups` 一開始讓人摸不著頭緒——`location` 在最原始的檔案裡就有（`create-schema.sql:187`，`upgrades/2.6/schema.sql:56-57` 把它從短字串加寬成 `VARCHAR(255)`），但 `resource_groups` 是 `upgrades/2.5/schema.sql:8` 才新增的。
 
 `Presenters/Install/Installer.php:62,68` 依序套用這些檔案（`InstallFresh` 先跑 `create-schema.sql`，再跑 `Upgrade()`）。
+
+以下兩張圖只畫出核心表跟關聯（不是全部 59 張），完整清單看下面的表格。
+
+**預約流程核心**：
+
+```mermaid
+erDiagram
+    USERS ||--o{ RESERVATION_SERIES : owns
+    USERS }o--o{ GROUPS : "user_groups"
+    RESERVATION_SERIES ||--o{ RESERVATION_INSTANCES : expands_to
+    RESERVATION_SERIES }o--o{ RESOURCES : "reservation_resources"
+    RESERVATION_INSTANCES }o--o{ USERS : "reservation_users"
+
+    USERS {
+        int user_id PK
+        int status_id FK
+    }
+    RESERVATION_SERIES {
+        int series_id PK
+        int owner_id FK
+        int version "CoAsia：樂觀鎖計數器"
+    }
+    RESERVATION_INSTANCES {
+        int reservation_instance_id PK
+        int series_id FK
+        varchar reference_number
+    }
+```
+
+**會議室、排程與地區分組**——直接對照下面「`resource_groups` vs `resources.location`」那節：
+
+```mermaid
+erDiagram
+    RESOURCES }o--|| SCHEDULES : "屬於"
+    SCHEDULES ||--|| LAYOUTS : uses
+    LAYOUTS ||--o{ TIME_BLOCKS : defines
+    RESOURCES }o--o{ RESOURCE_GROUPS : "resource_group_assignment"
+    RESOURCE_GROUPS ||--o{ RESOURCE_GROUPS : "parent_id（自我參照）"
+    RESOURCES ||--o{ USER_RESOURCE_PERMISSIONS : grants
+    RESOURCES ||--o{ GROUP_RESOURCE_PERMISSIONS : grants
+
+    RESOURCES {
+        int resource_id PK
+        int schedule_id FK
+        varchar location "CoAsia：台北/深圳/上海/跨地區"
+        int sort_order
+    }
+    RESOURCE_GROUPS {
+        int resource_group_id PK
+        varchar resource_group_name
+        int parent_id FK "self"
+    }
+```
 
 ### 完整資料表清單（59 張）
 
@@ -367,6 +481,17 @@ return strtoupper('LB_' . preg_replace('/[.\-]+/', '_', $canonicalKey));
 
 `globalheader.tpl` 輸出從 `<!DOCTYPE html>` 一路到 `<div id="main">` 開頭（第 128 行開啟 `<body>`，檔案在標記中段結束）；`globalfooter.tpl` 收尾同樣這幾個 div（`globalfooter.tpl:1-7`）。include 帶的參數是拿來開關可選的 vendor 套件——`DataTable`、`Trumbowyg`、`Validator`、`InlineEdit`、`Select2`，加上 `cssFiles`（逗號分隔，在 `globalheader.tpl:94-99` 拆解）跟 `HideNavBar`。
 
+```mermaid
+flowchart TD
+    Entry["Web/*.php"] --> Display["Page::Display('xxx.tpl')"]
+    Display --> Include["{include file='globalheader.tpl'}"]
+    Include --> Header["globalheader.tpl<br/>輸出 head~body 開頭<br/>依參數載入 vendor CSS/JS"]
+    Header --> Theme["css.extension.file<br/>→ coasia-theme.css 最後載入覆蓋 tokens"]
+    Include --> Body["頁面自己的內容"]
+    Body --> JsFile["{jsfile src='xxx.js'}<br/>逐一產生 script 標籤"]
+    Body --> Footer["globalfooter.tpl 收尾"]
+```
+
 **目錄結構**（22 個子目錄，跟 `Pages/` 對應）：`Activation/`、`Admin/`、`Ajax/`、`Calendar/`、`Controls/`、`Credits/`、`Dashboard/`、`Email/`、`Export/`、`ExternalAuth/`、`Help/`、`Install/`、`MonitorDisplay/`、`MyAccount/`、`MyMeetings/`、`Overview/`、`Reports/`、`Reservation/`、`ResourceDisplay/`、`Schedule/`、`Search/`、`SearchAvailability/`。根目錄的共用 partial：`globalheader.tpl`、`globalfooter.tpl`、`javascript-includes.tpl`、`json_data.tpl`、`wait-box.tpl`、`error.tpl`、`maintenance.tpl`，另外幾個獨立頁面：`login.tpl`、`dashboard.tpl`、`register.tpl`、`tos.tpl`、`forgot_pwd.tpl`。
 
 **多語言樣板覆寫——有兩套不同機制：**
@@ -375,6 +500,18 @@ return strtoupper('LB_' . preg_replace('/[.\-]+/', '_', $canonicalKey));
 2. **`Page::DisplayLocalized($templateName)`**——`Pages/Page.php:456-469`，頁面端比較單純的版本：如果 `lang/{目前語言}` 底下有這個檔案就加進樣板目錄，沒有就用 `lang/en_us/`。
 
 另外，`SmartyPage::__construct` 永遠都會把 `lang/{目前語言}` 註冊成樣板目錄（`SmartyPage.php:69`），所以理論上任何 `tpl/` 底下的檔案都可以被 `lang/<語言代碼>/` 底下同名的檔案覆蓋。實際上目前存在的約 35 個 `lang/<代碼>/*.tpl` 檔案全部都是信件內容（`ReservationCreated.tpl`、`AccountActivation.tpl`、`ResetPassword.tpl`……）。
+
+```mermaid
+flowchart TD
+    Fetch["SmartyPage::FetchLocalized()<br/>只用在信件"] --> Check1{"lang/{語言}/xxx-custom.tpl 存在？"}
+    Check1 -->|"有"| UseCustom["使用它"]
+    Check1 -->|"沒有"| Check2{"lang/{語言}/xxx.tpl 存在？"}
+    Check2 -->|"有"| UseLocal["使用它"]
+    Check2 -->|"沒有"| Fallback["fallback：lang/en_us/xxx.tpl"]
+
+    CacheConfig{"cache.templates 設定？"} -->|"false（開發）"| ForceCompile["force_compile=true<br/>每次請求都重新編譯"]
+    CacheConfig -->|"true（正式）"| CompileCheck["compile_check=false<br/>永不重新比對來源時間戳<br/>改 .tpl 要手動清 tpl_c/"]
+```
 
 **編譯與快取失效**——`SmartyPage.php:49-61`：
 
