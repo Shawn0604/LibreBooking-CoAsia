@@ -124,7 +124,7 @@ flowchart LR
 
 主體服務內網限定，唯一對外公開的是 LINE Webhook 這一條路徑（範圍限定的 Cloudflare Tunnel，其他路徑一律 404），細節見 `COASIA-DEPLOYMENT.md` 十四。
 
-正式環境的完整架構圖（含 volumes、機密檔案管理）在 [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) 裡有更詳細的版本。
+上面這張圖是**部署層**（VM、容器、網路）的架構。**程式碼層**（前端／後端／資料庫怎麼組織、request 怎麼流過系統）見 [COASIA-ARCHITECTURE.md](COASIA-ARCHITECTURE.md)；正式環境更詳細的部署架構圖（含 volumes、機密檔案管理）在 [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md)。
 
 ---
 
@@ -176,7 +176,8 @@ npm install && npm run lint:frontend   # 前端 lint（JS/CSS）
 | 文件 | 內容 |
 | --- | --- |
 | [COASIA-DEV-SETUP.md](COASIA-DEV-SETUP.md) | 本機開發環境從 0 到 1 完整搭建指南（全新電腦也適用，不需要任何公司內部密碼） |
-| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§76） |
+| [COASIA-ARCHITECTURE.md](COASIA-ARCHITECTURE.md) | 系統架構參考：前端／後端／資料庫三層各自怎麼組織、request 怎麼流過整個系統、資料庫完整 59 張表清單 |
+| [COASIA-CHANGES.md](COASIA-CHANGES.md) | 客製化異動記錄：改了什麼、為什麼這樣改（目前 §1–§78） |
 | [COASIA-TEST-REPORT.md](COASIA-TEST-REPORT.md) | 多人使用測試矩陣（併發、隱私、多語言、負載等），逐項結果與修復紀錄 |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 正式對全體員工開放前，還缺什麼 |
 | [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 正式環境部署架構與操作手冊，含完整 VM 建置、Docker、憑證、資料庫遷移步驟 |
