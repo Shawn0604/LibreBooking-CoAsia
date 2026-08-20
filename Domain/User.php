@@ -229,9 +229,77 @@ class User
         $this->statusId = AccountStatus::ACTIVE;
     }
 
+    /**
+     * Also stamps credentialsInvalidatedAt so this user's already-open browser sessions get force-
+     * logged-out on their next request (Pages/Page.php::IsAuthenticated() compares this against the
+     * session's own LoginTime) -- every caller (manual admin deactivation, the AD reconciliation job)
+     * gets that for free instead of having to remember to revoke sessions themselves.
+     */
     public function Deactivate()
     {
         $this->statusId = AccountStatus::INACTIVE;
+        $this->credentialsInvalidatedAt = LoginTime::Now();
+    }
+
+    /**
+     * @var string|null
+     */
+    private $credentialsInvalidatedAt;
+
+    /**
+     * @return string|null
+     */
+    public function CredentialsInvalidatedAt()
+    {
+        return $this->credentialsInvalidatedAt;
+    }
+
+    /**
+     * @var bool
+     */
+    private $isLocalAuthOnly = false;
+
+    /**
+     * @return bool
+     */
+    public function IsLocalAuthOnly()
+    {
+        return $this->isLocalAuthOnly;
+    }
+
+    /**
+     * Marks (or unmarks) this account as exempt from the ActiveDirectory plugin -- the only accounts
+     * still allowed to authenticate with a local password once AD is unreachable or rejects a login
+     * (see plugins/Authentication/ActiveDirectory/ActiveDirectory.php::Validate()). Meant for a small
+     * handful of emergency admin accounts, set from the admin UI.
+     *
+     * @param bool $isLocalAuthOnly
+     */
+    public function ChangeIsLocalAuthOnly($isLocalAuthOnly)
+    {
+        $this->isLocalAuthOnly = $isLocalAuthOnly;
+    }
+
+    /**
+     * @var bool
+     */
+    private $isAdManaged = false;
+
+    /**
+     * @return bool
+     */
+    public function IsAdManaged()
+    {
+        return $this->isAdManaged;
+    }
+
+    /**
+     * Set by ActiveDirectory::Login() on every successful AD sync -- lets the reconciliation job
+     * (Jobs/ad-reconcile-account-status.php) scope itself to real AD accounts only.
+     */
+    public function MarkAsAdManaged()
+    {
+        $this->isAdManaged = true;
     }
 
     protected $preferences;
@@ -533,10 +601,14 @@ class User
         $user->isCalendarSubscriptionAllowed = $row[ColumnNames::ALLOW_CALENDAR_SUBSCRIPTION];
         $user->publicId = $row[ColumnNames::PUBLIC_ID];
         $user->defaultScheduleId = $row[ColumnNames::DEFAULT_SCHEDULE_ID];
+        $user->isLocalAuthOnly = !empty($row[ColumnNames::IS_LOCAL_AUTH_ONLY]);
+        $user->isAdManaged = !empty($row[ColumnNames::IS_AD_MANAGED]);
+        $user->credentialsInvalidatedAt = $row[ColumnNames::CREDENTIALS_INVALIDATED_AT];
 
         $user->attributes[UserAttribute::Phone] = $row[ColumnNames::PHONE_NUMBER];
         $user->attributes[UserAttribute::Position] = $row[ColumnNames::POSITION];
         $user->attributes[UserAttribute::Organization] = $row[ColumnNames::ORGANIZATION];
+        $user->attributes[UserAttribute::Department] = $row[ColumnNames::DEPARTMENT];
 
         $user->isApplicationAdmin = Configuration::Instance()->IsAdminEmail($row[ColumnNames::EMAIL]);
 
@@ -659,13 +731,21 @@ class User
         $this->language = $language;
     }
 
-    public function ChangeAttributes($phone, $organization, $position)
+    /**
+     * $department is optional and left untouched (not blanked to null) when omitted -- several
+     * existing callers (profile self-edit, CSV import) still call this with just 3 args and have no
+     * department value to pass; only the AD sync path and the admin edit form pass a 4th arg today.
+     */
+    public function ChangeAttributes($phone, $organization, $position, $department = null)
     {
         $this->attributesChanged = true;
 
         $this->attributes[UserAttribute::Phone] = $phone;
         $this->attributes[UserAttribute::Organization] = $organization;
         $this->attributes[UserAttribute::Position] = $position;
+        if (func_num_args() >= 4) {
+            $this->attributes[UserAttribute::Department] = $department;
+        }
     }
 
     public function HaveAttributesChanged()
@@ -1092,6 +1172,7 @@ class UserAttribute
     public const Phone = 'phone';
     public const Organization = 'organization';
     public const Position = 'position';
+    public const Department = 'department';
 
     /**
      * @var array|string[]

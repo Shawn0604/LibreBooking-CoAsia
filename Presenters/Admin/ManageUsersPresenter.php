@@ -294,7 +294,8 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
         $extraAttributes = [
             UserAttribute::Organization => $this->page->GetOrganization(),
             UserAttribute::Phone => $this->page->GetPhone(),
-            UserAttribute::Position => $this->page->GetPosition()];
+            UserAttribute::Position => $this->page->GetPosition(),
+            UserAttribute::Department => $this->page->GetDepartment()];
 
         $this->manageUsersService->UpdateUser(
             $this->page->GetUserId(),
@@ -308,6 +309,26 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
         );
 
         $this->ApplyRole($this->page->GetUserId(), $this->page->GetRole());
+        $this->ApplyLocalAuthOnly($this->page->GetUserId(), $this->page->GetIsLocalAuthOnly());
+    }
+
+    /**
+     * "本機專屬登入" -- exempts this one account from the ActiveDirectory plugin, so it can still
+     * authenticate with a local password even during an AD outage (see
+     * plugins/Authentication/ActiveDirectory/ActiveDirectory.php::Validate()). Meant for a small
+     * handful of emergency admin accounts. A separate load/mutate/update from
+     * ManageUsersService::UpdateUser() above, same as ApplyRole() -- this flag isn't part of the
+     * generic $extraAttributes bag those other free-text fields (phone/organization/position/
+     * department) go through.
+     *
+     * @param int $userId
+     * @param bool $isLocalAuthOnly
+     */
+    private function ApplyLocalAuthOnly($userId, $isLocalAuthOnly)
+    {
+        $user = $this->userRepository->LoadById($userId);
+        $user->ChangeIsLocalAuthOnly($isLocalAuthOnly);
+        $this->userRepository->Update($user);
     }
 
     /**

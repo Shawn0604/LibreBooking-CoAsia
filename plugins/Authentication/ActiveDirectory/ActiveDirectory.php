@@ -33,6 +33,11 @@ class ActiveDirectory extends Authentication implements IAuthentication
     private $_registration;
 
     /**
+     * @var IUserRepository
+     */
+    private $_userRepository;
+
+    /**
      * @var ActiveDirectoryUser
      */
     private $user = null;
@@ -54,6 +59,20 @@ class ActiveDirectory extends Authentication implements IAuthentication
         }
 
         return $this->_registration;
+    }
+
+    public function SetUserRepository($userRepository)
+    {
+        $this->_userRepository = $userRepository;
+    }
+
+    private function GetUserRepository()
+    {
+        if ($this->_userRepository == null) {
+            $this->_userRepository = new UserRepository();
+        }
+
+        return $this->_userRepository;
     }
 
     /**
@@ -86,17 +105,26 @@ class ActiveDirectory extends Authentication implements IAuthentication
 
         $username = $this->CleanUsername($username);
 
+        // Per-account "emergency admin" exemption (users.is_local_auth_only, set from the admin UI)
+        // -- checked before ever touching LDAP. LoadByUsername() safely returns a NullUser (falsy
+        // IsLocalAuthOnly()) for a brand-new AD employee who has never logged in before, so this
+        // never blocks a genuine first-ever AD login. This REPLACES the old global
+        // database.auth.when.ldap.user.not.found fallback below, which let ANY account with a local
+        // password bypass AD -- not just a designated emergency one -- whenever AD was unreachable
+        // or rejected a login.
+        $localUser = $this->GetUserRepository()->LoadByUsername($username);
+        if ($localUser != null && $localUser->IsLocalAuthOnly()) {
+            Log::Debug('ActiveDirectory - %s is flagged local-auth-only, skipping AD entirely', $username);
+            return $this->authToDecorate->Validate($username, $password);
+        }
+
         // AdLdapWrapper::Connect() (and the adLDAP library underneath it) doesn't just return
         // false on a connection/bind failure the way its own "if (!$connected)" check below
         // assumes — a failed *admin/service-account* bind (wrong bind credentials, or the LDAP
         // server(s) unreachable/unresponsive, e.g. a firewall dropping the TLS handshake on
         // 636) throws an adLDAPException instead. Uncaught, that would propagate all the way
-        // out of login and lock out every account — including ones that only ever authenticate
-        // against the local database — the moment AD is unreachable for any reason, which
-        // defeats the entire point of database.auth.when.ldap.user.not.found. Catching it here
-        // and treating it the same as "connection failed" restores that fallback for this case
-        // too, not just the case where the connection succeeds but a specific user's own
-        // credentials don't validate (the other branch, further down).
+        // out of login for every account, including local-auth-only ones. Caught here and
+        // treated as "AD unavailable" -- fails closed (see below) rather than crashing.
         try {
             $connected = $this->ldap->Connect();
         } catch (Throwable $ex) {
@@ -105,11 +133,11 @@ class ActiveDirectory extends Authentication implements IAuthentication
         }
 
         if (!$connected) {
-            if ($this->options->RetryAgainstDatabase()) {
-                Log::Debug('ActiveDirectory - LDAP unavailable, falling back to database authentication for user %s', $username);
-                return $this->authToDecorate->Validate($username, $password);
-            }
-            throw new Exception('Could not connect to ActiveDirectory LDAP server. Please check your ActiveDirectory LDAP configuration settings');
+            // Fails closed for everyone except the is_local_auth_only accounts already handled
+            // above -- an AD outage must not let any other account fall back to a local password
+            // (that fallback, when it existed, was global/unscoped -- see the comment above).
+            Log::Error('ActiveDirectory - LDAP unavailable, denying login for user %s (local-password fallback is restricted to accounts flagged local-auth-only)', $username);
+            return false;
         }
 
         $isValid = $this->ldap->Authenticate($username, $password);
@@ -123,10 +151,6 @@ class ActiveDirectory extends Authentication implements IAuthentication
                 Log::Error('Could not load user details from ActiveDirectory LDAP. Check your basedn setting. User: %s', $username);
             }
             return $userLoaded;
-        } else {
-            if ($this->options->RetryAgainstDatabase()) {
-                return $this->authToDecorate->Validate($username, $password);
-            }
         }
 
         return false;
@@ -139,11 +163,46 @@ class ActiveDirectory extends Authentication implements IAuthentication
         if ($this->LdapUserExists()) {
             Log::Debug('Running ActiveDirectory user synchronization for username: %s, Attributes: %s', $username, $this->user->__toString());
             $this->Synchronize($username);
+            $this->ReactivateAndMarkAsAdManaged($username);
         } else {
             Log::Debug('Skipping ActiveDirectory user synchronization, user not loaded');
         }
 
         return $this->authToDecorate->Login($username, $loginContext);
+    }
+
+    /**
+     * Runs right after a successful AD sync, before delegating to authToDecorate->Login() (where
+     * the StatusId() == ACTIVE gate lives, see lib/Application/Authentication/Authentication.php).
+     * Two independent bits of post-sync housekeeping, combined into one load/update so a returning
+     * AD login doesn't cost two extra round trips:
+     *   - reactivates a previously-INACTIVE account (rehire/return from leave restores the original
+     *     account instead of leaving it stuck inactive forever) -- deliberately only INACTIVE, not
+     *     "!= ACTIVE", so AWAITING_ACTIVATION accounts aren't silently activated by an AD login
+     *   - marks the account is_ad_managed, so Jobs/ad-reconcile-account-status.php can scope itself
+     *     to real AD accounts -- set here (every successful AD login), not just by the one-off HR
+     *     import job, so accounts first created by a live AD login are covered too
+     */
+    private function ReactivateAndMarkAsAdManaged($username)
+    {
+        $repository = $this->GetUserRepository();
+        $localUser = $repository->LoadByUsername($username);
+
+        $needsReactivation = $localUser->StatusId() == AccountStatus::INACTIVE;
+        $needsAdManagedFlag = !$localUser->IsAdManaged();
+
+        if (!$needsReactivation && !$needsAdManagedFlag) {
+            return;
+        }
+
+        if ($needsReactivation) {
+            Log::Debug('ActiveDirectory - reactivating previously-inactive account for username: %s', $username);
+            $localUser->Activate();
+        }
+        if ($needsAdManagedFlag) {
+            $localUser->MarkAsAdManaged();
+        }
+        $repository->Update($localUser);
     }
 
     public function Logout(UserSession $user)
@@ -163,7 +222,12 @@ class ActiveDirectory extends Authentication implements IAuthentication
 
     private function Synchronize($username)
     {
-        $password = $this->options->RetryAgainstDatabase() ? $this->password : Password::GenerateRandom();
+        // Always a random, unguessable local password now -- local-password fallback is no longer
+        // a global possibility for AD accounts (see Validate()'s per-account is_local_auth_only
+        // check), so mirroring the user's real current AD password into the local `users` table
+        // would serve no purpose anymore and would just be an unnecessary exposure (local DB
+        // compromise becoming equivalent to AD password compromise for every AD user).
+        $password = Password::GenerateRandom();
 
         $registration = $this->GetRegistration();
 
@@ -179,7 +243,8 @@ class ActiveDirectory extends Authentication implements IAuthentication
                 $this->user->GetPhone(),
                 $this->user->GetInstitution(),
                 $this->user->GetTitle(),
-                $this->user->GetGroups()
+                $this->user->GetGroups(),
+                $this->user->GetDepartment()
             )
         );
     }

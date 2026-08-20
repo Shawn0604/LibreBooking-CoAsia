@@ -86,6 +86,16 @@ interface IManageUsersPage extends IPageable, IActionPage
     /**
      * @return string
      */
+    public function GetDepartment();
+
+    /**
+     * @return bool
+     */
+    public function GetIsLocalAuthOnly();
+
+    /**
+     * @return string
+     */
     public function GetLanguage();
 
     /**
@@ -395,6 +405,16 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
     public function GetOrganization()
     {
         return $this->GetForm(FormKeys::ORGANIZATION);
+    }
+
+    public function GetDepartment()
+    {
+        return $this->GetForm(FormKeys::DEPARTMENT);
+    }
+
+    public function GetIsLocalAuthOnly()
+    {
+        return $this->GetCheckbox(FormKeys::IS_LOCAL_AUTH_ONLY);
     }
 
     public function GetLanguage()

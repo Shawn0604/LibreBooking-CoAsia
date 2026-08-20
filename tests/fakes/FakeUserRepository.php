@@ -234,4 +234,18 @@ class FakeUserRepository implements IUserRepository
     {
         return 0;
     }
+
+    /**
+     * @var string|null
+     */
+    public $_CredentialsInvalidatedAt = null;
+
+    /**
+     * @param int $userId
+     * @return string|null
+     */
+    public function GetCredentialsInvalidatedAt($userId)
+    {
+        return $this->_CredentialsInvalidatedAt;
+    }
 }

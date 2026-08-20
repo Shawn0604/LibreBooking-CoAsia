@@ -409,6 +409,7 @@ class ManageUsersPresenterTest extends TestBase
         $phone = '123-123-1234';
         $organization = 'ou';
         $position = 'position';
+        $department = 'dept';
 
         $user = new FakeUser($userId);
 
@@ -424,12 +425,14 @@ class ManageUsersPresenterTest extends TestBase
         $this->page->_Phone = $phone;
         $this->page->_Organization = $organization;
         $this->page->_Position = $position;
+        $this->page->_Department = $department;
         $this->page->_Attributes = $attributeFormElements;
 
         $extraAttributes = [
             UserAttribute::Organization => $organization,
             UserAttribute::Phone => $phone,
-            UserAttribute::Position => $position];
+            UserAttribute::Position => $position,
+            UserAttribute::Department => $department];
 
         $this->manageUsersService->expects($this->once())
                                  ->method('UpdateUser')
@@ -821,6 +824,14 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
      */
     public $_Position;
     /**
+     * @var string
+     */
+    public $_Department;
+    /**
+     * @var bool
+     */
+    public $_IsLocalAuthOnly = false;
+    /**
      * @var int[]
      */
     public $_DeletedUserIds;
@@ -932,6 +943,16 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
     public function GetOrganization()
     {
         return $this->_Organization;
+    }
+
+    public function GetDepartment()
+    {
+        return $this->_Department;
+    }
+
+    public function GetIsLocalAuthOnly()
+    {
+        return $this->_IsLocalAuthOnly;
     }
 
     public function GetLanguage()

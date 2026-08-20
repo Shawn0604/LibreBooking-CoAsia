@@ -2203,6 +2203,15 @@ class GetUserCountCommand extends SqlCommand
     }
 }
 
+class GetUserCredentialsInvalidatedAtCommand extends SqlCommand
+{
+    public function __construct($userId)
+    {
+        parent::__construct(Queries::GET_USER_CREDENTIALS_INVALIDATED_AT);
+        $this->AddParameter(new Parameter(ParameterNames::USER_ID, $userId));
+    }
+}
+
 class GetUserEmailPreferencesCommand extends SqlCommand
 {
     public function __construct($userId)
@@ -2310,7 +2319,10 @@ class RegisterUserCommand extends SqlCommand
         $userStatusId,
         $publicId,
         $scheduleId,
-        $termsAcceptedDate
+        $termsAcceptedDate,
+        $department = null,
+        $isLocalAuthOnly = false,
+        $isAdManaged = false
     ) {
         parent::__construct(Queries::REGISTER_USER);
 
@@ -2328,11 +2340,14 @@ class RegisterUserCommand extends SqlCommand
         $this->AddParameter(new Parameter(ParameterNames::PHONE, $phone));
         $this->AddParameter(new Parameter(ParameterNames::ORGANIZATION, $organization));
         $this->AddParameter(new Parameter(ParameterNames::POSITION, $position));
+        $this->AddParameter(new Parameter(ParameterNames::DEPARTMENT, $department));
         $this->AddParameter(new Parameter(ParameterNames::USER_STATUS_ID, $userStatusId));
         $this->AddParameter(new Parameter(ParameterNames::DATE_CREATED, Date::Now()->ToDatabase()));
         $this->AddParameter(new Parameter(ParameterNames::PUBLIC_ID, $publicId));
         $this->AddParameter(new Parameter(ParameterNames::SCHEDULE_ID, $scheduleId));
         $this->AddParameter(new Parameter(ParameterNames::TERMS_ACCEPTANCE_DATE, $termsAcceptedDate->ToDatabase()));
+        $this->AddParameter(new Parameter(ParameterNames::IS_LOCAL_AUTH_ONLY, (int)$isLocalAuthOnly));
+        $this->AddParameter(new Parameter(ParameterNames::IS_AD_MANAGED, (int)$isAdManaged));
     }
 }
 
@@ -2925,7 +2940,10 @@ class UpdateUserCommand extends SqlCommand
         $publicId,
         $language,
         $scheduleId,
-        $currentCreditCount
+        $currentCreditCount,
+        $isLocalAuthOnly = false,
+        $isAdManaged = false,
+        $credentialsInvalidatedAt = null
     ) {
         parent::__construct(Queries::UPDATE_USER);
         $this->AddParameter(new Parameter(ParameterNames::USER_ID, $userId));
@@ -2945,6 +2963,9 @@ class UpdateUserCommand extends SqlCommand
         $this->AddParameter(new Parameter(ParameterNames::LANGUAGE, $language));
         $this->AddParameter(new Parameter(ParameterNames::SCHEDULE_ID, $scheduleId));
         $this->AddParameter(new Parameter(ParameterNames::CREDIT_COUNT, $currentCreditCount));
+        $this->AddParameter(new Parameter(ParameterNames::IS_LOCAL_AUTH_ONLY, (int)$isLocalAuthOnly));
+        $this->AddParameter(new Parameter(ParameterNames::IS_AD_MANAGED, (int)$isAdManaged));
+        $this->AddParameter(new Parameter(ParameterNames::CREDENTIALS_INVALIDATED_AT, $credentialsInvalidatedAt));
     }
 }
 
@@ -2954,20 +2975,22 @@ class UpdateUserAttributesCommand extends SqlCommand
         $userId,
         $phoneNumber,
         $organization,
-        $position
+        $position,
+        $department = null
     ) {
         parent::__construct(Queries::UPDATE_USER_ATTRIBUTES);
         $this->AddParameter(new Parameter(ParameterNames::USER_ID, $userId));
         $this->AddParameter(new Parameter(ParameterNames::PHONE, $phoneNumber));
         $this->AddParameter(new Parameter(ParameterNames::POSITION, $position));
         $this->AddParameter(new Parameter(ParameterNames::ORGANIZATION, $organization));
+        $this->AddParameter(new Parameter(ParameterNames::DEPARTMENT, $department));
     }
 }
 
 
 class UpdateUserFromLdapCommand extends SqlCommand
 {
-    public function __construct($username, $email, $fname, $lname, $password, $salt, $phone, $organization, $position)
+    public function __construct($username, $email, $fname, $lname, $password, $salt, $phone, $organization, $position, $department = null)
     {
         parent::__construct(Queries::UPDATE_USER_BY_USERNAME);
         $this->AddParameter(new Parameter(ParameterNames::USERNAME, $username));
@@ -2979,6 +3002,7 @@ class UpdateUserFromLdapCommand extends SqlCommand
         $this->AddParameter(new Parameter(ParameterNames::PHONE, $phone));
         $this->AddParameter(new Parameter(ParameterNames::ORGANIZATION, $organization));
         $this->AddParameter(new Parameter(ParameterNames::POSITION, $position));
+        $this->AddParameter(new Parameter(ParameterNames::DEPARTMENT, $department));
     }
 }
 

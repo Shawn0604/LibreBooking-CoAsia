@@ -55,6 +55,16 @@ interface IUserRepository extends IUserViewRepository
      * @return int
      */
     public function GetCount();
+
+    /**
+     * Cheap, single-column lookup for Pages/Page.php::IsAuthenticated()'s per-request force-reauth
+     * check -- deliberately NOT a full User::FromRow() hydration, since this runs on every request
+     * to any SecurePage.
+     *
+     * @param int $userId
+     * @return string|null
+     */
+    public function GetCredentialsInvalidatedAt($userId);
 }
 
 class UserFilter
@@ -445,7 +455,10 @@ class UserRepository implements IUserRepository, IAccountActivationRepository
             $user->StatusId(),
             $user->GetPublicId(),
             $user->GetDefaultScheduleId(),
-            $user->TermsAcceptanceDate()
+            $user->TermsAcceptanceDate(),
+            $user->GetAttribute(UserAttribute::Department),
+            $user->IsLocalAuthOnly(),
+            $user->IsAdManaged()
         ));
 
         $user->WithId($id);
@@ -510,7 +523,10 @@ class UserRepository implements IUserRepository, IAccountActivationRepository
             $user->GetPublicId(),
             $user->Language(),
             $user->GetDefaultScheduleId(),
-            $user->GetCurrentCredits()
+            $user->GetCurrentCredits(),
+            $user->IsLocalAuthOnly(),
+            $user->IsAdManaged(),
+            $user->CredentialsInvalidatedAt()
         );
         $db->Execute($updateUserCommand);
 
@@ -534,7 +550,8 @@ class UserRepository implements IUserRepository, IAccountActivationRepository
                 $userId,
                 $user->GetAttribute(UserAttribute::Phone),
                 $user->GetAttribute(UserAttribute::Organization),
-                $user->GetAttribute(UserAttribute::Position)
+                $user->GetAttribute(UserAttribute::Position),
+                $user->GetAttribute(UserAttribute::Department)
             );
             $db->Execute($updateAttributesCommand);
         }
@@ -853,6 +870,19 @@ class UserRepository implements IUserRepository, IAccountActivationRepository
 
         $reader->Free();
         return 0;
+    }
+
+    public function GetCredentialsInvalidatedAt($userId)
+    {
+        $reader = ServiceLocator::GetDatabase()->Query(new GetUserCredentialsInvalidatedAtCommand($userId));
+
+        $value = null;
+        if ($row = $reader->GetRow()) {
+            $value = $row[ColumnNames::CREDENTIALS_INVALIDATED_AT];
+        }
+
+        $reader->Free();
+        return $value;
     }
 }
 

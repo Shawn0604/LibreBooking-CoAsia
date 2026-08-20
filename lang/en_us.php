@@ -268,6 +268,7 @@ class en_us extends Language
         $strings['Phone'] = 'Phone';
         $strings['Organization'] = 'Organization';
         $strings['Position'] = 'Position';
+        $strings['Department'] = 'Department';
         $strings['Language'] = 'Language';
         $strings['Permissions'] = 'Permissions';
         $strings['Reset'] = 'Reset';
@@ -1162,6 +1163,8 @@ class en_us extends Language
         $strings['AdminUserRoleUser'] = 'Regular User';
         $strings['AdminUserRoleAdmin'] = 'System Administrator';
         $strings['AdminUserCurrentGroups'] = 'Groups';
+        $strings['AdminUserLocalAuthOnly'] = 'Local login only (emergency admin)';
+        $strings['AdminUserLocalAuthOnlyHint'] = 'When checked, this account never authenticates against AD -- it can only log in with a local password, unaffected even by an AD outage. Reserve this for a small number of emergency admin accounts.';
         $strings['AdminUserSortBy'] = 'Sort by';
         $strings['AdminUserSortNameAsc'] = 'Name A-Z';
         $strings['AdminUserSortNameDesc'] = 'Name Z-A';

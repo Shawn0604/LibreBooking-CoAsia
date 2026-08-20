@@ -9,6 +9,10 @@ require_once(ROOT_DIR . 'lib/Common/namespace.php');
 require_once(ROOT_DIR . 'lib/Server/namespace.php');
 require_once(ROOT_DIR . 'lib/Config/namespace.php');
 require_once(ROOT_DIR . 'lib/Application/Admin/ImageUploadDirectory.php');
+// Not every concrete Page subclass happens to require Domain/Access/namespace.php on its own
+// before IsAuthenticated() below needs UserRepository -- required explicitly here so that check
+// never depends on incidental transitive requires from whichever subclass a given request uses.
+require_once(ROOT_DIR . 'Domain/Access/namespace.php');
 
 use Detection\MobileDetect;
 
@@ -247,13 +251,44 @@ abstract class Page implements IPage
     }
 
     /**
+     * @var IUserRepository|null
+     */
+    private $_userRepository = null;
+
+    private function GetUserRepository()
+    {
+        if ($this->_userRepository == null) {
+            $this->_userRepository = new UserRepository();
+        }
+
+        return $this->_userRepository;
+    }
+
+    /**
      * Returns whether or not the user has been authenticated
+     *
+     * Also force-logs-out an already-open session if the account has been deactivated (manually,
+     * or by Jobs/ad-reconcile-account-status.php) since this session was established --
+     * users.credentials_invalidated_at is stamped by User::Deactivate() itself, so this check
+     * covers every deactivation path without any of them having to remember to revoke sessions.
+     * A cheap single-column PK lookup (UserRepository::GetCredentialsInvalidatedAt()), not a full
+     * User hydration, since this runs on every request to any SecurePage.
      *
      * @return bool
      */
     public function IsAuthenticated()
     {
-        return !is_null($this->server->GetUserSession()) && $this->server->GetUserSession()->IsLoggedIn();
+        $userSession = $this->server->GetUserSession();
+        if (is_null($userSession) || !$userSession->IsLoggedIn()) {
+            return false;
+        }
+
+        $invalidatedAt = $this->GetUserRepository()->GetCredentialsInvalidatedAt($userSession->UserId);
+        if (!empty($invalidatedAt) && !empty($userSession->LoginTime) && $invalidatedAt > $userSession->LoginTime) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

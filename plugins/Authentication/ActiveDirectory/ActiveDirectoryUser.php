@@ -8,6 +8,7 @@ class ActiveDirectoryUser
     private $phone;
     private $institution;
     private $title;
+    private $department;
     private $mapping;
     private $groups;
 
@@ -34,6 +35,7 @@ class ActiveDirectoryUser
         $this->phone = $this->Get($entry, 'telephonenumber');
         $this->institution = $this->Get($entry, 'physicaldeliveryofficename');
         $this->title = $this->Get($entry, 'title');
+        $this->department = $this->Get($entry, 'department');
 
         $this->groups = null;
         if ($groups != null) {
@@ -75,6 +77,11 @@ class ActiveDirectoryUser
         return $this->title;
     }
 
+    public function GetDepartment()
+    {
+        return $this->department;
+    }
+
     /**
      * @return string[]|null
      */
@@ -86,13 +93,14 @@ class ActiveDirectoryUser
     public function __toString()
     {
         return sprintf(
-            'ActiveDirectoryUser - First Name: %s, Last Name: %s, Email: %s, Phone: %s, Institution: %s, Title: %s',
+            'ActiveDirectoryUser - First Name: %s, Last Name: %s, Email: %s, Phone: %s, Institution: %s, Title: %s, Department: %s',
             $this->fname,
             $this->lname,
             $this->mail,
             $this->phone,
             $this->institution,
-            $this->title
+            $this->title,
+            $this->department
         );
     }
 

@@ -25,9 +25,13 @@ class ColumnNames
     public const PHONE_NUMBER = 'phone';
     public const ORGANIZATION = 'organization';
     public const POSITION = 'position';
+    public const DEPARTMENT = 'department';
     public const DEFAULT_SCHEDULE_ID = 'default_schedule_id';
     public const USER_PREFERENCES = 'preferences';
     public const USER_STATUS = 'status_id';
+    public const IS_LOCAL_AUTH_ONLY = 'is_local_auth_only';
+    public const IS_AD_MANAGED = 'is_ad_managed';
+    public const CREDENTIALS_INVALIDATED_AT = 'credentials_invalidated_at';
 
     // USER_ADDRESSES //
     public const ADDRESS_ID = 'address_id';

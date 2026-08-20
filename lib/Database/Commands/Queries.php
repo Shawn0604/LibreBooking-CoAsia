@@ -904,6 +904,8 @@ class Queries
 
     public const GET_USER_BY_ID = 'SELECT * FROM `users` WHERE `user_id` = @userid';
 
+    public const GET_USER_CREDENTIALS_INVALIDATED_AT = 'SELECT `credentials_invalidated_at` FROM `users` WHERE `user_id` = @userid';
+
     public const GET_USER_BY_PUBLIC_ID = 'SELECT * FROM `users` WHERE `public_id` = @publicid';
 
     public const GET_USER_COUNT = 'SELECT COUNT(*) as `count` FROM `users`';
@@ -1010,9 +1012,9 @@ class Queries
 
     public const REGISTER_USER =
         'INSERT INTO
-			`users` (`email`, `password`, `fname`, `lname`, `phone`, `organization`, `position`, `username`, `salt`, `timezone`, `language`, `homepageid`, `status_id`, `date_created`, `public_id`, `default_schedule_id`, `terms_date_accepted`)
+			`users` (`email`, `password`, `fname`, `lname`, `phone`, `organization`, `position`, `department`, `username`, `salt`, `timezone`, `language`, `homepageid`, `status_id`, `date_created`, `public_id`, `default_schedule_id`, `terms_date_accepted`, `is_local_auth_only`, `is_ad_managed`)
 		VALUES
-			(@email, @password, @fname, @lname, @phone, @organization, @position, @username, @salt, @timezone, @language, @homepageid, @user_statusid, @dateCreated, @publicid, @scheduleid, @terms_date_accepted)';
+			(@email, @password, @fname, @lname, @phone, @organization, @position, @department, @username, @salt, @timezone, @language, @homepageid, @user_statusid, @dateCreated, @publicid, @scheduleid, @terms_date_accepted, @is_local_auth_only, @is_ad_managed)';
 
     public const REMOVE_ATTRIBUTE_ENTITY =
         'DELETE FROM `custom_attribute_entities` WHERE `custom_attribute_id` = @custom_attribute_id AND `entity_id` = @entity_id';
@@ -1238,7 +1240,10 @@ class Queries
 			`language` = @language,
 			`lastlogin` = @lastlogin,
 			`default_schedule_id` = @scheduleid,
-			`credit_count` = @credit_count
+			`credit_count` = @credit_count,
+			`is_local_auth_only` = @is_local_auth_only,
+			`is_ad_managed` = @is_ad_managed,
+			`credentials_invalidated_at` = @credentials_invalidated_at
 		WHERE
 			`user_id` = @userid';
 
@@ -1247,7 +1252,8 @@ class Queries
 		SET
 			`phone` = @phone,
 			`position` = @position,
-			`organization` = @organization
+			`organization` = @organization,
+			`department` = @department
 		WHERE
 			`user_id` = @userid';
 
@@ -1261,7 +1267,8 @@ class Queries
 			`lname` = COALESCE(@lname, `lname`),
 			`phone` = COALESCE(@phone, `phone`),
 			`organization` = COALESCE(@organization, `organization`),
-			`position` = COALESCE(@position, `position`)
+			`position` = COALESCE(@position, `position`),
+			`department` = COALESCE(@department, `department`)
 		WHERE
 			`username` = @username OR `email` = @email';
 

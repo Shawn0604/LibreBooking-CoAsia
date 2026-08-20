@@ -7,7 +7,7 @@ require_once(ROOT_DIR . 'plugins/Authentication/ActiveDirectory/IActiveDirectory
 class FakeActiveDirectoryWrapper implements IActiveDirectory
 {
     public $_ExpectedConnect = true;
-    public $_ConnectCalled = true;
+    public $_ConnectCalled = false;
 
     public $_ExpectedAuthenticate = true;
     public $_AuthenticateCalled = false;
@@ -16,6 +16,9 @@ class FakeActiveDirectoryWrapper implements IActiveDirectory
 
     public $_GetLdapUserCalled = false;
     public $_ExpectedLdapUser;
+
+    public $_ExpectedAccountStatus = AdAccountStatus::ACTIVE;
+    public $_LastAccountStatusUsername;
 
     public function Connect()
     {
@@ -37,5 +40,12 @@ class FakeActiveDirectoryWrapper implements IActiveDirectory
         $this->_GetLdapUserCalled = true;
 
         return $this->_ExpectedLdapUser;
+    }
+
+    public function GetAccountStatus($username)
+    {
+        $this->_LastAccountStatusUsername = $username;
+
+        return $this->_ExpectedAccountStatus;
     }
 }

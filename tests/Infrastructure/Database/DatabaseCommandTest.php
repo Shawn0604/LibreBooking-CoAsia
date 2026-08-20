@@ -129,11 +129,12 @@ class DatabaseCommandTest extends TestBase
         $phone = '123.123.1234';
         $institution = 'inst';
         $position = 'pos';
+        $department = 'dept';
 
-        $command = new UpdateUserFromLdapCommand($username, $email, $fname, $lname, $password, $salt, $phone, $institution, $position);
+        $command = new UpdateUserFromLdapCommand($username, $email, $fname, $lname, $password, $salt, $phone, $institution, $position, $department);
 
         $this->assertEquals(Queries::UPDATE_USER_BY_USERNAME, $command->GetQuery());
-        $this->assertEquals(9, $command->Parameters->Count());
+        $this->assertEquals(10, $command->Parameters->Count());
         $this->assertEquals(new Parameter(ParameterNames::USERNAME, $username), $command->Parameters->Items(0));
         $this->assertEquals(new Parameter(ParameterNames::EMAIL_ADDRESS, $email), $command->Parameters->Items(1));
         $this->assertEquals(new Parameter(ParameterNames::FIRST_NAME, $fname), $command->Parameters->Items(2));
@@ -143,6 +144,7 @@ class DatabaseCommandTest extends TestBase
         $this->assertEquals(new Parameter(ParameterNames::PHONE, $phone), $command->Parameters->Items(6));
         $this->assertEquals(new Parameter(ParameterNames::ORGANIZATION, $institution), $command->Parameters->Items(7));
         $this->assertEquals(new Parameter(ParameterNames::POSITION, $position), $command->Parameters->Items(8));
+        $this->assertEquals(new Parameter(ParameterNames::DEPARTMENT, $department), $command->Parameters->Items(9));
     }
 
     public function testAutoAssignPermissionsCommand()

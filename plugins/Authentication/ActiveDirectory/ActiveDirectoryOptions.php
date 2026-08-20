@@ -41,6 +41,14 @@ class ActiveDirectoryOptions
         return $this->_options;
     }
 
+    /**
+     * @deprecated No longer consulted by ActiveDirectory::Validate() -- the local-password fallback
+     * this used to gate globally (for every account, whenever AD was unreachable or rejected a
+     * login) is now a per-account decision (users.is_local_auth_only, set from the admin UI), so a
+     * single AD outage can't be bypassed by any account that happens to have a local password.
+     * Left defined only so an existing ActiveDirectory.config.php with this key set doesn't fail to
+     * parse; the key itself has no effect anymore.
+     */
     public function RetryAgainstDatabase()
     {
         return $this->GetConfig(ActiveDirectoryConfigKeys::RETRY_AGAINST_DATABASE, new BooleanConverter());
@@ -98,7 +106,8 @@ class ActiveDirectoryOptions
             'mail' => 'mail',
             'telephonenumber' => 'telephonenumber',
             'physicaldeliveryofficename' => 'physicaldeliveryofficename',
-            'title' => 'title'
+            'title' => 'title',
+            'department' => 'department'
         ];
         $configValue = $this->GetConfig(ActiveDirectoryConfigKeys::ATTRIBUTE_MAPPING);
 

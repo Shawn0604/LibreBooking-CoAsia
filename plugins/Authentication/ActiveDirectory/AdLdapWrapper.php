@@ -96,6 +96,30 @@ class AdLdapWrapper implements IActiveDirectory
         return $authenticated;
     }
 
+    /**
+     * @see IActiveDirectory::GetAccountStatus()
+     */
+    public function GetAccountStatus($username)
+    {
+        // 'useraccountcontrol' isn't in the login path's own opts.Attributes() (that list is
+        // configurable via attribute.mapping and only covers display fields like mail/title) --
+        // requested directly here since infoCollection() accepts any AD attribute name. Standard
+        // AD bit flags: ACCOUNTDISABLE = 0x2, LOCKOUT = 0x10 (see e.g. classes/adLDAPUsers.php's
+        // own accountControl() for the same bit values used when writing this attribute).
+        $entries = $this->ldap->user()->infoCollection($username, ['samaccountname', 'useraccountcontrol']);
+
+        if (!$entries || !is_a($entries, 'adLDAPUserCollection')) {
+            Log::Debug('ActiveDirectory - GetAccountStatus found no AD entry for %s', $username);
+            return AdAccountStatus::NOT_FOUND;
+        }
+
+        $userAccountControl = (int)$entries->useraccountcontrol;
+        $accountDisabled = ($userAccountControl & 0x2) === 0x2;
+        $accountLocked = ($userAccountControl & 0x10) === 0x10;
+
+        return ($accountDisabled || $accountLocked) ? AdAccountStatus::DISABLED : AdAccountStatus::ACTIVE;
+    }
+
     public function GetLdapUser($username)
     {
         $attributes = $this->options->Attributes();

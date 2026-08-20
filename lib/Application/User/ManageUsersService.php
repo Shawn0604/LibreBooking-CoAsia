@@ -236,7 +236,8 @@ class ManageUsersService implements IManageUsersService
         $user->ChangeAttributes(
             $attributes->Get(UserAttribute::Phone),
             $attributes->Get(UserAttribute::Organization),
-            $attributes->Get(UserAttribute::Position)
+            $attributes->Get(UserAttribute::Position),
+            $attributes->Get(UserAttribute::Department)
         );
 
         foreach ($customAttributes as $attribute) {

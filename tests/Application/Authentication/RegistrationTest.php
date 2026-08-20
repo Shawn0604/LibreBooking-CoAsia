@@ -76,7 +76,7 @@ class RegistrationTest extends TestBase
             $this->homepageId
         );
 
-        $user->ChangeAttributes($this->phone, $this->organization, $this->position);
+        $user->ChangeAttributes($this->phone, $this->organization, $this->position, null);
         $user->ChangeCustomAttributes($this->attributes);
         $user->WithGroups($this->groups);
         $user->AcceptTerms($this->acceptTerms);
@@ -121,7 +121,7 @@ class RegistrationTest extends TestBase
             $this->homepageId
         );
 
-        $user->ChangeAttributes($this->phone, $this->organization, $this->position);
+        $user->ChangeAttributes($this->phone, $this->organization, $this->position, null);
         $user->ChangeCustomAttributes($this->attributes);
 
         $this->userRepository->expects($this->once())
@@ -162,7 +162,7 @@ class RegistrationTest extends TestBase
             $this->homepageId
         );
 
-        $user->ChangeAttributes($this->phone, $this->organization, $this->position);
+        $user->ChangeAttributes($this->phone, $this->organization, $this->position, null);
         $user->ChangeCustomAttributes($this->attributes);
 
         $this->userRepository->expects($this->once())
@@ -230,7 +230,7 @@ class RegistrationTest extends TestBase
             $this->homepageId
         );
 
-        $user->ChangeAttributes($this->phone, $this->organization, $this->position);
+        $user->ChangeAttributes($this->phone, $this->organization, $this->position, null);
 
         $user->ChangeEmailPreference(new ReservationApprovedEvent(), true);
         $user->ChangeEmailPreference(new ReservationCreatedEvent(), true);
@@ -334,7 +334,7 @@ class RegistrationTest extends TestBase
             Pages::DEFAULT_HOMEPAGE_ID
         );
 
-        $expectedUser->ChangeAttributes($phone, $inst, $title);
+        $expectedUser->ChangeAttributes($phone, $inst, $title, null);
         $expectedUser->WithGroups([new UserGroup(1, 'group1'), new UserGroup(2, 'g2')]);
 
         $this->userRepository->expects($this->once())

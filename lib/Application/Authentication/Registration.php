@@ -91,7 +91,7 @@ class Registration implements IRegistration
             $user = User::Create($firstName, $lastName, $email, $username, $language, $timezone, $encryptedPassword->EncryptedPassword(), $encryptedPassword->Salt(), $homepageId);
         }
 
-        $user->ChangeAttributes($attributes->Get(UserAttribute::Phone), $attributes->Get(UserAttribute::Organization), $attributes->Get(UserAttribute::Position));
+        $user->ChangeAttributes($attributes->Get(UserAttribute::Phone), $attributes->Get(UserAttribute::Organization), $attributes->Get(UserAttribute::Position), $attributes->Get(UserAttribute::Department));
         $user->ChangeCustomAttributes($attributeValues);
         $user->AcceptTerms($acceptTerms);
 
@@ -146,7 +146,7 @@ class Registration implements IRegistration
                 $salt = $encryptedPassword->Salt();
             }
 
-            $command = new UpdateUserFromLdapCommand($user->UserName(), $user->Email(), $user->FirstName(), $user->LastName(), $password, $salt, $user->Phone(), $user->Organization(), $user->Title());
+            $command = new UpdateUserFromLdapCommand($user->UserName(), $user->Email(), $user->FirstName(), $user->LastName(), $password, $salt, $user->Phone(), $user->Organization(), $user->Title(), $user->Department());
             ServiceLocator::GetDatabase()->Execute($command);
 
             if ($this->GetUserGroups($user) != null) {
@@ -156,7 +156,7 @@ class Registration implements IRegistration
             }
         } else {
             $defaultHomePageId = Configuration::Instance()->GetKey(ConfigKeys::DEFAULT_HOMEPAGE, new IntConverter());
-            $additionalFields = ['phone' => $user->Phone(), 'organization' => $user->Organization(), 'position' => $user->Title()];
+            $additionalFields = ['phone' => $user->Phone(), 'organization' => $user->Organization(), 'position' => $user->Title(), 'department' => $user->Department()];
             $this->Register(
                 $user->UserName(),
                 $user->Email(),

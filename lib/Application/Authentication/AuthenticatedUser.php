@@ -58,6 +58,11 @@ class AuthenticatedUser
     private $groups = null;
 
     /**
+     * @var string
+     */
+    private $department;
+
+    /**
      * @param string $username
      * @param string $email
      * @param string $fname
@@ -69,8 +74,9 @@ class AuthenticatedUser
      * @param string $organization
      * @param string $title
      * @param string[]|null $groups
+     * @param string $department
      */
-    public function __construct($username, $email, $fname, $lname, $password, $languageCode, $timezoneName, $phone, $organization, $title, $groups = null)
+    public function __construct($username, $email, $fname, $lname, $password, $languageCode, $timezoneName, $phone, $organization, $title, $groups = null, $department = null)
     {
         $this->username = $username;
         $this->email = $email;
@@ -83,7 +89,15 @@ class AuthenticatedUser
         $this->organization = $organization;
         $this->title = $title;
         $this->groups = is_null($groups) ? [] : $groups;
-        ;
+        $this->department = $department;
+    }
+
+    /**
+     * @return string
+     */
+    public function Department()
+    {
+        return $this->EnsureNull($this->department);
     }
 
     /**

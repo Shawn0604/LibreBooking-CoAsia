@@ -2488,3 +2488,56 @@ CSS 大括號計數法沒有配對錯誤；直接 `curl` 抓 `reservation-page.c
 ### 驗證
 
 容器內 `php -l` 過改動到的四個 `.php` 檔案（`Presenters/OverviewFullCalendarPresenter.php`／`Pages/OverviewFullCalendarPage.php`／`lang/zh_tw.php`／`lang/en_us.php`），`node --check` 過 `overview_fullcalendar.js`，皆無語法錯誤；`grep` 全專案確認 `.resource-picker-item-star`／`.resource-picker-item-row`／`updateResourcePickerStars` 三個名字在 `.js`／`.css` 裡都已經不存在，沒有殘留的死引用；另外確認 QC 彈窗（`#qcResourcePickerList`）跟 view-picker／scope-picker 三處的 `close()` 呼叫都還在，80.5 只改到工具列那一份清單。寫了一支一次性 CLI 診斷腳本（測完即刪，跟 §77/§78 用的是同一種手法——直接組 `OverviewFullCalendarPresenter` 帶一個假的 `IOverviewFullCalendarPage` 去接 `SetResourceGroups()` 的參數，不經過 `SecurePage` 的 HTTP 認證流程），用真實 shawn.admin 帳號、真實開發資料庫呼叫 `PageLoad()`：確認四個分組筆數正確（台北 7／深圳 5／上海 4／線上 5）、`resourceColors` 逐一資源查出來的色碼跟地區完全對應（上海四間 `#f4511e`、台北兩間 `#039be5`，抽樣印出來人工比對）、`firstLoginDefaultResourceId` 正確解析成 resource_id 1（名稱「台北 Taipei」、`location` 為「台北」），沒有拋出例外。額外用一個不需要登入的頁面（登入頁本身，`http_status=200`）驗證這次改到的 `tpl/globalfooter.tpl`（每一頁都會 include 的共用頁尾）加了新的 toast 標記後沒有連帶弄壞全站共用樣板——這個檔案改錯的影響範圍是整個網站，特別多測一次。手上依然沒有這個開發資料庫裡任何帳號的密碼，這次同樣沒能直接登入瀏覽器操作按鈕點擊/toast 彈出的實際畫面效果，麻煩使用者重新整理瀏覽器確認：①星星都不見了、②選單最下方有「設為預設會議室」按鈕、③點擊後文字變成「✓ 目前預設會議室」並跳出成功提示、④切換到別的會議室看行事曆不會動到這個永久預設、⑤（需要一個全新測試帳號才能看到）第一次登入直接顯示「台北 · 台北 Taipei」而不是空白的請選擇會議室、⑥點會議室之後選單不會自動收合，可以緊接著按底部的設為預設按鈕。
+
+## 81. 整理 AD 登入流程：緊急管理員旗標、Session 撤銷、AD 帳號狀態回收、部門同步、復職重啟
+
+使用者要求把 AD 登入流程整理成 9 條行為規格。開工前先做了一輪唯讀調查（直接讀 `plugins/Authentication/ActiveDirectory/` 全部原始碼＋`lib/Application/Authentication/Registration.php`＋`Pages/Page.php` 的認證流程），發現：IT 建帳號後直接登入、首次登入自動建檔＋一般權限、AD 密碼改了立刻生效、AD 只管身分驗證（LibreBooking 管授權）這四條**現況已經成立**，不用動；真正缺的是帳號狀態同步（AD 停權/離職→LibreBooking 沒有任何機制會停用）、Session 撤銷（整個系統目前完全沒有「強制登出」）、部門同步（只有姓名/Email 會同步）、復職重啟（不會建重複帳號，但也不會自動恢復）。更嚴重的是**正式環境當下的 `ActiveDirectory.config.php` 有一個活著的安全漏洞**：`database.auth.when.ldap.user.not.found=true` 是全域、不分帳號的開關，任何有本機密碼的帳號在 AD 連不上、或這次登入被 AD 拒絕時都能繞過去，不是只限緊急管理員。
+
+範圍偏大，先進 plan mode 完整規劃過一輪，使用者中途一度覺得範圍太大想先擱置（那一輪只做了唯讀調查，沒有動任何檔案），後來決定繼續，並拍板三個關鍵設計：**本機緊急管理員＝新增使用者專屬旗標**（不是全域 config 開關）、**Session 撤銷＝輕量版強制重新登入**（不做完整 session store）、**部門同步＝抓 AD 自己的 `department` 屬性**（不是沿用既有但完全獨立、不在登入時跑的 HR 匯入腳本）。
+
+### 81.1 資料庫：`users` 表新增四個欄位
+
+`database_schema/upgrades/4.5/schema.sql`（比照 4.2 的 `information_schema` 冪等寫法，`phing-tasks/UpgradeDbTask.php` 每次都會重跑整個 upgrades 目錄，這裡本機直接用 `mysql` 灌進開發資料庫驗證過冪等性——重複執行第二次全部變成 `SELECT 1` no-op，沒有報錯）：
+
+- `is_local_auth_only`：本機緊急管理員旗標。
+- `is_ad_managed`：這個帳號有沒有真的透過 AD 同步過——取代原本只有 HR 匯入腳本會設、AD 登入本身完全沒設的舊版「AD Managed Account」custom attribute（涵蓋不完整，漏掉直接靠首次 AD 登入建檔的帳號），改成 `ActiveDirectory::Login()` 每次成功同步都補上，第 5 節的回收 job 靠這個欄位篩選範圍。
+- `department`：AD 的 `department` 屬性。
+- `credentials_invalidated_at`：Session 撤銷用的時間戳，塞進 `Domain/User.php` 的 `Deactivate()` 內部——所有會呼叫 `Deactivate()` 的地方（既有的手動停用、第 4 節新的回收 job）都自動連帶撤銷 Session，不用每個呼叫端各自記得設。
+
+`Domain/User.php`（`IsLocalAuthOnly()`／`ChangeIsLocalAuthOnly()`、`IsAdManaged()`／`MarkAsAdManaged()`、`CredentialsInvalidatedAt()`、`UserAttribute::Department` 常數、`FromRow()` 補讀四個新欄位）、`lib/Database/Commands/ColumnNames.php`／`ParameterNames.php`（四個新常數）、`Domain/Access/UserRepository.php`（`Add()`／`Update()` 串接，新增 `GetCredentialsInvalidatedAt($userId)` 給第 4 節用的輕量單欄位查詢）都跟著改。刻意**沒有**把三個旗標型欄位加進 `UpdateUserFromLdapCommand`／`Queries::UPDATE_USER_BY_USERNAME`（AD 同步專用的窄 UPDATE，只加了 `department`）——這條路徑本來就不該去動旗標，旗標由 `ActiveDirectory::Login()` 自己的程式碼路徑管理，維持「AD 同步管不到這些」的既有邊界（這條 UPDATE 本來就沒有動 `status_id`，同一個道理）。
+
+`ChangeAttributes($phone, $organization, $position, $department = null)` 這個既有方法要小心一個坑：如果單純把新參數的預設值設成 `null`，現有那些還在用 3 個參數呼叫它的地方（個人帳號自己編輯、CSV 匯入）每次存檔都會把 `department` 靜默清空——改成用 `func_num_args() >= 4` 判斷第 4 個參數有沒有真的被傳進來，沒傳就完全不動 `department` 這個欄位的既有值。
+
+### 81.2 `ActiveDirectory::Validate()`：全域 fallback 換成逐帳號旗標
+
+`plugins/Authentication/ActiveDirectory/ActiveDirectory.php` 新增 `GetUserRepository()`（照抄既有 `GetRegistration()` 的懶初始化寫法）。`Validate()` 一進來先用 `LoadByUsername()` 查本機帳號（查不到會拿到安全的 `User::Null()`，`IsLocalAuthOnly()` 自然是 `false`，不會擋到全新 AD 員工的第一次登入）：有 `is_local_auth_only` 旗標的帳號完全跳過 LDAP、直接查本機密碼；其餘帳號拿掉原本的兩個 `RetryAgainstDatabase()` fallback 分支，LDAP 連不上或帳密被拒絕一律直接 `return false`（fail closed），不再退回本機密碼。副作用：原本「連不上又沒開 fallback 就丟出未捕捉 Exception」的當機路徑（§26.4 記錄過的舊 bug）也一併消失，改成單純回傳 `false`。`ActiveDirectoryOptions::RetryAgainstDatabase()`／`database.auth.when.ldap.user.not.found` 這個 config key 沒有刪，只是不再被 `Validate()` 讀取，`.config.dist.php` 補了註解說明已被取代。
+
+`Synchronize()` 裡「要不要把使用者剛打的密碼鏡射進本機 DB」的判斷（原本也綁在 `RetryAgainstDatabase()` 上）拿掉條件式，改成永遠用隨機密碼——AD 帳號現在不可能再走本機密碼 fallback，繼續鏡射真實密碼進本機 DB 已經沒有意義，純粹是白白多一個曝險面（本機 DB 外洩＝AD 密碼外洩）。
+
+### 81.3 復職重啟＋標記 AD 管理，合併成一次登入後管家
+
+`Login()` 在 `Synchronize()` 之後、真正呼叫 `authToDecorate->Login()` 之前，新增 `ReactivateAndMarkAsAdManaged()`：`StatusId() == INACTIVE` 才 `Activate()`（刻意只判斷 INACTIVE，不是「!= ACTIVE」，避免連帶把 `AWAITING_ACTIVATION` 的帳號也啟用，比照的是 §77.3 那套四層優先序的精神，不是無條件比照 `plugins/Authentication/Ldap/Ldap.php` 那種無條件 Deactivate 再 Activate 的寫法）；`!IsAdManaged()` 才 `MarkAsAdManaged()`。兩件事合併成一次 load/mutate/update，不讓一次登入多打兩次資料庫。
+
+### 81.4 部門同步：整條鏈比照 organization/position 現有寫法
+
+`ActiveDirectoryUser.php`（新增 `department` 屬性＋`GetDepartment()`）→ `ActiveDirectoryOptions::AttributeMapping()`（預設 attribute 陣列補 `department=department`）→ `ActiveDirectory::Synchronize()`（`AuthenticatedUser` 建構子多帶一個參數）→ `AuthenticatedUser.php`（新增 `$department` 屬性＋`Department()`）→ `Registration::Synchronize()`（update 分支的 `UpdateUserFromLdapCommand`、insert 分支的 `$additionalFields` 都補上）→ `Registration::Register()`（`ChangeAttributes()` 呼叫補第 4 個參數）。全程沒有新機制，純粹是姓名/Email/組織/職稱這條既有管線多接一個欄位。
+
+### 81.5 後台使用者管理介面
+
+`tpl/Admin/Users/user-update.tpl` 新增「部門」文字欄位（照抄旁邊既有的組織/職稱欄位）跟「本機專屬登入（緊急管理員）」checkbox（照抄 `tpl/Admin/Resources/manage_resources.tpl` 的 `requiresApproval` checkbox 寫法，`{if $User->IsLocalAuthOnly()}checked="checked" {/if}` 這個條件式寫法照抄 `tpl/Controls/Attributes/Checkbox.tpl` 既有的自訂屬性 checkbox）。`Pages/Admin/ManageUsersPage.php`／`lib/Server/FormKeys.php` 補對應的存取方法／表單鍵。`Presenters/Admin/ManageUsersPresenter.php::UpdateUser()` 的 `$extraAttributes` 陣列多塞一個 `UserAttribute::Department`；本機專屬登入旗標新增 `ApplyLocalAuthOnly()`，完全比照既有的 `ApplyRole()`（各自獨立 load/mutate/update，不是塞進同一個 `ManageUsersService::UpdateUser()` 呼叫）。這裡抓到一個原本規劃漏掉的細節：`ManageUsersService::UpdateUser()` 內部的 `ChangeAttributes()` 呼叫本來就只帶 3 個參數，即使外面的 `$extraAttributes` 陣列多塞了 `department`，不改這裡的呼叫依然不會真的存進去——寫程式當下對照原始碼才發現，補上了第 4 個參數。
+
+### 81.6 Session 撤銷：`Page::IsAuthenticated()` 加一次輕量查詢
+
+`lib/Application/Authentication/Authentication.php` 登入時本來就會把 `LoginTime`（登入當下的時間字串）快取進 `UserSession`，只是從來沒被拿來做任何驗證用途。`Pages/Page.php::IsAuthenticated()` 原本只信任 `$_SESSION` 裡快取的 `UserSession` 物件、完全不查資料庫，這是這個 codebase 第一次在「已登入請求」的路徑上加一次資料庫查詢——改成先做原本的檢查，再用新增的 `UserRepository::GetCredentialsInvalidatedAt($userId)`（單欄位、PK 查詢，不是整個 `User::FromRow()` hydrate）跟 `LoginTime` 比較，`credentials_invalidated_at` 比登入時間晚就視為未登入，強制重新登入。`Domain/User.php::Deactivate()` 已經在 81.1 保證每次停用都會設這個時間戳，這層完全不用另外呼叫任何東西——手動停用、AD 回收 job 停用，都會自動撤銷已經開著的瀏覽器 Session。`Pages/Page.php` 頂部補了 `require_once(ROOT_DIR . 'Domain/Access/namespace.php');`，不依賴「剛好某個 Page 子類別自己有 require 到」這種不保證成立的隱含關係。
+
+### 81.7 新增 AD 帳號狀態回收 job
+
+AD 是 bind 式整合，不會主動推事件過來，只能定期反查，這是唯一沒辦法用「登入當下順便做」解決的部分。`plugins/Authentication/ActiveDirectory/IActiveDirectory.php` 新增 `GetAccountStatus($username)` 介面方法＋`AdAccountStatus`（`ACTIVE`／`DISABLED`／`NOT_FOUND` 三個常數），`AdLdapWrapper.php` 實作：直接呼叫底層 adLDAP 函式庫的 `infoCollection($username, ['samaccountname','useraccountcontrol'])`（這個函式庫的 `info()`/`infoCollection()` 支援任意欄位查詢，不限於登入路徑自己的 attribute mapping），解析 `userAccountControl` 的標準 AD 位元（`ACCOUNTDISABLE`＝bit 2、`LOCKOUT`＝bit 16，同一套位元在這個函式庫自己寫入帳號時也有用到，`classes/adLDAPUsers.php` 看得到）。查不到帳號＝`NOT_FOUND`（通常是離職）、查到但 disabled/locked＝`DISABLED`。
+
+新增 `Jobs/ad-reconcile-account-status.php`：撈 `is_ad_managed=1 AND is_local_auth_only=0 AND status_id=ACTIVE` 的帳號（`SqlFilterFreeForm` 直接組條件，`UserRepository::GetList()` 傳 `null, null` 取全部不分頁），每個帳號各自包一層 try/catch（照抄 `Jobs/import-coasia-employees.php::ApplyImportPlan()` 的錯誤隔離寫法，不是 `sendreminders.php`／`autorelease.php` 那種整個 job 共用一個外層 try/catch——一個人查詢失敗不該讓其他人都不檢查），查到非 `ACTIVE` 就 `Deactivate()`。支援 `--dry-run`／`--apply`（照抄 `import-coasia-employees.php` 既有慣例），**沒有預設值、強制二選一**，避免忘記帶旗標就意外大量誤停用真實員工帳號。真正排進 crontab 是 VM／部署層的事，這個 repo 目前完全沒有任何 cron 機制（`docker-compose.prod.yml` 沒有 cron container，`COASIA-DEPLOYMENT.md` 提到的 cron 只有備份用途），這次只把 script 寫好、在檔案開頭比照慣例留了建議的 crontab 範例（改用 `0,15,30,45 * * * *` 而不是 `*/15 * * * *`，純粹是後者的 `*/` 字面量會提早把 PHP 的 `/* */` 註解區塊截斷），排程本身留給使用者之後在 VM 上處理。
+
+### 驗證
+
+容器內 `php -l` 過全部新增/修改的 `.php` 檔案，皆無語法錯誤。這次全程用真實開發資料庫、真實開發環境的 AD 連線設定（`ActiveDirectory.config.php` 真的連得到公司 AD）做端到端驗證，寫了多支一次性 CLI 診斷腳本（測完即刪）：①`is_local_auth_only` 帳號在 AD 明確拒絕的情況下依然能用本機密碼登入成功、且完全沒有嘗試連 LDAP；②一般帳號在模擬 AD 斷線、以及 AD 明確拒絕這兩種情況下，都確認被拒絕登入、且 fallback 到本機密碼的分支完全沒被呼叫到；③一個手動設成 INACTIVE 的帳號，模擬一次成功的 AD 登入後，確認 `status_id` 真的變回 ACTIVE、`is_ad_managed` 真的被標記、且原本要接手的 `authToDecorate->Login()` 依然有被呼叫到；④`credentials_invalidated_at` 在 `Deactivate()` 之後正確寫入非空時間戳，並且直接複製 `IsAuthenticated()` 內部同一套比較邏輯驗證：Session 建立時間早於停用時間會判定要強制登出、晚於停用時間（例如停用後又重新登入）則維持已登入；⑤`Jobs/ad-reconcile-account-status.php` 對一個真實建立、標記 `is_ad_managed=1` 的測試帳號（AD 裡當然查不到這個假帳號，正好驗證了「查不到＝視為離職」這條路徑）分別跑過 `--dry-run`（確認只報告不寫入）跟 `--apply`（確認真的停用、`credentials_invalidated_at` 真的被蓋章），再跑一次 `--dry-run` 確認已停用的帳號不會再被撈到，測完帳號整個刪除乾淨；也確認了 `--dry-run`／`--apply` 都不給或都給時會被擋下來。額外用不需要登入的頁面（登入頁本身，`http_status=200`）驗證 `Pages/Page.php` 這個所有頁面共用的基底類別改完之後沒有連帶弄壞全站——這個檔案改錯的影響範圍是整個網站，容器 log 裡也確認沒有新增的 error/fatal。
+
+手上沒有真實帳號的密碼，沒辦法在瀏覽器裡實際登入操作後台使用者管理介面新增的欄位／checkbox，麻煩使用者登入後確認：①編輯使用者頁面看得到「部門」欄位跟「本機專屬登入（緊急管理員）」checkbox、②把 `shawn.admin`（或指定的緊急帳號）勾選這個 checkbox 存檔後，該帳號在 AD 故障時仍能用本機密碼登入。另外，正式環境的 `ActiveDirectory.config.php` 是 bind mount 的機密設定檔、不在版控裡，這次沒有幫使用者去改那個檔案——`database.auth.when.ldap.user.not.found=true` 這個設定在正式環境目前仍然是 `true`，但已經不再被程式碼讀取，實際的緊急備援管道要靠使用者自己去後台把對應帳號勾選新的「本機專屬登入」——**部署這次改動之前務必先做這一步**，否則正式環境的 AD 一旦有任何問題，會變成連原本的緊急管理員都登不進去。

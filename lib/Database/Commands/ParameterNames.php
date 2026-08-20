@@ -62,9 +62,11 @@ class ParameterNames
     public const CREDIT_COST = '@credit_cost';
     public const CREDIT_CURRENCY = '@credit_currency';
     public const CREDIT_NOTE = '@credit_note';
+    public const CREDENTIALS_INVALIDATED_AT = '@credentials_invalidated_at';
 
     public const DATE_CREATED = '@dateCreated';
     public const DATE_MODIFIED = '@dateModified';
+    public const DEPARTMENT = '@department';
     public const DESCRIPTION = '@description';
 
     public const END_DATE = '@endDate';
@@ -91,6 +93,9 @@ class ParameterNames
     public const GROUP_ISDEFAULT = '@isdefault';
 
     public const HOMEPAGE_ID = '@homepageid';
+
+    public const IS_LOCAL_AUTH_ONLY = '@is_local_auth_only';
+    public const IS_AD_MANAGED = '@is_ad_managed';
 
     public const LAST_LOGIN = '@lastlogin';
     public const LAST_NAME = '@lname';

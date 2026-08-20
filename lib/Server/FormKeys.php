@@ -70,6 +70,7 @@ class FormKeys
 
     public const DAY = 'DAY';
     public const DEFAULT_HOMEPAGE = 'defaultHomepage';
+    public const DEPARTMENT = 'department';
     public const DESCRIPTION = 'reservationDescription';
     public const DURATION = 'duration';
     public const DELETE_REASON = 'DELETE_REASON';
@@ -115,6 +116,7 @@ class FormKeys
     public const INCLUDE_DELETED = 'INCLUDE_DELETED';
     public const INVITED_EMAILS = 'INVITED_EMAILS';
     public const IS_DEFAULT = 'IS_DEFAULT';
+    public const IS_LOCAL_AUTH_ONLY = 'isLocalAuthOnly';
 
     public const LANGUAGE = 'language';
     public const LAST_NAME = 'lname';

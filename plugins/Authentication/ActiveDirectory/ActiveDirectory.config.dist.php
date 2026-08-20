@@ -27,10 +27,19 @@ return [
             // The full account suffix for your domain. Example: @uidauthent.domain.com.
             'account.suffix' => '',
 
-            // if ldap auth fails, authenticate against LibreBooking database
+            // Deprecated (CoAsia fork) -- no longer consulted by ActiveDirectory::Validate().
+            // The local-password fallback this used to gate globally (for EVERY account, whenever
+            // AD was unreachable or rejected a login) is now a per-account decision instead:
+            // check "本機專屬登入" ("local login only") on the specific accounts that should be
+            // exempt from AD (Admin > Manage Users > edit user), typically just one or two
+            // emergency admin accounts. Every other account now fails closed on any AD outage,
+            // with no fallback at all. This key is left here only so an existing config file with
+            // it set doesn't fail to parse -- it has no effect anymore.
             'database.auth.when.ldap.user.not.found' => false,
 
-            // mapping of required attributes to attribute names in your directory
+            // mapping of required attributes to attribute names in your directory. 'department'
+            // (CoAsia fork) is now a built-in default alongside sn/givenname/mail/etc -- only
+            // list it here if your AD schema uses a different literal attribute name for it.
             'attribute.mapping' => 'sn=sn,givenname=givenname,mail=mail,telephonenumber=telephonenumber,physicaldeliveryofficename=physicaldeliveryofficename,title=title',
 
             // Required groups (empty if not necessary) User only needs to belong to at least one listed (eg. Group1,Group2)
