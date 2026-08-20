@@ -2541,3 +2541,14 @@ AD 是 bind 式整合，不會主動推事件過來，只能定期反查，這�
 容器內 `php -l` 過全部新增/修改的 `.php` 檔案，皆無語法錯誤。這次全程用真實開發資料庫、真實開發環境的 AD 連線設定（`ActiveDirectory.config.php` 真的連得到公司 AD）做端到端驗證，寫了多支一次性 CLI 診斷腳本（測完即刪）：①`is_local_auth_only` 帳號在 AD 明確拒絕的情況下依然能用本機密碼登入成功、且完全沒有嘗試連 LDAP；②一般帳號在模擬 AD 斷線、以及 AD 明確拒絕這兩種情況下，都確認被拒絕登入、且 fallback 到本機密碼的分支完全沒被呼叫到；③一個手動設成 INACTIVE 的帳號，模擬一次成功的 AD 登入後，確認 `status_id` 真的變回 ACTIVE、`is_ad_managed` 真的被標記、且原本要接手的 `authToDecorate->Login()` 依然有被呼叫到；④`credentials_invalidated_at` 在 `Deactivate()` 之後正確寫入非空時間戳，並且直接複製 `IsAuthenticated()` 內部同一套比較邏輯驗證：Session 建立時間早於停用時間會判定要強制登出、晚於停用時間（例如停用後又重新登入）則維持已登入；⑤`Jobs/ad-reconcile-account-status.php` 對一個真實建立、標記 `is_ad_managed=1` 的測試帳號（AD 裡當然查不到這個假帳號，正好驗證了「查不到＝視為離職」這條路徑）分別跑過 `--dry-run`（確認只報告不寫入）跟 `--apply`（確認真的停用、`credentials_invalidated_at` 真的被蓋章），再跑一次 `--dry-run` 確認已停用的帳號不會再被撈到，測完帳號整個刪除乾淨；也確認了 `--dry-run`／`--apply` 都不給或都給時會被擋下來。額外用不需要登入的頁面（登入頁本身，`http_status=200`）驗證 `Pages/Page.php` 這個所有頁面共用的基底類別改完之後沒有連帶弄壞全站——這個檔案改錯的影響範圍是整個網站，容器 log 裡也確認沒有新增的 error/fatal。
 
 手上沒有真實帳號的密碼，沒辦法在瀏覽器裡實際登入操作後台使用者管理介面新增的欄位／checkbox，麻煩使用者登入後確認：①編輯使用者頁面看得到「部門」欄位跟「本機專屬登入（緊急管理員）」checkbox、②把 `shawn.admin`（或指定的緊急帳號）勾選這個 checkbox 存檔後，該帳號在 AD 故障時仍能用本機密碼登入。另外，正式環境的 `ActiveDirectory.config.php` 是 bind mount 的機密設定檔、不在版控裡，這次沒有幫使用者去改那個檔案——`database.auth.when.ldap.user.not.found=true` 這個設定在正式環境目前仍然是 `true`，但已經不再被程式碼讀取，實際的緊急備援管道要靠使用者自己去後台把對應帳號勾選新的「本機專屬登入」——**部署這次改動之前務必先做這一步**，否則正式環境的 AD 一旦有任何問題，會變成連原本的緊急管理員都登不進去。
+
+### 81.1 部署當下意外發現並修正：新的 migration 少了 `data.sql`，`dbversion` 沒有跟著跳
+
+使用者實際照著部署步驟在正式環境跑完 `database_schema/upgrades/4.5/schema.sql`、重建 `app` 容器之後，`composer preflight` 印出「schema version: 4.2」，不是預期的 4.5。查了才發現：這次新增的 `4.5/` 遷移資料夾只寫了 `schema.sql`（處理 `ALTER TABLE` 本身），漏掉每個 upgrade 資料夾理論上都該有的 `data.sql`——`dbversion` 這張版本追蹤表**不是** `schema.sql` 負責寫的，是 `data.sql` 裡一行 `INSERT INTO dbversion ... WHERE NOT EXISTS (...)`（比照 `database_schema/upgrades/4.2/data.sql:49-56` 的既有寫法，`COASIA-ARCHITECTURE.md` 也有記這個慣例）寫的，這次一開始漏掉了。
+
+實際影響：`schema.sql` 那四個欄位本身確實有正確建立（`ALTER TABLE` 有真的執行），只是 `dbversion` 沒跟著跳版號，`composer preflight`／未來的 Web 安裝精靈會誤判「這個環境還停在 4.2」。修法：補上 `database_schema/upgrades/4.5/data.sql`，只做一件事——冪等地把 `dbversion` 補一筆 `4.5`。在開發環境重新驗證過：套用後 `composer preflight` 正確顯示「schema version: 4.5」，重複套用第二次也確認冪等（`WHERE NOT EXISTS` 防呆，不會重複插入或報錯）。
+
+**正式環境如果已經照原本的步驟只跑過 `schema.sql`**，補救方式是額外再跑一次這個新的 `data.sql`（跟 `schema.sql` 一樣冪等，不影響已經跑過的部分）：
+```bash
+docker compose -f docker-compose.prod.yml exec -T db mysql -uroot -p'<MYSQL_ROOT_PASSWORD>' librebooking < database_schema/upgrades/4.5/data.sql
+```
