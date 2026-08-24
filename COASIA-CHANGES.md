@@ -2552,3 +2552,21 @@ AD 是 bind 式整合，不會主動推事件過來，只能定期反查，這�
 ```bash
 docker compose -f docker-compose.prod.yml exec -T db mysql -uroot -p'<MYSQL_ROOT_PASSWORD>' librebooking < database_schema/upgrades/4.5/data.sql
 ```
+
+## 82. 會議室管理編輯抽屜「顯示一大堆舊欄位」：根因是複製資源時漏標 Resource Type
+
+使用者回報「會議室管理」的編輯抽屜看起來像舊版、欄位一大堆（截圖是 ResourceId 16「台北 Taipei」，深圳地區）。一開始以為要重新設計這個抽屜，但查了 [manage_resource_drawer_content.tpl](tpl/Admin/Resources/manage_resource_drawer_content.tpl) 才發現 §66 早就做過簡化：有設定 Resource Type 的實體會議室只顯示名稱＋狀態，線上會議顯示連結/密碼；**只有 `resource_type_id IS NULL` 的資源會 fallback 顯示全部舊欄位**（刻意保留，讓新資源在分類前還能設定）。
+
+查本機開發資料庫，`resources` 表裡有 9 筆 `resource_type_id IS NULL`：全部是先前用「複製」功能把台北的 7 間實體會議室複製到「深圳」「上海」兩個地區群組時產生的複本（`上海/台北/新加坡/深圳/首爾` 各兩份）。`BookableResource::AsCopy()`（`Domain/BookableResource.php:1698`）本身不會清掉 `resource_type_id`，但這批複本顯然是在來源資源自己都還沒有類型的時候複製出來的，之後來源資源被 [4.4/schema.sql](database_schema/upgrades/4.4/schema.sql) 的遷移補上類型時，這批已經存在的複本沒有被涵蓋到——4.4 的遷移是 hardcode `resource_id IN (1..12)`，只顧到最初的 12 筆種子資料，後來才用複製功能新增的資源完全沒被觸及。這不是程式邏輯壞掉，是資料一直缺一角。
+
+**修法**：新增 `database_schema/upgrades/4.6/`，延續 4.4 的兩個既有慣例——用 `resource_type_name` 查找（不寫死 ID）、用是否有 `video_url` 自訂屬性值分辨線上會議跟實體會議室——但這次不 hardcode resource_id，改成無條件處理所有 `resource_type_id IS NULL` 的資源：有 `video_url` 值的設成「線上會議」，其餘設成「實體會議室」。跟 4.4／4.5 一樣全程用 `IS NULL` 當 guard，天然冪等，不會動到已經有類型或被 admin 手動改過的資源。`4.6/data.sql` 照 4.5 的既有樣板補 `dbversion`（上一節 §81.1 才剛踩過漏掉這步的坑，這次沒有漏）。
+
+過程中意外發現一個跟這次改動無關但會擋路的 `.gitignore` 破洞：第 81 行 `*.sql` 整條規則會擋掉所有 SQL 檔（原意是防止誤 commit 含真實員工資料的 DB dump），但 `database_schema/upgrades/` 底下從 2.1 到 4.5 的所有既有遷移檔案其實都是用 `git add -f` 硬塞進版控的——這代表以後任何人新增遷移資料夾，只要習慣用 `git add .`／`git add -A` 就會被靜默漏掉，而且不會有任何錯誤訊息提醒，跟上一節「漏了 `data.sql`」是同一種「看起來做完了、其實少一塊」的風險。順手補了兩條 negation 規則（`!/database_schema/**/*.sql`、`!/tests/load_test.sql`），讓這整個目錄底下的檔案回到正常的 git 追蹤行為，不用再靠 `-f`。
+
+### 驗證
+
+- 本機開發資料庫直接套用 `4.6/schema.sql` + `4.6/data.sql`：9 筆資源的 `resource_type_id` 全部變成「實體會議室」的 id，`dbversion` 新增一筆 `4.6`
+- 重跑一次同樣兩支 SQL，確認冪等（無錯誤、無重複列、值不變）
+- 對照程式碼確認邏輯閉環：`BookableResource::HasResourceType()`（`Domain/BookableResource.php:1530`）只檢查 `resource_type_id` 是否非空，補上類型後 `manage_resource_drawer_content.tpl` 的 `{if !$isTypedResource}` 分支會自然不再命中，改走簡化版
+- `docker compose -f docker-compose.dev.yml restart app` 清 opcache 後，沒有帳密可以實際登入這個環境本身已經串接公司 AD 的開發資料庫，畫面上的實際確認麻煩使用者自行登入複查
+- 正式環境比照既有部署流程（git pull + rebuild），下次部署時這個遷移會自動套用；因為是用 `IS NULL` 篩選、不依賴具體 resource_id，不需要知道正式環境實際的 ID 是多少

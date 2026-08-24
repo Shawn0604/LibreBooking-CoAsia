@@ -79,3 +79,9 @@ app.env
 
 # Database dumps (may contain real employee data) — never commit these
 *.sql
+# ...except the tracked schema/migration scripts and test fixtures, which are
+# code, not dumps. Without this, `git add .` after adding a new
+# database_schema/upgrades/X.Y/ folder silently drops it (every existing
+# upgrades/*.sql got into git via `git add -f`, masking this gap).
+!/database_schema/**/*.sql
+!/tests/load_test.sql
