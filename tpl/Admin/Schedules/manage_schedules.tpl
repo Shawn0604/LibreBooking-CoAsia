@@ -128,41 +128,7 @@
 
 					<div class="mb-3">
 						<label class="fw-bold d-block">{translate key=Name}</label>
-						<span class="scheduleName fs-6 fw-bold" data-type="text" data-pk="{$id}"
-							data-name="{FormKeys::SCHEDULE_NAME}">{$schedule->GetName()}</span>
-						<a class="update renameButton link-primary ms-1" href="#" title="{translate key=Edit}">
-							<span class="visually-hidden">{translate key=Rename}</span>
-							<i class="bi bi-pencil-square"></i>
-						</a>
-					</div>
-
-					<div class="mb-3">
-						<label class="fw-bold d-block">{translate key='ScheduleAdministrator'}</label>
-						<span class="propertyValue scheduleAdmin" data-type="select" data-pk="{$id}"
-							data-value="{$schedule->GetAdminGroupId()}" data-name="{FormKeys::SCHEDULE_ADMIN_GROUP_ID}">
-							{assign var=adminGroupId value=$schedule->GetAdminGroupId()}
-							{if $adminGroupId !== null && isset($GroupLookup[$adminGroupId])}
-								{$GroupLookup[$adminGroupId]->Name|escape:'html'}
-							{else}
-								{translate key='None'}
-							{/if}
-						</span>
-						{if $AdminGroups|default:array()|count > 0}
-							<a class="update changeScheduleAdmin link-primary ms-1" href="#" title="{translate key=Edit}">
-								<span class="visually-hidden">{translate key='ScheduleAdministrator'}</span>
-								<i class="bi bi-pencil-square"></i>
-							</a>
-						{/if}
-					</div>
-
-					<div class="mb-3 d-flex align-items-center gap-2">
-						<label class="fw-bold mb-0">{translate key=Status}</label>
-						{if $schedule->GetIsDefault()}
-							<span class="admin-badge admin-badge-upcoming">{translate key=Default}</span>
-							<span class="admin-cell-secondary">{translate key=DefaultScheduleCannotBeDeleted}</span>
-						{else}
-							<a class="update makeDefaultButton link-primary" href="#">{translate key=MakeDefault}</a>
-						{/if}
+						<span class="fs-6 fw-bold">{$schedule->GetName()}</span>
 					</div>
 
 					<hr />
@@ -203,101 +169,6 @@
 							data-schedule-id="{$id}">儲存</button>
 						<div id="scheduleHoursError{$id}" class="error d-none mt-2"></div>
 					</div>
-
-					<details class="admin-drawer-advanced">
-						<summary class="admin-drawer-advanced-summary">{translate key=AdminResourceAdvancedSettings}</summary>
-						<div>
-							{capture name=daysVisible}<span
-									class='propertyValue daysVisible inlineUpdate fw-bold text-decoration-underline pe-auto'
-									data-type='number' data-pk='{$id}' data-name='{FormKeys::SCHEDULE_DAYS_VISIBLE}'
-								data-min='0'>{$schedule->GetDaysVisible()}</span>{/capture}
-							{assign var=dayOfWeek value=$schedule->GetWeekdayStart()}
-							{capture name=dayName}<span
-									class='propertyValue dayName inlineUpdate fw-bold text-decoration-underline pe-auto'
-									data-type='select' data-pk='{$id}' data-name='{FormKeys::SCHEDULE_WEEKDAY_START}'
-									data-value='{$dayOfWeek}'>{if $dayOfWeek == Schedule::Today}{$Today}{else}{$DayNames[$dayOfWeek]}{/if}</span>
-							{/capture}
-							<div class="mb-2">
-								{translate key="LayoutDescription" args="{$smarty.capture.dayName},{$smarty.capture.daysVisible}"}
-							</div>
-
-							<div class="availabilityPlaceHolder d-flex align-items-center mb-2">
-								<div class="availabilityContent">
-									{include file="Admin/Schedules/manage_availability.tpl" schedule=$schedule timezone=$Timezone}
-								</div>
-								<a class="update changeAvailability link-primary ms-1" href="#">
-									<span class="visually-hidden">{translate key='Availability'}</span>
-									<span class="bi bi-pencil-square"></span>
-								</a>
-							</div>
-
-							<div class="maximumConcurrentContainer mb-2"
-								data-concurrent="{$schedule->GetTotalConcurrentReservations()}">
-								{if $schedule->EnforceConcurrentReservationMaximum()}
-									{translate key=ScheduleConcurrentMaximum args=$schedule->GetTotalConcurrentReservations()}
-								{else}
-									{translate key=ScheduleConcurrentMaximumNone}
-								{/if}
-								<a href="#" class="update changeScheduleConcurrentMaximum link-primary">
-									<span class="visually-hidden">{translate key='ScheduleMaximumConcurrent'}</span>
-									<span class="bi bi-pencil-square"></span>
-								</a>
-							</div>
-
-							<div class="resourcesPerReservationContainer mb-2"
-								data-maximum="{$schedule->GetMaxResourcesPerReservation()}">
-								{if $schedule->EnforceMaxResourcesPerReservation()}
-									{translate key=ScheduleResourcesPerReservationMaximum args=$schedule->GetMaxResourcesPerReservation()}
-								{else}
-									{translate key=ScheduleResourcesPerReservationNone}
-								{/if}
-								<a href="#" class="update changeResourcesPerReservation link-primary">
-									<span class="visually-hidden">{translate key='ScheduleResourcesPerReservation'}</span>
-									<span class="bi bi-pencil-square"></span>
-								</a>
-							</div>
-
-							<div class="mb-2">
-								{translate key=DefaultStyle}
-								<span class="propertyValue defaultScheduleStyle inlineUpdate fw-bold text-decoration-underline"
-									data-type="select" data-pk="{$id}" data-name="{FormKeys::SCHEDULE_DEFAULT_STYLE}"
-									data-value="{$schedule->GetDefaultStyle()->value}">{$StyleNames[$schedule->GetDefaultStyle()->value]}</span>
-							</div>
-
-							{if $schedule->GetIsCalendarSubscriptionAllowed()}
-								<div class="mb-2">
-									<span>{translate key=PublicId}</span>
-									<span class="propertyValue fw-bold">{$schedule->GetPublicId()}</span>
-								</div>
-							{/if}
-
-							{if $IcsEnabled}
-								<div class="mb-2">
-									{if $schedule->GetIsCalendarSubscriptionAllowed()}
-										<a class="update disableSubscription link-primary" href="#">{translate key=TurnOffSubscription}</a>
-										{assign var="atomUrl" value=$schedule->GetSubscriptionUrl()->GetAtomUrl()}
-										{assign var="icalUrl" value=$schedule->GetSubscriptionUrl()->GetWebcalUrl()}
-										<div class="vr mx-1"></div>
-										<a target="_blank" class="link-primary" title="{translate key=UrlCopiedToClipboard}"
-											onclick="copyUrlToClipboard('{$atomUrl|escape:'javascript'|escape:'html'}'); return false;"
-											href="{$atomUrl|escape:'html'}"><i class="bi bi-rss-fill link-primary me-1"></i>Atom</a>
-										<div class="vr mx-1"></div>
-										<a target="_blank" class="link-primary" title="{translate key=UrlCopiedToClipboard}"
-											onclick="copyUrlToClipboard('{$icalUrl|escape:'javascript'|escape:'html'}'); return false;"
-											href="{$icalUrl|escape:'html'}">iCalendar</a>
-									{else}
-										<a class="update enableSubscription link-primary" href="#">{translate key=TurnOnSubscription}</a>
-									{/if}
-								</div>
-							{/if}
-
-							{if !$schedule->GetIsDefault()}
-								<a class="update deleteScheduleButton link-danger" href="#">{translate key=Delete}</a>
-							{/if}
-
-							{indicator id="action-indicator"}
-						</div>
-					</details>
 				</div>
 			</div>
 		{/foreach}
@@ -669,44 +540,6 @@
 		</form>
 	</div>
 
-	<div id="availabilityDialog" class="modal fade" tabindex="-1" role="dialog"
-		aria-labelledby="availabilityDialogLabel" aria-hidden="true">
-		<form id="availabilityForm" method="post">
-			<div class="modal-dialog">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="availabilityDialogLabel">{translate key=Availability}</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-					</div>
-					<div class="modal-body">
-						<div class="form-group">
-							<div class="form-check">
-								<input class="form-check-input" type="checkbox" id="availableAllYear"
-									{formname key=AVAILABLE_ALL_YEAR} />
-								<label class="form-check-label"
-									for="availableAllYear">{translate key=AvailableAllYear}</label>
-							</div>
-							<div id="availableDates" class="d-flex align-items-center gap-1">
-								<label for="availabilityStartDate">{translate key=AvailableBetween}</label>
-								<label for="availabilityEndDate" class="visually-hidden">Available End Date</label>
-								<input type="text" id="availabilityStartDate" {formname key=AVAILABLE_BEGIN_DATE}
-									class="form-control form-control-sm w-auto" required />
-								<div class='mx-1'>-</div>
-								<input type="text" id="availabilityEndDate" {formname key=AVAILABLE_END_DATE}
-									class="form-control form-control-sm w-auto" />
-							</div>
-						</div>
-					</div>
-					<div class="modal-footer">
-						{cancel_button}
-						{update_button}
-						{indicator}
-					</div>
-				</div>
-			</div>
-		</form>
-	</div>
-
 	<div id="switchLayoutDialog" class="modal fade" tabindex="-1" role="dialog"
 		aria-labelledby="switchLayoutDialogLabel" aria-hidden="true">
 		<form id="switchLayoutForm" method="post">
@@ -771,81 +604,6 @@
 		{add_button id="confirmCreateOK"}
 	</div>
 
-	<div id="concurrentMaximumDialog" class="modal fade" tabindex="-1" role="dialog"
-		aria-labelledby="concurrentMaximumDialogLabel" aria-hidden="true">
-		<form id="concurrentMaximumForm" method="post">
-			<div class="modal-dialog">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="concurrentMaximumDialogLabel">
-							{translate key=ScheduleMaximumConcurrent}</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-					</div>
-					<div class="modal-body">
-						<div class="alert alert-info">
-							{translate key=ScheduleMaximumConcurrentNote}
-						</div>
-						<div class="form-check">
-							<input class="form-check-input" type="checkbox" id="maximumConcurrentUnlimited"
-								{formname key=MAXIMUM_CONCURRENT_UNLIMITED} />
-							<label class="form-check-label"
-								for="maximumConcurrentUnlimited">{translate key=Unlimited}</label>
-						</div>
-						<div class="form-group">
-							<label class="fw-bold" for="maximumConcurrent">{translate key=Resources}</label>
-							<input type="number" class="form-control form-control-sm required" min="0"
-								id="maximumConcurrent" {formname key=MAXIMUM_CONCURRENT_RESERVATIONS} />
-						</div>
-						<div class="clearfix"></div>
-					</div>
-					<div class="modal-footer">
-						{cancel_button}
-						{update_button submit=true}
-						{indicator}
-					</div>
-				</div>
-			</div>
-		</form>
-	</div>
-
-	<div id="resourcesPerReservationDialog" class="modal fade" tabindex="-1" role="dialog"
-		aria-labelledby="resourcesPerReservationDialogLabel" aria-hidden="true">
-		<form id="resourcesPerReservationForm" method="post">
-			<div class="modal-dialog">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="resourcesPerReservationDialogLabel">
-							{translate key=ScheduleResourcesPerReservation}</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-					</div>
-					<div class="modal-body">
-						<div class="form-check">
-							<input class="form-check-input" type="checkbox" id="resourcesPerReservationUnlimited"
-								{formname key=MAXIMUM_RESOURCES_PER_RESERVATION_UNLIMITED} />
-							<label class="form-check-label"
-								for="resourcesPerReservationUnlimited">{translate key=Unlimited}</label>
-						</div>
-						<div class="form-group">
-							<label class="fw-bold"
-								for="resourcesPerReservationResources">{translate key=Resources}</label>
-							<input type="number" class="form-control form-control-sm required" min="0"
-								id="resourcesPerReservationResources"
-								{formname key=MAXIMUM_RESOURCES_PER_RESERVATION} />
-						</div>
-					</div>
-					<div class="modal-footer">
-						{cancel_button}
-						{update_button submit=true}
-						{indicator}
-					</div>
-				</div>
-			</div>
-		</form>
-	</div>
-
-	{control type="DatePickerSetupControl" ControlId="availabilityStartDate" DefaultDate=$StartDate}
-	{control type="DatePickerSetupControl" ControlId="availabilityEndDate" DefaultDate=$EndDate}
-
 	{csrf_token}
 	{include file="javascript-includes.tpl" InlineEdit=true Fullcalendar=true}
 	{jsfile src="ajax-helpers.js"}
@@ -855,94 +613,18 @@
 	{vendor_js src="jquery-form/3.09/jquery.form-3.09.min.js"}
 
 	<script type="text/javascript">
-		function setUpEditables() {
-			$.fn.editable.defaults.mode = 'popup';
-			$.fn.editable.defaults.toggle = 'manual';
-			$.fn.editable.defaults.emptyclass = '';
-			$.fn.editable.defaults.params = function(params) {
-				params.CSRF_TOKEN = $('#csrf_token').val();
-				return params;
-			};
-
-			var updateUrl = '{$smarty.server.SCRIPT_NAME}?action=';
-
-			$('.scheduleName').editable({
-				url: updateUrl + '{ManageSchedules::ActionRename}',
-				validate: function(value) {
-					if ($.trim(value) === '') {
-						return "{{translate key=RequiredValue}|escape:'javascript'}";
-					}
-				}
-			});
-
-			$('.daysVisible').editable({
-				url: updateUrl + '{ManageSchedules::ActionChangeDaysVisible}'
-			});
-
-			$('.dayName').editable({
-				url: updateUrl + '{ManageSchedules::ActionChangeStartDay}',
-				source: [{
-						value: '{Schedule::Today}',
-						text: "{$Today|escape:'javascript'}"
-					}
-					{foreach from=$DayNames item="dayName" key="dayIndex"}
-						, {
-							value: {$dayIndex},
-							text: "{$dayName|escape:'javascript'}"
-						}
-					{/foreach}
-				]
-			});
-
-			$('.defaultScheduleStyle').editable({
-				url: updateUrl + '{ManageSchedules::ActionChangeDefaultStyle}',
-				source: [
-					{foreach from=$StyleNames item="styleName" key="styleIndex"}
-						{
-							value: '{$styleIndex}',
-							text: "{$styleName|escape:'javascript'}"
-						},
-					{/foreach}
-				]
-			});
-
-			$('.scheduleAdmin').editable({
-				url: updateUrl + '{ManageSchedules::ChangeAdminGroup}',
-				emptytext: "{{translate key=None}|escape:'javascript'}",
-				source: [{
-						value: '0',
-						text: "{{translate key=None}|escape:'javascript'}",
-					}
-					{foreach from=$AdminGroups item=group}
-						, {
-							value: {$group->Id()},
-							text: "{$group->Name()|escape:'javascript'}"
-						}
-					{/foreach}
-				]
-			});
-		}
-
 		$(document).ready(function() {
-			setUpEditables();
-
 			var opts = {
 				submitUrl: '{$smarty.server.SCRIPT_NAME}',
 				saveRedirect: '{$smarty.server.SCRIPT_NAME}',
 				changeLayoutAction: '{ManageSchedules::ActionChangeLayout}',
 				addAction: '{ManageSchedules::ActionAdd}',
 				peakTimesAction: '{ManageSchedules::ActionChangePeakTimes}',
-				makeDefaultAction: '{ManageSchedules::ActionMakeDefault}',
 				deleteAction: '{ManageSchedules::ActionDelete}',
-				availabilityAction: '{ManageSchedules::ActionChangeAvailability}',
-				enableSubscriptionAction: '{ManageSchedules::ActionEnableSubscription}',
-				disableSubscriptionAction: '{ManageSchedules::ActionDisableSubscription}',
 				switchLayout: '{ManageSchedules::ActionSwitchLayoutType}',
 				addLayoutSlot: '{ManageSchedules::ActionAddLayoutSlot}',
 				updateLayoutSlot: '{ManageSchedules::ActionUpdateLayoutSlot}',
 				deleteLayoutSlot: '{ManageSchedules::ActionDeleteLayoutSlot}',
-				maximumConcurrentAction: '{ManageSchedules::ActionChangeMaximumConcurrent}',
-				maximumResourcesAction: '{ManageSchedules::ActionChangeResourcesPerReservation}',
 				calendarOptions: {
 					buttonText: {
 						today: "{{translate key=Today}|escape:'javascript'}",

@@ -71,26 +71,6 @@ interface IUpdateSchedulePage
      * @return string
      */
     public function GetValue();
-
-    /**
-     * @return int
-     */
-    public function GetMaximumConcurrentReservations();
-
-    /**
-     * @return bool
-     */
-    public function GetIsUnlimitedConcurrentReservations();
-
-    /**
-     * @return int
-     */
-    public function GetMaximumResourcesPerReservation();
-
-    /**
-     * @return bool
-     */
-    public function GetIsUnlimitedMaximumResourcesPerReservation();
 }
 
 interface IManageSchedulesPage extends IUpdateSchedulePage, IActionPage, IPageable
@@ -101,11 +81,6 @@ interface IManageSchedulesPage extends IUpdateSchedulePage, IActionPage, IPageab
      * @param Schedule[] $sourceSchedules
      */
     public function BindSchedules($schedules, $layouts, $sourceSchedules);
-
-    /**
-     * @param GroupItemView[] $groups
-     */
-    public function BindGroups($groups);
 
     public function SetTimezones($timezoneValues, $timezoneOutput);
 
@@ -175,27 +150,6 @@ interface IManageSchedulesPage extends IUpdateSchedulePage, IActionPage, IPageab
      * @param BookableResource[] $resources
      */
     public function BindResources($resources);
-
-    /**
-     * @return bool
-     */
-    public function GetAvailableAllYear();
-
-    /**
-     * @return string
-     */
-    public function GetAvailabilityBegin();
-
-    /**
-     * @return string
-     */
-    public function GetAvailabilityEnd();
-
-    /**
-     * @param Schedule $schedule
-     * @param string $timezone
-     */
-    public function DisplayAvailability($schedule, $timezone);
 
     /**
      * @return int
@@ -274,7 +228,6 @@ class ManageSchedulesPage extends ActionPage implements IManageSchedulesPage
         );
 
         $this->Set('CreditsEnabled', Configuration::Instance()->GetKey(ConfigKeys::CREDITS_ENABLED, new BooleanConverter()));
-        $this->Set('IcsEnabled', Configuration::Instance()->GetKey(ConfigKeys::ICS_ENABLED, new BooleanConverter()));
     }
 
     public function ProcessPageLoad()
@@ -407,16 +360,6 @@ class ManageSchedulesPage extends ActionPage implements IManageSchedulesPage
     /**
      * @param GroupItemView[] $groups
      */
-    public function BindGroups($groups)
-    {
-        $this->Set('AdminGroups', $groups);
-        $groupLookup = [];
-        foreach ($groups as $group) {
-            $groupLookup[$group->Id] = $group;
-        }
-        $this->Set('GroupLookup', $groupLookup);
-    }
-
     /**
      * @return int
      */
@@ -564,28 +507,6 @@ class ManageSchedulesPage extends ActionPage implements IManageSchedulesPage
         $this->Set('Resources', $resources);
     }
 
-    public function GetAvailableAllYear()
-    {
-        return $this->GetCheckbox(FormKeys::AVAILABLE_ALL_YEAR);
-    }
-
-    public function GetAvailabilityBegin()
-    {
-        return $this->GetForm(FormKeys::AVAILABLE_BEGIN_DATE);
-    }
-
-    public function GetAvailabilityEnd()
-    {
-        return $this->GetForm(FormKeys::AVAILABLE_END_DATE);
-    }
-
-    public function DisplayAvailability($schedule, $timezone)
-    {
-        $this->Set('schedule', $schedule);
-        $this->Set('timezone', $timezone);
-        $this->Display('Admin/Schedules/manage_availability.tpl');
-    }
-
     public function GetLayoutType()
     {
         return $this->GetForm(FormKeys::LAYOUT_TYPE);
@@ -636,23 +557,4 @@ class ManageSchedulesPage extends ActionPage implements IManageSchedulesPage
         return $this->GetForm(FormKeys::SCHEDULE_DEFAULT_STYLE);
     }
 
-    public function GetMaximumConcurrentReservations()
-    {
-        return intval($this->GetForm(FormKeys::MAXIMUM_CONCURRENT_RESERVATIONS));
-    }
-
-    public function GetIsUnlimitedConcurrentReservations()
-    {
-        return $this->GetCheckbox(FormKeys::MAXIMUM_CONCURRENT_UNLIMITED);
-    }
-
-    public function GetMaximumResourcesPerReservation()
-    {
-        return intval($this->GetForm(FormKeys::MAXIMUM_RESOURCES_PER_RESERVATION));
-    }
-
-    public function GetIsUnlimitedMaximumResourcesPerReservation()
-    {
-        return $this->GetCheckbox(FormKeys::MAXIMUM_RESOURCES_PER_RESERVATION_UNLIMITED);
-    }
 }

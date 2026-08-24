@@ -10,23 +10,12 @@ class ManageSchedules
 {
     public const ActionAdd = 'add';
     public const ActionChangeLayout = 'changeLayout';
-    public const ActionChangeStartDay = 'startDay';
-    public const ActionChangeDaysVisible = 'daysVisible';
-    public const ActionMakeDefault = 'makeDefault';
-    public const ActionRename = 'rename';
     public const ActionDelete = 'delete';
-    public const ActionEnableSubscription = 'enableSubscription';
-    public const ActionDisableSubscription = 'disableSubscription';
-    public const ChangeAdminGroup = 'changeAdminGroup';
     public const ActionChangePeakTimes = 'ActionChangePeakTimes';
-    public const ActionChangeAvailability = 'ActionChangeAvailability';
     public const ActionSwitchLayoutType = 'ActionSwitchLayoutType';
     public const ActionAddLayoutSlot = 'addLayoutSlot';
     public const ActionUpdateLayoutSlot = 'updateLayoutSlot';
     public const ActionDeleteLayoutSlot = 'deleteLayoutSlot';
-    public const ActionChangeDefaultStyle = 'changeDefaultStyle';
-    public const ActionChangeMaximumConcurrent = 'changeMaximumConcurrent';
-    public const ActionChangeResourcesPerReservation = 'changeResourcesPerReservation';
 }
 
 class ManageScheduleService
@@ -94,37 +83,6 @@ class ManageScheduleService
 
     /**
      * @param int $scheduleId
-     * @param string $name
-     */
-    public function Rename($scheduleId, $name)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->SetName($name);
-        $this->scheduleRepository->Update($schedule);
-    }
-
-    /**
-     * @param int $scheduleId
-     * @param int|null $startDay
-     * @param int|null $daysVisible
-     */
-    public function ChangeSettings($scheduleId, $startDay, $daysVisible)
-    {
-        Log::Debug('Changing scheduleId %s, WeekdayStart: %s, DaysVisible %s', $scheduleId, $startDay, $daysVisible);
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        if (!is_null($startDay)) {
-            $schedule->SetWeekdayStart($startDay);
-        }
-
-        if (!is_null($daysVisible)) {
-            $schedule->SetDaysVisible($daysVisible);
-        }
-
-        $this->scheduleRepository->Update($schedule);
-    }
-
-    /**
-     * @param int $scheduleId
      * @param string $timezone
      * @param string $reservableSlots
      * @param string $blockedSlots
@@ -149,17 +107,6 @@ class ManageScheduleService
 
     /**
      * @param int $scheduleId
-     */
-    public function MakeDefault($scheduleId)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->SetIsDefault(true);
-
-        $this->scheduleRepository->Update($schedule);
-    }
-
-    /**
-     * @param int $scheduleId
      * @param int $moveResourcesToThisScheduleId
      */
     public function Delete($scheduleId, $moveResourcesToThisScheduleId)
@@ -172,38 +119,6 @@ class ManageScheduleService
 
         $schedule = $this->scheduleRepository->LoadById($scheduleId);
         $this->scheduleRepository->Delete($schedule);
-    }
-
-    /**
-     * @param int $scheduleId
-     */
-    public function EnableSubscription($scheduleId)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->EnableSubscription();
-        Configuration::Instance()->EnableSubscription();
-        $this->scheduleRepository->Update($schedule);
-    }
-
-    /**
-     * @param int $scheduleId
-     */
-    public function DisableSubscription($scheduleId)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->DisableSubscription();
-        $this->scheduleRepository->Update($schedule);
-    }
-
-    /**
-     * @param int $scheduleId
-     * @param int $adminGroupId
-     */
-    public function ChangeAdminGroup($scheduleId, $adminGroupId)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->SetAdminGroupId($adminGroupId);
-        $this->scheduleRepository->Update($schedule);
     }
 
     /**
@@ -253,35 +168,6 @@ class ManageScheduleService
         }
 
         return $resources;
-    }
-
-    /**
-     * @param int $scheduleId
-     * @return Schedule
-     */
-    public function DeleteAvailability($scheduleId)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->SetAvailableAllYear();
-        $this->scheduleRepository->Update($schedule);
-
-        return $schedule;
-    }
-
-    /**
-     * @param int $scheduleId
-     * @param Date $start
-     * @param Date $end
-     * @return Schedule
-     */
-    public function UpdateAvailability($scheduleId, $start, $end)
-    {
-        Log::Debug('Updating schedule availability. schedule %s, start %s, end %s', $scheduleId, $start, $end);
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->SetAvailability($start, $end);
-        $this->scheduleRepository->Update($schedule);
-
-        return $schedule;
     }
 
     /**
@@ -374,26 +260,6 @@ class ManageScheduleService
         return $overlaps;
     }
 
-    public function ChangeDefaultStyle($scheduleId, $defaultStyle)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->SetDefaultStyle($defaultStyle);
-        $this->scheduleRepository->Update($schedule);
-    }
-
-    public function ChangeConcurrentReservationMaximum($scheduleId, $max, $unlimited)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->SetTotalConcurrentReservations($unlimited ? 0 : intval($max));
-        $this->scheduleRepository->Update($schedule);
-    }
-
-    public function ChangeResourcesPerReservation($scheduleId, $max, $unlimited)
-    {
-        $schedule = $this->scheduleRepository->LoadById($scheduleId);
-        $schedule->SetMaxResourcesPerReservation($unlimited ? 0 : intval($max));
-        $this->scheduleRepository->Update($schedule);
-    }
 }
 
 class ManageSchedulesPresenter extends ActionPresenter
@@ -425,23 +291,12 @@ class ManageSchedulesPresenter extends ActionPresenter
 
         $this->AddAction(ManageSchedules::ActionAdd, 'Add');
         $this->AddAction(ManageSchedules::ActionChangeLayout, 'ChangeLayout');
-        $this->AddAction(ManageSchedules::ActionChangeStartDay, 'ChangeStartDay');
-        $this->AddAction(ManageSchedules::ActionChangeDaysVisible, 'ChangeDaysVisible');
-        $this->AddAction(ManageSchedules::ActionMakeDefault, 'MakeDefault');
-        $this->AddAction(ManageSchedules::ActionRename, 'Rename');
         $this->AddAction(ManageSchedules::ActionDelete, 'Delete');
-        $this->AddAction(ManageSchedules::ActionEnableSubscription, 'EnableSubscription');
-        $this->AddAction(ManageSchedules::ActionDisableSubscription, 'DisableSubscription');
-        $this->AddAction(ManageSchedules::ChangeAdminGroup, 'ChangeAdminGroup');
         $this->AddAction(ManageSchedules::ActionChangePeakTimes, 'ChangePeakTimes');
-        $this->AddAction(ManageSchedules::ActionChangeAvailability, 'ChangeAvailability');
         $this->AddAction(ManageSchedules::ActionSwitchLayoutType, 'SwitchLayoutType');
         $this->AddAction(ManageSchedules::ActionAddLayoutSlot, 'AddLayoutSlot');
         $this->AddAction(ManageSchedules::ActionUpdateLayoutSlot, 'UpdateLayoutSlot');
         $this->AddAction(ManageSchedules::ActionDeleteLayoutSlot, 'DeleteLayoutSlot');
-        $this->AddAction(ManageSchedules::ActionChangeDefaultStyle, 'ChangeDefaultStyle');
-        $this->AddAction(ManageSchedules::ActionChangeMaximumConcurrent, 'ChangeMaximumConcurrentReservations');
-        $this->AddAction(ManageSchedules::ActionChangeResourcesPerReservation, 'ChangeResourcesPerReservation');
     }
 
     public function PageLoad()
@@ -470,8 +325,6 @@ class ManageSchedulesPresenter extends ActionPresenter
             $layout = $this->manageSchedulesService->GetLayout($schedule);
             $layouts[$schedule->GetId()] = $layout;
         }
-
-        $this->page->BindGroups($this->groupViewRepository->GetGroupsByRole(RoleLevel::SCHEDULE_ADMIN));
 
         $this->page->BindSchedules($schedules, $layouts, $sourceSchedules);
         $this->page->BindPageInfo($results->PageInfo());
@@ -510,30 +363,6 @@ class ManageSchedulesPresenter extends ActionPresenter
     /**
      * @internal should only be used for testing
      */
-    public function Rename()
-    {
-        $this->manageSchedulesService->Rename($this->page->GetScheduleId(), $this->page->GetValue());
-    }
-
-    /**
-     * @internal should only be used for testing
-     */
-    public function ChangeStartDay()
-    {
-        $this->manageSchedulesService->ChangeSettings($this->page->GetScheduleId(), $this->page->GetValue(), null);
-    }
-
-    /**
-     * @internal should only be used for testing
-     */
-    public function ChangeDaysVisible()
-    {
-        $this->manageSchedulesService->ChangeSettings($this->page->GetScheduleId(), null, $this->page->GetValue());
-    }
-
-    /**
-     * @internal should only be used for testing
-     */
     public function ChangeLayout()
     {
         $scheduleId = $this->page->GetScheduleId();
@@ -560,35 +389,9 @@ class ManageSchedulesPresenter extends ActionPresenter
     /**
      * @internal should only be used for testing
      */
-    public function ChangeAdminGroup()
-    {
-        $this->manageSchedulesService->ChangeAdminGroup($this->page->GetScheduleId(), $this->page->GetValue());
-    }
-
-    /**
-     * @internal should only be used for testing
-     */
-    public function MakeDefault()
-    {
-        $this->manageSchedulesService->MakeDefault($this->page->GetScheduleId());
-    }
-
-    /**
-     * @internal should only be used for testing
-     */
     public function Delete()
     {
         $this->manageSchedulesService->Delete($this->page->GetScheduleId(), $this->page->GetTargetScheduleId());
-    }
-
-    public function EnableSubscription()
-    {
-        $this->manageSchedulesService->EnableSubscription($this->page->GetScheduleId());
-    }
-
-    public function DisableSubscription()
-    {
-        $this->manageSchedulesService->DisableSubscription($this->page->GetScheduleId());
     }
 
     public function ChangePeakTimes()
@@ -616,23 +419,6 @@ class ManageSchedulesPresenter extends ActionPresenter
             $layout = $this->manageSchedulesService->ChangePeakTimes($scheduleId, $peakTimes);
         }
         $this->page->DisplayPeakTimes($layout);
-    }
-
-    public function ChangeAvailability()
-    {
-        $availableAllYear = $this->page->GetAvailableAllYear();
-        $start = $this->page->GetAvailabilityBegin();
-        $end = $this->page->GetAvailabilityEnd();
-        $scheduleId = $this->page->GetScheduleId();
-        $timezone = ServiceLocator::GetServer()->GetUserSession()->Timezone;
-
-        if ($availableAllYear || empty($start) || empty($end)) {
-            $schedule = $this->manageSchedulesService->DeleteAvailability($scheduleId);
-        } else {
-            $schedule = $this->manageSchedulesService->UpdateAvailability($scheduleId, Date::Parse($start, $timezone), Date::Parse($end, $timezone));
-        }
-
-        $this->page->DisplayAvailability($schedule, $timezone);
     }
 
     public function SwitchLayoutType()
@@ -700,38 +486,6 @@ class ManageSchedulesPresenter extends ActionPresenter
 
         Log::Debug('Deleting custom layout slot. Start %s, End %s, Schedule %s', $start, $end, $scheduleId);
         $this->manageSchedulesService->DeleteCustomLayoutPeriod($scheduleId, $start, $end);
-    }
-
-    public function ChangeDefaultStyle()
-    {
-        $scheduleId = $this->page->GetScheduleId();
-        $style = $this->page->GetValue();
-
-        Log::Debug('Changing default style. Schedule %s, Style %s', $scheduleId, $style);
-
-        $this->manageSchedulesService->ChangeDefaultStyle($scheduleId, $style);
-    }
-
-    public function ChangeMaximumConcurrentReservations()
-    {
-        $scheduleId = $this->page->GetScheduleId();
-        $max = $this->page->GetMaximumConcurrentReservations();
-        $unlimited = $this->page->GetIsUnlimitedConcurrentReservations();
-
-        Log::Debug('Changing maximum number of concurrent reservations. Schedule %s, Max %s, Unlimited %s', $scheduleId, $max, $unlimited);
-
-        $this->manageSchedulesService->ChangeConcurrentReservationMaximum($scheduleId, $max, $unlimited);
-    }
-
-    public function ChangeResourcesPerReservation()
-    {
-        $scheduleId = $this->page->GetScheduleId();
-        $max = $this->page->GetMaximumResourcesPerReservation();
-        $unlimited = $this->page->GetIsUnlimitedMaximumResourcesPerReservation();
-
-        Log::Debug('Changing maximum number of resources per reservation. Schedule %s, Max %s, Unlimited %s', $scheduleId, $max, $unlimited);
-
-        $this->manageSchedulesService->ChangeResourcesPerReservation($scheduleId, $max, $unlimited);
     }
 
     protected function LoadValidators($action)

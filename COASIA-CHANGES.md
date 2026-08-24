@@ -2619,3 +2619,22 @@ docker compose -f docker-compose.prod.yml exec -T db mysql -uroot -p'<MYSQL_ROOT
 - `composer phpunit` 全跑一次：1729 個測試，跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest`）
 - 全專案搜尋確認 §83 的 `videoConferenceInfoDialog`／`ActionUpdateVideoConferenceInfo`／`SetVideoConferenceInfoJson` 等名稱沒有殘留引用
 - 同 §82／§83，開發環境串真實 AD 沒有已知測試帳密，沒辦法在瀏覽器裡實際操作驗證，麻煩使用者登入後確認：已分類資源的抽屜呈現「基本資料」＋（線上會議資源多一個）「線上會議資訊」兩個分區、欄位樣式跟使用者管理一致；改名稱／狀態／通知使用者／線上會議資訊任一項存檔後整頁重新整理、新值生效；未分類資源畫面沒有變化
+
+## 85. 開放時間管理側邊視窗大幅精簡：拿掉時間表管理員、設為默認、整個進階設定
+
+使用者看著「開放時間管理」（時間表）的編輯抽屜——這是更早一輪（§51.2）做的，跟這次會議室管理的改版是不同頁面——直接回饋：「時間表管理員」不該出現、「設為默認的」這種功能不該做、名稱不該在這裡改、「進階設定」整區根本不需要。追問「進階設定」（星期起始/可見天數、Availability 日期範圍、並發預約上限、每筆預約會議室上限、顯示樣式、訂閱日曆 Atom/iCal、刪除時間表）要留哪些，使用者選擇全部拿掉，只留名稱（唯讀）＋每週開放時間編輯器。
+
+動手前先派一個 agent 確認：`.deleteScheduleButton`（進階設定裡的刪除連結）拿掉後，列表那排本來就有的「⋯」選單 `.admin-row-delete-action` 是不是完整獨立可用的刪除路徑——確認是（`schedule.js` 兩個 trigger 共用同一個 `showDeleteDialog()`/`#deleteDialog`），所以刪除功能沒有真的消失。另外確認要拿掉的這些欄位背後的 JS 綁定跟後端 action 有沒有被別的地方共用：`ManageScheduleService`（`Presenters/Admin/ManageSchedulesPresenter.php`）除了這個 presenter，`Presenters/ViewSchedulesPresenter.php` 也有用，但只用到 `GetList`/`GetSourceSchedules`/`GetLayout` 這三個沒有要動的方法，要刪的那批（`Rename`/`ChangeSettings`/`MakeDefault`/`EnableSubscription`/`DisableSubscription`/`ChangeAdminGroup`/`DeleteAvailability`/`UpdateAvailability`/`ChangeDefaultStyle`/`ChangeConcurrentReservationMaximum`/`ChangeResourcesPerReservation`）確認沒有其他呼叫端。
+
+- `tpl/Admin/Schedules/manage_schedules.tpl`：抽屜內容從「名稱(可編輯)＋時間表管理員＋狀態/設為默認＋每週開放時間＋`<details>進階設定</details>`」砍成只剩「名稱(純文字)＋每週開放時間」，`availabilityDialog`／`concurrentMaximumDialog`／`resourcesPerReservationDialog` 三個因此失去唯一觸發點的 Modal 一併移除，內嵌 `<script>` 裡的 `setUpEditables()`（原本專門初始化這批欄位的 x-editable widget，拿掉後整個函式空了）跟著刪除。
+- `Presenters/Admin/ManageSchedulesPresenter.php`：`ManageSchedules` 常數類拿掉對應的 11 個 Action 常數，`AddAction` 少了同樣 11 條路由，presenter 跟 `ManageScheduleService` 兩層各自的 action 方法本體也一併刪除——不是只拔路由留著死方法，是真的移除（先用上面的交叉檢查確認沒有其他呼叫端）。`Domain/Schedule.php` 的 domain 層 setter（`SetIsDefault`／`SetAdminGroupId`…）完全沒動，這些是實體本身的方法，不是這次要清的 view/service 膠水層。
+- `Pages/Admin/ManageSchedulesPage.php`：對應的 `Get*`／`Bind*`／`Display*` 介面宣告與實作一併移除（`BindGroups`／`GetAvailableAllYear`／`GetAvailabilityBegin`／`GetAvailabilityEnd`／`DisplayAvailability`／`GetMaximumConcurrentReservations`／`GetIsUnlimitedConcurrentReservations`／`GetMaximumResourcesPerReservation`／`GetIsUnlimitedMaximumResourcesPerReservation`），連帶 `PageLoad()` 裡呼叫 `groupViewRepository->GetGroupsByRole()` 再 `BindGroups()` 那次多餘查詢也拿掉；`IcsEnabled` 這個只服務被刪掉的訂閱區塊的 Set 呼叫一併移除。**沒有動**建構子注入的 `$groupViewRepository`（有兩個地方在 new 這個 presenter，還有測試檔用位置參數直接建構，動建構子簽章風險/效益不成比例，留著一個沒在用的私有屬性換取不動 DI 介面）。
+- `Web/scripts/admin/schedule.js`：刪掉對應的點擊/change 綁定、`showAvailabilityDialog`／`refreshAvailability` 這兩個因此變成孤兒的函式、`elements` 物件裡對應的一批選取器。過程中順手確認了幾個「看起來也很像但其實跟這次無關」的既有殘留（`.toggleConcurrent`、`#daysVisible`、`#concurrentForm` 這幾個選取器在目前的樣板裡本來就對應不到任何元素）——這些是既有的技術債，不在這次要清的範圍內，沒有動。
+
+### 驗證
+
+- 容器內 `php -l`／`composer phpstan`／`composer phpcsfixer:lint` 通過兩支修改的 PHP 檔案
+- `node --check`／`npx eslint` 通過 `schedule.js`（`resource.js` 有一個 `AdminConfirm is not defined` 的既有警告，跟這次改動無關，`git diff` 確認沒有動到那行）
+- `composer phpunit` 全跑一次：1729 個測試，跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest`）；另外單獨跑 `--filter ManageSchedules` 4 個測試全過
+- 全專案搜尋確認拿掉的 11 個 `ManageSchedules::Action*`／`ChangeAdminGroup` 常數、`showAvailabilityDialog`、`BindGroups` 等名稱沒有殘留引用
+- 開發環境沒有已知登入帳密，沒辦法在瀏覽器裡實際操作，麻煩使用者登入後確認：時間表編輯抽屜只剩名稱＋每週開放時間、列表「⋯」選單的刪除功能正常

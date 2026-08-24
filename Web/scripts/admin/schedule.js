@@ -43,27 +43,11 @@ function ScheduleManagement(opts) {
     deletePeakTimesButton: $('#deletePeakBtn'),
     deletePeakTimes: $('#deletePeakTimes'),
 
-    availabilityDialog: document.getElementById('availabilityDialog'),
-    availableStartDate: document.getElementById('availabilityStartDate'),
-    availableEndDate: document.getElementById('availabilityEndDate'),
-    availableAllYear: document.getElementById('availableAllYear'),
-    availabilityForm: $('#availabilityForm'),
-
     concurrentForm: $('#concurrentForm'),
 
     switchLayoutButton: $('.switchLayout'),
     switchLayoutForm: $('#switchLayoutForm'),
     switchLayoutDialog: $('#switchLayoutDialog'),
-
-    concurrentMaximumForm: $('#concurrentMaximumForm'),
-    concurrentMaximumDialog: $('#concurrentMaximumDialog'),
-    maximumConcurrentUnlimited: $('#maximumConcurrentUnlimited'),
-    maximumConcurrent: $('#maximumConcurrent'),
-
-    resourcesPerReservationForm: $('#resourcesPerReservationForm'),
-    resourcesPerReservationDialog: $('#resourcesPerReservationDialog'),
-    resourcesPerReservationUnlimited: $('#resourcesPerReservationUnlimited'),
-    resourcesPerReservationResources: $('#resourcesPerReservationResources'),
 
     layoutSlotForm: $('#layoutSlotForm'),
     slotStartDate: $('#slotStartDate'),
@@ -106,26 +90,6 @@ function ScheduleManagement(opts) {
       setActiveScheduleId(id);
     });
 
-    elements.scheduleList.on('click', '.renameButton', function (e) {
-      e.stopPropagation();
-      $(this).closest('.scheduleDetails').find('.scheduleName').editable('toggle');
-    });
-
-    elements.scheduleList.on('click', '.dayName', function (e) {
-      e.stopPropagation();
-      $(this).editable('toggle');
-    });
-
-    elements.scheduleList.on('click', '.daysVisible', function (e) {
-      e.stopPropagation();
-      $(this).editable('toggle');
-    });
-
-    elements.scheduleList.on('click', '.changeScheduleAdmin', function (e) {
-      e.stopPropagation();
-      $(this).closest('.scheduleDetails').find('.scheduleAdmin').editable('toggle');
-    });
-
     elements.scheduleList.on('click', '.changeLayoutButton', function (e) {
       var id = getActiveScheduleId();
       var reservable = $(this).closest('.scheduleDetails').find('.reservableSlots');
@@ -141,26 +105,6 @@ function ScheduleManagement(opts) {
       return false;
     });
 
-    elements.scheduleList.on('click', '.makeDefaultButton, .enableSubscription, .disableSubscription', function (e) {
-      var action;
-      if ($(this).hasClass('makeDefaultButton')) {
-        action = options.makeDefaultAction;
-      } else if ($(this).hasClass('enableSubscription')) {
-        action = options.enableSubscriptionAction;
-      } else if ($(this).hasClass('disableSubscription')) {
-        action = options.disableSubscriptionAction;
-      }
-
-      if (action) {
-        PerformAsyncAction($(this), getSubmitCallback(action), $('#action-indicator'));
-      }
-    });
-
-    elements.scheduleList.on('click', '.deleteScheduleButton', function (e) {
-      showDeleteDialog(e);
-      return false;
-    });
-
     elements.scheduleList.on('click', '.showAllDailyLayouts', function (e) {
       e.preventDefault();
       $(this).next('.allDailyLayouts').toggle();
@@ -173,21 +117,11 @@ function ScheduleManagement(opts) {
       showPeakTimesDialog(getActiveScheduleId());
     });
 
-    elements.scheduleList.on('click', '.changeAvailability', function (e) {
-      e.preventDefault();
-      showAvailabilityDialog(getActiveScheduleId());
-    });
-
     elements.scheduleList.on('click', '.toggleConcurrent', function (e) {
       e.preventDefault();
       var toggle = $(e.target);
       var container = toggle.parent('.concurrentContainer');
       toggleConcurrentReservations(getActiveScheduleId(), toggle, container);
-    });
-
-    elements.scheduleList.on('click', '.defaultScheduleStyle', function (e) {
-      e.stopPropagation();
-      $(this).editable('toggle');
     });
 
     elements.scheduleList.on('click', '.switchLayout', function (e) {
@@ -196,48 +130,9 @@ function ScheduleManagement(opts) {
       elements.switchLayoutDialog.modal('show');
     });
 
-    elements.scheduleList.on('click', '.changeScheduleConcurrentMaximum', function (e) {
-      e.preventDefault();
-      var concurrent = $(e.target).closest('.maximumConcurrentContainer').data('concurrent');
-      elements.maximumConcurrentUnlimited.attr('checked', concurrent == '0');
-      elements.maximumConcurrent.val(concurrent);
-      elements.maximumConcurrent.attr('disabled', concurrent == '0');
-      elements.concurrentMaximumDialog.modal('show');
-    });
-
-    elements.scheduleList.on('click', '.changeResourcesPerReservation', function (e) {
-      e.preventDefault();
-      var maximum = $(e.target).closest('.resourcesPerReservationContainer').data('maximum');
-      elements.resourcesPerReservationUnlimited.attr('checked', maximum == '0');
-      elements.resourcesPerReservationResources.val(maximum);
-      elements.resourcesPerReservationResources.attr('disabled', maximum == '0');
-      elements.resourcesPerReservationDialog.modal('show');
-    });
-
     elements.deletePeakTimesButton.click(function (e) {
       e.preventDefault();
       elements.deletePeakTimes.val('1');
-    });
-
-    elements.availableAllYear.addEventListener('change', function (e) {
-      var fpStart = elements.availableStartDate?._flatpickr;
-      var fpEnd = elements.availableEndDate?._flatpickr;
-
-      if (e.target.checked) {
-        if (fpStart) {
-          fpStart.altInput.disabled = true;
-        }
-        if (fpEnd) {
-          fpEnd.altInput.disabled = true;
-        }
-      } else {
-        if (fpStart) {
-          fpStart.altInput.disabled = false;
-        }
-        if (fpEnd) {
-          fpEnd.altInput.disabled = false;
-        }
-      }
     });
 
     $('.save').click(function (e) {
@@ -288,22 +183,6 @@ function ScheduleManagement(opts) {
       elements.confirmCreateSlotDialog.hide();
     });
 
-    elements.maximumConcurrentUnlimited.on('click', function (e) {
-      if (elements.maximumConcurrentUnlimited.is(':checked')) {
-        elements.maximumConcurrent.attr('disabled', true);
-      } else {
-        elements.maximumConcurrent.attr('disabled', false);
-      }
-    });
-
-    elements.resourcesPerReservationUnlimited.on('click', function (e) {
-      if (elements.resourcesPerReservationUnlimited.is(':checked')) {
-        elements.resourcesPerReservationResources.attr('disabled', true);
-      } else {
-        elements.resourcesPerReservationResources.attr('disabled', false);
-      }
-    });
-
     $('.autofillBlocked').click(function (e) {
       e.preventDefault();
       autoFillBlocked();
@@ -327,11 +206,8 @@ function ScheduleManagement(opts) {
     ConfigureAsyncForm(elements.peakTimesForm, getSubmitCallback(options.peakTimesAction), refreshPeakTimes, null, {
       onBeforeSubmit: validateTimes,
     });
-    ConfigureAsyncForm(elements.availabilityForm, getSubmitCallback(options.availabilityAction), refreshAvailability);
     ConfigureAsyncForm(elements.switchLayoutForm, getSubmitCallback(options.switchLayout));
     ConfigureAsyncForm(elements.deleteCustomTimeSlotForm, getSubmitCallback(options.deleteLayoutSlot), afterDeleteSlot);
-    ConfigureAsyncForm(elements.concurrentMaximumForm, getSubmitCallback(options.maximumConcurrentAction));
-    ConfigureAsyncForm(elements.resourcesPerReservationForm, getSubmitCallback(options.maximumResourcesAction));
   };
 
   var getSubmitCallback = function (action) {
@@ -650,45 +526,6 @@ function ScheduleManagement(opts) {
     elements.peakAllDay.on('click', function (e) {
       peakOnAllDayChanged();
     });
-  };
-
-  var showAvailabilityDialog = function (scheduleId) {
-    var placeholder = document.querySelector('[data-schedule-id="' + scheduleId + '"] .availabilityPlaceHolder');
-    var dates = placeholder.querySelector('.availableDates');
-    var startDate = dates.getAttribute('data-start-date');
-    var endDate = dates.getAttribute('data-end-date');
-    var hasAvailability = dates.getAttribute('data-has-availability') == '1';
-
-    elements.availableAllYear.checked = !hasAvailability;
-
-    elements.availabilityDialog.addEventListener(
-      'shown.bs.modal',
-      function () {
-        var fpStart = elements.availableStartDate?._flatpickr;
-        var fpEnd = elements.availableEndDate?._flatpickr;
-
-        if (fpStart) fpStart.setDate(startDate || null, false);
-        else elements.availableStartDate.value = startDate || '';
-
-        if (fpEnd) fpEnd.setDate(endDate || null, false);
-        else elements.availableEndDate.value = endDate || '';
-
-        elements.availableAllYear.dispatchEvent(new Event('change', { bubbles: true }));
-      },
-      { once: true }
-    );
-
-    var modal = bootstrap.Modal.getOrCreateInstance(elements.availabilityDialog);
-    modal.show();
-  };
-
-  var refreshAvailability = function (resultHtml) {
-    var scheduleEl = document.querySelector('[data-schedule-id="' + getActiveScheduleId() + '"]');
-    scheduleEl.querySelector('.availabilityContent').innerHTML = resultHtml;
-    var modalInstance = bootstrap.Modal.getInstance(elements.availabilityDialog);
-    if (modalInstance) {
-      modalInstance.hide();
-    }
   };
 
   var toggleConcurrentReservations = function (scheduleId, toggle, container) {
