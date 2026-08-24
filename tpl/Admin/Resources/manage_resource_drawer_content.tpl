@@ -1,14 +1,12 @@
-{* Extracted verbatim from the old per-resource accordion body -- every field/x-editable widget/
-   sub-dialog trigger here is unchanged, only the OUTER wrapper changed (was an accordion-collapse
-   item, now an offcanvas drawer body, see manage_resources.tpl). $resource and $id must already
-   be assigned by the caller before including this. *}
+{* Rendered into an offcanvas drawer body per resource (see manage_resources.tpl). $resource
+   and $id must already be assigned by the caller before including this. *}
 
-{* Physical rooms (ResourceType != 線上會議) only need a Name to edit; video-conference
-   resources (ResourceType::IsVideoConference()) get a dedicated "info sent to the booker"
-   section instead of the full generic field set below. Resources with no ResourceType
-   assigned yet fall back to the full legacy field set, so a brand-new resource stays
-   configurable before an admin has picked its type. See Domain/ResourceType.php and
-   database_schema/upgrades/4.4/schema.sql. *}
+{* Untyped resources (resource_type_id IS NULL) fall back to the full legacy field set below,
+   each field its own x-editable widget/sub-dialog -- kept as-is so a brand-new resource stays
+   configurable before an admin has picked its type (see database_schema/upgrades/4.4/schema.sql
+   and 4.6/schema.sql). Typed resources (Domain/ResourceType.php) get a single sectioned form
+   instead ("基本資料" always, plus "線上會議資訊" when ResourceType::IsVideoConference()),
+   matching tpl/Admin/Users/user-update.tpl's layout. *}
 {assign var=isTypedResource value=$resource->HasResourceType()}
 {assign var=isVideoConferenceResource value=false}
 {if $isTypedResource}
@@ -86,6 +84,7 @@
 	<div class="col-12 {if !$isTypedResource}col-sm-10{/if}">
 		<div class="row row-cols-auto row-cols-sm-3 ">
 			<div class="col d-block">
+				{if !$isTypedResource}
 				<div>
 					<div class="resourceNameField title fs-5 fw-bold me-1"
 						data-type="text" data-pk="{$id}"
@@ -137,6 +136,33 @@
 							class="statusReason">{$StatusReasons[$resource->GetStatusReasonId()]->Description()}</span>
 					{/if}
 				</div>
+				{else}
+				{* Typed resources: name/status are edited as plain fields in the resourceForm
+				   below, not via x-editable, so the header only needs the name for
+				   identification plus the copy/delete actions that stay outside the form
+				   (matching Users' pattern of keeping delete/permissions outside its edit form). *}
+				<div>
+					<div class="title fs-5 fw-bold me-1">{$resource->GetName()}</div>
+					<div>
+						<a class="update copyButton link-primary me-1" href="#"
+							title="{translate key='Copy'}">
+							<span
+								class="visually-hidden">{translate key=Copy}</span>
+							<i class="bi bi-copy"></i></a>
+						<div class="vr me-1"></div>
+						<a class="update deleteButton link-danger me-1" href="#"
+							title="{translate key='Delete'}">
+							<span
+								class="visually-hidden">{translate key=Delete}</span>
+							<i class="bi bi-trash3-fill icon delete"></i>
+						</a>
+					</div>
+				</div>
+				<div>
+					<label class="inline fw-bold">ResourceId:</label>
+					<span>{$id}</span>
+				</div>
+				{/if}
 				{if !$isTypedResource}
 				<div>
 					<label
@@ -433,19 +459,141 @@
 					<i class="bi bi-qr-code"></i></a>
 			</div>
 		</div>
-		{elseif $isVideoConferenceResource}
-			<hr class="hr" />
-			<div class="mb-4">
-				<span class="fs-6 fw-bold">{translate key=AdminVideoConferenceInfo}</span>
-				<a class="update changeVideoConferenceInfo link-primary" title="{translate key='Edit'}" href="#">
-					<span class="visually-hidden">{translate key=AdminVideoConferenceInfo}</span>
-					<span class="bi bi-pencil-square"></span>
-				</a>
-				{assign var=hostCredentials value=$VideoHostCredentials[$id]|default:null}
-				<div class="videoConferenceInfoPlaceHolder">
-					{include file="Admin/Resources/manage_resources_video_info.tpl" resource=$resource id=$id attributeList=$AttributeList|default:array() hostCredentials=$hostCredentials}
+		{else}
+			<form id="resourceForm{$id}" class="resourceUpdateForm"
+				ajaxAction="{ManageResourcesActions::ActionUpdateResourceInfo}">
+				<div class="fw-bold fs-6 mt-3 mb-2">{translate key=BasicInformation}</div>
+				<div class="row gy-2">
+					<div class="col-sm-12">
+						<div class="form-group">
+							<label class="fw-bold" for="resourceName{$id}">{translate key=Name}</label>
+							<input type="text" class="form-control" id="resourceName{$id}"
+								name="{FormKeys::RESOURCE_NAME}" value="{$resource->GetName()|escape:'html'}"
+								required />
+						</div>
+					</div>
+					<div class="col-sm-12 col-md-6">
+						<div class="form-group">
+							<label class="fw-bold" for="resourceStatus{$id}">{translate key=Status}</label>
+							<select id="resourceStatus{$id}" class="form-select statusId"
+								name="{FormKeys::RESOURCE_STATUS_ID}">
+								<option value="{ResourceStatus::AVAILABLE}"
+									{if $resource->IsAvailable()}selected{/if}>{translate key=Available}</option>
+								<option value="{ResourceStatus::UNAVAILABLE}"
+									{if $resource->IsUnavailable()}selected{/if}>{translate key=Unavailable}</option>
+								<option value="{ResourceStatus::HIDDEN}"
+									{if $resource->IsHidden()}selected{/if}>{translate key=Hidden}</option>
+							</select>
+						</div>
+					</div>
+					<div class="col-sm-12 col-md-6 existingStatusReason">
+						<div class="form-group">
+							<label class="clearfix mb-0">
+								<div class="fw-bold float-start">{translate key=Reason}</div>
+								<a href="#" class="float-end link-primary addStatusReason">
+									<span class="visually-hidden">{translate key=Reason}</span>
+									<span class="addStatusIcon bi bi-plus-lg icon add"></span>
+								</a>
+							</label>
+							<select class="form-select reasonId" name="{FormKeys::RESOURCE_STATUS_REASON_ID}"></select>
+						</div>
+					</div>
+					<div class="col-sm-12 col-md-6 newStatusReason d-none">
+						<div class="form-group">
+							<label class="clearfix mb-0">
+								<div class="fw-bold float-start">{translate key=ReasonText}</div>
+								<a href="#" class="float-end addStatusReason">
+									<span class="visually-hidden">{translate key=ReasonText}</span>
+									<span class="addStatusIcon bi bi-list-columns-reverse link-primary icon add"></span>
+								</a>
+							</label>
+							<input type="text" class="form-control resourceStatusReason"
+								name="{FormKeys::RESOURCE_STATUS_REASON}" />
+						</div>
+					</div>
+					<div class="col-sm-12">
+						<div class="form-check">
+							<input type="checkbox" class="form-check-input notifyUsersToggle"
+								id="notifyUsers{$id}" name="{FormKeys::SEND_AS_EMAIL}" />
+							<label for="notifyUsers{$id}" class="form-check-label">{translate key=NotifyUsers}</label>
+						</div>
+					</div>
+					<div class="col-sm-12 notifyUsersContent d-none border rounded bg-light p-3">
+						<div class="form-group mb-2">
+							<label class="fw-bold"
+								for="statusMessageSendDays{$id}">{translate key=AllUsersWhoHaveAReservationInTheNext}</label>
+							<div class="input-group">
+								<input type="number" min="1" max="365" step="1" value="30"
+									id="statusMessageSendDays{$id}" class="form-control" name="{FormKeys::DAY}" />
+								<div class="input-group-text">{translate key=days}</div>
+							</div>
+						</div>
+						<div class="form-group">
+							<label class="fw-bold" for="statusMessageContent{$id}">{translate key=Message}</label>
+							<textarea id="statusMessageContent{$id}" class="form-control"
+								name="{FormKeys::EMAIL_CONTENTS}"></textarea>
+						</div>
+					</div>
 				</div>
-			</div>
+
+				{if $isVideoConferenceResource}
+					<div class="fw-bold fs-6 mt-4 mb-2">{translate key=AdminVideoConferenceInfo}</div>
+					<div class="row gy-2">
+						{foreach from=$AttributeList|default:array() item=attribute}
+							{if $attribute->AppliesToEntity($id)}
+								{assign var=videoLabelKey value=''}
+								{if $attribute->Label() == 'video_url'}
+									{assign var=videoLabelKey value='VideoLink'}
+								{elseif $attribute->Label() == 'video_meeting_id'}
+									{assign var=videoLabelKey value='MeetingId'}
+								{elseif $attribute->Label() == 'video_passcode'}
+									{assign var=videoLabelKey value='Passcode'}
+								{/if}
+								{if $videoLabelKey != ''}
+									<div class="col-sm-12 col-md-6">
+										<div class="form-group">
+											<label class="fw-bold"
+												for="videoAttribute{$attribute->Id()}{$id}">{translate key=$videoLabelKey}</label>
+											<input type="text" class="form-control"
+												id="videoAttribute{$attribute->Id()}{$id}"
+												name="{FormKeys::ATTRIBUTE_PREFIX}{$attribute->Id()}"
+												value="{$resource->GetAttributeValue($attribute->Id())|escape:'html'}" />
+										</div>
+									</div>
+								{/if}
+							{/if}
+						{/foreach}
+						{assign var=hostCredentials value=$VideoHostCredentials[$id]|default:null}
+						<div class="col-sm-12">
+							<div class="note fst-italic">{translate key=VideoConferenceHostLoginHint}</div>
+						</div>
+						<div class="col-sm-12 col-md-6">
+							<div class="form-group">
+								<label class="fw-bold"
+									for="videoHostAccount{$id}">{translate key=VideoConferenceHostAccount}</label>
+								<input type="text" class="form-control" id="videoHostAccount{$id}"
+									name="{FormKeys::RESOURCE_VIDEO_HOST_ACCOUNT}"
+									value="{if $hostCredentials}{$hostCredentials->HostAccount|escape:'html'}{/if}" />
+							</div>
+						</div>
+						<div class="col-sm-12 col-md-6">
+							<div class="form-group">
+								<label class="fw-bold"
+									for="videoHostPassword{$id}">{translate key=VideoConferenceHostPassword}</label>
+								<input type="text" class="form-control" id="videoHostPassword{$id}"
+									name="{FormKeys::RESOURCE_VIDEO_HOST_PASSWORD}"
+									value="{if $hostCredentials}{$hostCredentials->HostPassword|escape:'html'}{/if}" />
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<div class="admin-drawer-footer mt-3">
+					{cancel_button}
+					{update_button}
+					{indicator}
+				</div>
+			</form>
 		{/if}
 	</div>
 </div>

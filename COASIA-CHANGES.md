@@ -2588,3 +2588,34 @@ docker compose -f docker-compose.prod.yml exec -T db mysql -uroot -p'<MYSQL_ROOT
 - 容器內 `php -l` 通過修改的 PHP 檔案，`node --check` 通過 `resource.js`
 - 確認舊的 `videoHostDialog`/`ActionChangeVideoHost`/`manage_resources_video_attribute.tpl` 等名稱在全專案（除了這份記錄本身）沒有殘留引用
 - 同 §82，開發資料庫串真實 AD 沒有已知測試帳密，沒辦法在瀏覽器裡實際點開 Modal 操作，麻煩使用者登入後確認：線上會議資源的「線上會議資訊」只剩一個編輯 pencil，點開的 Modal 五個欄位都在、改完存一次全部生效；實體會議室資源的抽屜完全沒變化
+
+## 84. 會議室管理側邊視窗整個表單化，比照使用者管理分區呈現
+
+§83 才把「線上會議資訊」收成一個 Modal，使用者這次把需求講得更完整：整個側邊視窗要比照「使用者管理」的編輯介面——表單化、依「基本資料」「線上會議資訊」分區、統一欄位標籤／間距／按鈕位置。這代表 §83 的 Modal 方案這次直接拆掉重做，不是回頭路，是這次才真正把範圍講清楚（一個表單、分區顯示，不是「4 個編輯點先收成 2 個」這種中繼方案）。
+
+只動**已分類**資源（實體會議室／線上會議）；未分類資源的 fallback 畫面（§66／§82 定案）完全不動，還是走原本的 x-editable＋Modal。
+
+### 84.1 已分類資源的抽屜內容整個換成一個表單
+
+`tpl/Admin/Resources/manage_resource_drawer_content.tpl`：標題列（名稱＋重新命名／複製／刪除）跟狀態顯示原本是未分類／已分類共用的程式碼，拆成兩個分支——未分類分支原封不動；已分類分支的標題只留純文字名稱＋複製／刪除兩個 icon（拿掉重新命名，名稱改進表單裡編輯），狀態顯示整個搬進新表單。已分類資源的主體改成一個 `<form ajaxAction="{ManageResourcesActions::ActionUpdateResourceInfo}">`：「基本資料」區塊（名稱、狀態、原因、通知使用者）＋線上會議資源多一個「線上會議資訊」區塊（會議ID／密碼／連結／主持人帳號／密碼），版面（`row gy-2`／`col-sm-12 col-md-6`／`label.fw-bold`）比照 `tpl/Admin/Users/user-update.tpl`，一個 Update 按鈕全部一次送出。§83 新增的 `videoConferenceInfoDialog`（獨立 Modal）跟著拆掉，欄位直接內嵌進表單；`manage_resources_video_info.tpl` 也一併刪除。
+
+主持人密碼本來就已經在唯讀畫面明文顯示（§83 做的），這次直接當表單欄位的預設值渲染進 HTML，沒有比現狀曝露更多，不需要再像 §83 那樣用 AJAX 延遲抓取。
+
+### 84.2 後端：抽出共用的狀態變更邏輯
+
+`ManageResourcesPresenter.php`：把 `ChangeStatus()` 原本的邏輯（原因建立＋`$resource->ChangeStatus()`＋通知信迴圈）抽成 `private function ApplyStatusChange($resource)`，`ChangeStatus()`（未分類資源的 `statusDialog` 還在用）跟新增的 `UpdateResourceInfo()`（已分類資源的統一表單，`ActionUpdateResourceInfo`）都呼叫它，避免兩條路徑各自維護一份通知信邏輯。`UpdateResourceInfo()` 依序：設定名稱→套用狀態變更→（沿用既有 `GetAttributeValues()`）套用自訂屬性→`Update()`→如果是線上會議類型（`LoadResourceType()->IsVideoConference()`）才存主持人帳密。實體會議室的表單沒有 `attribute_*` 欄位，`GetAttributeValues()` 天然回傳空陣列，不需要另外判斷。
+
+§83 為了 Modal + AJAX 預填加的 `ActionUpdateVideoConferenceInfo`／`UpdateVideoConferenceInfo()`、`ProcessDataRequest` 的 `case 'videoHost':`、`SetVideoConferenceInfoJson`／`BindUpdatedVideoConferenceInfo` 這次全部移除——表單改成直接渲染初始值，不需要再繞一次 AJAX 抓值。`GetResourceName()`／`GetStatusId()`／`GetStatusReasonId()`／`GetNewStatusReason()`／`SendStatusChangeMessage()`／`StatusChangeDays()`／`GetStatusChangeMessage()` 這些 Page getter 全部沿用既有的，新表單欄位 `name` 直接用同一組 `FormKeys` 常數，後端幾乎零新增欄位存取邏輯。
+
+### 84.3 前端：狀態原因/通知使用者的 JS 從「綁一次在固定 id 上」改成事件代理
+
+原本「狀態」欄位背後的原因下拉聯動、切換新增原因輸入框、通知使用者 checkbox 展開/收合，這幾支邏輯都只綁在 `statusDialog` 這唯一一份共用元素上（`showStatusPrompt()` 每次開 Modal 還會 `.unbind()` 再重新綁一次）。這次已分類資源變成 N 份永遠顯示的表單（不是開 Modal 才存在），改成 `bindStatusReasonBehavior()`：用 `$(document).on('change'/'click', '.statusId'/'.addStatusReason'/'.notifyUsersToggle', ...)` 綁一次、用 `$(this).closest('form')` 找範圍，`statusDialog` 跟 N 份 `resourceForm{id}` 共用同一套邏輯，`showStatusPrompt()` 也跟著精簡（拿掉重複的 unbind/rebind，只留初始值 populate）。新增 `initializeResourceFormReasons()`，頁面載入時用既有的 `resources[id]` 快取（`statusId`/`reasonId`，`resourceManagement.add()` 早就存了）幫每份表單的原因下拉做初始 populate。每份 `resourceForm{id}` 存檔成功後 `window.location.reload()`，比照 `Web/scripts/admin/user.js` 既有的存檔後整頁重新整理慣例，不用另外處理「表單存完要怎麼讓標題／列表同步」。
+
+`lang/zh_tw.php`／`lang/en_us.php` 新增 `BasicInformation`（基本資料／Basic Information）。
+
+### 驗證
+
+- 容器內 `php -l`／`composer phpstan`／`composer phpcsfixer:lint` 通過所有修改的 PHP／語言檔，`node --check` 通過 `resource.js`
+- `composer phpunit` 全跑一次：1729 個測試，跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest`）
+- 全專案搜尋確認 §83 的 `videoConferenceInfoDialog`／`ActionUpdateVideoConferenceInfo`／`SetVideoConferenceInfoJson` 等名稱沒有殘留引用
+- 同 §82／§83，開發環境串真實 AD 沒有已知測試帳密，沒辦法在瀏覽器裡實際操作驗證，麻煩使用者登入後確認：已分類資源的抽屜呈現「基本資料」＋（線上會議資源多一個）「線上會議資訊」兩個分區、欄位樣式跟使用者管理一致；改名稱／狀態／通知使用者／線上會議資訊任一項存檔後整頁重新整理、新值生效；未分類資源畫面沒有變化

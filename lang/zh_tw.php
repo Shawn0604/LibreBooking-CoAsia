@@ -945,6 +945,7 @@ class zh_tw extends en_us
         $strings['DiagnosticArchitectureDescription'] = '前後端與資料庫串接說明';
         $strings['DiagnosticOpsDoc'] = '維運文件';
         $strings['DiagnosticOpsDocDescription'] = '部署架構、基礎設施與疑難排解紀錄';
+        $strings['BasicInformation'] = '基本資料';
         $strings['AdminVideoConferenceInfo'] = '線上會議資訊';
         $strings['VideoConferenceHostLogin'] = '主持人登入資訊';
         $strings['VideoConferenceHostLoginHint'] = '點擊編輯以查看或修改啟動此會議所需的主持人登入帳號密碼。';

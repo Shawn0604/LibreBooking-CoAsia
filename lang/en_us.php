@@ -1353,6 +1353,7 @@ class en_us extends Language
         $strings['DiagnosticArchitectureDescription'] = 'How the frontend, backend, and database fit together';
         $strings['DiagnosticOpsDoc'] = 'Operations guide';
         $strings['DiagnosticOpsDocDescription'] = 'Deployment, infrastructure, and troubleshooting notes';
+        $strings['BasicInformation'] = 'Basic Information';
         $strings['AdminVideoConferenceInfo'] = 'Video Conference Info';
         $strings['VideoConferenceHostLogin'] = 'Host Login';
         $strings['VideoConferenceHostLoginHint'] = 'Click edit to view or update the host login used to start this meeting.';

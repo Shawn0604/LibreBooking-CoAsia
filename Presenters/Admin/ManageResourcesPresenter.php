@@ -45,7 +45,7 @@ class ManageResourcesActions
     public const ImportResources = 'importResources';
     public const ActionChangeGroupPermission = 'changeGroupPermission';
     public const ActionBulkDelete = 'bulkDelete';
-    public const ActionUpdateVideoConferenceInfo = 'updateVideoConferenceInfo';
+    public const ActionUpdateResourceInfo = 'updateResourceInfo';
 }
 
 class ManageResourcesPresenter extends ActionPresenter
@@ -149,7 +149,7 @@ class ManageResourcesPresenter extends ActionPresenter
         $this->AddAction(ManageResourcesActions::ActionChangeGroupPermission, 'ChangeGroupPermission');
         $this->AddAction(ManageResourcesActions::ActionChangeUserPermission, 'ChangeUserPermission');
         $this->AddAction(ManageResourcesActions::ActionBulkDelete, 'BulkDelete');
-        $this->AddAction(ManageResourcesActions::ActionUpdateVideoConferenceInfo, 'UpdateVideoConferenceInfo');
+        $this->AddAction(ManageResourcesActions::ActionUpdateResourceInfo, 'UpdateResourceInfo');
     }
 
     public function PageLoad()
@@ -525,20 +525,31 @@ class ManageResourcesPresenter extends ActionPresenter
     public function ChangeStatus()
     {
         $resourceId = $this->page->GetResourceId();
-        $statusId = $this->page->GetStatusId();
-        $statusReasonId = $this->page->GetStatusReasonId();
-        $statusReason = $this->page->GetNewStatusReason();
-
         Log::Debug('Changing resource status. ResourceId: %s', $resourceId);
 
         $resource = $this->resourceRepository->LoadById($resourceId);
+        $this->ApplyStatusChange($resource);
+        $this->resourceRepository->Update($resource);
+    }
+
+    /**
+     * Applies the status/reason/notify-email fields from the current request onto $resource
+     * (does not persist -- caller is responsible for $this->resourceRepository->Update()).
+     * Shared by the standalone ChangeStatus() action (untyped-resource fallback's statusDialog)
+     * and UpdateResourceInfo() (typed-resource unified form), since both post the same fields.
+     */
+    private function ApplyStatusChange($resource)
+    {
+        $resourceId = $resource->GetResourceId();
+        $statusId = $this->page->GetStatusId();
+        $statusReasonId = $this->page->GetStatusReasonId();
+        $statusReason = $this->page->GetNewStatusReason();
 
         if (empty($statusReasonId) && !empty($statusReason)) {
             $statusReasonId = $this->resourceRepository->AddStatusReason($statusId, $statusReason);
         }
 
         $resource->ChangeStatus($statusId, $statusReasonId);
-        $this->resourceRepository->Update($resource);
 
         if ($this->page->SendStatusChangeMessage()) {
             $emails = [];
@@ -557,6 +568,33 @@ class ManageResourcesPresenter extends ActionPresenter
                     ServiceLocator::GetEmailService()->Send(new ResourceStatusChangeEmail($email, $resource, $message, $reservation->OwnerLanguage));
                 }
             }
+        }
+    }
+
+    public function UpdateResourceInfo()
+    {
+        $resourceId = $this->page->GetResourceId();
+        Log::Debug('Updating resource info for resource %s', $resourceId);
+
+        $resource = $this->resourceRepository->LoadById($resourceId);
+        $resource->SetName($this->page->GetResourceName());
+        $this->ApplyStatusChange($resource);
+
+        foreach ($this->GetAttributeValues() as $attributeValue) {
+            $resource->ChangeAttribute($attributeValue);
+        }
+
+        $this->resourceRepository->Update($resource);
+
+        $resourceType = $resource->HasResourceType()
+            ? $this->resourceRepository->LoadResourceType($resource->GetResourceTypeId())
+            : null;
+        if ($resourceType !== null && $resourceType->IsVideoConference()) {
+            $this->videoConferenceHostRepository->Save(
+                $resourceId,
+                $this->page->GetVideoHostAccount(),
+                $this->page->GetVideoHostPassword()
+            );
         }
     }
 
@@ -642,30 +680,6 @@ class ManageResourcesPresenter extends ActionPresenter
         $resource = $this->resourceRepository->LoadById($resourceId);
         $resource->SetSortOrder($sortOrder);
         $this->resourceRepository->Update($resource);
-    }
-
-    public function UpdateVideoConferenceInfo()
-    {
-        $resourceId = $this->page->GetResourceId();
-        Log::Debug('Updating video conference info for resource %s', $resourceId);
-
-        $resource = $this->resourceRepository->LoadById($resourceId);
-        foreach ($this->GetAttributeValues() as $attributeValue) {
-            $resource->ChangeAttribute($attributeValue);
-        }
-        $this->resourceRepository->Update($resource);
-
-        $this->videoConferenceHostRepository->Save(
-            $resourceId,
-            $this->page->GetVideoHostAccount(),
-            $this->page->GetVideoHostPassword()
-        );
-
-        $this->page->BindUpdatedVideoConferenceInfo(
-            $resource,
-            $this->videoConferenceHostRepository->GetByResourceId($resourceId),
-            $this->attributeService->GetByCategory(CustomAttributeCategory::RESOURCE)
-        );
     }
 
     public function ChangeResourceType()
@@ -1218,19 +1232,6 @@ class ManageResourcesPresenter extends ActionPresenter
         switch ($dataRequest) {
             case 'all': {
                 $this->page->SetResourcesJson(array_map(['AdminResourceJson', 'FromBookable'], $this->resourceRepository->GetResourceList()));
-                break;
-            }
-            case 'videoHost': {
-                $resourceId = $this->page->GetResourceId();
-                $credentials = $this->videoConferenceHostRepository->GetByResourceId($resourceId);
-                $resource = $this->resourceRepository->LoadById($resourceId);
-                $attributeValuesByLabel = [];
-                foreach ($this->attributeService->GetByCategory(CustomAttributeCategory::RESOURCE) as $attribute) {
-                    if (in_array($attribute->Label(), ['video_url', 'video_meeting_id', 'video_passcode'])) {
-                        $attributeValuesByLabel[$attribute->Label()] = $resource->GetAttributeValue($attribute->Id());
-                    }
-                }
-                $this->page->SetVideoConferenceInfoJson($credentials, $attributeValuesByLabel);
                 break;
             }
             case 'users': {

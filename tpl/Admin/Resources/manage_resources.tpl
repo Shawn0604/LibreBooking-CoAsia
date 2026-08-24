@@ -705,57 +705,6 @@
 		</form>
 	</div>
 
-	<div id="videoConferenceInfoDialog" class="modal" tabindex="-1" role="dialog"
-		aria-labelledby="videoConferenceInfoModalLabel" aria-hidden="true">
-		<form id="videoConferenceInfoForm" method="post" role="form"
-			ajaxAction="{ManageResourcesActions::ActionUpdateVideoConferenceInfo}">
-			<div class="modal-dialog">
-				<div class="modal-content">
-					<div class="modal-header">
-						<h5 class="modal-title" id="videoConferenceInfoModalLabel">{translate key=AdminVideoConferenceInfo}</h5>
-						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-					</div>
-					<div class="modal-body">
-						{foreach from=$AttributeList|default:array() item=attribute}
-							{assign var=videoLabelKey value=''}
-							{if $attribute->Label() == 'video_url'}
-								{assign var=videoLabelKey value='VideoLink'}
-							{elseif $attribute->Label() == 'video_meeting_id'}
-								{assign var=videoLabelKey value='MeetingId'}
-							{elseif $attribute->Label() == 'video_passcode'}
-								{assign var=videoLabelKey value='Passcode'}
-							{/if}
-							{if $videoLabelKey != ''}
-								<div class="form-group mb-2">
-									<label class="fw-bold" for="videoAttribute{$attribute->Id()}">{translate key=$videoLabelKey}</label>
-									<input type="text" class="form-control videoAttributeInput"
-										id="videoAttribute{$attribute->Id()}" data-video-field="{$attribute->Label()}"
-										name="{FormKeys::ATTRIBUTE_PREFIX}{$attribute->Id()}" />
-								</div>
-							{/if}
-						{/foreach}
-						<div class="note fst-italic mb-2">{translate key=VideoConferenceHostLoginHint}</div>
-						<div class="form-group mb-2">
-							<label class="fw-bold" for="videoHostAccount">{translate key=VideoConferenceHostAccount}</label>
-							<input type="text" class="form-control" id="videoHostAccount"
-								{formname key=RESOURCE_VIDEO_HOST_ACCOUNT} />
-						</div>
-						<div class="form-group mb-2">
-							<label class="fw-bold" for="videoHostPassword">{translate key=VideoConferenceHostPassword}</label>
-							<input type="text" class="form-control" id="videoHostPassword"
-								{formname key=RESOURCE_VIDEO_HOST_PASSWORD} />
-						</div>
-					</div>
-					<div class="modal-footer">
-						{cancel_button}
-						{update_button}
-						{indicator}
-					</div>
-				</div>
-			</div>
-		</form>
-	</div>
-
 	<div id="statusDialog" class="modal" tabindex="-1" role="dialog" aria-labelledby="statusModalLabel"
 		aria-hidden="true">
 		<form id="statusForm" method="post" role="form" ajaxAction="{ManageResourcesActions::ActionChangeStatus}">
@@ -804,14 +753,15 @@
 
 							<div class="form-group">
 								<div class="form-check">
-									<input type="checkbox" id="toggleStatusChangeMessage" class="form-check-input"
-										{formname key=SEND_AS_EMAIL} />
+									<input type="checkbox" id="toggleStatusChangeMessage"
+										class="form-check-input notifyUsersToggle" {formname key=SEND_AS_EMAIL} />
 									<label for="toggleStatusChangeMessage"
 										class="form-check-label">{translate key=NotifyUsers}</label>
 								</div>
 							</div>
 
-							<div id="sendStatusChangeMessageContent" class="d-none border rounded bg-light p-3">
+							<div id="sendStatusChangeMessageContent"
+								class="d-none border rounded bg-light p-3 notifyUsersContent">
 								<div class="form-group mb-2">
 									<label class="fw-bold"
 										for="statusMessageSendDays">{translate key=AllUsersWhoHaveAReservationInTheNext}</label>

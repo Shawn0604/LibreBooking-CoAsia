@@ -11,7 +11,6 @@ function ResourceManagement(opts) {
     durationDialog: $('#durationDialog'),
     capacityDialog: $('#capacityDialog'),
     accessDialog: $('#accessDialog'),
-    videoConferenceInfoDialog: $('#videoConferenceInfoDialog'),
 
     imageForm: $('#imageForm'),
     removeImageForm: $('#removeImageForm'),
@@ -21,9 +20,6 @@ function ResourceManagement(opts) {
     capacityForm: $('#capacityForm'),
     accessForm: $('#accessForm'),
     statusForm: $('#statusForm'),
-    videoConferenceInfoForm: $('#videoConferenceInfoForm'),
-    videoHostAccount: $('#videoHostAccount'),
-    videoHostPassword: $('#videoHostPassword'),
 
     statusReasons: '.reasonId',
     statusOptions: '.statusId',
@@ -119,6 +115,8 @@ function ResourceManagement(opts) {
   ResourceManagement.prototype.init = function () {
     this.bindEventListeners();
     this.configureAsyncForms();
+    bindStatusReasonBehavior();
+    initializeResourceFormReasons();
   };
 
   ResourceManagement.prototype.bindEventListeners = function () {
@@ -206,12 +204,6 @@ function ResourceManagement(opts) {
 
     elements.resourcesList.on('click', '.changeAccess', function (e) {
       showAccessPrompt(e);
-    });
-
-    elements.resourcesList.on('click', '.changeVideoConferenceInfo', function (e) {
-      e.preventDefault();
-      setActiveResourceId($(this).closest('.resourceDetails').attr('data-resourceId'));
-      showVideoConferenceInfoPrompt();
     });
 
     elements.resourcesList.on('click', '.changeUserPermission', function (e) {
@@ -453,13 +445,6 @@ function ResourceManagement(opts) {
       elements.importDialog.modal('show');
     });
 
-    elements.toggleStatusChangeMessage.on('change', function (e) {
-      if ($(this).is(':checked')) {
-        elements.sendStatusChangeMessageContent.removeClass('d-none');
-      } else {
-        elements.sendStatusChangeMessageContent.addClass('d-none');
-      }
-    });
   };
 
   ResourceManagement.prototype.BindXEditableListeners = function () {
@@ -621,15 +606,21 @@ function ResourceManagement(opts) {
       null,
       errorHandler
     );
-    ConfigureAsyncForm(
-      elements.videoConferenceInfoForm,
-      defaultSubmitCallback(elements.videoConferenceInfoForm),
-      onVideoConferenceInfoSaved
-    );
     ConfigureAsyncForm(elements.copyForm, defaultSubmitCallback(elements.copyForm));
     ConfigureAsyncForm(elements.importForm, defaultSubmitCallback(elements.importForm), importHandler);
     ConfigureAsyncForm(elements.bulkDeleteForm, defaultSubmitCallback(elements.bulkDeleteForm));
     ConfigureAsyncForm(elements.statusForm, defaultSubmitCallback(elements.statusForm));
+
+    // One resourceForm per typed resource (see manage_resource_drawer_content.tpl) -- each
+    // saves name/status/video-conference-info together in one request, then the page reloads
+    // so the table row and drawer both reflect the change (same reload-on-save convention as
+    // Web/scripts/admin/user.js's userForm).
+    elements.resourcesList.find('form.resourceUpdateForm').each(function () {
+      var form = $(this);
+      ConfigureAsyncForm(form, defaultSubmitCallback(form), function () {
+        window.location.reload();
+      });
+    });
   };
 
   ResourceManagement.prototype.add = function (resource) {
@@ -816,19 +807,6 @@ function ResourceManagement(opts) {
     elements.accessDialog.modal('show');
   };
 
-  var showVideoConferenceInfoPrompt = function () {
-    var resourceId = getActiveResourceId();
-    $.getJSON(opts.permissionsUrl + '?dr=videoHost', { rid: resourceId }, function (data) {
-      data = data || {};
-      elements.videoConferenceInfoDialog.find('.videoAttributeInput').each(function () {
-        $(this).val(data[$(this).attr('data-video-field')] || '');
-      });
-      elements.videoHostAccount.val(data.hostAccount || '');
-      elements.videoHostPassword.val(data.hostPassword || '');
-      elements.videoConferenceInfoDialog.modal('show');
-    });
-  };
-
   var showHideAutoRelease = function () {
     if (!elements.enableCheckIn.is(':checked')) {
       elements.autoReleaseMinutesDiv.collapse('hide');
@@ -856,13 +834,6 @@ function ResourceManagement(opts) {
     resourceDuration.days = emptyIfZero(container.attr('data-days'));
     resourceDuration.hours = emptyIfZero(container.attr('data-hours'));
     resourceDuration.minutes = emptyIfZero(container.attr('data-minutes'));
-  };
-
-  var onVideoConferenceInfoSaved = function (resultHtml) {
-    var resource = getActiveResource();
-    var resourceDiv = $('div[data-resourceId=' + resource.id + ']');
-    resourceDiv.find('.videoConferenceInfoPlaceHolder').html(resultHtml);
-    elements.videoConferenceInfoDialog.modal('hide');
   };
 
   var onDurationSaved = function (resultHtml) {
@@ -959,49 +930,19 @@ function ResourceManagement(opts) {
     elements.creditsDialog.modal('hide');
   };
 
+  // Populates and shows the shared statusDialog (untyped-resource fallback only -- typed
+  // resources edit status inline in their own resourceForm, see bindStatusReasonBehavior()
+  // below, which this shares its cascading/add-reason/notify-toggle behavior with via
+  // document-level delegation instead of each caller rebinding its own handlers).
   var showStatusPrompt = function (e) {
     var resource = getActiveResource();
     var statusForm = elements.statusForm;
-
     var statusOptions = statusForm.find(elements.statusOptions);
     var statusReasons = statusForm.find(elements.statusReasons);
-    var addStatusReason = statusForm.find(elements.addStatusReason);
-    // var saveButton = statusForm.find('.save');
 
     statusOptions.val(resource.statusId);
-    statusReasons.val(resource.reasonId);
-
-    statusOptions.unbind();
-    statusOptions.change(function (e) {
-      populateReasonOptions(statusOptions.val(), statusReasons);
-    });
-
     populateReasonOptions(statusOptions.val(), statusReasons);
-
-    addStatusReason.unbind();
-    addStatusReason.click(function (e) {
-      e.preventDefault();
-      statusForm.find(elements.newStatusReason).toggleClass('d-none');
-      statusForm.find(elements.existingStatusReason).toggleClass('d-none');
-
-      if (statusForm.find(elements.newStatusReason).hasClass('d-none')) {
-        statusForm.find(elements.statusReasons).data('prev', statusReasons.val());
-        statusForm.find(elements.statusReasons).val('');
-        statusForm.find(elements.resourceStatusReason).focus();
-      } else {
-        statusForm.find(elements.statusReasons).val(statusReasons.data('prev'));
-        statusForm.find(elements.statusReasons).focus();
-      }
-    });
-
-    // saveButton.unbind();
-    //
-    //
-    //
-    // saveButton.click(function () {
-    // 	statusForm.submit();
-    // });
-    //
+    statusReasons.val(resource.reasonId);
 
     elements.toggleStatusChangeMessage.prop('checked', false);
     elements.sendStatusChangeMessageContent.addClass('d-none');
@@ -1009,6 +950,56 @@ function ResourceManagement(opts) {
 
     elements.statusDialog.modal('show');
     statusOptions.focus();
+  };
+
+  // Shared by statusDialog (untyped resources) and every typed resource's own resourceForm:
+  // both render the same .statusId/.reasonId/.addStatusReason/.notifyUsersToggle markup, so
+  // one set of document-level delegated handlers (bound once, scoped per-event via
+  // .closest('form')) covers all of them instead of each form/dialog rebinding its own.
+  var bindStatusReasonBehavior = function () {
+    $(document).on('change', '.statusId', function () {
+      populateReasonOptions($(this).val(), $(this).closest('form').find(elements.statusReasons));
+    });
+
+    $(document).on('click', '.addStatusReason', function (e) {
+      e.preventDefault();
+      var form = $(this).closest('form');
+      var reasonSelect = form.find(elements.statusReasons);
+
+      form.find(elements.newStatusReason).toggleClass('d-none');
+      form.find(elements.existingStatusReason).toggleClass('d-none');
+
+      if (form.find(elements.newStatusReason).hasClass('d-none')) {
+        reasonSelect.data('prev', reasonSelect.val());
+        reasonSelect.val('');
+        form.find(elements.resourceStatusReason).focus();
+      } else {
+        reasonSelect.val(reasonSelect.data('prev'));
+        reasonSelect.focus();
+      }
+    });
+
+    $(document).on('change', '.notifyUsersToggle', function () {
+      $(this)
+        .closest('form')
+        .find('.notifyUsersContent')
+        .toggleClass('d-none', !$(this).is(':checked'));
+    });
+  };
+
+  // Every typed resource's resourceForm renders its .reasonId select empty (the options
+  // depend on the current .statusId, same as statusDialog's), so populate each one once at
+  // init time from the resource's own cached statusId/reasonId (see resourceManagement.add()).
+  var initializeResourceFormReasons = function () {
+    elements.resourcesList.find('form.resourceUpdateForm').each(function () {
+      var form = $(this);
+      var id = form.closest('.resourceDetails').attr('data-resourceId');
+      var resource = getResource(id);
+      var reasonSelect = form.find(elements.statusReasons);
+
+      populateReasonOptions(form.find(elements.statusOptions).val(), reasonSelect);
+      reasonSelect.val(resource.reasonId);
+    });
   };
 
   function populateReasonOptions(statusId, reasonsElement) {
