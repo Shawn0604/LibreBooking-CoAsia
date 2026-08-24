@@ -705,16 +705,35 @@
 		</form>
 	</div>
 
-	<div id="videoHostDialog" class="modal" tabindex="-1" role="dialog" aria-labelledby="videoHostModalLabel"
-		aria-hidden="true">
-		<form id="videoHostForm" method="post" role="form" ajaxAction="{ManageResourcesActions::ActionChangeVideoHost}">
+	<div id="videoConferenceInfoDialog" class="modal" tabindex="-1" role="dialog"
+		aria-labelledby="videoConferenceInfoModalLabel" aria-hidden="true">
+		<form id="videoConferenceInfoForm" method="post" role="form"
+			ajaxAction="{ManageResourcesActions::ActionUpdateVideoConferenceInfo}">
 			<div class="modal-dialog">
 				<div class="modal-content">
 					<div class="modal-header">
-						<h5 class="modal-title" id="videoHostModalLabel">{translate key=VideoConferenceHostLogin}</h5>
+						<h5 class="modal-title" id="videoConferenceInfoModalLabel">{translate key=AdminVideoConferenceInfo}</h5>
 						<button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
 					</div>
 					<div class="modal-body">
+						{foreach from=$AttributeList|default:array() item=attribute}
+							{assign var=videoLabelKey value=''}
+							{if $attribute->Label() == 'video_url'}
+								{assign var=videoLabelKey value='VideoLink'}
+							{elseif $attribute->Label() == 'video_meeting_id'}
+								{assign var=videoLabelKey value='MeetingId'}
+							{elseif $attribute->Label() == 'video_passcode'}
+								{assign var=videoLabelKey value='Passcode'}
+							{/if}
+							{if $videoLabelKey != ''}
+								<div class="form-group mb-2">
+									<label class="fw-bold" for="videoAttribute{$attribute->Id()}">{translate key=$videoLabelKey}</label>
+									<input type="text" class="form-control videoAttributeInput"
+										id="videoAttribute{$attribute->Id()}" data-video-field="{$attribute->Label()}"
+										name="{FormKeys::ATTRIBUTE_PREFIX}{$attribute->Id()}" />
+								</div>
+							{/if}
+						{/foreach}
 						<div class="note fst-italic mb-2">{translate key=VideoConferenceHostLoginHint}</div>
 						<div class="form-group mb-2">
 							<label class="fw-bold" for="videoHostAccount">{translate key=VideoConferenceHostAccount}</label>

@@ -45,7 +45,7 @@ class ManageResourcesActions
     public const ImportResources = 'importResources';
     public const ActionChangeGroupPermission = 'changeGroupPermission';
     public const ActionBulkDelete = 'bulkDelete';
-    public const ActionChangeVideoHost = 'changeVideoHost';
+    public const ActionUpdateVideoConferenceInfo = 'updateVideoConferenceInfo';
 }
 
 class ManageResourcesPresenter extends ActionPresenter
@@ -149,7 +149,7 @@ class ManageResourcesPresenter extends ActionPresenter
         $this->AddAction(ManageResourcesActions::ActionChangeGroupPermission, 'ChangeGroupPermission');
         $this->AddAction(ManageResourcesActions::ActionChangeUserPermission, 'ChangeUserPermission');
         $this->AddAction(ManageResourcesActions::ActionBulkDelete, 'BulkDelete');
-        $this->AddAction(ManageResourcesActions::ActionChangeVideoHost, 'ChangeVideoConferenceHost');
+        $this->AddAction(ManageResourcesActions::ActionUpdateVideoConferenceInfo, 'UpdateVideoConferenceInfo');
     }
 
     public function PageLoad()
@@ -644,14 +644,28 @@ class ManageResourcesPresenter extends ActionPresenter
         $this->resourceRepository->Update($resource);
     }
 
-    public function ChangeVideoConferenceHost()
+    public function UpdateVideoConferenceInfo()
     {
         $resourceId = $this->page->GetResourceId();
-        $hostAccount = $this->page->GetVideoHostAccount();
-        $hostPassword = $this->page->GetVideoHostPassword();
-        Log::Debug('Changing video conference host credentials for resource %s', $resourceId);
+        Log::Debug('Updating video conference info for resource %s', $resourceId);
 
-        $this->videoConferenceHostRepository->Save($resourceId, $hostAccount, $hostPassword);
+        $resource = $this->resourceRepository->LoadById($resourceId);
+        foreach ($this->GetAttributeValues() as $attributeValue) {
+            $resource->ChangeAttribute($attributeValue);
+        }
+        $this->resourceRepository->Update($resource);
+
+        $this->videoConferenceHostRepository->Save(
+            $resourceId,
+            $this->page->GetVideoHostAccount(),
+            $this->page->GetVideoHostPassword()
+        );
+
+        $this->page->BindUpdatedVideoConferenceInfo(
+            $resource,
+            $this->videoConferenceHostRepository->GetByResourceId($resourceId),
+            $this->attributeService->GetByCategory(CustomAttributeCategory::RESOURCE)
+        );
     }
 
     public function ChangeResourceType()
@@ -1207,8 +1221,16 @@ class ManageResourcesPresenter extends ActionPresenter
                 break;
             }
             case 'videoHost': {
-                $credentials = $this->videoConferenceHostRepository->GetByResourceId($this->page->GetResourceId());
-                $this->page->SetVideoConferenceHostJson($credentials);
+                $resourceId = $this->page->GetResourceId();
+                $credentials = $this->videoConferenceHostRepository->GetByResourceId($resourceId);
+                $resource = $this->resourceRepository->LoadById($resourceId);
+                $attributeValuesByLabel = [];
+                foreach ($this->attributeService->GetByCategory(CustomAttributeCategory::RESOURCE) as $attribute) {
+                    if (in_array($attribute->Label(), ['video_url', 'video_meeting_id', 'video_passcode'])) {
+                        $attributeValuesByLabel[$attribute->Label()] = $resource->GetAttributeValue($attribute->Id());
+                    }
+                }
+                $this->page->SetVideoConferenceInfoJson($credentials, $attributeValuesByLabel);
                 break;
             }
             case 'users': {

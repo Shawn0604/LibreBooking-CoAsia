@@ -437,39 +437,13 @@
 			<hr class="hr" />
 			<div class="mb-4">
 				<span class="fs-6 fw-bold">{translate key=AdminVideoConferenceInfo}</span>
-				<div class="videoConferenceInfoAttributes">
-					{foreach from=$AttributeList|default:array() item=attribute}
-						{if $attribute->AppliesToEntity($id)}
-							{assign var=videoLabelKey value=''}
-							{if $attribute->Label() == 'video_url'}
-								{assign var=videoLabelKey value='VideoLink'}
-							{elseif $attribute->Label() == 'video_meeting_id'}
-								{assign var=videoLabelKey value='MeetingId'}
-							{elseif $attribute->Label() == 'video_passcode'}
-								{assign var=videoLabelKey value='Passcode'}
-							{/if}
-							{if $videoLabelKey != ''}
-								{include file="Admin/Resources/manage_resources_video_attribute.tpl" id=$id attribute=$attribute labelKey=$videoLabelKey value=$resource->GetAttributeValue($attribute->Id())}
-							{/if}
-						{/if}
-					{/foreach}
-				</div>
-
-				<div class="mt-2">
-					<span class="fs-6 fw-bold">{translate key=VideoConferenceHostLogin}</span>
-					<a class="update changeVideoHost link-primary" title="{translate key='Edit'}" href="#">
-						<span class="visually-hidden">{translate key=VideoConferenceHostLogin}</span>
-						<span class="bi bi-pencil-square"></span>
-					</a>
-					{assign var=hostCredentials value=$VideoHostCredentials[$id]|default:null}
-					<div class="mt-2">
-						<label class="inline fw-bold">{translate key=VideoConferenceHostAccount}</label>
-						<div>{if $hostCredentials}{$hostCredentials->HostAccount}{else}-{/if}</div>
-					</div>
-					<div>
-						<label class="inline fw-bold">{translate key=VideoConferenceHostPassword}</label>
-						<div>{if $hostCredentials}{$hostCredentials->HostPassword}{else}-{/if}</div>
-					</div>
+				<a class="update changeVideoConferenceInfo link-primary" title="{translate key='Edit'}" href="#">
+					<span class="visually-hidden">{translate key=AdminVideoConferenceInfo}</span>
+					<span class="bi bi-pencil-square"></span>
+				</a>
+				{assign var=hostCredentials value=$VideoHostCredentials[$id]|default:null}
+				<div class="videoConferenceInfoPlaceHolder">
+					{include file="Admin/Resources/manage_resources_video_info.tpl" resource=$resource id=$id attributeList=$AttributeList|default:array() hostCredentials=$hostCredentials}
 				</div>
 			</div>
 		{/if}

@@ -475,13 +475,21 @@ interface IManageResourcesPage extends IUpdateResourcePage, IActionPage, IPageab
 
     /**
      * @param VideoConferenceHostCredentials|null $credentials
+     * @param array<string, string> $attributeValuesByLabel keyed by custom attribute label (video_url/video_meeting_id/video_passcode)
      */
-    public function SetVideoConferenceHostJson($credentials);
+    public function SetVideoConferenceInfoJson($credentials, $attributeValuesByLabel);
 
     /**
      * @param VideoConferenceHostCredentials[] $credentialsByResourceId keyed by resource id
      */
     public function BindVideoConferenceHostCredentials($credentialsByResourceId);
+
+    /**
+     * @param BookableResource $resource
+     * @param VideoConferenceHostCredentials|null $hostCredentials
+     * @param CustomAttribute[] $attributeList
+     */
+    public function BindUpdatedVideoConferenceInfo($resource, $hostCredentials, $attributeList);
 }
 
 class ManageResourcesPage extends ActionPage implements IManageResourcesPage
@@ -1210,17 +1218,26 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
         return $this->GetForm(FormKeys::RESOURCE_VIDEO_HOST_PASSWORD);
     }
 
-    public function SetVideoConferenceHostJson($credentials)
+    public function SetVideoConferenceInfoJson($credentials, $attributeValuesByLabel)
     {
-        $this->SetJsonResponse([
+        $this->SetJsonResponse(array_merge($attributeValuesByLabel, [
             'hostAccount' => $credentials?->HostAccount ?? '',
             'hostPassword' => $credentials?->HostPassword ?? '',
-        ]);
+        ]));
     }
 
     public function BindVideoConferenceHostCredentials($credentialsByResourceId)
     {
         $this->Set('VideoHostCredentials', $credentialsByResourceId);
+    }
+
+    public function BindUpdatedVideoConferenceInfo($resource, $hostCredentials, $attributeList)
+    {
+        $this->Set('resource', $resource);
+        $this->Set('id', $resource->GetResourceId());
+        $this->Set('hostCredentials', $hostCredentials);
+        $this->Set('attributeList', $attributeList);
+        $this->Display('Admin/Resources/manage_resources_video_info.tpl');
     }
 }
 

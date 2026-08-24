@@ -11,7 +11,7 @@ function ResourceManagement(opts) {
     durationDialog: $('#durationDialog'),
     capacityDialog: $('#capacityDialog'),
     accessDialog: $('#accessDialog'),
-    videoHostDialog: $('#videoHostDialog'),
+    videoConferenceInfoDialog: $('#videoConferenceInfoDialog'),
 
     imageForm: $('#imageForm'),
     removeImageForm: $('#removeImageForm'),
@@ -21,7 +21,7 @@ function ResourceManagement(opts) {
     capacityForm: $('#capacityForm'),
     accessForm: $('#accessForm'),
     statusForm: $('#statusForm'),
-    videoHostForm: $('#videoHostForm'),
+    videoConferenceInfoForm: $('#videoConferenceInfoForm'),
     videoHostAccount: $('#videoHostAccount'),
     videoHostPassword: $('#videoHostPassword'),
 
@@ -208,10 +208,10 @@ function ResourceManagement(opts) {
       showAccessPrompt(e);
     });
 
-    elements.resourcesList.on('click', '.changeVideoHost', function (e) {
+    elements.resourcesList.on('click', '.changeVideoConferenceInfo', function (e) {
       e.preventDefault();
       setActiveResourceId($(this).closest('.resourceDetails').attr('data-resourceId'));
-      showVideoHostPrompt();
+      showVideoConferenceInfoPrompt();
     });
 
     elements.resourcesList.on('click', '.changeUserPermission', function (e) {
@@ -621,9 +621,11 @@ function ResourceManagement(opts) {
       null,
       errorHandler
     );
-    ConfigureAsyncForm(elements.videoHostForm, defaultSubmitCallback(elements.videoHostForm), function () {
-      elements.videoHostDialog.modal('hide');
-    });
+    ConfigureAsyncForm(
+      elements.videoConferenceInfoForm,
+      defaultSubmitCallback(elements.videoConferenceInfoForm),
+      onVideoConferenceInfoSaved
+    );
     ConfigureAsyncForm(elements.copyForm, defaultSubmitCallback(elements.copyForm));
     ConfigureAsyncForm(elements.importForm, defaultSubmitCallback(elements.importForm), importHandler);
     ConfigureAsyncForm(elements.bulkDeleteForm, defaultSubmitCallback(elements.bulkDeleteForm));
@@ -814,12 +816,16 @@ function ResourceManagement(opts) {
     elements.accessDialog.modal('show');
   };
 
-  var showVideoHostPrompt = function () {
+  var showVideoConferenceInfoPrompt = function () {
     var resourceId = getActiveResourceId();
     $.getJSON(opts.permissionsUrl + '?dr=videoHost', { rid: resourceId }, function (data) {
-      elements.videoHostAccount.val((data && data.hostAccount) || '');
-      elements.videoHostPassword.val((data && data.hostPassword) || '');
-      elements.videoHostDialog.modal('show');
+      data = data || {};
+      elements.videoConferenceInfoDialog.find('.videoAttributeInput').each(function () {
+        $(this).val(data[$(this).attr('data-video-field')] || '');
+      });
+      elements.videoHostAccount.val(data.hostAccount || '');
+      elements.videoHostPassword.val(data.hostPassword || '');
+      elements.videoConferenceInfoDialog.modal('show');
     });
   };
 
@@ -850,6 +856,13 @@ function ResourceManagement(opts) {
     resourceDuration.days = emptyIfZero(container.attr('data-days'));
     resourceDuration.hours = emptyIfZero(container.attr('data-hours'));
     resourceDuration.minutes = emptyIfZero(container.attr('data-minutes'));
+  };
+
+  var onVideoConferenceInfoSaved = function (resultHtml) {
+    var resource = getActiveResource();
+    var resourceDiv = $('div[data-resourceId=' + resource.id + ']');
+    resourceDiv.find('.videoConferenceInfoPlaceHolder').html(resultHtml);
+    elements.videoConferenceInfoDialog.modal('hide');
   };
 
   var onDurationSaved = function (resultHtml) {

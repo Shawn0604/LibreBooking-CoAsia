@@ -2570,3 +2570,21 @@ docker compose -f docker-compose.prod.yml exec -T db mysql -uroot -p'<MYSQL_ROOT
 - 對照程式碼確認邏輯閉環：`BookableResource::HasResourceType()`（`Domain/BookableResource.php:1530`）只檢查 `resource_type_id` 是否非空，補上類型後 `manage_resource_drawer_content.tpl` 的 `{if !$isTypedResource}` 分支會自然不再命中，改走簡化版
 - `docker compose -f docker-compose.dev.yml restart app` 清 opcache 後，沒有帳密可以實際登入這個環境本身已經串接公司 AD 的開發資料庫，畫面上的實際確認麻煩使用者自行登入複查
 - 正式環境比照既有部署流程（git pull + rebuild），下次部署時這個遷移會自動套用；因為是用 `IS NULL` 篩選、不依賴具體 resource_id，不需要知道正式環境實際的 ID 是多少
+
+## 83. 線上會議資源的「線上會議資訊」改成單一 Modal 編輯（比照使用者管理）
+
+§82 修完資料後，使用者追加：即使是已分類、已經簡化過的「線上會議」資源，畫面還是舊的——拿「使用者管理」的編輯 Modal（十幾個欄位一次擺在一個表單、一次送出）跟「Google Meet 1」抽屜對比，後者的會議ID／密碼／連結／主持人登入資訊還是每個欄位各自一支鉛筆圖示、各自獨立編輯（三個用 `Admin/InlineAttributeEdit.tpl` 那套 x-editable 行內編輯，主持人帳密另外開一個 `videoHostDialog` 彈窗），四個編輯點才能改完一筆資源的完整資訊。
+
+查證後範圍比預期小：實體會議室類型（§66 已簡化成只剩名稱＋狀態）不受影響；真正要改的只有線上會議類型資源的這個區塊。**沒有**照抄使用者管理那種整頁 offcanvas 表單，而是比照這個檔案裡 `durationForm`／`accessForm`／`statusForm` 早就在用的既有慣例——一個 pencil 開一個 Modal、裡面好幾個欄位、一個 Update 按鈕——把原本 4 個分散的編輯點收成 1 個，這樣改動幅度小，也跟這頁其他設定區塊的既有寫法一致。
+
+- `tpl/Admin/Resources/manage_resources.tpl`：新增 `videoConferenceInfoDialog`（取代 `videoHostDialog`），一個表單裡放會議ID／密碼／連結三個文字框（`name` 直接用 `{FormKeys::ATTRIBUTE_PREFIX}{$attribute->Id()}`，迴圈 `$AttributeList` 找 label 是 `video_url`/`video_meeting_id`/`video_passcode` 的三個屬性——這三個屬性 ID 是全站固定的屬性定義 ID，不是每個資源各自不同，所以可以在這個共用 Modal 裡渲染一次）加上既有的主持人帳號／密碼兩個欄位，全部送到新的 `ActionUpdateVideoConferenceInfo`。
+- `tpl/Admin/Resources/manage_resource_drawer_content.tpl` 的線上會議分支、新增的 `tpl/Admin/Resources/manage_resources_video_info.tpl`：拿掉三個獨立 pencil／x-editable span，改成純唯讀顯示 5 個值＋區塊標題旁一個編輯 pencil。這個唯讀 fragment 同時也是存檔後 AJAX 用來刷新畫面的回應內容（跟 `manage_resources_duration.tpl`／`ChangeDuration()` 的既有模式一樣：presenter 存完直接 `Display()` 這個 fragment，JS 把回應塞回 `.videoConferenceInfoPlaceHolder`），不用整頁重新整理。
+- 刪除已經沒人用的 `tpl/Admin/Resources/manage_resources_video_attribute.tpl`。
+- `ManageResourcesPresenter.php`：`ActionChangeVideoHost`/`ChangeVideoConferenceHost()` 改成 `ActionUpdateVideoConferenceInfo`/`UpdateVideoConferenceInfo()`，內部直接重用既有的 `GetAttributeValues()`（`ChangeAttribute()` 本來就在用的同一支）跟 `GetVideoHostAccount()`/`GetVideoHostPassword()`（原本 `ChangeVideoConferenceHost()` 在用的同一組）——沒有新的資料存取邏輯，純粹把兩個既有動作合併成一次呼叫。`ProcessDataRequest` 的 `case 'videoHost':`（開 Modal 時抓目前值用的既有 AJAX）多帶三個屬性值一起回傳。`ActionChangeAttribute`/`ChangeAttribute()` 本身沒有動——未分類資源的自訂屬性區塊、其他一般自訂屬性欄位還在用同一支。
+- `Web/scripts/admin/resource.js`：`showVideoHostPrompt`→`showVideoConferenceInfoPrompt`，用 `data-video-field` 屬性通用地把 AJAX 回傳的三個屬性值 populate 進對應輸入框（不依賴屬性 ID 這種每個環境可能不同的值），新增 `onVideoConferenceInfoSaved` 比照 `onDurationSaved` 的既有模式刷新 placeholder。
+
+### 驗證
+
+- 容器內 `php -l` 通過修改的 PHP 檔案，`node --check` 通過 `resource.js`
+- 確認舊的 `videoHostDialog`/`ActionChangeVideoHost`/`manage_resources_video_attribute.tpl` 等名稱在全專案（除了這份記錄本身）沒有殘留引用
+- 同 §82，開發資料庫串真實 AD 沒有已知測試帳密，沒辦法在瀏覽器裡實際點開 Modal 操作，麻煩使用者登入後確認：線上會議資源的「線上會議資訊」只剩一個編輯 pencil，點開的 Modal 五個欄位都在、改完存一次全部生效；實體會議室資源的抽屜完全沒變化
