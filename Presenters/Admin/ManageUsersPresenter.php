@@ -275,9 +275,6 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
             return;
         }
 
-        $userId = $user->Id();
-        $this->ApplyRole($userId, $this->page->GetRole());
-
         if ($this->page->SendEmailNotification()) {
             ServiceLocator::GetEmailService()->Send(new AccountCreationForUserEmail(
                 $user,
@@ -308,7 +305,6 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
             $this->GetAttributeValues()
         );
 
-        $this->ApplyRole($this->page->GetUserId(), $this->page->GetRole());
         $this->ApplyLocalAuthOnly($this->page->GetUserId(), $this->page->GetIsLocalAuthOnly());
     }
 
@@ -317,8 +313,8 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
      * authenticate with a local password even during an AD outage (see
      * plugins/Authentication/ActiveDirectory/ActiveDirectory.php::Validate()). Meant for a small
      * handful of emergency admin accounts. A separate load/mutate/update from
-     * ManageUsersService::UpdateUser() above, same as ApplyRole() -- this flag isn't part of the
-     * generic $extraAttributes bag those other free-text fields (phone/organization/position/
+     * ManageUsersService::UpdateUser() above -- this flag isn't part of the generic
+     * $extraAttributes bag those other free-text fields (phone/organization/position/
      * department) go through.
      *
      * @param int $userId
@@ -329,38 +325,6 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
         $user = $this->userRepository->LoadById($userId);
         $user->ChangeIsLocalAuthOnly($isLocalAuthOnly);
         $this->userRepository->Update($user);
-    }
-
-    /**
-     * CoAsia's simplified two-role model (一般使用者/系統管理員) maps directly onto membership in
-     * whichever existing group carries the APPLICATION_ADMIN role -- there's no dedicated "role"
-     * column anywhere in the schema, admin-ness has always been "is this user in a group with
-     * that role" (see AuthorizationService::IsApplicationAdministrator()). Looked up by role
-     * rather than a hardcoded group id/name, since neither is guaranteed stable -- CoAsia's group
-     * happens to be named "Application Administrators" today, but nothing enforces that.
-     * @param int $userId
-     * @param string|null $role 'admin', 'user', or null (form didn't include a role field --
-     *        no-op, so this stays safe to call from any AddUser()/UpdateUser() caller)
-     */
-    private function ApplyRole($userId, $role)
-    {
-        if ($role !== 'admin' && $role !== 'user') {
-            return;
-        }
-
-        $adminGroups = $this->groupViewRepository->GetGroupsByRole(RoleLevel::APPLICATION_ADMIN);
-        if (empty($adminGroups)) {
-            Log::Error('No group with the APPLICATION_ADMIN role exists -- cannot apply role %s for user %s', $role, $userId);
-            return;
-        }
-
-        $group = $this->groupRepository->LoadById($adminGroups[0]->Id);
-        if ($role === 'admin') {
-            $group->AddUser($userId);
-        } else {
-            $group->RemoveUser($userId);
-        }
-        $this->groupRepository->Update($group);
     }
 
     public function DeleteUser()

@@ -19,13 +19,6 @@ function UserManagement(opts) {
     userDialog: $('#userDialog'),
     userForm: $('#userForm'),
 
-    groupsDialog: $('#groupsDialog'),
-    addedGroups: $('#addedGroups'),
-    removedGroups: $('#removedGroups'),
-    groupList: $('#groupList'),
-    addGroupForm: $('#addGroupForm'),
-    removeGroupForm: $('#removeGroupForm'),
-    groupCount: $('#groupCount'),
 
     colorDialog: $('#colorDialog'),
     colorValue: $('#reservationColor'),
@@ -85,10 +78,6 @@ function UserManagement(opts) {
       changeStatus($(this));
     });
 
-    elements.userList.on('click', '.changeGroups', function (e) {
-      changeGroups();
-    });
-
     elements.userList.on('click', '.changePermissions', function (e) {
       changePermissions();
     });
@@ -137,30 +126,6 @@ function UserManagement(opts) {
     elements.filterStatusId.change(function () {
       var statusid = $(this).val();
       window.location.href = options.filterUrl + statusid;
-    });
-
-    elements.addedGroups.on('click', 'div', function (e) {
-      e.preventDefault();
-      $('#removeGroupId').val($(this).attr('groupId'));
-      $('#removeGroupUserId').val(getActiveUserId());
-      elements.removeGroupForm.submit();
-
-      var count = elements.groupCount.text();
-      elements.groupCount.text(--count);
-
-      $(this).appendTo(elements.removedGroups);
-    });
-
-    elements.removedGroups.on('click', 'div', function (e) {
-      e.preventDefault();
-      $('#addGroupId').val($(this).attr('groupId'));
-      $('#addGroupUserId').val(getActiveUserId());
-      elements.addGroupForm.submit();
-
-      var count = elements.groupCount.text();
-      elements.groupCount.text(++count);
-
-      $(this).appendTo(elements.addedGroups);
     });
 
     // Handle click to set all resources to "Full Access"
@@ -356,8 +321,6 @@ function UserManagement(opts) {
     );
     ConfigureAsyncForm(elements.colorForm, defaultSubmitCallback(elements.colorForm));
     ConfigureAsyncForm(elements.importUsersForm, defaultSubmitCallback(elements.importUsersForm), importHandler);
-    ConfigureAsyncForm(elements.addGroupForm, changeGroupUrlCallback(elements.addGroupForm), function () {});
-    ConfigureAsyncForm(elements.removeGroupForm, changeGroupUrlCallback(elements.removeGroupForm), function () {});
     ConfigureAsyncForm(elements.invitationForm, defaultSubmitCallback(elements.invitationForm), inviteHandler);
     ConfigureAsyncForm(elements.deleteMultipleUserForm, defaultSubmitCallback(elements.deleteMultipleUserForm));
   };
@@ -375,12 +338,6 @@ function UserManagement(opts) {
   var defaultSubmitCallback = function (form) {
     return function () {
       return options.submitUrl + '?action=' + form.attr('ajaxAction') + '&uid=' + getActiveUserId();
-    };
-  };
-
-  var changeGroupUrlCallback = function (form) {
-    return function () {
-      return options.groupManagementUrl + '?action=' + form.attr('ajaxAction') + '&uid=' + getActiveUserId();
     };
   };
 
@@ -427,29 +384,6 @@ function UserManagement(opts) {
         changeStatusResultCallback
       );
     }
-  };
-
-  var changeGroups = function () {
-    elements.addedGroups.find('.group-item').remove();
-    elements.removedGroups.find('.group-item').remove();
-
-    var user = getActiveUser();
-    var data = { dr: 'groups', uid: user.id };
-    $.get(opts.groupsUrl, data, function (groupIds) {
-      elements.groupList.find('.group-item').clone().appendTo(elements.removedGroups);
-
-      var count = 0;
-
-      $.each(groupIds, function (index, value) {
-        var groupLine = elements.removedGroups.find('div[groupId=' + value + ']');
-        groupLine.appendTo(elements.addedGroups);
-        count++;
-      });
-
-      elements.groupCount.text(count);
-    });
-
-    elements.groupsDialog.modal('show');
   };
 
   // Update visible <select> dropdowns on the current DataTable page to match permissionState.

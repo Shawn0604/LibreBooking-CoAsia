@@ -605,47 +605,6 @@
     </div>
     {/if}
 
-    <div id="groupsDialog" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="groupsModalLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="groupsModalLabel">{translate key=Groups}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-                </div>
-                <div class="modal-body scrollable-modal-content">
-
-                    <div id="groupList" class="d-none">
-                        {foreach from=$Groups item=group}
-                            <div class="group-item d-flex align-items-center" groupId="{$group->Id}">
-                                <a href="#"><span class="visually-hidden">{$group->Name}</span>&nbsp;</a>
-                                <span>{$group->Name}</span>
-                            </div>
-                        {/foreach}
-                    </div>
-
-                    <h6>{translate key=GroupMembership} <span class="badge bg-primary" id="groupCount">0</span></h6>
-                    <div id="addedGroups">
-                    </div>
-
-                    <h5>{translate key=AvailableGroups}</h5>
-                    <div id="removedGroups">
-                    </div>
-
-                    <form id="addGroupForm" method="post" ajaxAction="addUser">
-                        <input type="hidden" id="addGroupId" {formname key=GROUP_ID} />
-                        <input type="hidden" id="addGroupUserId" {formname key=USER_ID} />
-                    </form>
-
-                    <form id="removeGroupForm" method="post" ajaxAction="removeUser">
-                        <input type="hidden" id="removeGroupId" {formname key=GROUP_ID} />
-                        <input type="hidden" id="removeGroupUserId" {formname key=USER_ID} />
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <div id="colorDialog" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="colorModalLabel"
         aria-hidden="true">
         <form id="colorForm" method="post" ajaxAction="{ManageUsersActions::ChangeColor}">
@@ -769,8 +728,6 @@
             var userOptions = {
                 userAutocompleteUrl: "../ajax/autocomplete.php?type={AutoCompleteType::MyUsers}",
                 orgAutoCompleteUrl: "../ajax/autocomplete.php?type={AutoCompleteType::Organization}",
-                groupsUrl: '{$smarty.server.SCRIPT_NAME}',
-                groupManagementUrl: '{$ManageGroupsUrl}',
                 permissionsUrl: '{$smarty.server.SCRIPT_NAME}',
                 submitUrl: '{$smarty.server.SCRIPT_NAME}',
                 saveRedirect: '{$smarty.server.SCRIPT_NAME}',

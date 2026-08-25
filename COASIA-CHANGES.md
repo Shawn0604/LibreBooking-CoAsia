@@ -2638,3 +2638,36 @@ docker compose -f docker-compose.prod.yml exec -T db mysql -uroot -p'<MYSQL_ROOT
 - `composer phpunit` 全跑一次：1729 個測試，跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest`）；另外單獨跑 `--filter ManageSchedules` 4 個測試全過
 - 全專案搜尋確認拿掉的 11 個 `ManageSchedules::Action*`／`ChangeAdminGroup` 常數、`showAvailabilityDialog`、`BindGroups` 等名稱沒有殘留引用
 - 開發環境沒有已知登入帳密，沒辦法在瀏覽器裡實際操作，麻煩使用者登入後確認：時間表編輯抽屜只剩名稱＋每週開放時間、列表「⋯」選單的刪除功能正常
+
+## 86. 管理中心資料入口整合：每種資料只留一個主要修改入口（Phase A 起手：使用者管理）
+
+使用者要求對整個管理中心做一次架構性盤點，核心原則：「每一種資料只能有一個主要修改入口，其他頁面只能顯示結果，或導向該主要入口」。派三個 agent 平行盤點使用者/群組/權限、會議室/時間表/分組、CSV 匯入與管理總覽三個範圍，發現的不只是「兩處都能改」，還有實際的功能缺口與歷史事故根因（會議室 CSV 匯入的 `autoAssign` 設定錯誤就是先前「10 間會議室沒有預設權限」事故的根因；預約 CSV 匯入的 `UnsafeAdd()` 完全繞過鎖定/驗證/通知，是 §22.4 已經記錄過的已知缺口，這次確認維持現狀、另外開一輪處理，不在這個系列裡）。
+
+盤點出的重複入口跟使用者確認的四項決定：
+1. 會議室權限（誰能訂哪間會議室）：目前使用者/群組/會議室三邊都寫入同一套 `ResourcePermissionService`，確認為**會議室管理**唯一入口
+2. 授權管理群組（會議室管理員/時間表管理員）：確認為**群組管理**唯一入口（時間表這邊 §85 已經是如此，這次要把唯讀顯示補上）
+3. 會議室所屬開放時間：已分類會議室的抽屜本來就不能改時間表，但「批次修改」卻可以改——確認**批次修改拿掉這個選項**，維持已分類會議室不能自己改時間表（符合 §66 原始設計）
+4. 使用者屬於哪些群組：使用者管理頁面的操作其實呼叫群組管理同一套後端方法，確認**強制單一入口（群組管理）**
+
+這節先做範圍最小、風險最低的兩項（A1、A2），其餘（會議室權限、授權管理群組、開放時間批次修改、會議室分組、CSV 匯入對齊、管理總覽深連結）留在後續章節逐項處理，比照這個系列一路的節奏——每項改完各自驗證，不是一次全改完才驗證。
+
+### 86.1 使用者屬於哪些群組（A1）
+
+查證後發現這個「重複」其實只剩一半是真的：`tpl/Admin/Users/manage_users.tpl` 裡有一整組 `groupsDialog`／`addedGroups`／`removedGroups`／`addGroupForm`／`removeGroupForm`（呼叫群組管理同一套 `AddUser`/`RemoveUser` action），但全專案搜尋找不到任何會觸發它的 `.changeGroups` trigger——使用者列表的「⋯」選單裡只有 Permissions／Reservations／Change Password／Credit History／Color／Deactivate／Delete，沒有「Groups」這個選項。這組 Modal 跟對應的 `Web/scripts/admin/user.js` 綁定（`changeGroups()`、`changeGroupUrlCallback()`、`elements.groupsDialog` 一整組選取器）其實是先前某輪改版留下的死程式碼，不是真的重複入口，順手整個清掉。
+
+`tpl/Admin/Users/user-update.tpl` 原本已經有的「所屬群組」唯讀清單維持不動，補一行「前往群組管理」連結（沿用既有的 `$ManageGroupsUrl` = `Pages::MANAGE_GROUPS`）。
+
+### 86.2 系統管理員權限（A2）
+
+`user-update.tpl` 的角色下拉（`ROLE` 欄位）拿掉，改成唯讀 badge（顯示目前是否為系統管理員）＋既有的「所屬群組」清單＋「前往群組管理」連結。`ManageUsersPresenter::ApplyRole()`（原本假設剛好有一個帶 `APPLICATION_ADMIN` 角色的群組，透過切換該群組成員資格來授予/收回管理員權限，找不到就靜默失敗記 log）連同它在 `AddUser()`／`UpdateUser()` 的兩個呼叫點一起移除；`Pages/Admin/ManageUsersPage.php::GetRole()`／介面宣告一併拿掉。`ManageGroupsPresenter::ChangeRoles()`（真正寫入角色-群組綁定的地方）完全沒動。
+
+過程中發現並修正一個連帶的小 bug：`ShowUserUpdate()`（`dr=update` AJAX 端點，`ActionPage::PageLoad()` 會走 `ProcessDataRequest()` 分支、不會執行 `ProcessPageLoad()`）本來沒有自己設定 `ManageGroupsUrl`，這個變數只在 `ProcessPageLoad()` 裡設過——代表新加的「前往群組管理」連結透過 AJAX 抽屜開啟時會拿到空值。補上讓 `ShowUserUpdate()` 自己也 `Set('ManageGroupsUrl', Pages::MANAGE_GROUPS)`。
+
+測試檔 `tests/Presenters/Admin/ManageUsersPresenterTest.php` 對應拿掉三個純測 `ApplyRole()` 行為的測試（`testAddsUserWithRegularRoleRemovesFromAdminGroupInCaseTheyWerePreviouslyAdmin`／`testAddUserWithNoRoleSubmittedLeavesGroupsUntouched`／`testUpdateUserPromotesToAdminGroupWhenAdminRoleSubmitted`），`testAddsUser` 裡混雜的角色相關斷言也一併拔掉，不是留著測一個已經不存在的功能。
+
+### 驗證
+
+- 容器內 `php -l`／`composer phpstan`／`composer phpcsfixer:lint` 通過所有修改的 PHP 檔案，`node --check`／`npx eslint` 通過 `user.js`
+- `composer phpunit` 全跑一次：1726 個測試（比改動前少 3 個，對應拿掉的三支測試），跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest`）；`--filter ManageUsers` 46 個測試全過
+- 全專案搜尋確認 `ApplyRole`／`FormKeys::ROLE`／`GetRole()`／`groupsDialog`／`changeGroupUrlCallback` 沒有殘留引用（除了測試檔裡無害的 fake page 殘留欄位、跟已知會重新編譯的 `tpl_c` 快取）
+- 開發環境沒有已知登入帳密，麻煩使用者登入後確認：編輯使用者看到的是唯讀角色 badge＋所屬群組清單＋前往群組管理連結，點連結能正確導到 `manage_groups.php`

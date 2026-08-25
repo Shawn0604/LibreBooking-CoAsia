@@ -47,17 +47,24 @@
 
 		<div class="col-sm-12 col-md-6">
 			<div class="form-group">
-				<label class="fw-bold" for="role">{translate key="AdminUserRole"}</label>
-				<select {formname key='ROLE'} id='role' class="form-select">
-					<option value="user" {if !$User->IsInRole(RoleLevel::APPLICATION_ADMIN)}selected{/if}>{translate key="AdminUserRoleUser"}</option>
-					<option value="admin" {if $User->IsInRole(RoleLevel::APPLICATION_ADMIN)}selected{/if}>{translate key="AdminUserRoleAdmin"}</option>
-				</select>
+				<label class="fw-bold">{translate key="AdminUserRole"}</label>
+				<div>
+					{if $User->IsInRole(RoleLevel::APPLICATION_ADMIN)}
+						<span class="badge bg-primary">{translate key="AdminUserRoleAdmin"}</span>
+					{else}
+						<span class="text-muted">{translate key="AdminUserRoleUser"}</span>
+					{/if}
+				</div>
 				{if $User->Groups()|default:array()|count > 0}
 					<div class="form-text">
 						{translate key="AdminUserCurrentGroups"}:
 						{foreach from=$User->Groups() item=userGroup name=userGroupLoop}{$userGroup->GroupName|escape}{if !$smarty.foreach.userGroupLoop.last}, {/if}{/foreach}
 					</div>
 				{/if}
+				<div class="form-text">
+					{translate key="AdminUserRoleManagedInGroups"}
+					<a href="{$ManageGroupsUrl}" class="link-primary">{translate key="GoToGroupManagement"}</a>
+				</div>
 			</div>
 		</div>
 
