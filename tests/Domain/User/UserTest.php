@@ -213,4 +213,18 @@ class UserTest extends TestBase
         $this->assertFalse($user->IsGroupAdminFor([4, 100]));
         $this->assertFalse($user->IsGroupAdminFor([5, 100]));
     }
+
+    public function testWantsWeComNotificationsUnlessExplicitlyTurnedOff()
+    {
+        $user = new User();
+        // Never touched -> default on (mirrors WantsLineNotifications).
+        $this->assertTrue($user->WantsWeComNotifications());
+
+        $user->ChangeWeComNotificationsPreference(false);
+        $this->assertFalse($user->WantsWeComNotifications());
+        $this->assertEquals('0', $user->GetPreferences()->Get(UserPreferences::WECOM_NOTIFICATIONS_ENABLED));
+
+        $user->ChangeWeComNotificationsPreference(true);
+        $this->assertTrue($user->WantsWeComNotifications());
+    }
 }

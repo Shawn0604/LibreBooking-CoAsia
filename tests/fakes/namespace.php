@@ -23,6 +23,7 @@ require_once(ROOT_DIR . 'tests/fakes/FakeUserSession.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeResource.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeEmailService.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeLineService.php');
+require_once(ROOT_DIR . 'tests/fakes/FakeWeComService.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeUser.php');
 require_once(ROOT_DIR . 'tests/fakes/FakeSchedule.php');
 require_once(ROOT_DIR . 'tests/fakes/TestCustomAttribute.php');

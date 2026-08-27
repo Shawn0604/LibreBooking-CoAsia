@@ -557,6 +557,25 @@ class User
     }
 
     /**
+     * Whether WeCom pushes should actually be sent to this user right now — true unless
+     * they've explicitly turned the toggle off, independent of whether a WecomUserId is set
+     * (callers still need their own WECOM_USER_ID check for that).
+     * @return bool
+     */
+    public function WantsWeComNotifications()
+    {
+        return $this->preferences->Get(UserPreferences::WECOM_NOTIFICATIONS_ENABLED) !== '0';
+    }
+
+    /**
+     * @param bool $turnedOn
+     */
+    public function ChangeWeComNotificationsPreference($turnedOn)
+    {
+        $this->ChangePreference(UserPreferences::WECOM_NOTIFICATIONS_ENABLED, $turnedOn ? '1' : '0');
+    }
+
+    /**
      * @param string $loginTime
      * @param string $language
      */

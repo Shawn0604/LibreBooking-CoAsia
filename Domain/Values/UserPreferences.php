@@ -7,6 +7,10 @@ class UserPreferences
     public const CALENDAR_FILTER = 'CalendarFilter';
     public const LINE_USER_ID = 'LineUserId';
     public const LINE_LINK_CODE = 'LineLinkCode';
+    // WeCom (企業微信) recipient id. Unlike LINE (bound via a QR + webhook handshake), this
+    // is entered by an administrator on the user-management page — see the WeCom API deck,
+    // slide 6 ("增加企業微信ID欄位: 帳號角色管理").
+    public const WECOM_USER_ID = 'WecomUserId';
     // The user's explicitly-chosen "設為預設" room on the Overview FullCalendar resource
     // picker — highest-priority tier in its default-resource resolution, above both the
     // last-selected room (localStorage, see overview-fc-selected-resource in
@@ -17,6 +21,9 @@ class UserPreferences
     // keep receiving pushes by default, same as how binding itself already implies wanting
     // notifications. Only an explicit '0' (see Get() callers) turns them off.
     public const LINE_NOTIFICATIONS_ENABLED = 'LineNotificationsEnabled';
+    // Same "unset means enabled" semantics as LINE_NOTIFICATIONS_ENABLED — only an explicit
+    // '0' turns WeCom pushes off for a user who otherwise has a WecomUserId set.
+    public const WECOM_NOTIFICATIONS_ENABLED = 'WecomNotificationsEnabled';
 
     private $preferences = [];
     private $changed = [];

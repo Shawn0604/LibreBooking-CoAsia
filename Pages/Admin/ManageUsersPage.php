@@ -6,6 +6,7 @@ require_once(ROOT_DIR . 'Pages/Admin/AdminPage.php');
 require_once(ROOT_DIR . 'Pages/Ajax/AutoCompletePage.php');
 require_once(ROOT_DIR . 'Presenters/Admin/ManageUsersPresenter.php');
 require_once(ROOT_DIR . 'Domain/Access/namespace.php');
+require_once(ROOT_DIR . 'Domain/Values/UserPreferences.php');
 require_once(ROOT_DIR . 'lib/Application/Attributes/namespace.php');
 
 interface IManageUsersPage extends IPageable, IActionPage
@@ -87,6 +88,11 @@ interface IManageUsersPage extends IPageable, IActionPage
      * @return string
      */
     public function GetDepartment();
+
+    /**
+     * @return string
+     */
+    public function GetWeComUserId();
 
     /**
      * @return bool
@@ -404,6 +410,11 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
         return $this->GetForm(FormKeys::DEPARTMENT);
     }
 
+    public function GetWeComUserId()
+    {
+        return $this->GetForm(FormKeys::WECOM_USER_ID);
+    }
+
     public function GetIsLocalAuthOnly()
     {
         return $this->GetCheckbox(FormKeys::IS_LOCAL_AUTH_ONLY);
@@ -518,6 +529,10 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
         $this->Set('TimezoneLabels', $timezoneLabels);
         $this->Set('User', $user);
         $this->Set('Attributes', $attributes);
+        // WeCom recipient id lives in user preferences (like LineUserId), not as a user
+        // attribute -- surfaced here so the edit form can show/edit it. Constant reference
+        // kept in PHP, same rationale as IsUserAdmin below.
+        $this->Set('WeComUserId', $user->GetPreferences()->Get(UserPreferences::WECOM_USER_ID));
         // Computed here rather than calling $User->IsInRole(RoleLevel::APPLICATION_ADMIN)
         // directly from the template -- keeps the RoleLevel constant reference in PHP.
         $this->Set('IsUserAdmin', $user->IsInRole(RoleLevel::APPLICATION_ADMIN));

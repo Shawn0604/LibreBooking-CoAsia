@@ -815,6 +815,21 @@ class zh_cn extends en_us
         $strings['TzTonga'] = '汤加';
         $strings['TzKiritimati'] = '基里巴斯';
 
+        $strings['WeComUserId'] = '企业微信 ID';
+        $strings['WeComUserIdHint'] = '用户的企业微信账号 ID。填入后，预约确认与提醒也会通过企业微信推送。';
+        $strings['WeComReservationCreatedTitle'] = '预约成功';
+        $strings['WeComFieldMeetingName'] = '会议名称';
+        $strings['WeComFieldDateTime'] = '日期与时间';
+        $strings['WeComFieldMeetingRoom'] = '会议室';
+        $strings['WeComFieldVideoResource'] = '视频会议资源';
+        $strings['WeComJoinVideoConference'] = '加入视频会议';
+        $strings['WeComFieldOwner'] = '预约人';
+        $strings['WeComViewReservationDetails'] = '查看预约详情';
+        $strings['WeComHostLoginInfo'] = '主持人登录信息（仅预约人可查看）';
+        $strings['WeComRecurringSuffix'] = '（%s，共 %s 场，至 %s）';
+        $strings['WeComReminderStartMessage'] = "提醒：“%s”即将开始\n地点：%s";
+        $strings['WeComReminderEndMessage'] = "提醒：“%s”即将结束\n地点：%s";
+
         $this->Strings = $strings;
 
         return $this->Strings;

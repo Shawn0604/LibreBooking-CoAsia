@@ -476,6 +476,28 @@ class ConfigKeys extends AbstractConfigKeys
         'section' => 'line'
     ];
 
+    // WeCom (企業微信) push notifications, via the CoAsia internal gateway. Parallel channel
+    // to LINE for staff who use WeCom instead (mainly the China-region offices). The gateway
+    // owns the WeCom app credentials; this app only POSTs {touser, content} to it.
+    public const WECOM_ENABLED = [
+        'key' => 'wecom.enabled',
+        'type' => 'boolean',
+        'default' => false,
+        'label' => 'Enable WeCom Notifications',
+        'description' => 'Enable or disable WeCom (企業微信) push notifications for reservation reminders/confirmations',
+        'section' => 'wecom'
+    ];
+
+    public const WECOM_API_URL = [
+        'key' => 'wecom.api.url',
+        'type' => 'string',
+        'default' => 'https://wecoms.coasia.app/wecom/send_wecom_msg.php',
+        'label' => 'WeCom Gateway URL',
+        'description' => 'Endpoint of the CoAsia WeCom send gateway; receives POST touser + content',
+        'config_file_comment' => 'CoAsia WeCom send gateway endpoint (plaintext API)',
+        'section' => 'wecom'
+    ];
+
     // Video conference host credentials (Jobs/import-video-conference-resources.php,
     // Domain/Access/VideoConferenceHostRepository.php) — reservation owners can view a video
     // resource's shared host login (email/LINE), so the password is encrypted at rest rather

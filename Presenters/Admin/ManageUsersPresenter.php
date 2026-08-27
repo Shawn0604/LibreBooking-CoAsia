@@ -306,6 +306,23 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
         );
 
         $this->ApplyLocalAuthOnly($this->page->GetUserId(), $this->page->GetIsLocalAuthOnly());
+        $this->ApplyWeComUserId($this->page->GetUserId(), $this->page->GetWeComUserId());
+    }
+
+    /**
+     * WeCom (企業微信) recipient id -- an administrator-entered value, stored as a user
+     * preference (like LineUserId) rather than a user attribute, so it takes its own
+     * load/mutate/update pass just like ApplyLocalAuthOnly() rather than riding in the
+     * $extraAttributes bag.
+     *
+     * @param int $userId
+     * @param string $wecomUserId
+     */
+    private function ApplyWeComUserId($userId, $wecomUserId)
+    {
+        $user = $this->userRepository->LoadById($userId);
+        $user->ChangePreference(UserPreferences::WECOM_USER_ID, trim((string) $wecomUserId));
+        $this->userRepository->Update($user);
     }
 
     /**

@@ -28,6 +28,11 @@ class ServiceLocator
     private static $_lineService = null;
 
     /**
+     * @var IWeComService
+     */
+    private static $_wecomService = null;
+
+    /**
      * @var \Booked\IFileSystem
      */
     private static $_fileSystem = null;
@@ -126,6 +131,29 @@ class ServiceLocator
     public static function SetLineService(ILineService $lineService)
     {
         self::$_lineService = $lineService;
+    }
+
+    /**
+     * @static
+     * @return IWeComService
+     */
+    public static function GetWeComService()
+    {
+        require_once(ROOT_DIR . 'lib/WeCom/namespace.php');
+
+        if (self::$_wecomService == null) {
+            if (Configuration::Instance()->GetKey(ConfigKeys::WECOM_ENABLED, new BooleanConverter())) {
+                self::$_wecomService = new WeComService();
+            } else {
+                self::$_wecomService = new NullWeComService();
+            }
+        }
+        return self::$_wecomService;
+    }
+
+    public static function SetWeComService(?IWeComService $wecomService)
+    {
+        self::$_wecomService = $wecomService;
     }
 
     /**

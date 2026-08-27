@@ -111,6 +111,15 @@
 
 		<div class="col-sm-12 col-md-6">
 			<div class="form-group">
+				<label class="fw-bold" for="wecomUserId">{translate key="WeComUserId"}</label>
+				<input type="text" {formname key="WECOM_USER_ID"} class="form-control" id="wecomUserId"
+					value="{$WeComUserId}" />
+				<div class="form-text">{translate key="WeComUserIdHint"}</div>
+			</div>
+		</div>
+
+		<div class="col-sm-12 col-md-6">
+			<div class="form-group">
 				<div class="form-check">
 					<input type="checkbox" {formname key=IS_LOCAL_AUTH_ONLY} id="isLocalAuthOnly"
 						{if $User->IsLocalAuthOnly()}checked="checked" {/if} class="form-check-input" />

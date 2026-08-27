@@ -2671,3 +2671,51 @@ docker compose -f docker-compose.prod.yml exec -T db mysql -uroot -p'<MYSQL_ROOT
 - `composer phpunit` 全跑一次：1726 個測試（比改動前少 3 個，對應拿掉的三支測試），跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest`）；`--filter ManageUsers` 46 個測試全過
 - 全專案搜尋確認 `ApplyRole`／`FormKeys::ROLE`／`GetRole()`／`groupsDialog`／`changeGroupUrlCallback` 沒有殘留引用（除了測試檔裡無害的 fake page 殘留欄位、跟已知會重新編譯的 `tpl_c` 快取）
 - 開發環境沒有已知登入帳密，麻煩使用者登入後確認：編輯使用者看到的是唯讀角色 badge＋所屬群組清單＋前往群組管理連結，點連結能正確導到 `manage_groups.php`
+
+## 87. 新增企業微信（WeCom）推播通知：LINE 之外的第二條通知管道
+
+主管指示優先做「WeCom」。來源是一份 IT（Mars Huang）2025-11-25 的簡報 `wecom_api_20251125.pptx`，說明 CoAsia 內部的 WeCom 推播閘道（`wecoms.coasia.app`）——注意簡報的截圖是**另一套派車／司機調度系統**（欄位有「司機選擇／車輛選擇／乘客／行程」），不是這套會議室系統。跟使用者確認後拍板：**這套 LibreBooking 也要接**、用**明文端點**（`POST /wecom/send_wecom_msg.php`，只帶 `touser`＋`content`，無 token）、觸發範圍是**所有有填 WeCom ID 的人**（不看地區——簡報 slide 7 原本的規則是「行程地區為深圳/上海才發」，這裡放寬）。
+
+整體做法是把現有的 LINE 整合當範本平行複製一份，**不需要資料庫遷移**——WeCom 收件人 ID 跟 `LineUserId` 一樣塞在 `user_preferences`（`!sep!` 串接字串），不是欄位。發送規則是「兩條管道各自獨立」：LINE 維持原樣，WeCom 在使用者有 `WecomUserId` 且沒把開關關掉（`WantsWeComNotifications()`，比照 LINE「沒設過＝視為開啟，只有明確 `'0'` 才關」）時發送——兩者都符合的人兩邊都會收到（對應簡報 slide 7 的「都發」）。
+
+### 87.1 設定
+
+- `lib/Config/ConfigKeys.php`：新增 `WECOM_ENABLED`（`wecom.enabled`，預設 `false`）、`WECOM_API_URL`（`wecom.api.url`，預設 `https://wecoms.coasia.app/wecom/send_wecom_msg.php`），section `wecom`（比照 `line` 沒有進 `ConfigKeysMeta::SECTION_TITLES`，走 `ucwords` fallback）。
+- `config/config.dist.php`／`.env.example` 用 `composer config-dist:generate`／`env-example:generate` 重生。**注意**：這兩支 `:check` 在乾淨的 HEAD 上本來就是紅的（committed `config.dist.php` 的 `enabled.languages` 是 `'zh_tw,zh_cn,en_us'`，generator 產出的是 `''`，是既有的 repo drift），這次只保留了那個既有的手改值、其餘照 generator 產出，沒有順手把那個既有問題一起改掉（會把不相關的語言選單行為變更混進來）。
+- 因為 `Configuration::GetKey()` 找不到值會 fallback 到 `ConfigKeys` 裡的 `default`，正式環境的 `config.php` 不加 `wecom` 區塊也能安全運作（預設 disabled，`ServiceLocator` 回傳 `NullWeComService`）。要啟用時在 VM 的 `config.php` 加 `'wecom' => ['enabled' => true]`，或用 `app.env` 的 `LB_WECOM_ENABLED=true`（`app.env` 的非空值會蓋掉 `config.php`，見 `COASIA-DEPLOYMENT.md` 第六節）。
+
+### 87.2 服務層
+
+- `lib/WeCom/{IWeComService,WeComService,namespace}.php`：`WeComService::Push($wecomUserId, $text)` 用 `Unirest\Request\Body::form(['touser' => ..., 'content' => ...])` POST 到閘道，fire-and-forget（連線失敗記 log 吞掉，不擋預約流程），比照 `LineService` 的錯誤處理寫法。`NullWeComService` 是 disabled 時的 no-op 實作。
+- `lib/Common/ServiceLocator.php`：`GetWeComService()` 依 `wecom.enabled` 回傳 `WeComService` 或 `NullWeComService`；`SetWeComService(?IWeComService)` 刻意收 nullable（比 `SetLineService` 進一步），讓測試 teardown 能重設成 null、下次呼叫重新依 config 解析。
+
+### 87.3 網域層
+
+- `Domain/Values/UserPreferences.php`：新增 `WECOM_USER_ID = 'WecomUserId'`、`WECOM_NOTIFICATIONS_ENABLED = 'WecomNotificationsEnabled'`。
+- `Domain/User.php`：`WantsWeComNotifications()`／`ChangeWeComNotificationsPreference()`，逐行比照既有的 `WantsLineNotifications()`／`ChangeLineNotificationsPreference()`。
+
+### 87.4 通知
+
+- `lib/Application/Reservation/Notification/OwnerWeComNotification.php`：`OwnerWeComCreatedNotification implements IReservationNotification`，比照 `OwnerLineCreatedNotification`——同樣用 `ReservationEmailTemplateContext` 抓視訊資源＋主持人登入資訊（owner-only，理由跟 LINE 版一樣：這個通知只會送到預約人本人），但因為 WeCom 明文閘道只吃純字串，輸出的是一則多行純文字（狀態／會議名稱／時間／會議室或視訊資源／預約人／查看連結／🔒 主持人登入資訊），不是 LINE 的 Flex bubble。重複預約的措辭處理（`match` RepeatType → 場次數 → 末場日期）照抄 LINE 版，只是把 LINE 版寫死的 CJK suffix 改成語言字串 `WeComRecurringSuffix`。
+- `lib/Application/Reservation/Notification/AddReservationNotificationService.php`：建構子的通知陣列加一個 `OwnerWeComCreatedNotification`（緊接在 `OwnerLineCreatedNotification` 後）。基底 `ReservationNotificationService::Notify()` 本來就每個通知各包一層 try/catch，WeCom 送失敗不會弄壞建立預約。
+- `Jobs/sendreminders.php`：`$wecomEnabled` 加進「三者皆關就 return」的短路判斷；start／end 兩個 notice 迴圈原本 `if ($lineEnabled)` 才 load owner，改成 `if ($lineEnabled || $wecomEnabled)` load 一次、裡面 LINE／WeCom 各自獨立判斷（各自檢查 `WecomUserId` 非空 + `WantsWeComNotifications()`），用新的 `WeComReminderStartMessage`／`WeComReminderEndMessage` 字串。
+
+### 87.5 後台使用者管理：新增「企業微信 ID」欄位
+
+WeCom ID 跟 LINE 不同——LINE 是掃 QR + webhook 綁定，WeCom 是管理員在後台直接填（簡報 slide 6「增加企業微信ID欄位: 帳號角色管理」）。
+
+- `tpl/Admin/Users/user-update.tpl`：部門欄位旁加一個文字框（照抄部門欄位的寫法），`{formname key="WECOM_USER_ID"}`＋`{translate key="WeComUserId"}`＋一行 hint。
+- `lib/Server/FormKeys.php`：新增 `WECOM_USER_ID = 'wecomUserId'`。
+- `Pages/Admin/ManageUsersPage.php`：`GetWeComUserId()` 介面宣告＋實作（`GetForm(FormKeys::WECOM_USER_ID)`）；`ShowUserUpdate()` 多 `Set('WeComUserId', $user->GetPreferences()->Get(UserPreferences::WECOM_USER_ID))`（把 `UserPreferences` 常數留在 PHP，比照旁邊 `IsUserAdmin` 的既有理由），並在頂部補 `require_once` `Domain/Values/UserPreferences.php`。
+- `Presenters/Admin/ManageUsersPresenter.php`：`UpdateUser()` 尾端呼叫新的 `ApplyWeComUserId($userId, $wecomUserId)`，做法完全比照旁邊的 `ApplyLocalAuthOnly()`——各自獨立 load/mutate/update（`ChangePreference(WECOM_USER_ID, trim(...))`），不塞進 `ManageUsersService::UpdateUser()` 的 `$extraAttributes` bag（那個 bag 是給 phone/organization/position/department 這種 user attribute 用的，WeCom ID 是 preference）。清空欄位就存 `''`，通知端 `empty()` 判定為「沒填」。
+
+### 87.6 語言檔
+
+`lang/en_us.php`／`lang/zh_tw.php`／`lang/zh_cn.php` 三個都加：`WeComUserId`／`WeComUserIdHint`（後台欄位）、`WeComReservationCreatedTitle`／`WeComFieldMeetingName`／`WeComFieldDateTime`／`WeComFieldMeetingRoom`／`WeComFieldVideoResource`／`WeComJoinVideoConference`／`WeComFieldOwner`／`WeComViewReservationDetails`／`WeComHostLoginInfo`／`WeComRecurringSuffix`（通知內文）、`WeComReminderStartMessage`／`WeComReminderEndMessage`（提醒）。zh_cn 之前完全沒有 LINE 那批字串（一路 fallback 到 en_us），但 WeCom 使用者本來就是中國地區（深圳/上海）會用簡中介面，所以這次三語言都補齊。
+
+### 驗證
+
+- 容器內 `php -l` 過全部新增/修改的 `.php`；`composer phpcsfixer:lint` 對這次的檔案全過（既有的 4 個 flag——`import-coasia-employees.php`、concurrency 測試檔、`IdempotencyService.php`——跟這次無關）
+- `composer phpunit` 全跑：1733 個測試（比改動前多 3 個 = 新增的 `OwnerWeComNotificationTest` 3 支），跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided`，`usort(null)`，在乾淨 HEAD 上就是紅的）
+- 新增測試：`tests/fakes/FakeWeComService.php`（記錄 `_Pushed`）＋註冊進 `tests/fakes/namespace.php`；`tests/Application/Reservation/OwnerWeComNotificationTest.php`（有填 ID + 想收 → 推一則含會議室名稱/預約人的訊息；沒填 ID → 不推；關掉開關 → 不推）；`tests/Domain/User/UserTest.php` 加 `WantsWeComNotifications()` 的「預設開／`'0'` 關／再開」語意測試。`tests/Presenters/Admin/ManageUsersPresenterTest.php` 的 `FakeManageUsersPage` 補 `GetWeComUserId()` stub（不然 `IManageUsersPage` 變 abstract）。
+- 開發環境沒有已知登入帳密，且 `wecom.enabled` 預設 false，麻煩使用者在啟用後確認：後台編輯使用者看得到「企業微信 ID」欄位、填入後建一筆預約會收到 WeCom 推播、`Jobs/sendreminders.php` 的提醒也會分流。另外要確認正式機 `BookingServer` 能對外連 `wecoms.coasia.app:443`（目前只有 cloudflared 是主動連出）。

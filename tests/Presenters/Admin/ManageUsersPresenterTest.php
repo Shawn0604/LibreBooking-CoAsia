@@ -739,6 +739,10 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
      */
     public $_Department;
     /**
+     * @var string
+     */
+    public $_WeComUserId;
+    /**
      * @var bool
      */
     public $_IsLocalAuthOnly = false;
@@ -864,6 +868,11 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
     public function GetIsLocalAuthOnly()
     {
         return $this->_IsLocalAuthOnly;
+    }
+
+    public function GetWeComUserId()
+    {
+        return $this->_WeComUserId;
     }
 
     public function GetLanguage()

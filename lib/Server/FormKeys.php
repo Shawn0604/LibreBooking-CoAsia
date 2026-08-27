@@ -293,6 +293,8 @@ class FormKeys
 
     public const VALUE = 'value';
 
+    public const WECOM_USER_ID = 'wecomUserId';
+
     public static function Evaluate($formKey)
     {
         $key = strtoupper($formKey);

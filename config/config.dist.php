@@ -221,6 +221,19 @@ return [
             'official.account.id' => '',
         ],
 
+        #######
+        # Wecom
+        #######
+
+        'wecom' => [
+            # Enable or disable WeCom (企業微信) push notifications for reservation
+            # reminders/confirmations (true/false)
+            'enabled' => false,
+
+            # CoAsia WeCom send gateway endpoint (plaintext API)
+            'api.url' => 'https://wecoms.coasia.app/wecom/send_wecom_msg.php',
+        ],
+
         ##############
         # Reservations
         ##############
