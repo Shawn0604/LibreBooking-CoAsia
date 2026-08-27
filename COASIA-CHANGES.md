@@ -2713,9 +2713,17 @@ WeCom ID 跟 LINE 不同——LINE 是掃 QR + webhook 綁定，WeCom 是管理�
 
 `lang/en_us.php`／`lang/zh_tw.php`／`lang/zh_cn.php` 三個都加：`WeComUserId`／`WeComUserIdHint`（後台欄位）、`WeComReservationCreatedTitle`／`WeComFieldMeetingName`／`WeComFieldDateTime`／`WeComFieldMeetingRoom`／`WeComFieldVideoResource`／`WeComJoinVideoConference`／`WeComFieldOwner`／`WeComViewReservationDetails`／`WeComHostLoginInfo`／`WeComRecurringSuffix`（通知內文）、`WeComReminderStartMessage`／`WeComReminderEndMessage`（提醒）。zh_cn 之前完全沒有 LINE 那批字串（一路 fallback 到 en_us），但 WeCom 使用者本來就是中國地區（深圳/上海）會用簡中介面，所以這次三語言都補齊。
 
+### 87.7 部署驗證時踩到的兩件事
+
+**a. FortiGuard 網頁過濾擋掉 `coasia.app`（新網域「尚未分級」）。** 正式機部署後 `curl` 閘道回「憑證不受信任」，`curl -k` 印出的是一頁 FortiGuard「Web Page Blocked / Category: 尚未分級」——`coasia.com`／`coasia.com.tw` 是已收錄的公司網域，但 `coasia.app` 是全新的，FortiGuard 還沒分類，而公司過濾政策把「尚未分級」設成封鎖；封鎖頁本身用 FortiGate 自簽憑證回應，所以先冒出來的是 TLS 錯誤。修法是在 FortiGate 加一筆 **Web 評級覆蓋**：`coasia.app` → 信任分類（不是 SSL inspection 豁免，跟 SSL 檢查無關）。加完 container 就拿到 Cloudflare 的真憑證（Google Trust Services），閘道回 `HTTP 200`。這是防火牆設定，不在版控裡。
+
+**b. 閘道失敗時也回 HTTP 200。** 實測 `touser=__ping__` 回 `{"success":false,"errcode":81013,"errmsg":"user & party & tag all invalid",...}`，HTTP 狀態碼卻是 200；成功則是 `{"success":true,"errcode":0,"errmsg":"ok","msgid":"..."}`。原本 `WeComService::Push()` 比照 `LineService` 只看 `$response->code >= 300` 才記 `Log::Error`——但 LINE API 失敗會回非 2xx，這個閘道不會，所以「`touser` 填錯、訊息沒送達」會被當成成功、log 裡看不出來。改成多解析回應 body：新增 `decodePayload()`（把 Unirest 可能回的 parsed object／array／raw string 都正規化成陣列），`success` 為 false 或 `errcode` 非 0 就記 `Log::Error`。用 deck 裡的 `marshuang`（Mars Huang 本人的成員帳號）實測 `{"success":true,...,"msgid":...}`，訊息真的送達他的企業微信，整條路（防火牆 → TLS → 閘道 → 企業微信 API → 送達）確認打通。
+
+**待辦（非技術）：** `touser` 是企業微信自訂的成員帳號（範例 `marshuang`，看起來是拼音，非 email／AD／工號），要跟閘道維護者（Mars）拿「員工 → 企業微信帳號」對照表，管理員再逐一填進後台的「企業微信 ID」欄位。收通知的人也要在該應用的「可見範圍」內，否則一樣回 `81013`。
+
 ### 驗證
 
-- 容器內 `php -l` 過全部新增/修改的 `.php`；`composer phpcsfixer:lint` 對這次的檔案全過（既有的 4 個 flag——`import-coasia-employees.php`、concurrency 測試檔、`IdempotencyService.php`——跟這次無關）
+- 容器內 `php -l` 過全部新增/修改的 `.php`；`composer phpcsfixer:lint`／`composer phpstan` 對這次的檔案全過（既有的 4 個 phpcsfixer flag——`import-coasia-employees.php`、concurrency 測試檔、`IdempotencyService.php`——跟這次無關）
 - `composer phpunit` 全跑：1733 個測試（比改動前多 3 個 = 新增的 `OwnerWeComNotificationTest` 3 支），跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided`，`usort(null)`，在乾淨 HEAD 上就是紅的）
 - 新增測試：`tests/fakes/FakeWeComService.php`（記錄 `_Pushed`）＋註冊進 `tests/fakes/namespace.php`；`tests/Application/Reservation/OwnerWeComNotificationTest.php`（有填 ID + 想收 → 推一則含會議室名稱/預約人的訊息；沒填 ID → 不推；關掉開關 → 不推）；`tests/Domain/User/UserTest.php` 加 `WantsWeComNotifications()` 的「預設開／`'0'` 關／再開」語意測試。`tests/Presenters/Admin/ManageUsersPresenterTest.php` 的 `FakeManageUsersPage` 補 `GetWeComUserId()` stub（不然 `IManageUsersPage` 變 abstract）。
 - 開發環境沒有已知登入帳密，且 `wecom.enabled` 預設 false，麻煩使用者在啟用後確認：後台編輯使用者看得到「企業微信 ID」欄位、填入後建一筆預約會收到 WeCom 推播、`Jobs/sendreminders.php` 的提醒也會分流。另外要確認正式機 `BookingServer` 能對外連 `wecoms.coasia.app:443`（目前只有 cloudflared 是主動連出）。
