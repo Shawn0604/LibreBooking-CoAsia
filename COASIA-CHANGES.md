@@ -2727,3 +2727,67 @@ WeCom ID 跟 LINE 不同——LINE 是掃 QR + webhook 綁定，WeCom 是管理�
 - `composer phpunit` 全跑：1733 個測試（比改動前多 3 個 = 新增的 `OwnerWeComNotificationTest` 3 支），跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided`，`usort(null)`，在乾淨 HEAD 上就是紅的）
 - 新增測試：`tests/fakes/FakeWeComService.php`（記錄 `_Pushed`）＋註冊進 `tests/fakes/namespace.php`；`tests/Application/Reservation/OwnerWeComNotificationTest.php`（有填 ID + 想收 → 推一則含會議室名稱/預約人的訊息；沒填 ID → 不推；關掉開關 → 不推）；`tests/Domain/User/UserTest.php` 加 `WantsWeComNotifications()` 的「預設開／`'0'` 關／再開」語意測試。`tests/Presenters/Admin/ManageUsersPresenterTest.php` 的 `FakeManageUsersPage` 補 `GetWeComUserId()` stub（不然 `IManageUsersPage` 變 abstract）。
 - 開發環境沒有已知登入帳密，且 `wecom.enabled` 預設 false，麻煩使用者在啟用後確認：後台編輯使用者看得到「企業微信 ID」欄位、填入後建一筆預約會收到 WeCom 推播、`Jobs/sendreminders.php` 的提醒也會分流。另外要確認正式機 `BookingServer` 能對外連 `wecoms.coasia.app:443`（目前只有 cloudflared 是主動連出）。
+
+## 88. LINE 官方帳號換成中量級方案 `@516khkux`，換完後預約通知不推的排查
+
+### 背景：為什麼換 OA
+
+全公司上線後 LINE 推播量會暴增，原本接的官方帳號 `@883belmh` 是輕量級方案，免費訊息額度撐不住。改接公司的中量級 OA `CoAisa擎亞電子`（`@516khkux`）。
+
+### 換 OA 做了什麼（純設定，不進版控）
+
+`config/config.php` 的 `line` 區塊三個值換成新 channel 的：`channel.secret`、`channel.access.token`、`official.account.id => '@516khkux'`。LINE Developers Console 該 channel 設 Webhook URL `https://booking-hook.coasia.com/Web/line-webhook.php` + 開 Use webhook。`config.php` 是 bind mount 的機密檔、不在 git 裡，改完 `docker compose -f docker-compose.prod.yml up -d --force-recreate app` 生效（PHP opcache `validate_timestamps=0`，且單檔 bind mount 換 inode 都要靠重建容器才會重讀）。
+
+排查過程踩到一個坑：用外部編輯器（SFTP/本機副本）改 `config.php` 存到了別的路徑，VM 上真正被 compose 第 24 行 `./config/config.php:...:ro` 掛載的那個檔完全沒動。確認方式是 `docker compose ... exec app grep -n 'official.account.id' /var/www/html/config/config.php` 直接看容器實際讀到的內容，不要只信編輯器畫面。正解是在 VM 上直接 `nano ~/coasia-booking/config/config.php` 改。
+
+驗證 token 有效且屬於正確 OA，不把 token 印出來的做法：
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T app php -r '
+$c = require "/var/www/html/config/config.php";
+$t = $c["settings"]["line"]["channel.access.token"];
+$ch = curl_init("https://api.line.me/v2/bot/info");
+curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>1, CURLOPT_HTTPHEADER=>["Authorization: Bearer $t"]]);
+echo curl_exec($ch), "\n";'
+```
+
+回 `{"basicId":"@516khkux","displayName":"CoAisa擎亞電子",...}` 代表 token 正確且是這個 OA。
+
+### 問題：換完 OA、重新綁定後，測試通知會收到，但建立真實預約 Email 有、LINE 沒有，而且完全沒有錯誤紀錄
+
+### 根因：`user_preferences` 裡 `LineNotificationsEnabled = '0'`，加上兩條通知路徑的檢查條件不一致
+
+- **測試通知**（`Presenters/LineTestNotificationPresenter.php`）只檢查 `LineUserId` 是否存在，**不看** `WantsLineNotifications()`，所以照送。
+- **建立預約通知**（`lib/Application/Reservation/Notification/OwnerLineNotification.php:45`）是 `if (empty($lineUserId) || !$owner->WantsLineNotifications()) { return; }`。`Domain/User.php:548` 的 `WantsLineNotifications()` = `preferences->Get('LineNotificationsEnabled') !== '0'`，值為 `'0'` 就 `return` —— **沒呼叫 `PushFlex`、沒 LINE API request、沒例外、沒 log**。
+- **Email 通知**是完全獨立的一支，不受 LINE 開關影響，所以照送。
+
+三者合起來就是「Email 有、LINE 沒、零紀錄」，且跟這次的 OA 換版、token、Flex payload、防火牆全都無關 —— OA 切換做的都是對的。這筆 `LineNotificationsEnabled='0'` 是測試帳號 `shawn.admin` 本來就有的舊設定（某次在通知設定頁把「接收 LINE 通知」關掉），剛好在端到端測 LINE 時撞出來。
+
+排查時另一個誤導點是 **正式環境 logging 完全沒作用**（見下方「待處理」），讓「錯誤被吞掉」看起來像「有錯但看不到」，實際上這個 case 根本沒有錯誤 —— 是提早 `return`。
+
+`user_preferences` 是 key/value 表（`user_preferences(user_id, name, value)`，`lib/Database/Commands/Queries.php:952`），排查 SQL（密碼留在 `db` 容器的 `$MYSQL_ROOT_PASSWORD`，不出現在指令）：
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot librebooking' <<'SQL'
+SELECT u.user_id, u.username, p.name, p.value
+FROM users u JOIN user_preferences p ON p.user_id = u.user_id
+WHERE p.name IN ('LineUserId','LineNotificationsEnabled')
+ORDER BY u.username, p.name;
+SQL
+```
+
+### 修法
+
+刪掉那筆偏好（「沒這筆 = 視為開啟」，比留 `'1'` 乾淨）：
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot librebooking -e "DELETE FROM user_preferences WHERE user_id=2 AND name=\"LineNotificationsEnabled\";"'
+```
+
+DB 值即時讀取，不用 recreate。`shawn.admin` 重新建一筆預約，LINE Flex 通知即收到，確認修復。
+
+### 待處理（這次挖出來、還沒解決）
+
+1. **正式環境 logging 無效** —— `config`/`app.env` 都指定 `logging.folder = /var/log/librebooking/log`，但這個目錄在容器裡不存在、也不是 volume，`Log` 寫不進去就默默不寫（連「建不出 log 檔」本身的例外也被吞）。結果是正式環境完全沒有可用的錯誤紀錄，任何問題都看不到。上線前必須修：建立該目錄並在 `docker-compose.prod.yml` 掛成具名 volume（或把路徑改到已存在且持久的位置），確認建立預約 / LINE 推播失敗時真的會寫檔。已列進 `COASIA-GOLIVE-CHECKLIST.md`。
+2. **`gary.admin`（user_id 122）的 `LineUserId` 是舊 `@883belmh` channel 的死值** —— 換 OA 後推給他會失敗。要他重新加 `@516khkux` 好友並重新綁定，或直接清掉那筆 `LineUserId`。上線前應該做一次「清空所有舊 channel 的 `LineUserId`、請大家重綁」。
+3. **切換過程中 `@516khkux` 的 channel secret / access token 曾出現在螢幕分享／截圖** —— 建議在 LINE Developers Console 對該 channel reissue secret 與 access token，再更新 `config.php`。舊 `@883belmh` 的憑證同樣曝光過，該 OA 棄用前也一併處理。

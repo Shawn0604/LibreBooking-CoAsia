@@ -2,7 +2,7 @@
 
 本文件記錄「把系統從目前的開發/測試狀態，變成真正開放給全體員工使用」還需要處理的事項。跟 `COASIA-CHANGES.md`（記錄已經做了什麼、為什麼這樣做）不同，這份是**還沒做、上線前要處理**的清單，會隨進度持續更新。
 
-最後更新：2026-08-13
+最後更新：2026-08-27
 
 ---
 
@@ -17,6 +17,8 @@
 同時修掉一個順手發現的邊角案例：如果同一支手機的 LINE 身份先後拿去綁不同的系統帳號，原本會讓舊帳號留下一個「看起來還綁著、但其實收不到通知」的殭屍狀態——已經改成後綁的會自動頂掉舊的綁定，並補了單元測試（詳見 `COASIA-CHANGES.md`）。
 
 **正式上線前還是要注意**：這次測試用的 Cloudflare Quick Tunnel 只適合臨時驗證，不是長久方案——正式環境要有一個固定、不會斷的網址，LINE webhook 才會穩定運作（見下方「正式環境部署」）。
+
+**2026-08-27 更新**：LINE 官方帳號從輕量級的 `@883belmh` 換成中量級方案 `CoAisa擎亞電子`（`@516khkux`），因為全公司上線後推播量會超出輕量級免費額度。切換 + 換完後預約通知不推的排查（根因是測試帳號 `LineNotificationsEnabled='0'`）詳見 `COASIA-CHANGES.md` §88。**上線前收尾**：(1) 清掉所有舊 `@883belmh` channel 的 `LineUserId` 死值、請已綁定的人重新綁定新 OA；(2) 因切換過程中憑證曾出現在螢幕分享，把 `@516khkux` 的 channel secret / access token reissue 一次。
 
 ### SMTP 寄信帳號已改接公司內部伺服器
 已改接公司內部 SMTP Relay（`config/config.php` 的 `phpmailer`／`email` 區塊）：Host `10.1.3.140:25`，內網 open relay，不需要帳密／TLS，寄件人固定為 `coasiaerp@coasia.com`（顯示名稱「擎亞會議室預約系統」），不再掛在任何個人帳號底下。已用兩種方式驗證過：(1) 直接建構一支走 `PHPMailer` 的腳本連到 `10.1.3.140:25` 寄出，成功；(2) 直接呼叫專案自己的 `EmailService` 搭配 `Configuration::Instance()` 讀出的設定值寄出，同樣成功、應用程式的 error log 沒有出現任何寄信失敗紀錄。
@@ -52,6 +54,9 @@
 **卡在**：需要 IT 更新三台 DC 的憑證＋開啟 TLS 1.2，解決後把 `plugins/Authentication/ActiveDirectory/ActiveDirectory.config.php` 的 `port` 改回 `636`、`use.ssl` 改回 `'true'`（設定檔裡已經留好註解跟還原步驟，見 `COASIA-CHANGES.md` §27）。
 
 同時：目前的 bind 服務帳號 `robot_co` 只是測試用的，正式上線前應改用 IT 建立的專用唯讀服務帳號（例如 `svc_librebooking`）。
+
+### 正式環境完全沒有可用的錯誤紀錄
+排查 §88 的 LINE 通知問題時發現：`config.php`／`app.env` 都指定 `logging.folder = /var/log/librebooking/log`，但這個目錄在正式環境的 `app` 容器裡根本不存在、也不是 volume，`Log` 寫不進去就默默不寫（連「建不出 log 檔」本身的例外也被吞掉）。結果是**正式環境出任何問題都看不到**——這次 email 有、LINE 沒，靠的是逐步比對程式碼路徑＋直接查 DB 才定位，不是靠 log。全公司推廣後這樣沒有可觀測性風險太高。修法：在 `docker-compose.prod.yml` 把 log 目錄掛成具名 volume（或把路徑改到已存在且持久的位置），並實際驗證「建立預約 / LINE 推播失敗」時真的會寫檔。
 
 ---
 
