@@ -431,6 +431,7 @@ class en_us extends Language
         $strings['AdminGroupAssignGroupAdmin'] = 'Assign group administrator';
         $strings['AdminGroupAutoJoinHint'] = 'When on, every newly created account joins this group automatically. Only suitable for groups like "All Staff".';
         $strings['AdminGroupAutoJoinToggle'] = 'New accounts join this group automatically';
+        $strings['AdminGroupAutoJoinSection'] = 'Auto-join';
         $strings['AdminGroupAdvancedRoles'] = 'Advanced: role assignment';
         $strings['AdminGroupCurrentRoles'] = 'Current roles';
         $strings['AdminGroupEditRoles'] = 'Edit role assignment';

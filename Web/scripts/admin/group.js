@@ -22,14 +22,12 @@ function GroupManagement(opt) {
     permissionsDialog: $('#permissionsDialog'),
     deleteDialog: $('#deleteDialog'),
     editDialog: $('#editDialog'),
-    groupAdminDialog: $('#groupAdminDialog'),
 
     permissionsForm: $('#permissionsForm'),
     addUserForm: $('#addUserForm'),
     removeUserForm: $('#removeUserForm'),
     editGroupForm: $('#editGroupForm'),
     deleteGroupForm: $('#deleteGroupForm'),
-    groupAdminForm: $('#groupAdminForm'),
     groupCount: $('#groupCount'),
 
     addForm: $('#addGroupForm'),
@@ -80,7 +78,6 @@ function GroupManagement(opt) {
 
     page.on('click', '.manageGroup', () => editGroup());
     page.on('click', '.permissions', () => changePermissions());
-    page.on('click', '.groupAdmin', () => changeGroupAdmin());
     page.on('click', '.delete', () => deleteGroup());
 
     // remove a member straight from the inline list in the detail drawer
@@ -185,7 +182,6 @@ function GroupManagement(opt) {
     ConfigureAsyncForm(elements.editGroupForm, getSubmitCallback(options.actions.updateGroup), null, error);
     ConfigureAsyncForm(elements.deleteGroupForm, getSubmitCallback(options.actions.deleteGroup), null, error);
     ConfigureAsyncForm(elements.addForm, getSubmitCallback(options.actions.addGroup), null, error);
-    ConfigureAsyncForm(elements.groupAdminForm, getSubmitCallback(options.actions.groupAdmin), null, error);
   };
 
   var getSubmitCallback = function (action) {
@@ -310,21 +306,5 @@ function GroupManagement(opt) {
       syncSelectsFromState();
       elements.permissionsDialog.modal('show');
     });
-  };
-
-  //change group admin
-  var changeGroupAdmin = function () {
-    const activeRow = elements.groupList.find(`[data-group-id="${activeId}"]`);
-    const currentGroupAdmin = activeRow.find('.groupAdmin').text();
-    const currentGroupAdminVal = elements.groupAdminForm
-      .find('select')
-      .find('option')
-      .filter(function () {
-        return $(this).html() === currentGroupAdmin;
-      })
-      .val();
-
-    elements.groupAdminForm.find('select').val(currentGroupAdminVal || '');
-    elements.groupAdminDialog.modal('show');
   };
 }

@@ -453,6 +453,7 @@ class zh_tw extends en_us
         $strings['AdminGroupAssignGroupAdmin'] = '指定群組管理員';
         $strings['AdminGroupAutoJoinHint'] = '開啟後,每個新建立的帳號會自動加入此群組。僅適合「全體員工」這類群組。';
         $strings['AdminGroupAutoJoinToggle'] = '新帳號自動加入此群組';
+        $strings['AdminGroupAutoJoinSection'] = '自動加入';
         $strings['AdminGroupAdvancedRoles'] = '進階:角色指派';
         $strings['AdminGroupCurrentRoles'] = '目前角色';
         $strings['AdminGroupEditRoles'] = '編輯角色指派';

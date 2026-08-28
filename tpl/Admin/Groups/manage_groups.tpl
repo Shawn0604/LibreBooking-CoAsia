@@ -39,8 +39,7 @@
                         <th>{translate key='AdminGroupPurpose'}</th>
                         <th>{translate key='GroupMembers'}</th>
                         <th>{translate key='AdminGroupPermissionSummary'}</th>
-                        <th>{translate key='GroupAdmin'}</th>
-                        <th>{translate key='GroupAutomaticallyAdd'}</th>
+                        <th>{translate key='AdminGroupAutoJoinSection'}</th>
                         <th class="text-end">{translate key='Actions'}</th>
                     </tr>
                 </thead>
@@ -75,7 +74,6 @@
                                     &mdash;
                                 {/if}
                             </td>
-                            <td>{$group->AdminGroupName|default:"&mdash;"}</td>
                             <td>
                                 {if $group->IsDefault}
                                     <span class="admin-badge admin-badge-inprogress">{translate key='Yes'}</span>
@@ -90,7 +88,7 @@
                             </td>
                         </tr>
                     {foreachelse}
-                        <tr><td colspan="7" class="admin-empty">{translate key=AdminGroupNoResults}</td></tr>
+                        <tr><td colspan="6" class="admin-empty">{translate key=AdminGroupNoResults}</td></tr>
                     {/foreach}
                 </tbody>
             </table>
@@ -249,13 +247,14 @@
                         {formname key=GROUP_NAME} />
                 </div>
 
-                <div class="admin-drawer-section-title mt-4">{translate key=GroupMembers}</div>
+                <div class="admin-drawer-section-title mt-4">
+                    {translate key=GroupMembers} (<span id="totalUsers">0</span>)
+                </div>
                 <div class="form-group mb-2">
                     <label class="fw-bold form-label" for="userSearch">{translate key=AdminGroupAddMember}</label>
                     <input type="text" id="userSearch" class="form-control form-control-sm" autocomplete="off"
                         placeholder="{translate key=AdminGroupAddMemberPlaceholder}" />
                 </div>
-                <div class="mb-1"><span class="fw-bold"><span id="totalUsers">0</span> {translate key=UsersInGroup}</span></div>
                 <div id="groupUserList" class="admin-group-member-list border rounded p-2"></div>
 
                 <div class="js-perm-section">
@@ -269,15 +268,7 @@
                     {translate key=AdminGroupPermissionsNotApplicable}
                 </div>
 
-                {if $CanChangeRoles}
-                    <div class="admin-drawer-section-title mt-4">{translate key=GroupAdmin}</div>
-                    <p class="admin-cell-secondary mb-2">{translate key=AdminGroupAdminHint}</p>
-                    <button type="button" class="btn btn-outline-primary btn-sm groupAdmin">
-                        <i class="bi bi-person-badge me-1"></i>{translate key=AdminGroupAssignGroupAdmin}
-                    </button>
-                {/if}
-
-                <div class="admin-drawer-section-title mt-4">{translate key=GroupAutomaticallyAdd}</div>
+                <div class="admin-drawer-section-title mt-4">{translate key=AdminGroupAutoJoinSection}</div>
                 <p class="admin-cell-secondary mb-2">{translate key=AdminGroupAutoJoinHint}</p>
                 <div class="form-check">
                     <input class="form-check-input" type="checkbox" id="editGroupIsDefault"
@@ -304,39 +295,6 @@
             </div>
         </form>
     </div>
-
-    {if $CanChangeRoles}
-    <div class="modal fade" id="groupAdminDialog" tabindex="-1" role="dialog" aria-labelledby="groupAdminDialogLabel"
-        aria-hidden="true">
-        <div class="modal-dialog">
-            <form id="groupAdminForm" method="post">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="groupAdminDialogLabel">{translate key=WhoCanManageThisGroup}</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-                    </div>
-                    <div class="modal-body">
-                        <div class="form-group has-feedback">
-                            <label for="groupAdmin"
-                                class="off-screen fw-bold">{translate key=WhoCanManageThisGroup}</label>
-                            <select {formname key=GROUP_ADMIN} class="form-select" id="groupAdmin">
-                                <option value="">-- {translate key=None} --</option>
-                                {foreach from=$AdminGroups item=adminGroup}
-                                <option value="{$adminGroup->Id}">{$adminGroup->Name}</option>
-                                {/foreach}
-                            </select>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        {cancel_button}
-                        {update_button}
-                        {indicator}
-                    </div>
-                </div>
-            </form>
-        </div>
-    </div>
-    {/if}
 
     {if $CanImportGroups}
     <div id="importGroupsDialog" class="modal" tabindex="-1" role="dialog" aria-labelledby="importGroupsModalLabel"
