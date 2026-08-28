@@ -37,6 +37,40 @@ class ReservationReminder
     }
 
     /**
+     * Parse a config interval string ("15 minutes" / "1 hours" / "1 days") into
+     * {value:int, interval:string}. Returns null when unset/blank/malformed.
+     * Unknown unit falls back to minutes.
+     *
+     * @param string|null $interval
+     * @return array{value:int, interval:string}|null
+     */
+    public static function ConfigIntervalPieces($interval)
+    {
+        if (empty($interval)) {
+            return null;
+        }
+        $parts = explode(' ', strtolower(trim($interval)));
+        if (count($parts) != 2 || !is_numeric($parts[0]) || (int)$parts[0] <= 0) {
+            return null;
+        }
+        $unit = trim($parts[1]);
+        if (!in_array($unit, [ReservationReminderInterval::Minutes, ReservationReminderInterval::Hours, ReservationReminderInterval::Days], true)) {
+            $unit = ReservationReminderInterval::Minutes;
+        }
+        return ['value' => (int)$parts[0], 'interval' => $unit];
+    }
+
+    /**
+     * @param string|null $interval config string, see ConfigIntervalPieces()
+     * @return ReservationReminder|null
+     */
+    public static function FromConfigInterval($interval)
+    {
+        $pieces = self::ConfigIntervalPieces($interval);
+        return $pieces === null ? null : new ReservationReminder($pieces['value'], $pieces['interval']);
+    }
+
+    /**
      * @param int $minutes
      * @return ReservationReminder
      */

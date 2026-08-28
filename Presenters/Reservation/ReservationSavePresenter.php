@@ -138,15 +138,15 @@ class ReservationSavePresenter implements IReservationSavePresenter
         if ($this->page->HasStartReminder()) {
             $reservationSeries->AddStartReminder(new ReservationReminder($this->page->GetStartReminderValue(), $this->page->GetStartReminderInterval()));
         } else {
-            // CoAsia: apply the configured default start reminder even when the request
-            // carried no reminder fields -- the calendar quick-create dialog has none, and
-            // most bookings go through it. The full reservation form still pre-fills this
-            // same default and lets the user change or clear it.
-            $default = $this->ParseDefaultReminder(
+            // CoAsia: fall back to the configured default start reminder when the request
+            // carried no reminder fields at all (e.g. the REST API, or an older client).
+            // The calendar quick-create dialog and the full form both send explicit
+            // reminder fields the user can see and change.
+            $default = ReservationReminder::FromConfigInterval(
                 Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_REMINDER_DEFAULT_START)
             );
             if ($default !== null) {
-                $reservationSeries->AddStartReminder(new ReservationReminder($default['value'], $default['interval']));
+                $reservationSeries->AddStartReminder($default);
             }
         }
 
@@ -162,33 +162,6 @@ class ReservationSavePresenter implements IReservationSavePresenter
         $reservationSeries->AcceptTerms($this->page->GetTermsOfServiceAcknowledgement());
 
         return $reservationSeries;
-    }
-
-    /**
-     * Parse a config interval string like "15 minutes" / "1 hours" / "1 days" into
-     * {value, interval}. Mirrors NewReservationInitializer::GetReminderPieces (which is
-     * private and only feeds the create-form pre-fill). Returns null when unset/invalid.
-     *
-     * @param string|null $reminder
-     * @return array{value:int, interval:string}|null
-     */
-    private function ParseDefaultReminder($reminder)
-    {
-        if (empty($reminder)) {
-            return null;
-        }
-
-        $parts = explode(' ', strtolower(trim($reminder)));
-        if (count($parts) != 2 || !is_numeric($parts[0]) || (int)$parts[0] <= 0) {
-            return null;
-        }
-
-        $interval = trim($parts[1]);
-        if (!in_array($interval, [ReservationReminderInterval::Minutes, ReservationReminderInterval::Hours, ReservationReminderInterval::Days], true)) {
-            $interval = ReservationReminderInterval::Minutes;
-        }
-
-        return ['value' => (int)$parts[0], 'interval' => $interval];
     }
 
     /**

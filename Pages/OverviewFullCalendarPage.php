@@ -3,6 +3,7 @@
 require_once(ROOT_DIR . 'Pages/SecurePage.php');
 require_once(ROOT_DIR . 'Presenters/OverviewFullCalendarPresenter.php');
 require_once(ROOT_DIR . 'Domain/Access/namespace.php');
+require_once(ROOT_DIR . 'Domain/Values/ReservationReminder.php');
 require_once(ROOT_DIR . 'lib/Application/Authorization/namespace.php');
 
 /**
@@ -33,8 +34,22 @@ class OverviewFullCalendarPage extends SecurePage implements IOverviewFullCalend
     public function PageLoad()
     {
         $this->presenter->PageLoad(ServiceLocator::GetServer()->GetUserSession());
-        $this->Set('AllowGuestParticipation', Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_ALLOW_GUEST_PARTICIPATION, new BooleanConverter()));
-        $this->Set('TitleRequired', Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_TITLE_REQUIRED, new BooleanConverter()));
+        $config = Configuration::Instance();
+        $this->Set('AllowGuestParticipation', $config->GetKey(ConfigKeys::RESERVATION_ALLOW_GUEST_PARTICIPATION, new BooleanConverter()));
+        $this->Set('TitleRequired', $config->GetKey(ConfigKeys::RESERVATION_TITLE_REQUIRED, new BooleanConverter()));
+
+        // Quick-create reminder control: shown when reservations reminders are on.
+        // The default interval (e.g. "15 minutes") pre-fills + pre-checks the field so the
+        // common case is one click; the user can adjust the number/unit or uncheck it.
+        $remindersEnabled = $config->GetKey(ConfigKeys::RESERVATION_REMINDERS_ENABLED, new BooleanConverter());
+        $this->Set('RemindersEnabled', $remindersEnabled);
+        $defaultStart = ReservationReminder::ConfigIntervalPieces(
+            $config->GetKey(ConfigKeys::RESERVATION_REMINDER_DEFAULT_START)
+        );
+        $this->Set('DefaultStartReminderValue', $defaultStart['value'] ?? 15);
+        $this->Set('DefaultStartReminderInterval', $defaultStart['interval'] ?? 'minutes');
+        $this->Set('DefaultStartReminderChecked', $remindersEnabled && $defaultStart !== null);
+
         $this->Display('Overview/overview_fullcalendar.tpl');
     }
 

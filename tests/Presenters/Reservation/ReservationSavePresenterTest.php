@@ -173,19 +173,19 @@ class ReservationSavePresenterTest extends TestBase
 
     public function testParsesDefaultStartReminderConfigInterval()
     {
-        $m = new ReflectionMethod(ReservationSavePresenter::class, 'ParseDefaultReminder');
-        $m->setAccessible(true);
-
-        $this->assertEquals(['value' => 15, 'interval' => 'minutes'], $m->invoke($this->presenter, '15 minutes'));
-        $this->assertEquals(['value' => 2, 'interval' => 'hours'], $m->invoke($this->presenter, '2 hours'));
-        $this->assertEquals(['value' => 1, 'interval' => 'days'], $m->invoke($this->presenter, '1 days'));
+        $this->assertEquals(['value' => 15, 'interval' => 'minutes'], ReservationReminder::ConfigIntervalPieces('15 minutes'));
+        $this->assertEquals(['value' => 2, 'interval' => 'hours'], ReservationReminder::ConfigIntervalPieces('2 hours'));
+        $this->assertEquals(['value' => 1, 'interval' => 'days'], ReservationReminder::ConfigIntervalPieces('1 days'));
         // unknown unit falls back to minutes (mirrors NewReservationInitializer::GetReminderPieces)
-        $this->assertEquals(['value' => 30, 'interval' => 'minutes'], $m->invoke($this->presenter, '30 weeks'));
+        $this->assertEquals(['value' => 30, 'interval' => 'minutes'], ReservationReminder::ConfigIntervalPieces('30 weeks'));
 
-        $this->assertNull($m->invoke($this->presenter, ''));
-        $this->assertNull($m->invoke($this->presenter, null));
-        $this->assertNull($m->invoke($this->presenter, 'nonsense'));
-        $this->assertNull($m->invoke($this->presenter, '0 minutes'));
+        $this->assertNull(ReservationReminder::ConfigIntervalPieces(''));
+        $this->assertNull(ReservationReminder::ConfigIntervalPieces(null));
+        $this->assertNull(ReservationReminder::ConfigIntervalPieces('nonsense'));
+        $this->assertNull(ReservationReminder::ConfigIntervalPieces('0 minutes'));
+
+        $this->assertEquals(15, ReservationReminder::FromConfigInterval('15 minutes')->MinutesPrior());
+        $this->assertNull(ReservationReminder::FromConfigInterval(''));
     }
 
     public function testAppliesDefaultStartReminderWhenRequestCarriesNone()

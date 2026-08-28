@@ -312,6 +312,30 @@
                         </div>
                     </div>
 
+                    {if $RemindersEnabled}
+                    <div class="qc-grid-row qc-grid-row-top">
+                        <div class="qc-icon"><i class="bi bi-bell"></i></div>
+                        <div class="qc-content">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="qcReminderEnabled"
+                                    {if $DefaultStartReminderChecked}checked{/if}>
+                                <label class="form-check-label" for="qcReminderEnabled">{translate key='SendReminder'}</label>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mt-1" id="qcReminderFields">
+                                <input type="number" min="1" max="999" id="qcReminderTime"
+                                    class="form-control form-control-sm" style="width:5rem"
+                                    value="{$DefaultStartReminderValue}">
+                                <select id="qcReminderInterval" class="form-select form-select-sm" style="width:auto">
+                                    <option value="minutes" {if $DefaultStartReminderInterval eq 'minutes'}selected{/if}>{translate key='minutes'}</option>
+                                    <option value="hours" {if $DefaultStartReminderInterval eq 'hours'}selected{/if}>{translate key='hours'}</option>
+                                    <option value="days" {if $DefaultStartReminderInterval eq 'days'}selected{/if}>{translate key='days'}</option>
+                                </select>
+                                <span class="text-muted small">{translate key='ReminderBeforeStart'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {/if}
+
                     <div id="qcError" class="alert alert-danger py-2 px-3 small d-none"></div>
                 </div>
                 <div class="modal-footer">
@@ -437,6 +461,12 @@
         currentUserEmail: '{$UserEmail|escape:'javascript'}',
         allowGuestParticipation: {if $AllowGuestParticipation}true{else}false{/if},
         titleRequired: {if $TitleRequired}true{else}false{/if},
+        remindersEnabled: {if $RemindersEnabled}true{else}false{/if},
+        defaultStartReminder: {
+            value: {$DefaultStartReminderValue|intval},
+            interval: '{$DefaultStartReminderInterval|escape:'javascript'}',
+            checked: {if $DefaultStartReminderChecked}true{else}false{/if}
+        },
         timezone: '{$Timezone|escape:'javascript'}',
         {* Web/scripts/overview_fullcalendar.js is served as a static .js file — Smarty never
            processes it, so any {translate} tag written directly inside it would reach the
