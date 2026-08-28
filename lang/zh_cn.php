@@ -590,6 +590,7 @@ class zh_cn extends en_us
         $strings['AdminResourceNoResults'] = '没有符合条件的会议室';
         $strings['AdminResourceConfirmDeleteMessage'] = '此操作将永久删除此会议室及其所有预约记录与权限设定，且无法复原。';
         $strings['AdminScheduleWeeklyHours'] = '每周开放时间';
+        $strings['AdminResourceEditWeeklyHours'] = '编辑开放时间';
         $strings['AdminScheduleClosed'] = '休息';
         $strings['AdminScheduleInUse'] = '使用中';
         $strings['AdminScheduleUnused'] = '未使用';

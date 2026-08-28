@@ -819,6 +819,7 @@ class zh_tw extends en_us
         $strings['AdminResourceNoResults'] = '沒有符合條件的會議室';
         $strings['AdminResourceConfirmDeleteMessage'] = '此操作將永久刪除此會議室及其所有預約記錄與權限設定，且無法復原。';
         $strings['AdminScheduleWeeklyHours'] = '每週開放時間';
+        $strings['AdminResourceEditWeeklyHours'] = '編輯開放時間';
         $strings['AdminScheduleClosed'] = '休息';
         $strings['AdminScheduleInUse'] = '使用中';
         $strings['AdminScheduleUnused'] = '未使用';

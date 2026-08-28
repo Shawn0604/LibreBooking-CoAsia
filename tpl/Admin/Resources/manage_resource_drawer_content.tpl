@@ -594,6 +594,16 @@
 					{indicator}
 				</div>
 			</form>
+
+			{if !$isVideoConferenceResource}
+				{* 開放時間管理已併進這裡:每間實體會議室的每週開放時段,從這個按鈕進去編輯
+				   (manage_schedules.php 仍是實際編輯頁,只是不再從側邊欄進入)。 *}
+				<div class="fw-bold fs-6 mt-4 mb-2">{translate key=AdminScheduleWeeklyHours}</div>
+				<a href="manage_schedules.php?openSchedule={$resource->GetScheduleId()}"
+					class="btn btn-outline-primary btn-sm">
+					<i class="bi bi-clock me-1"></i>{translate key=AdminResourceEditWeeklyHours}
+				</a>
+			{/if}
 		{/if}
 	</div>
 </div>

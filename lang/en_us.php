@@ -1200,6 +1200,7 @@ class en_us extends Language
         $strings['AdminResourceNoResults'] = 'No resources match your filters';
         $strings['AdminResourceConfirmDeleteMessage'] = 'This will permanently delete the resource, its reservations, and permission assignments. This cannot be undone.';
         $strings['AdminScheduleWeeklyHours'] = 'Weekly Hours';
+        $strings['AdminResourceEditWeeklyHours'] = 'Edit weekly hours';
         $strings['AdminScheduleClosed'] = 'Closed';
         $strings['AdminScheduleInUse'] = 'In Use';
         $strings['AdminScheduleUnused'] = 'Unused';

@@ -355,8 +355,9 @@
                                         href="{$Path}admin/manage_resources.php">{translate key="AdminNavResources"}</a>
                                     <a class="sidebar-sublink {if in_array($AdminCurrentScript, $adminUsersScripts)}active{/if}"
                                         href="{$Path}admin/manage_users.php">{translate key="AdminSectionUsers"}</a>
-                                    <a class="sidebar-sublink {if $AdminCurrentScript == 'manage_schedules.php'}active{/if}"
-                                        href="{$Path}admin/manage_schedules.php">{translate key="AdminNavSchedules"}</a>
+                                    {* 開放時間管理併進「會議室管理」的每間房抽屜(見 manage_resource_drawer_content.tpl
+                                       的「開放時間」區塊 -> manage_schedules.php?openSchedule=）。manage_schedules.php
+                                       本身仍在,只是不再從側邊欄直接進入。 *}
                                     <a class="sidebar-sublink {if $AdminCurrentScript == 'manage_usage_analytics.php'}active{/if}"
                                         href="{$Path}admin/manage_usage_analytics.php">{translate key="AdminUsageAnalytics"}</a>
                                     <a class="sidebar-sublink {if $AdminCurrentScript == 'server_settings.php'}active{/if}"

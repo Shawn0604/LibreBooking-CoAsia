@@ -2879,3 +2879,32 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 - 容器內 `php -l` 過所有修改檔；`composer phpstan` 0 錯；`composer phpcsfixer:lint` 對這 4 個檔案全過。
 - `composer phpunit` 全跑：1730 測試，跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided`）。
 - **行為影響**：這次移除**不改變任何人現在能不能登入** —— `Validate()` 的邏輯沒動，目前沒被 `is_local_auth_only=1` 標記的帳號（＝所有正常帳號）行為完全一樣。只是以後管理員無法再從 UI 設定這個旗標。
+
+## 92. 開放時間管理併進會議室管理(第一步:入口合併,安全版)
+
+使用者:「會議室管理跟開放使用時間管理應該要合併」。查了正式環境的資料 —— **21 個時間表,每個剛好只掛 1 個資源**(而且很多同名,是「複製會議室」時連帶產生的),等於是 1 對 1,「時間表」這層抽象在這個部署裡沒帶來價值,只是把「一間房 + 它的開放時間」硬拆成兩頁。
+
+### 為什麼分兩步
+
+開放時間的儲存不是單一 API:靠一整組隱藏的 `#changeLayoutForm`(7 天分頁 textarea + 時區 + 快速精靈 + `LayoutValidator`),`schedule.js` 的「儲存」只是把值填進那個隱藏表單再送出(見 `saveScheduleHours()`)。要把編輯器完全內嵌進會議室抽屜,得把那整組 template + `ScheduleManagement` JS 也搬過去、還要在會議室 presenter 載入 layout。這條路徑決定「會議室能不能被預約」,而目前沒有開發環境登入帳密可以點測,上線前夕做整組搬移風險過高。
+
+所以第一步只做**入口合併**(不碰儲存路徑,零風險),完整內嵌留待之後能在 dev 點測時再做。
+
+### 這一步做了什麼
+
+- `tpl/globalheader.tpl`:側邊欄拿掉「開放使用時間管理」連結(換成註解說明去向)。`manage_schedules.php` 本身完全沒動,還能用,只是不再從導覽直接進入。
+- `tpl/Admin/Resources/manage_resource_drawer_content.tpl`:實體會議室(非線上會議)的編輯抽屜底部新增「每週開放時間」區塊 + 一顆「編輯開放時間」按鈕,連到 `manage_schedules.php?openSchedule={資源的 schedule_id}`。
+- `Web/scripts/admin/schedule.js`:`init()` 尾端讀 `?openSchedule=N`,直接開該時間表的抽屜(重用既有的 `openScheduleDrawer()`)。
+- `lang/en_us`／`zh_tw`／`zh_cn`:`AdminResourceEditWeeklyHours`。
+
+管理員體感:進「會議室管理」→ 點房間 → 底部「編輯開放時間」→ 該房的開放時間編輯器直接打開。一個入口,側邊欄不再有另一個項目。
+
+### 驗證
+
+- `manage_resource_drawer_content.tpl` / `globalheader.tpl` Smarty 標籤配對正確;`node --check` + `eslint` 過 `schedule.js`;`php -l` 過三個語言檔。
+- 沒有動任何 PHP presenter/page 邏輯,不影響單元測試。
+- **待使用者登入確認**:①側邊欄沒有「開放使用時間管理」了 ②實體會議室抽屜有「編輯開放時間」按鈕 ③按下去會開到「對的那間房」的時間表抽屜、存開放時間仍正常。
+
+### 第二步(之後,能在 dev 點測時)
+
+把 7 天開放時間編輯器完全內嵌進會議室抽屜,連換頁都沒有;順便清掉那 21 個同名/複製產生的時間表。

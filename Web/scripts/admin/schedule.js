@@ -208,6 +208,13 @@ function ScheduleManagement(opts) {
     });
     ConfigureAsyncForm(elements.switchLayoutForm, getSubmitCallback(options.switchLayout));
     ConfigureAsyncForm(elements.deleteCustomTimeSlotForm, getSubmitCallback(options.deleteLayoutSlot), afterDeleteSlot);
+
+    // Deep link from the 會議室管理 drawer ("開放時間" -> manage_schedules.php?openSchedule=N):
+    // land straight on that room's schedule drawer, since this page is no longer in the nav.
+    var openSchedule = new URLSearchParams(window.location.search).get('openSchedule');
+    if (openSchedule && document.getElementById('scheduleDrawer' + openSchedule)) {
+      openScheduleDrawer(openSchedule);
+    }
   };
 
   var getSubmitCallback = function (action) {
