@@ -441,6 +441,10 @@ class en_us extends Language
         $strings['AdminGroupDeleteHint'] = 'Deletion cannot be undone. The group\'s permissions and member links are removed with it.';
         $strings['AdminGroupDelete'] = 'Delete group';
         $strings['AdminGroupSaveBasic'] = 'Update';
+        $strings['AdminGroupShowAll'] = 'Show all groups (%s system/empty hidden)';
+        $strings['AdminGroupShowActiveOnly'] = 'Show active groups only';
+        $strings['AdminGroupAddMember'] = 'Add member';
+        $strings['AdminGroupAddMemberPlaceholder'] = 'Search by name or username';
         // --- end CoAsia group redesign ---
         $strings['WhoCanManageThisSchedule'] = 'Who can manage this schedule?';
         $strings['AllQuotas'] = 'All Quotas';

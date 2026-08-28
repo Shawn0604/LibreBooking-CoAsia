@@ -61,9 +61,6 @@
                             data-search="{$gLabel|escape|strtolower} {$group->Name|escape|strtolower}">
                             <td>
                                 <div class="fw-bold dataGroupName">{$gLabel|escape}</div>
-                                {if $gd && ($gd.isReserved && !$gd.isDefault)}
-                                    <div class="admin-cell-secondary"><code>{$group->Name|escape}</code></div>
-                                {/if}
                             </td>
                             <td class="admin-cell-secondary">
                                 {if $gd && $gd.purposeKey != ''}{translate key=$gd.purposeKey}{else}&mdash;{/if}
@@ -101,48 +98,20 @@
         <div class="admin-pager" id="groupPager"></div>
     </div>
 
+    <div class="mt-2">
+        {if $ShowingAllGroups}
+            <a href="{$smarty.server.SCRIPT_NAME}" class="link-secondary small">{translate key=AdminGroupShowActiveOnly}</a>
+        {elseif $HiddenGroupCount > 0}
+            <a href="{$smarty.server.SCRIPT_NAME}?showAll=1" class="link-secondary small">
+                {translate key=AdminGroupShowAll args=$HiddenGroupCount}
+            </a>
+        {/if}
+    </div>
+
     <input type="hidden" id="activeId" />
 
-    <div class="modal fade" id="membersDialog" tabindex="-1" role="dialog" aria-labelledby="membersDialogLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="membersDialogLabel">{translate key=GroupMembers}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group mb-2">
-                        <label class="fw-bold" for="userSearch">{translate key=AddUser}: </label>
-                        <a href="#" id="browseUsers" class="link-primary">{translate key=Browse}</a>
-                        <input type="text" id="userSearch" class="form-control form-control-sm" size="40" />
-                    </div>
-                    <h5><span id="totalUsers"></span> {translate key=UsersInGroup}</h5>
-
-                    <div id="groupUserList"></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary cancel"
-                        data-bs-dismiss="modal">{translate key='Done'}</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div id="allUsers" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="browseUsersDialogLabel"
-        aria-hidden="true">
-        <div class="modal-dialog modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="browseUsersDialogLabel">{translate key=AllUsers}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-hidden="true"></button>
-                </div>
-                <div class="modal-body">
-                    <div id="allUsersList"></div>
-                </div>
-            </div>
-        </div>
-    </div>
+    {* 成員清單直接內嵌在 #editDialog 抽屜的「群組成員」分區(#groupUserList / #userSearch),
+       不再是彈窗。addUser/removeUser 的 async form 成功後回呼 changeMembers() 重新載入清單。 *}
 
     <div class="modal fade" id="permissionsDialog" tabindex="-1" role="dialog" aria-labelledby="permissionsDialogLabel"
         aria-hidden="true">
@@ -279,17 +248,15 @@
                     <input type="text" id="editGroupName" class="form-control has-feedback"
                         {formname key=GROUP_NAME} />
                 </div>
-                <div class="form-group mt-2 js-system-name-row d-none">
-                    <label class="fw-bold">{translate key=AdminGroupSystemName}</label>
-                    <div><code id="editGroupSystemName"></code></div>
-                    <div class="form-text">{translate key=AdminGroupSystemNameHint}</div>
-                </div>
 
                 <div class="admin-drawer-section-title mt-4">{translate key=GroupMembers}</div>
-                <p class="admin-cell-secondary mb-2">{translate key=AdminGroupMembersHint}</p>
-                <button type="button" class="btn btn-outline-primary btn-sm members">
-                    <i class="bi bi-people me-1"></i>{translate key=AdminGroupManageMembers}
-                </button>
+                <div class="form-group mb-2">
+                    <label class="fw-bold form-label" for="userSearch">{translate key=AdminGroupAddMember}</label>
+                    <input type="text" id="userSearch" class="form-control form-control-sm" autocomplete="off"
+                        placeholder="{translate key=AdminGroupAddMemberPlaceholder}" />
+                </div>
+                <div class="mb-1"><span class="fw-bold"><span id="totalUsers">0</span> {translate key=UsersInGroup}</span></div>
+                <div id="groupUserList" class="admin-group-member-list border rounded p-2"></div>
 
                 <div class="js-perm-section">
                     <div class="admin-drawer-section-title mt-4">{translate key=AdminGroupPermissionSummary}</div>

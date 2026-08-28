@@ -463,6 +463,10 @@ class zh_tw extends en_us
         $strings['AdminGroupDeleteHint'] = '刪除後無法復原,群組的權限與成員關聯都會一併移除。';
         $strings['AdminGroupDelete'] = '刪除群組';
         $strings['AdminGroupSaveBasic'] = '更新';
+        $strings['AdminGroupShowAll'] = '顯示全部群組(另有 %s 個系統/空群組)';
+        $strings['AdminGroupShowActiveOnly'] = '只顯示使用中的群組';
+        $strings['AdminGroupAddMember'] = '新增成員';
+        $strings['AdminGroupAddMemberPlaceholder'] = '輸入姓名或帳號搜尋';
         // --- CoAsia 群組改版結束 ---
         $strings['WhoCanManageThisSchedule'] = '誰能管理這時間表?';
         $strings['AddGroup'] = '添加群組';

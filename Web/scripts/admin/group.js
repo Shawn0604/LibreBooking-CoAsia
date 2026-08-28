@@ -1,7 +1,6 @@
 function GroupManagement(opt) {
   var options = opt;
   var activeId = null;
-  var allUserList = null;
   // DataTables pagination physically removes non-visible rows from the DOM,
   // so <select> elements on other pages don't exist when the form is serialized.
   // This object tracks permission state for all resources in memory, ensuring
@@ -20,12 +19,9 @@ function GroupManagement(opt) {
     userSearch: $('#userSearch'),
 
     groupUserList: $('#groupUserList'),
-    membersDialog: $('#membersDialog'),
-    allUsersList: $('#allUsersList'),
     permissionsDialog: $('#permissionsDialog'),
     deleteDialog: $('#deleteDialog'),
     editDialog: $('#editDialog'),
-    browseUserDialog: $('#allUsers'),
     rolesDialog: $('#rolesDialog'),
     groupAdminDialog: $('#groupAdminDialog'),
 
@@ -67,7 +63,7 @@ function GroupManagement(opt) {
   };
 
   var bindEventListeners = function () {
-    const { browseUserDialog, addDialog } = elements;
+    const { addDialog } = elements;
     // Delegation root is the whole page, not just #groupList: the per-section action
     // buttons (成員 / 權限 / 角色 …) now live inside the #editDialog detail drawer, and
     // the list row only carries the single 「管理群組」 button.
@@ -97,7 +93,6 @@ function GroupManagement(opt) {
 
     page.on('click', '.manageGroup', () => editGroup());
     page.on('click', '.permissions', () => changePermissions());
-    page.on('click', '.members', () => changeMembers());
     page.on('click', '.groupAdmin', () => changeGroupAdmin());
     page.on('click', '.changeAdminGroups', () => changeAdminGroups());
     page.on('click', '.changeAdminResources', () => changeAdminResources());
@@ -105,19 +100,7 @@ function GroupManagement(opt) {
     page.on('click', '.delete', () => deleteGroup());
     page.on('click', '.roles', () => changeRoles());
 
-    //user selection for group
-    browseUserDialog.on('click', '.add', (e) => {
-      e.preventDefault();
-      const link = $(e.currentTarget);
-      const userId = link.siblings('.id').val();
-      addUserToGroup(userId);
-      link.find('i').removeClass('bi-plus-square-fill text-success').addClass('bi-check-circle-fill text-info');
-    });
-
-    $('#browseUsers').click(() => {
-      showAllUsersToAdd();
-    });
-
+    // remove a member straight from the inline list in the detail drawer
     elements.groupUserList.on('click', '.delete', (e) => {
       e.preventDefault();
       var userId = $(e.currentTarget).siblings('.id').val();
@@ -291,7 +274,6 @@ function GroupManagement(opt) {
     const reserved = String(row.data('group-reserved')) === '1';
     const isDefault = String(row.data('group-default')) === '1';
     const roleLabel = row.data('group-role') || '';
-    const systemName = row.data('group-system-name') || '';
     const displayName = row.data('name') || row.find('.dataGroupName').text();
 
     dlg.find('#editDialogLabel').text(displayName);
@@ -299,8 +281,6 @@ function GroupManagement(opt) {
     elements.editGroupIsDefault.prop('checked', isDefault).prop('disabled', reserved);
 
     dlg.find('.js-reserved-note').toggleClass('d-none', !reserved);
-    dlg.find('.js-system-name-row').toggleClass('d-none', !(reserved && !isDefault));
-    dlg.find('#editGroupSystemName').text(systemName);
 
     // pure role groups don't use member-level booking permissions
     dlg.find('.js-perm-section').toggleClass('d-none', !!roleLabel);
@@ -311,6 +291,8 @@ function GroupManagement(opt) {
 
     dlg.find('#editGroupRolesSummary').text(roleLabel || '—');
 
+    changeMembers(); // fill the inline 群組成員 list
+
     bootstrap.Offcanvas.getOrCreateInstance(dlg[0]).show();
   };
 
@@ -318,29 +300,29 @@ function GroupManagement(opt) {
     elements.deleteDialog.modal('show');
   };
 
-  //change group members
+  // Refill the inline 群組成員 list in the detail drawer. Also the success callback for
+  // the addUser / removeUser async forms, so add/remove reflects immediately.
   var changeMembers = function () {
     const groupId = activeId;
     $.getJSON(`${options.groupsUrl}?dr=groupMembers`, { gid: groupId }, (data) => {
       const items = [];
-      const userIds = [];
 
-      $('#totalUsers').text(data.Total);
-      if (data.Users) {
+      $('#totalUsers').text(data.Total || 0);
+      if (data.Users && data.Users.length) {
         data.Users.forEach((item) => {
           items.push(
-            `<div><a href="#" class="delete"><i class="bi bi-x-square-fill text-danger"></i></a> ${item.DisplayName}<input type="hidden" class="id" value="${item.Id}"/></div>`
+            `<div class="admin-group-member-row d-flex align-items-center gap-2">` +
+              `<a href="#" class="delete link-danger" title="移除"><i class="bi bi-x-circle-fill"></i></a>` +
+              `<span>${item.DisplayName}</span>` +
+              `<input type="hidden" class="id" value="${item.Id}"/></div>`
           );
-          userIds[item.Id] = item.Id;
         });
+      } else {
+        items.push('<div class="admin-cell-secondary">—</div>');
       }
 
-      elements.groupUserList.empty();
-      elements.groupUserList.data('userIds', userIds);
-
-      $('<div/>', { html: items.join('') }).appendTo(elements.groupUserList);
+      elements.groupUserList.html(items.join(''));
     });
-    elements.membersDialog.modal('show');
   };
 
   var addUserToGroup = function (userId) {
@@ -351,40 +333,6 @@ function GroupManagement(opt) {
   var removeUserFromGroup = function (userId) {
     elements.removeUserForm.find('#removeUserId').val(userId);
     elements.removeUserForm.submit();
-  };
-
-  var showAllUsersToAdd = function () {
-    elements.membersDialog.modal('hide');
-    elements.allUsersList.empty();
-
-    if (!allUserList) {
-      $.ajax({
-        url: options.userAutocompleteUrl,
-        dataType: 'json',
-        async: false,
-        success: (data) => {
-          allUserList = data;
-        },
-      });
-    }
-
-    const items = [];
-    if (allUserList) {
-      allUserList.forEach((item) => {
-        if (!elements.groupUserList.data('userIds')[item.Id]) {
-          items.push(
-            `<div><a class="add"><i class="bi bi-plus-square-fill text-success"></i></a> ${item.DisplayName}<input type="hidden" class="id" value="${item.Id}"/></div>`
-          );
-        } else {
-          items.push(
-            `<div><i class="bi bi-check-circle-fill me-1 text-info"></i><span>${item.DisplayName}</span></div>`
-          );
-        }
-      });
-    }
-
-    $('<div/>', { html: items.join('') }).appendTo(elements.allUsersList);
-    elements.browseUserDialog.modal('show');
   };
 
   // Update visible <select> dropdowns on the current DataTable page to match permissionState.

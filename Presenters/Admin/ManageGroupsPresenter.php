@@ -116,9 +116,27 @@ class ManageGroupsPresenter extends ActionPresenter
             );
         }
 
-        $groups = $groupList->Results();
+        $allGroups = $groupList->Results();
+
+        // Default view shows only the groups CoAsia actually uses: the default group
+        // (全體員工), the Application-Admin group (系統管理員), and any populated custom
+        // group. LibreBooking's other role scaffolding (Group/Resource/Schedule Admin
+        // groups) and empty custom groups are folded away behind ?showAll=1 so the list
+        // stays a short, legible set for non-technical admins -- nothing is deleted.
+        $showingAll = $this->page->IsShowingAllGroups() || $this->page->GetGroupId() != null;
+        if ($showingAll) {
+            $groups = $allGroups;
+        } else {
+            $groups = array_values(array_filter($allGroups, function ($g) {
+                return $g->IsDefault()
+                    || $g->IsAdmin()
+                    || (!GroupDisplay::IsReserved($g) && $g->MemberCount() > 0);
+            }));
+        }
+
         $this->page->BindGroups($groups);
         $this->page->BindPageInfo($groupList->PageInfo());
+        $this->page->BindGroupListState($showingAll, count($allGroups) - count($groups));
 
         // Chinese display label + purpose + permission summary + isReserved, keyed by
         // group id. Pure presentation overlay -- see GroupDisplay. The stored English

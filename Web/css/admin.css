@@ -116,6 +116,21 @@
   background: var(--surface);
 }
 
+/* 群組詳情抽屜:內嵌的群組成員清單 */
+.admin-group-member-list {
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface);
+}
+
+.admin-group-member-row {
+  padding: 4px 0;
+}
+
+.admin-group-member-row + .admin-group-member-row {
+  border-top: 1px solid var(--border);
+}
+
 /* Weekly-hours editor: frame the 7-day grid as one unit when expanded. */
 .admin-drawer-hours[open] > div {
   padding: 14px 16px;

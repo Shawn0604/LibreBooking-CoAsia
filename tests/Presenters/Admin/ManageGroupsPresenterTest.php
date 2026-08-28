@@ -57,6 +57,50 @@ class ManageGroupsPresenterTest extends TestBase
         $this->assertEquals('Marketing', $displays[3]['storedName']);
     }
 
+    public function testPageLoadHidesUnusedSystemAndEmptyGroupsByDefault()
+    {
+        $groups = [
+            new GroupItemView(1, 'Group Administrators', null, 0, [RoleLevel::GROUP_ADMIN], 0),
+            new GroupItemView(2, 'Application Administrators', null, 0, [RoleLevel::APPLICATION_ADMIN], 1),
+            new GroupItemView(3, 'Resource Administrators', null, 0, [], 0),
+            new GroupItemView(4, 'Schedule Administrators', null, 0, [RoleLevel::SCHEDULE_ADMIN], 0),
+            new GroupItemView(5, '全體員工', null, 1, [], 115),
+            new GroupItemView(6, 'Marketing', null, 0, [], 4),
+        ];
+        $this->groupRepository->method('GetList')->willReturn(new PageableData($groups));
+        $this->resourceRepo->_ResourceList = [];
+        $this->scheduleRepository->method('GetAll')->willReturn([]);
+        $this->groupRepository->method('GetGroupsByRole')->willReturn([]);
+
+        $this->presenter->PageLoad();
+
+        // shown: 系統管理員, 全體員工, populated custom -- hidden: the 3 unused role/empty groups
+        $shownIds = array_map(fn ($g) => $g->Id(), $this->page->_BoundGroups);
+        $this->assertEqualsCanonicalizing([2, 5, 6], $shownIds);
+        $this->assertFalse($this->page->_BoundShowingAll);
+        $this->assertEquals(3, $this->page->_BoundHiddenCount);
+    }
+
+    public function testPageLoadShowsEverythingWithShowAll()
+    {
+        $groups = [
+            new GroupItemView(1, 'Group Administrators', null, 0, [RoleLevel::GROUP_ADMIN], 0),
+            new GroupItemView(2, 'Application Administrators', null, 0, [RoleLevel::APPLICATION_ADMIN], 1),
+            new GroupItemView(5, '全體員工', null, 1, [], 115),
+        ];
+        $this->groupRepository->method('GetList')->willReturn(new PageableData($groups));
+        $this->resourceRepo->_ResourceList = [];
+        $this->scheduleRepository->method('GetAll')->willReturn([]);
+        $this->groupRepository->method('GetGroupsByRole')->willReturn([]);
+        $this->page->_ShowingAllGroups = true;
+
+        $this->presenter->PageLoad();
+
+        $this->assertEqualsCanonicalizing([1, 2, 5], array_map(fn ($g) => $g->Id(), $this->page->_BoundGroups));
+        $this->assertTrue($this->page->_BoundShowingAll);
+        $this->assertEquals(0, $this->page->_BoundHiddenCount);
+    }
+
     public function testChangePermissionsWithAdminScopeCheck()
     {
         // Admin can manage resources [1, 2, 3]
@@ -394,8 +438,14 @@ class FakeManageGroupsPage extends FakeActionPageBase implements IManageGroupsPa
         return $this->_GroupId;
     }
 
+    /**
+     * @var array
+     */
+    public $_BoundGroups = [];
+
     public function BindGroups($groups)
     {
+        $this->_BoundGroups = $groups;
     }
 
     public function BindPageInfo(PageInfo $pageInfo)
@@ -448,6 +498,21 @@ class FakeManageGroupsPage extends FakeActionPageBase implements IManageGroupsPa
     public function BindGroupDisplays($displays)
     {
         $this->_BoundGroupDisplays = $displays;
+    }
+
+    public bool $_ShowingAllGroups = false;
+    public ?bool $_BoundShowingAll = null;
+    public ?int $_BoundHiddenCount = null;
+
+    public function IsShowingAllGroups()
+    {
+        return $this->_ShowingAllGroups;
+    }
+
+    public function BindGroupListState($showingAll, $hiddenCount)
+    {
+        $this->_BoundShowingAll = $showingAll;
+        $this->_BoundHiddenCount = $hiddenCount;
     }
 
     public function GetGroupName()

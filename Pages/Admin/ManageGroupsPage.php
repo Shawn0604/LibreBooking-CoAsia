@@ -23,6 +23,17 @@ interface IManageGroupsPage extends IActionPage
     public function BindGroupDisplays($displays);
 
     /**
+     * @return bool whether ?showAll=1 -- reveal the folded-away system/empty groups
+     */
+    public function IsShowingAllGroups();
+
+    /**
+     * @param bool $showingAll
+     * @param int $hiddenCount groups filtered out of the default view
+     */
+    public function BindGroupListState($showingAll, $hiddenCount);
+
+    /**
      * @param PageInfo $pageInfo
      */
     public function BindPageInfo(PageInfo $pageInfo);
@@ -223,6 +234,17 @@ class ManageGroupsPage extends ActionPage implements IManageGroupsPage
             return $groupId;
         }
         return $this->GetQuerystring(QueryStringKeys::GROUP_ID);
+    }
+
+    public function IsShowingAllGroups()
+    {
+        return !empty($this->GetQuerystring('showAll'));
+    }
+
+    public function BindGroupListState($showingAll, $hiddenCount)
+    {
+        $this->Set('ShowingAllGroups', $showingAll);
+        $this->Set('HiddenGroupCount', $hiddenCount);
     }
 
     public function SetJsonResponse($response)
