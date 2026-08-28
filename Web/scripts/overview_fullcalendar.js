@@ -1185,9 +1185,26 @@ $(function () {
             var wrapper = document.createElement('div');
             wrapper.className = 'evc';
 
+            // First name only (never last name/full name/email) -- already blanked out
+            // server-side for events this viewer isn't allowed to see the details of, so
+            // an empty string means "no booker line", not "name missing".
+            var ownerFirstName = arg.event.extendedProps.ownerFirstName || '';
+
             var tt = document.createElement('div');
             tt.className = 'tt';
-            tt.textContent = arg.event.title;
+            var ttTitle = document.createElement('span');
+            ttTitle.className = 'tt-title';
+            ttTitle.textContent = arg.event.title;
+            tt.appendChild(ttTitle);
+            // Booker folded onto the title line so it's present even on the shortest slot.
+            // CSS moves it to its own .fn line once the card is tall enough (week/day view);
+            // on month chips it always stays inline.
+            if (ownerFirstName) {
+                var ttOwner = document.createElement('span');
+                ttOwner.className = 'tt-owner';
+                ttOwner.textContent = ' · ' + ownerFirstName;
+                tt.appendChild(ttOwner);
+            }
             wrapper.appendChild(tt);
 
             if (arg.view.type !== 'dayGridMonth') {
@@ -1196,10 +1213,6 @@ $(function () {
                 rr.textContent = arg.timeText;
                 wrapper.appendChild(rr);
 
-                // First name only (never last name/full name/email) -- already blanked out
-                // server-side for events this viewer isn't allowed to see the details of, so
-                // an empty string here means "don't render a third line", not "name missing".
-                var ownerFirstName = arg.event.extendedProps.ownerFirstName;
                 if (ownerFirstName) {
                     var fn = document.createElement('div');
                     fn.className = 'fn';

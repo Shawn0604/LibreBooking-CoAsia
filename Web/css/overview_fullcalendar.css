@@ -1037,6 +1037,15 @@
   font-size: 10.5px;
 }
 
+/* Booker folded onto the title line -- the guaranteed-visible fallback. Shown by default
+   (so the shortest slot still names who booked it); hidden only once the card is tall
+   enough for the dedicated .fn line below. Never a rendering gap between the two. */
+#fullcalendarRoot .fc-timegrid-event .tt-owner {
+  display: inline;
+  font-weight: 400;
+  color: #5f6368;
+}
+
 /* ~60min slot or taller at the current grid scale (matches overview.css's threshold). */
 @container eventCard (min-height: 32px) {
   #fullcalendarRoot .fc-timegrid-event .rr {
@@ -1044,11 +1053,15 @@
   }
 }
 
-/* Taller still before the third line joins -- min-height: 32px is tuned for exactly two
-   lines (title + time); three lines need more room before it stops clipping. */
+/* Taller still before the booker gets its own line -- min-height: 32px is tuned for two
+   lines (title + time); the third line needs more room before it stops clipping. At/above
+   this height the inline .tt-owner hands off to the dedicated .fn line. */
 @container eventCard (min-height: 46px) {
   #fullcalendarRoot .fc-timegrid-event .fn {
     display: block;
+  }
+  #fullcalendarRoot .fc-timegrid-event .tt-owner {
+    display: none;
   }
 }
 
@@ -1072,6 +1085,12 @@
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Month chips are always a single line -- keep the booker on it next to the title. */
+#fullcalendarRoot .fc-daygrid-event .tt-owner {
+  font-weight: 400;
+  color: #5f6368;
 }
 
 /* Individual already-ended events dim slightly (matches #page-overview .event.past in
