@@ -23,20 +23,23 @@ DUMP="${1:-$(ls -t "$DEST_ROOT"/*/"${SRC_DB}"-*.sql.gz 2>/dev/null | head -1 || 
 echo "還原來源:$DUMP"
 
 dc() { docker compose -f "$COMPOSE" "$@"; }
-myq() { dc exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --user=root -N -e "'"$1"'"' | tr -d '\r'; }
+
+# SQL 一律透過 stdin 餵給容器內的 mysql —— 不要把 SQL 內嵌進 sh -c 的字串,
+# 否則識別字的反引號會被 sh 當成命令替換吃掉。識別字都是固定的簡單名稱,不需要引號。
+myq() { dc exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql --user=root -N' <<<"$1" | tr -d '\r'; }
 
 echo "建立臨時 DB $TEST_DB ..."
-myq "DROP DATABASE IF EXISTS \`$TEST_DB\`; CREATE DATABASE \`$TEST_DB\` CHARACTER SET utf8mb4;" >/dev/null
+myq "DROP DATABASE IF EXISTS $TEST_DB; CREATE DATABASE $TEST_DB CHARACTER SET utf8mb4;" >/dev/null
 
 echo "灌入 ..."
-gunzip -c "$DUMP" | dc exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --user=root '"$TEST_DB"
+gunzip -c "$DUMP" | dc exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysql --user=root '"$TEST_DB"
 
 echo
 echo "== 筆數比對(正式 vs 還原)=="
 ok=1
 for t in users reservation_series reservation_instances resources schedules groups; do
-  a="$(myq "SELECT COUNT(*) FROM \`$SRC_DB\`.\`$t\`" 2>/dev/null || echo ERR)"
-  b="$(myq "SELECT COUNT(*) FROM \`$TEST_DB\`.\`$t\`" 2>/dev/null || echo ERR)"
+  a="$(myq "SELECT COUNT(*) FROM $SRC_DB.$t" 2>/dev/null || echo ERR)"
+  b="$(myq "SELECT COUNT(*) FROM $TEST_DB.$t" 2>/dev/null || echo ERR)"
   mark=OK; [ "$a" = "$b" ] || { mark=DIFF; ok=0; }
   printf "  %-22s %8s vs %-8s %s\n" "$t" "$a" "$b" "$mark"
 done
@@ -44,8 +47,8 @@ echo
 [ "$ok" = 1 ] && echo "結果:一致 ✓" || echo "結果:有差異 ✗ —— 檢查備份是否完整"
 
 if [ "${DROP:-}" = 1 ]; then
-  myq "DROP DATABASE \`$TEST_DB\`;" >/dev/null && echo "已 DROP $TEST_DB"
+  myq "DROP DATABASE $TEST_DB;" >/dev/null && echo "已 DROP $TEST_DB"
 else
   read -r -p "DROP $TEST_DB? [y/N] " yn
-  [ "${yn:-N}" = y ] && myq "DROP DATABASE \`$TEST_DB\`;" >/dev/null && echo "已 DROP $TEST_DB"
+  [ "${yn:-N}" = y ] && { myq "DROP DATABASE $TEST_DB;" >/dev/null && echo "已 DROP $TEST_DB"; }
 fi
