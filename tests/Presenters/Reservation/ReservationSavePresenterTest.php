@@ -171,6 +171,52 @@ class ReservationSavePresenterTest extends TestBase
         $this->assertEquals($expectedCredits, $actualReservation->GetCreditsRequired(), '3 credits per slot, 2 day reservation, recurs 28 times');
     }
 
+    public function testParsesDefaultStartReminderConfigInterval()
+    {
+        $m = new ReflectionMethod(ReservationSavePresenter::class, 'ParseDefaultReminder');
+        $m->setAccessible(true);
+
+        $this->assertEquals(['value' => 15, 'interval' => 'minutes'], $m->invoke($this->presenter, '15 minutes'));
+        $this->assertEquals(['value' => 2, 'interval' => 'hours'], $m->invoke($this->presenter, '2 hours'));
+        $this->assertEquals(['value' => 1, 'interval' => 'days'], $m->invoke($this->presenter, '1 days'));
+        // unknown unit falls back to minutes (mirrors NewReservationInitializer::GetReminderPieces)
+        $this->assertEquals(['value' => 30, 'interval' => 'minutes'], $m->invoke($this->presenter, '30 weeks'));
+
+        $this->assertNull($m->invoke($this->presenter, ''));
+        $this->assertNull($m->invoke($this->presenter, null));
+        $this->assertNull($m->invoke($this->presenter, 'nonsense'));
+        $this->assertNull($m->invoke($this->presenter, '0 minutes'));
+    }
+
+    public function testAppliesDefaultStartReminderWhenRequestCarriesNone()
+    {
+        // Calendar quick-create sends no reminder fields -- the configured default still applies.
+        $this->page->hasStartReminder = false;
+        $this->page->hasEndReminder = false;
+        $this->fakeConfig->SetKey(ConfigKeys::RESERVATION_REMINDER_DEFAULT_START, '15 minutes');
+
+        $this->resourceRepository->method('LoadById')->willReturn(new FakeBookableResource(1, 'r1'));
+
+        $reservation = $this->presenter->BuildReservation();
+
+        $this->assertTrue($reservation->GetStartReminder()->Enabled());
+        $this->assertEquals(15, $reservation->GetStartReminder()->MinutesPrior());
+        $this->assertFalse($reservation->GetEndReminder()->Enabled());
+    }
+
+    public function testDoesNotApplyDefaultStartReminderWhenNoneConfigured()
+    {
+        $this->page->hasStartReminder = false;
+        $this->page->hasEndReminder = false;
+        $this->fakeConfig->SetKey(ConfigKeys::RESERVATION_REMINDER_DEFAULT_START, '');
+
+        $this->resourceRepository->method('LoadById')->willReturn(new FakeBookableResource(1, 'r1'));
+
+        $reservation = $this->presenter->BuildReservation();
+
+        $this->assertFalse($reservation->GetStartReminder()->Enabled());
+    }
+
     public function testHandlingReservationCreationDelegatesToHandler()
     {
         $series = new TestReservationSeries();

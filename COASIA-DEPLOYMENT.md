@@ -429,9 +429,12 @@ sudo systemctl daemon-reload && sudo mount /mnt/nas-booking
 
 ```
 30 2 * * * /home/shawn_admin/coasia-booking/scripts/db-backup.sh >> /home/shawn_admin/booking-backup.log 2>&1
+* * * * * /home/shawn_admin/coasia-booking/scripts/run-cron-jobs.sh >> /home/shawn_admin/booking-cron.log 2>&1
 ```
 
-腳本第一件事就是檢查 `/mnt/nas-booking` 有沒有掛好，沒掛好直接失敗退出（不會把備份默默寫進本機硬碟）。DB 密碼不落地：`mysqldump` 在 `db` 容器內用容器自己的 `$MYSQL_ROOT_PASSWORD`。
+- **`db-backup.sh`**：腳本第一件事就是檢查 `/mnt/nas-booking` 有沒有掛好，沒掛好直接失敗退出（不會把備份默默寫進本機硬碟）。DB 密碼不落地：`mysqldump` 在 `db` 容器內用容器自己的 `$MYSQL_ROOT_PASSWORD`。
+- **`run-cron-jobs.sh`**（每分鐘）：在 `app` 容器內跑 `Jobs/sendreminders.php`——預約的「開始前 / 結束前提醒」。需要 `config/config.php` 的 `reservation.reminders.enabled = true`。目前只掛 `sendreminders.php`；其他 Jobs（`autorelease` / `sendmissedcheckin` / `sessioncleanup`）若之後要跑，在腳本的 `JOBS` 陣列加檔名。
+  - `reservation.default.start.reminder`（例:`'15 minutes'`）讓每筆新預約自動帶「開始前提醒」；沒設的話使用者要自己在完整預約表單勾。快速建立(日曆上直接拉)沒有提醒欄位,由 `ReservationSavePresenter` 在後端補上這個預設值。
 
 ### 狀態（2026-08-28）
 

@@ -904,6 +904,8 @@ class zh_cn extends en_us
         $strings['WeComRecurringSuffix'] = '（%s，共 %s 场，至 %s）';
         $strings['WeComReminderStartMessage'] = "提醒：“%s”即将开始\n地点：%s";
         $strings['WeComReminderEndMessage'] = "提醒：“%s”即将结束\n地点：%s";
+        $strings['LineReminderStartMessage'] = "提醒：“%s”即将开始\n地点：%s";
+        $strings['LineReminderEndMessage'] = "提醒：“%s”即将结束\n地点：%s";
 
         $this->Strings = $strings;
 
