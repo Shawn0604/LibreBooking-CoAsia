@@ -3130,3 +3130,10 @@ seed 確認:`roles` 是固定 4 列(role_id == role_level == 1-4);四個管理�
 - `composer phpunit` 1755 筆全綠(+14:8 `GroupDisplayTest`、6 群組保護 guard 測試、1 `PageLoad` 顯示 overlay 綁定;唯一失敗 `ManageReservationsPresenterTest` 為既有無關)。phpstan 0、php-cs-fixer 0、`node --check group.js`、Smarty `compileTemplateSource()` 皆過。
 - 測試覆蓋需求指定的三種群組:系統管理員(role group)、會議室管理員(role group)、全體員工(default)—— 查看(`GroupDisplay` 對應)、成員/權限調整走既有 action、rename/delete 被 guard 擋、`AddGroup` 不會生出 default。
 - **待 prod 瀏覽器實測**(dev 無本機管理員登入):①清單外觀 + 繁中名 + 用途/成員數/權限摘要欄 ②「管理群組」開抽屜、分區按鈕能開對應 modal(offcanvas 上疊 modal 的 backdrop 疊層)③保留群組:名稱鎖住、無刪除區、無更新鈕;自訂群組:可改名、可刪(二次確認)④搜尋過濾 + 分頁。
+
+### §101 後續調整(依回饋)
+
+- **清單預設只顯示使用中的群組**:`ManageGroupsPresenter::PageLoad` 過濾 `IsDefault() || IsAdmin() || (!IsReserved() && MemberCount()>0)`。CoAsia 目前實際只有「系統管理員」+「全體員工」;LibreBooking 內建的 Group/Resource/Schedule Admin 角色鷹架與空的自訂群組收在「顯示全部群組」連結後面(`?showAll=1`),**不刪任何資料**,`?gid=` 進單一群組時一律顯示。`ManageGroupsPage::IsShowingAllGroups()` / `BindGroupListState()`。
+- **不顯示英文**:清單移除中文名下方那行灰色英文 `code`;抽屜移除「系統識別名稱」分區。畫面只留中文名,和「用戶」分頁的「角色」用字一致(`系統管理員` 兩邊同字串)。
+- **成員直接內嵌**:抽屜「群組成員」分區直接列出成員(autocomplete 加入 + 每列移除),不再是 `#membersDialog` 彈窗。移除 `#membersDialog` / `#allUsers` / Browse 流程;`changeMembers()` 只重填內嵌清單,並作為 addUser/removeUser async form 的成功回呼。
+- 測試:預設隱藏 3 個未使用群組(只顯示 2)、`?showAll` 顯示全部。
