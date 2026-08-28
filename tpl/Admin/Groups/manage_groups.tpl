@@ -286,7 +286,7 @@
                     </div>
                 </details>
             </div>
-            <div class="admin-drawer-footer admin-drawer-footer-sticky">
+            <div class="admin-drawer-footer">
                 {cancel_button}
                 <button type="button" class="btn btn-primary btn-sm save" id="editGroupSaveBtn">
                     <i class="bi bi-check2-circle me-1"></i>{translate key=AdminGroupSaveBasic}
