@@ -120,6 +120,13 @@ interface IManageUsersPage extends IPageable, IActionPage
     public function GetUserGroup();
 
     /**
+     * Ordinary-group ids ticked in the edit drawer's 群組與權限 section. Never
+     * includes default or role-granting groups -- those render read-only.
+     * @return int[]
+     */
+    public function GetSubmittedGroupIds();
+
+    /**
      * @param GroupItemView[] $groups
      */
     public function BindGroups($groups);
@@ -436,6 +443,15 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
         return $this->GetForm(FormKeys::GROUP_ID);
     }
 
+    public function GetSubmittedGroupIds()
+    {
+        $ids = $this->GetForm(FormKeys::USER_GROUP_IDS);
+        if (!is_array($ids)) {
+            return [];
+        }
+        return array_values(array_unique(array_filter(array_map('intval', $ids))));
+    }
+
     public function BindGroups($groups)
     {
         $gs = [];
@@ -526,6 +542,15 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
         // Computed here rather than calling $User->IsInRole(RoleLevel::APPLICATION_ADMIN)
         // directly from the template -- keeps the RoleLevel constant reference in PHP.
         $this->Set('IsUserAdmin', $user->IsInRole(RoleLevel::APPLICATION_ADMIN));
+        // Assoc set {groupId: true} of the user's current membership, so user-update.tpl's
+        // 群組與權限 checkbox list can pre-tick without needing in_array() (not a registered
+        // Smarty modifier here). The full group catalogue comes from BindGroups() in
+        // ManageUsersPresenter::ShowUpdate().
+        $currentGroupIds = [];
+        foreach ($user->Groups() as $userGroup) {
+            $currentGroupIds[(int) $userGroup->GroupId] = true;
+        }
+        $this->Set('UserGroupIds', $currentGroupIds);
         // This template renders standalone as the dr=update AJAX fragment (ActionPage::PageLoad()
         // branches to ProcessDataRequest() instead of ProcessPageLoad(), so ProcessPageLoad()'s own
         // Set('ManageGroupsUrl', ...) never runs for this request) -- set it here too so the

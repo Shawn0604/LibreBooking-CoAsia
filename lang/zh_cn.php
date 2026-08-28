@@ -570,6 +570,14 @@ class zh_cn extends en_us
         $strings['AdminUserRoleUser'] = '一般使用者';
         $strings['AdminUserRoleAdmin'] = '系统管理员';
         $strings['AdminUserCurrentGroups'] = '所属群组';
+        $strings['GoToGroupManagement'] = '前往群组管理';
+        $strings['AdminUserRoleManagedInGroups'] = '系统管理员权限与群组成员资格改在群组管理设定。';
+        $strings['AdminUserRoleDerivedFromGroups'] = '角色由下方勾选的群组决定。';
+        $strings['AdminUserGroupsSection'] = '群组与权限';
+        $strings['AdminUserGroupMembership'] = '所属群组';
+        $strings['AdminUserGroupDefaultBadge'] = '预设';
+        $strings['AdminUserGroupRoleBadge'] = '授予管理员角色';
+        $strings['AdminUserGroupProtectedHint'] = '预设群组与会授予管理员角色的群组不能在这里调整 —';
         $strings['AdminUserSortBy'] = '排序方式';
         $strings['AdminUserSortNameAsc'] = '姓名 A-Z';
         $strings['AdminUserSortNameDesc'] = '姓名 Z-A';

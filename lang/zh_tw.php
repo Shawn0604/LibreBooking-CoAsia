@@ -798,6 +798,12 @@ class zh_tw extends en_us
         $strings['AdminUserCurrentGroups'] = '所屬群組';
         $strings['GoToGroupManagement'] = '前往群組管理';
         $strings['AdminUserRoleManagedInGroups'] = '系統管理員權限與群組成員資格改在群組管理設定。';
+        $strings['AdminUserRoleDerivedFromGroups'] = '角色由下方勾選的群組決定。';
+        $strings['AdminUserGroupsSection'] = '群組與權限';
+        $strings['AdminUserGroupMembership'] = '所屬群組';
+        $strings['AdminUserGroupDefaultBadge'] = '預設';
+        $strings['AdminUserGroupRoleBadge'] = '授予管理員角色';
+        $strings['AdminUserGroupProtectedHint'] = '預設群組與會授予管理員角色的群組不能在這裡調整 —';
         $strings['AdminUserSortBy'] = '排序方式';
         $strings['AdminUserSortNameAsc'] = '姓名 A-Z';
         $strings['AdminUserSortNameDesc'] = '姓名 Z-A';

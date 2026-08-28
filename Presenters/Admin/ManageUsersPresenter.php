@@ -306,6 +306,80 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
         );
 
         $this->ApplyWeComUserId($this->page->GetUserId(), $this->page->GetWeComUserId());
+        $this->ApplyUserGroups($this->page->GetUserId(), $this->page->GetSubmittedGroupIds());
+    }
+
+    /**
+     * Persist the user's group membership from the edit drawer's 群組與權限 checkbox list.
+     *
+     * Only "ordinary" groups (no role_level) are editable there. Every default group and
+     * every role-granting group (Application/Group/Resource/Schedule Administrators) is
+     * preserved verbatim from the user's *existing* membership, regardless of what the
+     * payload contains -- so this path can never grant or revoke an admin role, and can
+     * never drop someone out of 全體員工. Those changes stay exclusively on 群組管理
+     * (ManageGroupsPresenter::ChangeRoles / ChangeGroupAdmin, all IsAdmin-gated).
+     *
+     * @param int $userId
+     * @param int[] $submittedGroupIds
+     */
+    private function ApplyUserGroups($userId, array $submittedGroupIds)
+    {
+        $allGroups = $this->groupViewRepository->GetList()->Results();
+
+        $ordinaryIds = [];
+        $protectedIds = [];
+        $namesById = [];
+        foreach ($allGroups as $group) {
+            $namesById[$group->Id()] = $group->Name();
+            if ($this->IsProtectedUserGroup($group)) {
+                $protectedIds[] = $group->Id();
+            } else {
+                $ordinaryIds[] = $group->Id();
+            }
+        }
+
+        $user = $this->userRepository->LoadById($userId);
+        $existingIds = array_map(fn ($ug) => (int) $ug->GroupId, $user->Groups());
+
+        // Ordinary groups: exactly what was ticked, restricted to groups that are actually
+        // editable in the drawer (a stray protected id in the payload is dropped here).
+        $keptOrdinary = array_values(array_intersect($submittedGroupIds, $ordinaryIds));
+        // Protected groups: whatever the user already had -- never touched from this screen.
+        $keptProtected = array_values(array_intersect($existingIds, $protectedIds));
+
+        $rejected = array_intersect($submittedGroupIds, $protectedIds);
+        if (!empty($rejected)) {
+            // Never reachable from the drawer (those checkboxes render disabled) -- a
+            // hand-crafted request. Dropped, not applied; logged so it's auditable.
+            Log::Error(
+                'ManageUsers: ignoring protected group ids %s in updateUser payload for user %s',
+                implode(',', $rejected),
+                $userId
+            );
+        }
+
+        $targetIds = array_values(array_unique(array_merge($keptOrdinary, $keptProtected)));
+
+        $targetGroups = [];
+        foreach ($targetIds as $groupId) {
+            if (isset($namesById[$groupId])) {
+                $targetGroups[] = new UserGroup($groupId, $namesById[$groupId]);
+            }
+        }
+
+        $user->ChangeGroups($targetGroups);
+        $this->userRepository->Update($user);
+    }
+
+    /**
+     * @param GroupItemView $group
+     * @return bool true when the group must not be toggled from the 使用者管理 drawer
+     */
+    private function IsProtectedUserGroup($group)
+    {
+        return $group->IsDefault()
+            || $group->IsAdmin()
+            || $group->IsExtendedAdmin();
     }
 
     /**
@@ -808,6 +882,11 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
         $userId = $this->page->GetUserId();
         $user = $this->userRepository->LoadById($userId);
         $attributes = $this->attributeService->GetAttributes(CustomAttributeCategory::USER, [$userId]);
+
+        // dr=update renders user-update.tpl standalone (ProcessPageLoad(), and with it
+        // PageLoad()'s BindGroups(), never runs for this request) -- bind the group
+        // catalogue here so the drawer's 群組與權限 checkbox list has $Groups.
+        $this->page->BindGroups($this->groupViewRepository->GetList()->Results());
 
         $this->page->ShowUserUpdate($user, $attributes->GetDefinitions());
     }

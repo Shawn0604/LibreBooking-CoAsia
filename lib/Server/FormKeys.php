@@ -102,6 +102,10 @@ class FormKeys
     public const GROUP_NAME = 'group_name';
     public const GROUP_ADMIN = 'group_admin';
     public const GROUP_IMPORT_FILE = 'GROUP_IMPORT_FILE';
+    // Multi-value: the ordinary-group checkboxes in the 使用者管理 edit drawer's
+    // 群組與權限 section (see tpl/Admin/Users/user-update.tpl). Default/role-granting
+    // groups are rendered read-only and never appear in this payload.
+    public const USER_GROUP_IDS = 'userGroupIds';
     public const GUEST_INVITATION_LIST = 'guestInvitationList';
     public const GUEST_PARTICIPATION_LIST = 'guestParticipationList';
 

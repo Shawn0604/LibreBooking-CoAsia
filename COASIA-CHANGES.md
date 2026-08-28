@@ -3025,3 +3025,45 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 
 - Smarty 在容器內 `createTemplate()->compileTemplateSource()` 通過;`node --check resource.js` 通過。dev 無本機登入(AD 帳號),抽屜實際外觀待部署後在 prod 檢查。
 - **待實測**:①實體會議室抽屜:「更新/取消」釘在抽屜右下角、body 捲動時不跟著跑 ②「每週開放時間」展開/收合都在動作列上方,展開時有框、收合時只剩一行摘要 ③改開放時間 + 按「更新」仍會先存時間再送基本資料(§97 的行為沒破)④線上會議資源抽屜不顯示開放時間區塊。
+
+## 99. 使用者管理:編輯抽屜直接勾選群組(以使用者為中心的群組管理,第一步)
+
+### 需求
+
+日常管理要「以使用者為中心」。原本使用者編輯抽屜只顯示「角色 / 所屬群組」純文字,要改群組得切到「群組」分頁再進各群組管理成員,操作太分散。
+
+### 先確認的資料模型與寫入路徑
+
+- **角色早就只透過群組授予**。沒有 user↔role 表;`group_roles` → `roles.role_level` 是拿到 `APPLICATION_ADMIN` / `GROUP_ADMIN` / `RESOURCE_ADMIN` / `SCHEDULE_ADMIN` 的唯一途徑。`UserSession->IsAdmin` = 「屬於某個 role_level=APPLICATION_ADMIN 的群組」(`Authentication.php:167`)。所以需求第 4 點基本上只是「顯示」問題,資料本來就單一來源。
+- **使用者→群組寫入路徑乾淨、且早有人用**:`User::ChangeGroups($userGroups)` 算出 added/removed → `UserRepository::Update()` 逐筆 `AddUserGroupCommand` / `DeleteUserGroupCommand`(`UserRepository.php:582-588`)。CSV 匯入與 `Registration::Synchronize` 都走這條。
+- **AD 同步不影響群組**:`ActiveDirectory.config.php` 的 `sync.groups => false`;`Registration::Synchronize()` 只有在 AD 回傳非空群組清單時才 `ChangeGroups`(`Registration.php:152`),關掉時是 `null`,**AD 登入永遠不動 LibreBooking 群組**。(AD 登入仍會覆寫 name/email/phone/organization/position/department,既有行為、不在此次範圍。)
+- **權限入口**:`manage_users.php` / `manage_groups.php` 都經 `AdminPageDecorator`,只有 application admin 進得去;`ManageGroupsPresenter` 的 `ChangeRoles` / `ChangeGroupAdmin` / `ChangeAdminGroups` 另外再檢查 `IsAdmin`(縱深防禦)。
+
+### 改動(第一步:只做使用者抽屜的勾選)
+
+- **`lib/Server/FormKeys.php`**:`USER_GROUP_IDS = 'userGroupIds'`(多值)。
+- **`Pages/Admin/ManageUsersPage.php`**:`GetSubmittedGroupIds(): int[]`;`ShowUserUpdate()` 額外 `Set('UserGroupIds', {groupId: true})`(assoc set,讓樣板不用 `in_array` 就能預先打勾)。
+- **`Presenters/Admin/ManageUsersPresenter.php`**:
+  - `ShowUpdate()` 加 `BindGroups($this->groupViewRepository->GetList()->Results())` —— `dr=update` 這條 request 不會跑 `ProcessPageLoad()`,群組目錄要在這裡補綁。
+  - `UpdateUser()` 尾端呼叫新的 `ApplyUserGroups($userId, $this->page->GetSubmittedGroupIds())`。
+  - `ApplyUserGroups()`:目標群組 = 「勾選的一般群組」∪「使用者**現有的**受保護群組(有 role_level 的 + 每個預設群組)」。受保護群組一律沿用現況,**不管 payload 內容**,所以這條路徑不可能授予/收回管理員角色,也不可能把人踢出「全體員工」。payload 若夾帶受保護群組 id → 丟棄 + `Log::Error` 記一筆(正常 UI 不會發生,那些 checkbox 是 `disabled`)。
+  - `IsProtectedUserGroup()`:`GroupItemView::IsDefault() || IsAdmin() || IsExtendedAdmin()`。
+- **`tpl/Admin/Users/user-update.tpl`**:
+  - 「角色」欄改成純唯讀摘要(`$IsUserAdmin` badge + 「角色由下方勾選的群組決定」),拿掉舊的兩行群組文字。
+  - 新增「群組與權限」區塊(在 `.admin-drawer-section-title` 底下):所有群組列成 checkbox;預設群組與會授予管理員角色的群組 `disabled` + 掛徽章;`name="userGroupIds[]"`。跟其他欄位共用同一顆「更新」(抽屜的 `#userForm` 是 `ConfigureAsyncForm`),不需要新 JS。
+- **`Web/css/admin.css`**:`.admin-user-group-list`(`max-height:240px; overflow-y:auto`)。
+- **lang**(en/zh_tw/zh_cn 一起):`AdminUserRoleDerivedFromGroups`、`AdminUserGroupsSection`(群組與權限)、`AdminUserGroupMembership`(所屬群組)、`AdminUserGroupDefaultBadge`(預設)、`AdminUserGroupRoleBadge`(授予管理員角色)、`AdminUserGroupProtectedHint`;順手補上 zh_cn 缺的 `GoToGroupManagement` / `AdminUserRoleManagedInGroups`。
+
+### 安全性(需求第 6 點)
+
+守門在 `ApplyUserGroups`:受保護群組永遠取自「使用者現有成員資格」,絕不取自 payload。因此即便是 application admin,在這個畫面也無法(誤)改到管理員群組或預設群組;要改仍只能走「群組管理」(全程 `IsAdmin` gate)。沒有另外加 validator class——安全性質已經在 presenter 成立,保持最小改動。
+
+### 驗證
+
+- `composer phpunit` 全綠(1741 筆,+3 新;唯一失敗 `ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided` 是既有無關問題)。新增測試:一般群組加/removed、payload 缺預設/管理員群組時仍保留、payload 硬塞管理員群組 id 被丟棄。
+- `php -l` / phpstan(0)/ php-cs-fixer(0)/ Smarty `compileTemplateSource()` 皆過。
+- dev 無本機登入,抽屜實際外觀與存檔待部署後在 prod 實測:①勾一般群組 + 更新 → 成員資格變更 ②預設群組 checkbox 鎖住 ③管理員群組 checkbox 鎖住、掛「授予管理員角色」徽章 ④角色顯示為唯讀。
+
+### 下一步(第二步)
+
+「群組」分頁 UI 併入設計系統(`admin-clean-table` + 單一 offcanvas 編輯抽屜,整合成員/角色/群組管理員/資源權限/成員批次管理),重新定位為「進階管理」。後端動作不變。

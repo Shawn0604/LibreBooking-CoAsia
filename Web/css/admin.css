@@ -108,6 +108,14 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* 使用者管理 edit drawer: the 群組與權限 checkbox list. Caps height so a long group
+   catalogue scrolls inside its own box instead of pushing the sticky footer away. */
+.admin-user-group-list {
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--surface);
+}
+
 /* Weekly-hours editor: frame the 7-day grid as one unit when expanded. */
 .admin-drawer-hours[open] > div {
   padding: 14px 16px;

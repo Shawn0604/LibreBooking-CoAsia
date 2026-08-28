@@ -428,6 +428,9 @@ class ManageUsersPresenterTest extends TestBase
         $this->page->_Department = $department;
         $this->page->_Attributes = $attributeFormElements;
 
+        // UpdateUser() now also runs ApplyUserGroups(), which reads the group catalogue.
+        $this->groupViewRepository->method('GetList')->willReturn(new PageableData([]));
+
         $extraAttributes = [
             UserAttribute::Organization => $organization,
             UserAttribute::Phone => $phone,
@@ -449,6 +452,100 @@ class ManageUsersPresenterTest extends TestBase
                                  ->willReturn($user);
 
         $this->presenter->UpdateUser();
+    }
+
+    /**
+     * @return int[]
+     */
+    private function groupIds(array $userGroups): array
+    {
+        return array_map(fn ($g) => (int) $g->GroupId, $userGroups);
+    }
+
+    private function primeUpdateUserPage(int $userId): void
+    {
+        $this->page->_UserId = $userId;
+        $this->page->_FirstName = 'f';
+        $this->page->_LastName = 'l';
+        $this->page->_UserName = 'un';
+        $this->page->_Email = 'e@mail.com';
+        $this->page->_Timezone = 'America/Chicago';
+        $this->page->_Attributes = [];
+        $this->manageUsersService->method('UpdateUser')->willReturn(new FakeUser($userId));
+    }
+
+    public function testUpdateUserAddsAndRemovesOrdinaryGroups()
+    {
+        $userId = 55;
+        $this->primeUpdateUserPage($userId);
+
+        $user = new FakeUser($userId);
+        $user->WithGroups([new UserGroup(10, 'Team A')]);
+        $this->userRepo->_User = $user;
+
+        $this->groupViewRepository->method('GetList')->willReturn(new PageableData([
+            new GroupItemView(10, 'Team A'),
+            new GroupItemView(11, 'Team B'),
+        ]));
+
+        $this->page->_SubmittedGroupIds = [11];
+
+        $this->presenter->UpdateUser();
+
+        $this->assertEquals([11], $this->groupIds($user->GetAddedGroups()));
+        $this->assertEquals([10], $this->groupIds($user->GetRemovedGroups()));
+    }
+
+    public function testUpdateUserNeverRemovesDefaultOrAdminGroupsEvenWhenAbsentFromPayload()
+    {
+        $userId = 56;
+        $this->primeUpdateUserPage($userId);
+
+        $user = new FakeUser($userId);
+        $user->WithGroups([
+            new UserGroup(1, 'All Staff'),
+            new UserGroup(2, 'Application Administrators'),
+            new UserGroup(10, 'Team A'),
+        ]);
+        $this->userRepo->_User = $user;
+
+        $this->groupViewRepository->method('GetList')->willReturn(new PageableData([
+            new GroupItemView(1, 'All Staff', null, 1),
+            new GroupItemView(2, 'Application Administrators', null, 0, [RoleLevel::APPLICATION_ADMIN]),
+            new GroupItemView(10, 'Team A'),
+        ]));
+
+        // Disabled checkboxes never post -- the drawer sends nothing for a user who unticked
+        // only ordinary Team A.
+        $this->page->_SubmittedGroupIds = [];
+
+        $this->presenter->UpdateUser();
+
+        $this->assertEquals([10], $this->groupIds($user->GetRemovedGroups()), 'only the ordinary group is dropped');
+        $this->assertEquals([], $this->groupIds($user->GetAddedGroups()));
+    }
+
+    public function testUpdateUserIgnoresProtectedGroupIdsInjectedIntoPayload()
+    {
+        $userId = 57;
+        $this->primeUpdateUserPage($userId);
+
+        $user = new FakeUser($userId);
+        $user->WithGroups([new UserGroup(10, 'Team A')]);
+        $this->userRepo->_User = $user;
+
+        $this->groupViewRepository->method('GetList')->willReturn(new PageableData([
+            new GroupItemView(2, 'Application Administrators', null, 0, [RoleLevel::APPLICATION_ADMIN]),
+            new GroupItemView(10, 'Team A'),
+        ]));
+
+        // Hand-crafted request trying to grant app-admin by adding group 2.
+        $this->page->_SubmittedGroupIds = [2, 10];
+
+        $this->presenter->UpdateUser();
+
+        $this->assertEquals([], $this->groupIds($user->GetAddedGroups()), 'protected group id is dropped, not granted');
+        $this->assertEquals([], $this->groupIds($user->GetRemovedGroups()));
     }
 
     public function testDeletesUser()
@@ -637,10 +734,14 @@ class ManageUsersPresenterTest extends TestBase
         $entityAttributeList->AddDefinition(new FakeCustomAttribute(1));
         $this->attributeService->_EntityAttributeList = $entityAttributeList;
 
+        $groups = [new GroupItemView(1, 'g1')];
+        $this->groupViewRepository->method('GetList')->willReturn(new PageableData($groups));
+
         $this->presenter->ShowUpdate();
 
         $this->assertEquals($this->page->_BoundUpdateUser, $user);
         $this->assertEquals($this->page->_BoundUpdateAttributes, $attributes);
+        $this->assertEquals($groups, $this->page->_BoundGroups);
     }
 }
 
@@ -889,6 +990,16 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
     public function GetUserGroup()
     {
         return $this->_UserGroup;
+    }
+
+    /**
+     * @var int[]
+     */
+    public $_SubmittedGroupIds = [];
+
+    public function GetSubmittedGroupIds()
+    {
+        return $this->_SubmittedGroupIds;
     }
 
     public function GetRole()

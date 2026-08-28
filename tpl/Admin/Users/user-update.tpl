@@ -49,22 +49,13 @@
 			<div class="form-group">
 				<label class="fw-bold">{translate key="AdminUserRole"}</label>
 				<div>
-					{if $User->IsInRole(RoleLevel::APPLICATION_ADMIN)}
+					{if $IsUserAdmin}
 						<span class="badge bg-primary">{translate key="AdminUserRoleAdmin"}</span>
 					{else}
 						<span class="text-muted">{translate key="AdminUserRoleUser"}</span>
 					{/if}
 				</div>
-				{if $User->Groups()|default:array()|count > 0}
-					<div class="form-text">
-						{translate key="AdminUserCurrentGroups"}:
-						{foreach from=$User->Groups() item=userGroup name=userGroupLoop}{$userGroup->GroupName|escape}{if !$smarty.foreach.userGroupLoop.last}, {/if}{/foreach}
-					</div>
-				{/if}
-				<div class="form-text">
-					{translate key="AdminUserRoleManagedInGroups"}
-					<a href="{$ManageGroupsUrl}" class="link-primary">{translate key="GoToGroupManagement"}</a>
-				</div>
+				<div class="form-text">{translate key="AdminUserRoleDerivedFromGroups"}</div>
 			</div>
 		</div>
 
@@ -123,5 +114,40 @@
 				{control type="AttributeControl" attribute=$attribute value={$User->GetAttributeValue($attribute->Id())} }
 			</div>
 		{/foreach}
+	</div>
+
+	{* 群組與權限 -- 直接在使用者這邊勾選「一般群組」,跟其他欄位共用同一顆「更新」送出
+	   (見 FormKeys::USER_GROUP_IDS / ManageUsersPresenter::ApplyUserGroups)。預設群組與
+	   會授予管理員角色的群組一律唯讀,只能在「群組管理」調整。 *}
+	<div class="admin-drawer-section-title mt-4">{translate key="AdminUserGroupsSection"}</div>
+	<div class="row gy-2">
+		<div class="col-12">
+			<label class="fw-bold d-block mb-1">{translate key="AdminUserGroupMembership"}</label>
+			<div class="admin-user-group-list border rounded p-2">
+				{foreach from=$Groups item=g}
+					{assign var=gid value=$g->Id()}
+					{assign var=gProtected value=$g->IsDefault() || $g->IsAdmin() || $g->IsExtendedAdmin()}
+					<div class="form-check">
+						<input class="form-check-input" type="checkbox"
+							name="{FormKeys::USER_GROUP_IDS}[]" value="{$gid}" id="userGroup_{$gid}"
+							{if $UserGroupIds[$gid]|default:false}checked{/if}
+							{if $gProtected}disabled{/if} />
+						<label class="form-check-label" for="userGroup_{$gid}">
+							{$g->Name()|escape}
+							{if $g->IsDefault()}
+								<span class="badge bg-secondary ms-1">{translate key="AdminUserGroupDefaultBadge"}</span>
+							{/if}
+							{if $g->IsAdmin() || $g->IsExtendedAdmin()}
+								<span class="badge bg-warning text-dark ms-1">{translate key="AdminUserGroupRoleBadge"}</span>
+							{/if}
+						</label>
+					</div>
+				{/foreach}
+			</div>
+			<div class="form-text">
+				{translate key="AdminUserGroupProtectedHint"}
+				<a href="{$ManageGroupsUrl}" class="link-primary">{translate key="GoToGroupManagement"}</a>
+			</div>
+		</div>
 	</div>
 </div>

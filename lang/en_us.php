@@ -1179,6 +1179,12 @@ class en_us extends Language
         $strings['AdminUserCurrentGroups'] = 'Groups';
         $strings['GoToGroupManagement'] = 'Go to Group Management';
         $strings['AdminUserRoleManagedInGroups'] = 'Application Admin role and group membership are managed from Group Management.';
+        $strings['AdminUserRoleDerivedFromGroups'] = 'Role is derived from the groups selected below.';
+        $strings['AdminUserGroupsSection'] = 'Groups & Permissions';
+        $strings['AdminUserGroupMembership'] = 'Group membership';
+        $strings['AdminUserGroupDefaultBadge'] = 'Default';
+        $strings['AdminUserGroupRoleBadge'] = 'Grants admin role';
+        $strings['AdminUserGroupProtectedHint'] = 'The default group and admin-role groups cannot be changed here —';
         $strings['AdminUserSortBy'] = 'Sort by';
         $strings['AdminUserSortNameAsc'] = 'Name A-Z';
         $strings['AdminUserSortNameDesc'] = 'Name Z-A';
