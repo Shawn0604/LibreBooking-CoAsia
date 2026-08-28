@@ -2829,3 +2829,22 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 ```
 
 看到 `app.log` 有寫入 → logging 真的活了。`app.env` 記得改回 `LB_LOGGING_LEVEL=error`。
+
+## 90. 「本機專屬登入」旁邊直接加本機密碼欄位（補 §81.5）
+
+§81 把 AD 登入改成 fail-closed（AD 連不上一律擋），破窗登入靠 §81.5 的「本機專屬登入（緊急管理員）」旗標。但缺一塊：§81.2 讓 `ActiveDirectory::Synchronize()` 永遠給 AD 帳號設隨機本機密碼，所以「勾了旗標的 AD 帳號」其實沒有可用的本機密碼——還要另外去「⋯」選單的「變更密碼」對話框設一次，容易漏。
+
+使用者要求把設密碼的動作直接放進編輯表單，跟旗標同一個地方、同一次存檔。
+
+### 修法（沿用既有 plumbing，沒有新機制）
+
+- `tpl/Admin/Users/user-update.tpl`：「本機專屬登入」checkbox 下方加一個 `type="password"` 欄位（`{formname key="PASSWORD"}`），非必填，留空 = 不變更。
+- `Presenters/Admin/ManageUsersPresenter.php::UpdateUser()`：在 `ApplyLocalAuthOnly()` / `ApplyWeComUserId()` 之後，`$this->page->GetPassword()` 非空就呼叫既有的 `manageUsersService->UpdatePassword($userId, $pw)`（那個方法本身已經會 re-check `IsAdmin`、負責加密 + `ChangePassword` + `Update`）。`GetPassword()`／`FormKeys::PASSWORD` 早就存在（`AddUser` 跟獨立的「變更密碼」action 都在用），這裡只是讓 `UpdateUser` 也接。
+- 欄位不 gate 在 checkbox 上——設本機密碼對一般 AD 帳號無害（AD 登入仍優先），而且允許「先設密碼再勾旗標」或反過來，同一次送出都成立。
+- 語言檔：`AdminUserLocalPassword`／`AdminUserLocalPasswordHint`（en_us／zh_tw／zh_cn）。
+
+### 驗證
+
+- 容器內 `php -l` 過；`composer phpcsfixer:lint`／`composer phpstan` 對修改的檔案全過（既有 4 個 phpcsfixer flag 無關）。
+- `composer phpunit --filter ManageUsersPresenter`：29 個測試全過，新增 `testUpdateUserSetsLocalPasswordWhenOneIsProvided`（有填 → 呼叫 `UpdatePassword`）、`testUpdateUserLeavesPasswordUnchangedWhenBlank`（留空 → 不呼叫）。
+- 開發環境沒有登入帳密，麻煩使用者登入後確認：編輯使用者頁面「本機專屬登入」下方看得到「本機密碼」欄位，填入 + 存檔後，該帳號能用那組密碼在 AD 故障情境下登入。

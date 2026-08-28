@@ -830,6 +830,9 @@ class zh_cn extends en_us
         $strings['WeComReminderStartMessage'] = "提醒：“%s”即将开始\n地点：%s";
         $strings['WeComReminderEndMessage'] = "提醒：“%s”即将结束\n地点：%s";
 
+        $strings['AdminUserLocalPassword'] = '本机密码';
+        $strings['AdminUserLocalPasswordHint'] = '设定这个账号的本机密码（勾选「本机专属登入」时使用，或作为 AD 故障时的破窗登入）。留空表示不变更现有密码。';
+
         $this->Strings = $strings;
 
         return $this->Strings;

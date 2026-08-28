@@ -307,6 +307,15 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
 
         $this->ApplyLocalAuthOnly($this->page->GetUserId(), $this->page->GetIsLocalAuthOnly());
         $this->ApplyWeComUserId($this->page->GetUserId(), $this->page->GetWeComUserId());
+
+        // Optional local/emergency password, set from the same edit form as the
+        // "本機專屬登入" flag so a break-glass account can be flagged and given a
+        // known local password in one save. Blank means "leave unchanged".
+        // ManageUsersService::UpdatePassword() re-checks IsAdmin itself.
+        $newPassword = $this->page->GetPassword();
+        if (!empty($newPassword)) {
+            $this->manageUsersService->UpdatePassword($this->page->GetUserId(), $newPassword);
+        }
     }
 
     /**

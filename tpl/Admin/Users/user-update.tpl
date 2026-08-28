@@ -129,6 +129,15 @@
 			</div>
 		</div>
 
+		<div class="col-sm-12 col-md-6">
+			<div class="form-group">
+				<label class="fw-bold" for="localPassword">{translate key="AdminUserLocalPassword"}</label>
+				<input type="password" {formname key="PASSWORD"} class="form-control" id="localPassword"
+					autocomplete="new-password" value="" />
+				<div class="form-text">{translate key="AdminUserLocalPasswordHint"}</div>
+			</div>
+		</div>
+
 		{foreach from=$Attributes item=attribute}
 			<div class="col-sm-12 col-md-6">
 				{control type="AttributeControl" attribute=$attribute value={$User->GetAttributeValue($attribute->Id())} }
