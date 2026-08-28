@@ -401,9 +401,14 @@ docker stop temp-test-proxy
 
 ---
 
-## 十二、每日備份
+## 十二、每日備份（基礎設施部分）
 
-腳本已寫好：[`scripts/db-backup.sh`](scripts/db-backup.sh)（備份）、[`scripts/db-restore-drill.sh`](scripts/db-restore-drill.sh)（還原演練）。內容：`mysqldump` 全庫（`--single-transaction`，含 routines/triggers/events）+ `uploads` 系列 volume + 不在版控的機密設定（`config.php`／`.env`／`app.env`／`ActiveDirectory.config.php`／`certs/`）打包，寫進 NAS，30 天 rolling。
+> **操作面（備份內容、保留策略、還原步驟、還原演練、故障排除）獨立寫在
+> [`COASIA-BACKUP-RESTORE.md`](COASIA-BACKUP-RESTORE.md)。** 這一節只放跟部署/基礎設施
+> 有關的部分：NAS 端 NFS 設定、VM 端掛載、cron。
+
+腳本：[`scripts/db-backup.sh`](scripts/db-backup.sh)、[`scripts/db-restore-drill.sh`](scripts/db-restore-drill.sh)。
+備份 = `mysqldump` 全庫 + `uploads` 系列 volume + 不在版控的機密設定，寫進 NAS，30 天 rolling。
 
 ### 備份目的地：Synology `CETP-SVR-NAS03`（`10.1.3.151`），走 NFS
 
@@ -428,25 +433,10 @@ sudo systemctl daemon-reload && sudo mount /mnt/nas-booking
 
 腳本第一件事就是檢查 `/mnt/nas-booking` 有沒有掛好，沒掛好直接失敗退出（不會把備份默默寫進本機硬碟）。DB 密碼不落地：`mysqldump` 在 `db` 容器內用容器自己的 `$MYSQL_ROOT_PASSWORD`。
 
-### 還原演練（上線前務必跑一次）
+### 狀態（2026-08-28）
 
-```bash
-scripts/db-restore-drill.sh        # 用 NAS 上最新一份，灌進 librebooking_restore_test，比對主要表筆數，完問你要不要 DROP
-```
-
-### 第二層（若已有）
-
-NAS 上有 `ActiveBackupforBusiness` 資料夾，代表 Synology Active Backup for Business 有在用。確認它有沒有把 `BookingServer` 這台 VM 也納入 agentless VMware 備份——有的話就是整機層級的第二道保險，但仍需要上面這層 `mysqldump`（乾淨的邏輯備份、可還原到任意主機、可只還原 DB）。
-
-### 注意：`secrets-*.tgz` 裡是明文機密
-
-那包裡有 `config.php`（DB 密碼、LINE token、影片主持人加密金鑰）、`ActiveDirectory.config.php`（AD 服務帳號密碼）。腳本雖然 `chmod 600`，但在 all-squash 的 NFS 上等於 NAS 管理員可讀——跟「NAS 管理員能讀所有備份」是同一個信任邊界，內部 NAS 可接受。若要更嚴，把 secrets 那包改成 `gpg`／`openssl enc` 加密、passphrase 另外保管。
-
-### 已完成（2026-08-28）
-
-- `shawn_admin` 的 crontab 已加入每晚 02:30 的排程（`crontab -l` 可見）
-- 首次手動 `db-backup.sh` 成功，產物三檔都在 NAS（`librebooking-*.sql.gz` / `uploads-*.tgz` / `secrets-*.tgz`）
-- `db-restore-drill.sh` 跑過一次，六張主要表筆數一致
+- crontab 已設（每晚 02:30，`crontab -l` 可見），首次手動執行成功、`db-restore-drill.sh` 還原演練通過
+- **待確認**：NAS 上有 `ActiveBackupforBusiness` 資料夾，代表 Synology Active Backup for Business 有在用——確認它有沒有把 `BookingServer` 這台 VM 也納入 agentless VMware 備份（整機層級的第二道保險，非必要但有更好；仍需要上面這層 `mysqldump` 作為乾淨的邏輯備份）
 
 ### 尚未做
 

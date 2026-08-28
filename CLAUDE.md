@@ -18,6 +18,7 @@
 | [COASIA-ARCHITECTURE.md](COASIA-ARCHITECTURE.md) | 要動程式碼前——前端／後端／資料庫怎麼組織、request 怎麼流過系統、完整資料庫 schema（**`create-schema.sql` 不是完整 schema，要疊上 `database_schema/upgrades/` 才是**，這份文件有完整表清單） |
 | [COASIA-CHANGES.md](COASIA-CHANGES.md) | 想知道某個功能為什麼長這樣、之前改過什麼——逐項記錄需求→根因→修法→驗證，持續累加章節號 |
 | [COASIA-DEPLOYMENT.md](COASIA-DEPLOYMENT.md) | 要處理部署／正式環境問題——VM、Docker、憑證、資料庫遷移、踩過的坑 |
+| [COASIA-BACKUP-RESTORE.md](COASIA-BACKUP-RESTORE.md) | 要備份／還原正式環境資料庫、上傳檔、機密設定——保留策略、還原演練、破窗還原步驟 |
 | [COASIA-DEV-SETUP.md](COASIA-DEV-SETUP.md) | 要在全新電腦上搭本機開發環境 |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 想知道正式上線前還缺什麼 |
 
