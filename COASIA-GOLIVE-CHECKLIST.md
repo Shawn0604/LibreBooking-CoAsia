@@ -51,6 +51,16 @@
 
 **待部署**：VM 上 `git pull` → `docker compose -f docker-compose.prod.yml build app` → `up -d --force-recreate app`，然後照 §89 的驗證步驟確認 `app.log` 真的會寫。
 
+### 預約提醒（「開始前提醒」）待啟用（code 已 commit，見 `COASIA-CHANGES.md` §105）
+
+**prod 待做**：
+1. `config/config.php`（bind mount、不在版控）的 `'reservation' => [` 底下加 `'title.required' => true`（會議名稱必填，§104）與 `'reminders.enabled' => true`（提醒總開關，§105）；視需要再加 `'default.start.reminder' => '15 minutes'`（給沒設個人偏好的人的預設值，留空則純自願）。
+2. `git pull` → `build app` → `up -d --force-recreate app`（config.php 是 PHP，opcache 需要重建容器才生效）。
+3. `shawn_admin` 的 crontab 加一行每分鐘跑 `Jobs/sendreminders.php`：
+   `* * * * * /home/shawn_admin/coasia-booking/scripts/run-cron-jobs.sh >> /home/shawn_admin/booking-cron.log 2>&1`
+   手動跑一次 `scripts/run-cron-jobs.sh` 確認 `booking-cron.log` 沒噴錯。
+4. 附帶：目前只掛 `sendreminders.php`；`autorelease` / `sendmissedcheckin` / `sessioncleanup` 等其他 Jobs 若要跑，在 `run-cron-jobs.sh` 的 `JOBS` 陣列加檔名。
+
 ---
 
 ## 🔴 必須解決（會直接卡住上線）

@@ -3137,3 +3137,47 @@ seed 確認:`roles` 是固定 4 列(role_id == role_level == 1-4);四個管理�
 - **不顯示英文**:清單移除中文名下方那行灰色英文 `code`;抽屜移除「系統識別名稱」分區。畫面只留中文名,和「用戶」分頁的「角色」用字一致(`系統管理員` 兩邊同字串)。
 - **成員直接內嵌**:抽屜「群組成員」分區直接列出成員(autocomplete 加入 + 每列移除),不再是 `#membersDialog` 彈窗。移除 `#membersDialog` / `#allUsers` / Browse 流程;`changeMembers()` 只重填內嵌清單,並作為 addUser/removeUser async form 的成功回呼。
 - 測試:預設隱藏 3 個未使用群組(只顯示 2)、`?showAll` 顯示全部。
+
+## 102. 群組詳情抽屜再精簡(承 §101,依回饋)
+
+- **移除「進階:角色指派」整段**:CoAsia 只用「系統管理員」+「全體員工」,保留群組本來就鎖住;`#rolesDialog` / `#resourceAdminDialog` / `#groupAdminAllDialog` / `#scheduleAdminDialog` 四個 modal 與 `group.js` 的 `changeRoles` / `changeAdmin{Groups,Resources,Schedules}` / `populateAdminCheckboxes` / `.adminDialog` 計數器一併刪掉。後端 `ChangeRoles` / `ChangeAdmin*` action 保留(仍 `IsAdmin` gate、只是沒 UI),要指派角色仍可走 DB / API。
+- **移除「群組管理員」區塊**:清單那欄與抽屜那段(指定哪個群組能管理這個群組)都拿掉,`#groupAdminDialog` + `changeGroupAdmin` + `groupAdminForm` 一起刪。CoAsia 沒有群組管理員這種角色。
+- **`AUTO ADD` 顯示修正**:原本吃 `GroupAutomaticallyAdd`(只有 en_us,被 `.admin-drawer-section-title` 的 `text-transform:uppercase` 變成 "AUTO ADD")。新增 `AdminGroupAutoJoinSection`(自動加入)三語言,清單欄位與抽屜分區標題都改用它。成員數改成「群組成員 (N)」而非「N 這個群組裡的成員」。
+- **抽屜 footer 版面修正**:`#editGroupForm` 本來就是 `h-100 d-flex flex-column`(乾淨的釘底 footer pattern),誤加了 `admin-drawer-footer-sticky`(那個負邊界溢出是給會議室抽屜、footer 藏在 `.row > .col` 深處用的),導致 footer 被推出抽屜邊界、變成一條窄窄的浮動列。改回單純 `admin-drawer-footer`。
+
+## 103. 週/日行事曆色塊:短時段/無標題也一定顯示預約人
+
+承 §79。原本 `.rr`(時間)要 ≥32px、`.fn`(預約人名)要 ≥46px 才顯示,30 分鐘的時段只剩標題一行;沒填標題的預約就只看到「（無標題）」。
+
+- `OverviewFullCalendarEventsPresenter` 多送 `hasTitle`。`eventContent`:標題行永遠先放 `.tt-title`,有標題時後面接 `· 預約人`(`.tt-owner`,CSS 預設 inline);卡片夠高(≥46px)時 `.tt-owner` 隱藏、換成獨立的 `.fn` 行 —— 中間沒有任何高度會兩者皆不顯示。**沒填標題**的預約 `.tt-title` 直接放預約人的名,不再顯示「（無標題） · 名」那種只會被截斷的字串。月檢視 chip 一律 inline。「忙碌」(看不到詳情)不受影響、不外洩 owner。
+
+## 104. 會議名稱:建立預約時必填
+
+- 開 `reservation.title.required`(prod `config/config.php`,不在版控)。
+- `PreReservationFactory`:`TitleRequiredRule` 拿掉 `AdminExcludedRule` 包裝 —— 對**所有人**生效,含管理員(上游是管理員豁免)。
+- 完整預約表單(`create.tpl`):標題欄位 `required`;送出攔截器在 `$TitleRequired` 時擋下空白 + inline 紅字,不再默默存成「（無標題）」(非必填時仍保留 blank→「（無標題）」的舊行為)。
+- 快速建立視窗:送出前先檢查 `#qcTitle`,空白就擋 + 提示。
+- lang:`TitleRequiredRule` 補 zh_tw / zh_cn;zh_cn 補上缺的 `AddTitle` / `AddMeetingTitle`。
+- 已存在的無標題預約不動,只擋新預約。
+
+## 105. 「開始前提醒」:個人化設定(通知設定)+ sendreminders 排程
+
+需求:預約要能「開始前 N 分鐘」提醒,而且這是**個人偏好**(通知設定頁,勾了之後自己建立的每筆預約都套用),不是每次訂位時的欄位。
+
+### 現況盤點
+
+- LINE 通知**只有「建立當下」**發(`OwnerLineCreatedNotification`);修改/取消/審核只有 Email;`Jobs/sendreminders.php` 有 LINE + WeCom 的開始前/結束前推播邏輯,但一直**沒排程**,而且 `reservation.reminders.enabled` 是關的。
+
+### 改動
+
+- **`UserPreferences::RESERVATION_START_REMINDER_MINUTES`**(`'0'`/未設 = 關)。
+- **通知設定頁**(`notification-preferences.tpl` / `NotificationPreferences{,Save}Presenter` / 對應 Page):新增「預約提醒」卡片 —— 開關 + 數字 + 分/時/天,跟該頁其他開關一樣即時自動存(action `reservationStartReminder`)。整張卡片 gate 在 `reservation.reminders.enabled`。
+- **`ReservationSavePresenter`**(快速建立與完整表單都走這裡):request 沒帶提醒欄位時,套用**預約 owner 的**個人偏好;owner 沒設 → 退回站台 `default.start.reminder`。完整表單裡使用者自己明確設的提醒永遠優先。
+- **`scripts/run-cron-jobs.sh`** + `COASIA-DEPLOYMENT.md` 的 crontab 一行:每分鐘在 `app` 容器內跑 `sendreminders.php`。
+- lang:`ReservationReminders` / `StartReminderToggleLabel` / `StartReminderToggleDescription` 三語言;zh_cn 補 `ReminderBeforeStart` / `SendReminder`。
+- 一度先做在快速建立視窗裡(每次訂位一個提醒欄位),使用者回饋「放錯地方」後改成個人設定,quick-create 那段 UI 全部撤掉。
+
+### 驗證
+
+- `composer phpunit` 1762 全綠(唯一失敗 `ManageReservationsPresenterTest` 為既有無關)。新增測試:`ReservationReminder::ConfigIntervalPieces` 解析、request 無提醒時套 owner 偏好、owner 偏好勝過站台預設。
+- **prod 待做**:①`config/config.php` 設 `reservation.reminders.enabled = true`(必要)+ 視需要 `default.start.reminder`;②`build app` + 重建容器;③crontab 加 `run-cron-jobs.sh` 每分鐘。
