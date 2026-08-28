@@ -8,6 +8,7 @@ require_once(ROOT_DIR . 'lib/Application/Admin/ImageUploadDirectory.php');
 require_once(ROOT_DIR . 'lib/Application/Admin/ResourceImportCsv.php');
 require_once(ROOT_DIR . 'lib/Application/Admin/CsvImportResult.php');
 require_once(ROOT_DIR . 'lib/Email/Messages/ResourceStatusChangeEmail.php');
+require_once(ROOT_DIR . 'lib/Application/Schedule/WeeklyHoursSummary.php');
 
 use BaconQrCode\Renderer\GDLibRenderer;
 use BaconQrCode\Writer;
@@ -207,14 +208,17 @@ class ManageResourcesPresenter extends ActionPresenter
         // schedules page makes -- one query per schedule, matched by resource 1:1 here.
         $scheduleLayouts = [];
         $scheduleTimezones = [];
+        $scheduleHoursSummary = [];
         foreach ($schedules as $schedule) {
-            $scheduleLayouts[$schedule->GetId()] = $this->scheduleRepository->GetLayout(
+            $layout = $this->scheduleRepository->GetLayout(
                 $schedule->GetId(),
                 new ScheduleLayoutFactory($schedule->GetTimezone())
             );
+            $scheduleLayouts[$schedule->GetId()] = $layout;
             $scheduleTimezones[$schedule->GetId()] = $schedule->GetTimezone();
+            $scheduleHoursSummary[$schedule->GetId()] = $this->describeWeeklyHours($layout);
         }
-        $this->page->BindScheduleLayouts($scheduleLayouts, $scheduleTimezones);
+        $this->page->BindScheduleLayouts($scheduleLayouts, $scheduleTimezones, $scheduleHoursSummary);
 
         $resourceTypes = $this->resourceRepository->GetResourceTypes();
         $resourceTypeList = [];
@@ -1353,6 +1357,51 @@ class ManageResourcesPresenter extends ActionPresenter
         }
         return $path = "$path/$fileName";
         ;
+    }
+
+    /**
+     * One-line "open hours" summary string for a schedule's layout, shown in the resource
+     * list column (§94). Pulls the per-day reservable range out of the layout (same walk
+     * the drawer editor does) and hands it to WeeklyHoursSummary for the classification.
+     *
+     * @param IScheduleLayout $layout
+     * @return string
+     */
+    private function describeWeeklyHours($layout)
+    {
+        $usesDaily = $layout->UsesDailyLayouts();
+        $singleSlots = $usesDaily ? null : $layout->GetSlots();
+
+        $days = [];
+        for ($day = 0; $day <= 6; $day++) {
+            $slots = $usesDaily ? $layout->GetSlots($day) : $singleSlots;
+            $open = false;
+            $start = null;
+            $end = null;
+            foreach ($slots as $period) {
+                if ($period->IsReservable()) {
+                    $open = true;
+                    if ($start === null) {
+                        $start = $period->Start->Format('H:i');
+                    }
+                    $end = $period->End->Format('H:i');
+                }
+            }
+            $days[$day] = ['open' => $open, 'start' => $start, 'end' => $end];
+        }
+
+        $desc = WeeklyHoursSummary::Describe($days);
+        $resources = Resources::GetInstance();
+        switch ($desc['kind']) {
+            case WeeklyHoursSummary::ALL_DAY:
+                return $resources->GetString('AdminResourceHoursAllDay');
+            case WeeklyHoursSummary::CLOSED:
+                return $resources->GetString('AdminResourceHoursClosed');
+            case WeeklyHoursSummary::WEEKDAYS:
+                return $resources->GetString('AdminResourceHoursWeekdays', [$desc['start'], $desc['end']]);
+            default:
+                return $resources->GetString('AdminResourceHoursVaries');
+        }
     }
 }
 

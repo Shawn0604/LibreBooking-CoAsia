@@ -596,15 +596,22 @@
 			</form>
 
 			{if !$isVideoConferenceResource}
-				{* 「開放使用時間管理」併進來:每間實體會議室的每週開放時段直接在這裡編輯。
-				   儲存時 resource.js 的 saveResourceHours() 把 7 天的值填進下面隱藏的
-				   .resourceHoursForm,async POST 到 manage_schedules.php?action=changeLayout
-				   ——完全重用時間表頁那條已驗證的儲存路徑,後端沒有新程式碼。 *}
+				{* 「開放使用時間管理」併進來:每間實體會議室的每週開放時段直接在這裡編輯,
+				   收合在可展開區塊裡、預設收起。儲存時 resource.js 的 saveResourceHours()
+				   把 7 天的值填進隱藏的 .resourceHoursForm,async POST 到
+				   manage_schedules.php?action=changeLayout ——完全重用時間表頁那條已驗證的
+				   儲存路徑,後端沒有新程式碼。線上會議資源整段不顯示(外層 if)。 *}
 				{assign var=schedId value=$resource->GetScheduleId()}
 				{assign var=lyt value=$ScheduleLayouts[$schedId]|default:null}
-				<div class="fw-bold fs-6 mt-4 mb-2">{translate key=AdminScheduleWeeklyHours}</div>
+				<details class="admin-drawer-advanced mt-4">
+					<summary class="admin-drawer-advanced-summary">{translate key=AdminScheduleWeeklyHours}
+						<span class="admin-cell-secondary ms-2">{$ScheduleHoursSummary[$schedId]|default:''}</span>
+					</summary>
+					<div class="mt-3">
 				{if $lyt}
 					<div class="resourceHoursEditor" data-resource-id="{$id}" data-schedule-id="{$schedId}">
+						<button type="button" class="btn btn-outline-secondary btn-sm setAllDayHours mb-2"
+							data-resource-id="{$id}">{translate key=AdminResourceSetAllDay}</button>
 						{assign var=usesDaily value=$lyt->UsesDailyLayouts()}
 						{if !$usesDaily}{assign var=singleSlots value=$lyt->GetSlots()}{/if}
 						{foreach from=DayOfWeek::Days() item=day}
@@ -636,7 +643,7 @@
 							</div>
 						{/foreach}
 						<button type="button" class="btn btn-primary btn-sm saveResourceHours mt-1"
-							data-resource-id="{$id}">{translate key=Update}</button>
+							data-resource-id="{$id}">{translate key=AdminResourceSaveHours}</button>
 						<span class="resourceHoursSaved text-success ms-2 d-none">{translate key=Saved}</span>
 						<div class="resourceHoursError error text-danger d-none mt-2"></div>
 
@@ -658,6 +665,8 @@
 						<i class="bi bi-clock me-1"></i>{translate key=AdminResourceEditWeeklyHours}
 					</a>
 				{/if}
+					</div>
+				</details>
 			{/if}
 		{/if}
 	</div>

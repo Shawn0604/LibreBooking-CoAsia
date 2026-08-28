@@ -1201,6 +1201,12 @@ class en_us extends Language
         $strings['AdminResourceConfirmDeleteMessage'] = 'This will permanently delete the resource, its reservations, and permission assignments. This cannot be undone.';
         $strings['AdminScheduleWeeklyHours'] = 'Weekly Hours';
         $strings['AdminResourceEditWeeklyHours'] = 'Edit weekly hours';
+        $strings['AdminResourceSetAllDay'] = 'Open 24/7';
+        $strings['AdminResourceSaveHours'] = 'Save weekly hours';
+        $strings['AdminResourceHoursAllDay'] = 'Open 24/7';
+        $strings['AdminResourceHoursWeekdays'] = 'Mon-Fri %s-%s';
+        $strings['AdminResourceHoursVaries'] = 'Varies by day';
+        $strings['AdminResourceHoursClosed'] = 'Not open';
         $strings['AdminScheduleClosed'] = 'Closed';
         $strings['AdminScheduleInUse'] = 'In Use';
         $strings['AdminScheduleUnused'] = 'Unused';

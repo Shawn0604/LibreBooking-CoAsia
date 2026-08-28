@@ -457,6 +457,22 @@ function ResourceManagement(opts) {
       saveResourceHours($(this).closest('.resourceHoursEditor'));
     });
 
+    // 全天開放: fills the grid (Mon–Sun on, every day 00:00–00:00 = the full-day
+    // representation LayoutValidator wants). Front-end only — user still hits save.
+    elements.resourcesList.on('click', '.setAllDayHours', function (e) {
+      e.preventDefault();
+      var resourceId = $(this).data('resource-id');
+      for (var day = 0; day <= 6; day++) {
+        $('#resourceDayOpen' + resourceId + '_' + day).prop('checked', true);
+        $('#resourceDayStart' + resourceId + '_' + day)
+          .val('00:00')
+          .prop('disabled', false);
+        $('#resourceDayEnd' + resourceId + '_' + day)
+          .val('00:00')
+          .prop('disabled', false);
+      }
+    });
+
   };
 
   ResourceManagement.prototype.BindXEditableListeners = function () {

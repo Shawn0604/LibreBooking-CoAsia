@@ -136,29 +136,10 @@
 								{/if}
 							</td>
 							<td>
-								{assign var=rowLayout value=$ScheduleLayouts[$resource->GetScheduleId()]|default:null}
-								{if $rowLayout}
-									<div class="d-flex flex-wrap gap-1">
-										{assign var=rowUsesDaily value=$rowLayout->UsesDailyLayouts()}
-										{if !$rowUsesDaily}{assign var=rowSingleSlots value=$rowLayout->GetSlots()}{/if}
-										{foreach from=DayOfWeek::Days() item=chipDay}
-											{assign var=chipOpen value=false}
-											{assign var=chipStart value=""}
-											{assign var=chipEnd value=""}
-											{if $rowUsesDaily}{assign var=chipSlots value=$rowLayout->GetSlots($chipDay)}{else}{assign var=chipSlots value=$rowSingleSlots}{/if}
-											{foreach from=$chipSlots item=chipPeriod}
-												{if $chipPeriod->IsReservable()}
-													{assign var=chipOpen value=true}
-													{if $chipStart == ""}{assign var=chipStart value=$chipPeriod->Start->Format("H:i")}{/if}
-													{assign var=chipEnd value=$chipPeriod->End->Format("H:i")}
-												{/if}
-											{/foreach}
-											<span class="admin-schedule-day-chip{if $chipOpen} admin-schedule-day-chip-open{/if}"
-												title="{$DayNames[$chipDay]}{if $chipOpen} {$chipStart}-{$chipEnd}{else} {translate key=AdminScheduleClosed}{/if}">{$DayAbbr[$chipDay]}</span>
-										{/foreach}
-									</div>
+								{if $resource->HasResourceType() && $ResourceTypes[$resource->GetResourceTypeId()]->IsVideoConference()}
+									{* 線上會議資源(Google Meet / Zoom…)沒有開放時間概念 *}
 								{else}
-									<span class="admin-cell-secondary">&mdash;</span>
+									{$ScheduleHoursSummary[$resource->GetScheduleId()]|default:'&mdash;'}
 								{/if}
 							</td>
 							<td>

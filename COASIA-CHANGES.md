@@ -2943,3 +2943,23 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 - chip 的 CSS(`.admin-schedule-day-chip`)在 `Web/css/admin.css`,所有 admin 頁面共用,不需要另外載。
 
 一眼就能在列表看到每間房的開放時間;點「編輯」進抽屜就地改(§93)。`php -l` / Smarty 標籤配對過;沒有動 PHP 邏輯(只多綁一個 view 變數)。待使用者登入確認 chip 顯示正確、跟抽屜裡的值一致。
+
+## 95. 會議室開放時間 UX 調整(承 §93、§94)
+
+使用者給了 6 點細化要求,一次做完:
+
+1. **線上會議資源不顯示開放時間**。列表那欄:資源是 `ResourceType::IsVideoConference()` 就整格留白(`manage_resources.tpl`)。編輯抽屜:整段本來就包在 `{if !$isVideoConferenceResource}` 裡(§93),已經不顯示。
+2. **實體會議室的開放時間改成可展開區塊、預設收合**:`manage_resource_drawer_content.tpl` 把 7 天編輯器包進 `<details class="admin-drawer-advanced">`(跟未分類資源的「進階設定」同一套),`<summary>` 旁邊顯示目前的摘要文字。
+3. **「全天開放」快捷鈕**:`.setAllDayHours`(`resource.js`)—— 點一下把 7 天全部勾開、每天時間設成 `00:00`–`00:00`(LibreBooking 的「整天」表示法,對應 `LayoutValidator` 要的「00:00 到 00:00」全覆蓋)、enable 時間輸入。**只改前端欄位,不送出**,使用者仍要按「儲存開放時間」。
+   > 註:`<input type="time">` 存不了字面的 `24:00`,所以欄位顯示 `00:00`–`00:00`;摘要與行為上等同「24 小時開放」。
+4. **列表欄位改成文字摘要**(取代 §94 的星期 chip):
+   - `lib/Application/Schedule/WeeklyHoursSummary.php`(新,純函式):吃 7 天的 `[open, start, end]`,回傳 `all_day` / `weekdays` / `closed` / `varies`。
+   - `ManageResourcesPresenter::describeWeeklyHours()`:從每個時間表的 layout 抽出 7 天 tuple → `WeeklyHoursSummary::Describe()` → 轉成在地化字串(`全天開放` / `週一至週五 %s–%s` / `每日設定不同` / `未開放`),`BindScheduleLayouts()` 多帶一個 `$ScheduleHoursSummary`。
+5. **基本資料「更新」與開放時間「儲存」維持獨立**:兩個各自的 `<form>` / 按鈕,開放時間走的還是 §93 那條 `manage_schedules.php?action=changeLayout` + `LayoutValidator`,沒有動。
+6. **測試**:`tests/Application/Schedule/WeeklyHoursSummaryTest.php` 8 個 case —— 全天(§3 的按鈕產物 = 全 `00:00-00:00` → `all_day`)、`24:00` 也算全天、週一至週五同時段 → `weekdays`、其中一天不同 / 多一天 / 7 天都開但非全天 → `varies`、都沒開 → `closed`、空陣列 → `closed`。線上會議隱藏與全天按鈕是樣板/JS 層,靠實測確認。
+
+### 驗證
+
+- `php -l` / `composer phpstan`(0 錯)過新增/修改的 PHP;`node --check` + `eslint` 過 `resource.js`(既有 `AdminConfirm` 那條無關);Smarty 標籤配對正確。
+- `composer phpunit --filter WeeklyHoursSummary` 8/8;全跑跟改動前一樣(只有那 1 個既有無關失敗)。
+- **待使用者登入實測**:①線上會議資源(Zoom/Meet)列表開放時間欄留白、抽屜沒有開放時間區塊 ②實體會議室抽屜開放時間預設收合,展開後可編輯 ③「全天開放」按一下 7 天全開、時間歸零,按「儲存開放時間」後列表摘要變「全天開放」、Overview 那間房整天可訂 ④設週一到五 09:00–18:00、週末關 → 列表顯示「週一至週五 09:00–18:00」 ⑤基本資料的「更新」跟開放時間的「儲存」互不影響。
