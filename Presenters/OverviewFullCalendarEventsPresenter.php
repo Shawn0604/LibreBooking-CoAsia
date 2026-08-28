@@ -125,7 +125,8 @@ class OverviewFullCalendarEventsPresenter
 
             $canViewDetails = $this->privacyFilter->CanViewDetails($userSession, $reservation, $reservation->UserId);
             if ($canViewDetails) {
-                $title = !empty($reservation->Title) ? $reservation->Title : Resources::GetInstance()->GetString('NoReservationTitle');
+                $hasTitle = !empty($reservation->Title);
+                $title = $hasTitle ? $reservation->Title : Resources::GetInstance()->GetString('NoReservationTitle');
                 $ownerName = (string)$reservation->GetUserName();
                 $ownerFirstName = (string)$reservation->OwnerFirstName;
             } else {
@@ -137,6 +138,7 @@ class OverviewFullCalendarEventsPresenter
                 $title = '忙碌';
                 $ownerName = '';
                 $ownerFirstName = '';
+                $hasTitle = true; // '忙碌' is a real label, not the untitled placeholder
             }
 
             // Real authorization check (ReservationAuthorization::CanEdit(), the same service
@@ -171,6 +173,7 @@ class OverviewFullCalendarEventsPresenter
                     'resourceName' => $reservation->ResourceName,
                     'ownerName' => $ownerName,
                     'ownerFirstName' => $ownerFirstName,
+                    'hasTitle' => $hasTitle,
                     'canEdit' => $canEdit,
                     'canDelete' => $canEdit,
                     'isRecurring' => (bool)$reservation->IsRecurring,

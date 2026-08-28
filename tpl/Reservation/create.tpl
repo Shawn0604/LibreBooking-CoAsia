@@ -55,11 +55,11 @@
             <div class="rp-body">
                 <div class="rp-row rp-row-title">
                     <i class="bi bi-card-text rp-row-icon"></i>
-                    {* required intentionally left off (regardless of $TitleRequired) — leaving
-                       this blank now saves as the translated "(Untitled)" default (see the
-                       submit handler below), not a blocked submission, so there's nothing left
-                       for native required-field validation to usefully enforce here. *}
-                    {textbox name="RESERVATION_TITLE" class="rp-title-input" value="ReservationTitle" id="reservationTitle" maxlength="300" placeholderkey='AddMeetingTitle'}
+                    {* When $TitleRequired (CoAsia: reservation.title.required = true) the field is
+                       genuinely required — the submit handler below blocks an empty title instead
+                       of silently saving it as "（無標題）". When not required, the blank-to-
+                       "(Untitled)" fallback still applies. *}
+                    {textbox name="RESERVATION_TITLE" class="rp-title-input" value="ReservationTitle" id="reservationTitle" maxlength="300" placeholderkey='AddMeetingTitle' required=$TitleRequired}
                 </div>
 
                 <div class="rp-row rp-row-datetime">
@@ -886,15 +886,24 @@
         };
 
         $('#form-reservation').submit(function() {
-            // "空白儲存為（無標題）" — same default the calendar/email views already fall
-            // back to display-side (Resources::GetString('NoReservationTitle'), see
-            // OverviewFullCalendarEventsPresenter/ReservationEmailMessage etc.); writing it
-            // into the field here means it's the literal stored title, not just a display
-            // fallback layered on top of an empty one.
             var $title = $('#reservationTitle');
-            if ($title.val().trim() === '') {
-                $title.val('{translate key="NoReservationTitle"|escape:"javascript"}');
-            }
+            {if $TitleRequired}
+                // CoAsia: a meeting name is mandatory — block the submit and surface the error
+                // inline rather than saving an empty/placeholder title.
+                if ($title.val().trim() === '') {
+                    $('#result').html('<div class="error"><div>{translate key="TitleRequiredRule"|escape:"javascript"}</div></div>');
+                    reservation.showResponse('', 'error', null, $('#form-reservation'));
+                    $title.trigger('focus');
+                    return false;
+                }
+            {else}
+                // "空白儲存為（無標題）" — same default the calendar/email views already fall
+                // back to display-side (Resources::GetString('NoReservationTitle')); writing it
+                // into the field here means it's the literal stored title.
+                if ($title.val().trim() === '') {
+                    $title.val('{translate key="NoReservationTitle"|escape:"javascript"}');
+                }
+            {/if}
             $(this).ajaxSubmit(ajaxOptions);
             return false;
         });

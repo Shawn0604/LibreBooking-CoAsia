@@ -705,6 +705,7 @@ class zh_tw extends en_us
         $strings['Weekend'] = '週末';
         $strings['Untitled'] = '未命名預約';
         $strings['NoReservationTitle'] = '（無標題）';
+        $strings['TitleRequiredRule'] = '請輸入會議名稱';
         $strings['AddTitle'] = '新增會議名稱';
         $strings['QuickCreateSubheading'] = '快速建立會議室預約';
         $strings['AddParticipantsAction'] = '新增參與者';

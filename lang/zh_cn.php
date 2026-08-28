@@ -251,6 +251,7 @@ class zh_cn extends en_us
         $strings['SignedInAs'] = '登陆为';
         $strings['NotSignedIn'] = '您还没有登陆';
         $strings['ReservationTitle'] = '预约名称';
+        $strings['TitleRequiredRule'] = '请输入会议名称';
         $strings['ReservationDescription'] = '预约说明';
         $strings['ResourceList'] = '待预约资源';
         $strings['Accessories'] = '设备/附件';

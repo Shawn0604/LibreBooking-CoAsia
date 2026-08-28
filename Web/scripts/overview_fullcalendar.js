@@ -1189,17 +1189,21 @@ $(function () {
             // server-side for events this viewer isn't allowed to see the details of, so
             // an empty string means "no booker line", not "name missing".
             var ownerFirstName = arg.event.extendedProps.ownerFirstName || '';
+            // false only for a genuinely untitled reservation -- show the booker as the
+            // primary line then, instead of "（無標題） · name" which just truncates.
+            var hasTitle = arg.event.extendedProps.hasTitle !== false;
+            var showOwnerSuffix = hasTitle && ownerFirstName;
 
             var tt = document.createElement('div');
             tt.className = 'tt';
             var ttTitle = document.createElement('span');
             ttTitle.className = 'tt-title';
-            ttTitle.textContent = arg.event.title;
+            ttTitle.textContent = hasTitle ? arg.event.title : (ownerFirstName || arg.event.title);
             tt.appendChild(ttTitle);
             // Booker folded onto the title line so it's present even on the shortest slot.
             // CSS moves it to its own .fn line once the card is tall enough (week/day view);
             // on month chips it always stays inline.
-            if (ownerFirstName) {
+            if (showOwnerSuffix) {
                 var ttOwner = document.createElement('span');
                 ttOwner.className = 'tt-owner';
                 ttOwner.textContent = ' · ' + ownerFirstName;
@@ -1213,7 +1217,7 @@ $(function () {
                 rr.textContent = arg.timeText;
                 wrapper.appendChild(rr);
 
-                if (ownerFirstName) {
+                if (showOwnerSuffix) {
                     var fn = document.createElement('div');
                     fn.className = 'fn';
                     fn.textContent = ownerFirstName;
@@ -1541,6 +1545,11 @@ $(function () {
         }
         if (!quickCreateTimesValid()) {
             $('#qcTimeError').removeClass('d-none').text(opts.translations.endBeforeStart);
+            return;
+        }
+        if (opts.titleRequired && $('#qcTitle').val().trim() === '') {
+            $('#qcError').removeClass('d-none').text(opts.translations.titleRequired);
+            $('#qcTitle').trigger('focus');
             return;
         }
         var title = $('#qcTitle').val();

@@ -192,7 +192,9 @@
 
                     <div class="qc-grid-row qc-title-row">
                         <div class="qc-icon"><i class="bi bi-card-heading"></i></div>
-                        <input type="text" class="qc-title" id="qcTitle" placeholder="{translate key='AddTitle'}" autocomplete="off">
+                        <input type="text" class="qc-title" id="qcTitle"
+                            placeholder="{translate key='AddTitle'}" autocomplete="off"
+                            {if $TitleRequired}required aria-required="true"{/if}>
                     </div>
 
                     {* Reservations can't cross midnight (CoAsia policy — see ResourceCrossDayRule.php,
@@ -434,6 +436,7 @@
         currentUserId: {$UserId},
         currentUserEmail: '{$UserEmail|escape:'javascript'}',
         allowGuestParticipation: {if $AllowGuestParticipation}true{else}false{/if},
+        titleRequired: {if $TitleRequired}true{else}false{/if},
         timezone: '{$Timezone|escape:'javascript'}',
         {* Web/scripts/overview_fullcalendar.js is served as a static .js file — Smarty never
            processes it, so any {translate} tag written directly inside it would reach the
@@ -467,7 +470,8 @@
             selectResourcePlaceholder: {translate_js key='SelectResourcePlaceholder'},
             setAsDefaultResource: {translate_js key='SetAsDefaultResource'},
             removeDefaultResource: {translate_js key='RemoveDefaultResource'},
-            currentDefaultResource: {translate_js key='CurrentDefaultResource'}
+            currentDefaultResource: {translate_js key='CurrentDefaultResource'},
+            titleRequired: {translate_js key='TitleRequiredRule'}
         },
         {* Priority tiers 1, 3 and 4 of the resource picker's default-resource resolution — see
            resolveDefaultResourceId() in overview_fullcalendar.js and

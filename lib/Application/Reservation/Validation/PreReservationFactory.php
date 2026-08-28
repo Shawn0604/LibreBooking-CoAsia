@@ -187,7 +187,9 @@ class PreReservationFactory implements IPreReservationFactory
         $ruleProcessor = $this->GetRuleProcessor($userSession);
 
         if (Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_TITLE_REQUIRED, new BooleanConverter())) {
-            $ruleProcessor->AddRule(new AdminExcludedRule(new TitleRequiredRule(), $userSession, $this->userRepository));
+            // CoAsia: applies to admins too -- a meeting name is mandatory for every
+            // reservation, no exemption (upstream wraps this in AdminExcludedRule).
+            $ruleProcessor->AddRule(new TitleRequiredRule());
         }
         if (Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_DESCRIPTION_REQUIRED, new BooleanConverter())) {
             $ruleProcessor->AddRule(new AdminExcludedRule(new DescriptionRequiredRule(), $userSession, $this->userRepository));
