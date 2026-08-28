@@ -33,6 +33,30 @@ class ManageGroupsPresenterTest extends TestBase
         );
     }
 
+    public function testPageLoadBindsChineseDisplayOverlayPerGroup()
+    {
+        $groups = [
+            new GroupItemView(1, 'Application Administrators', null, 0, [RoleLevel::APPLICATION_ADMIN], 3),
+            new GroupItemView(2, '全體員工', null, 1, [], 120),
+            new GroupItemView(3, 'Marketing', null, 0, [], 8),
+        ];
+
+        $this->groupRepository->method('GetList')->willReturn(new PageableData($groups));
+        $this->resourceRepo->_ResourceList = [];
+        $this->scheduleRepository->method('GetAll')->willReturn([]);
+        $this->groupRepository->method('GetGroupsByRole')->willReturn([]);
+
+        $this->presenter->PageLoad();
+
+        $displays = $this->page->_BoundGroupDisplays;
+        $this->assertEquals('GroupLabelApplicationAdmin', $displays[1]['labelKey']);
+        $this->assertTrue($displays[1]['isReserved']);
+        $this->assertEquals('', $displays[2]['labelKey']);
+        $this->assertTrue($displays[2]['isReserved']);
+        $this->assertFalse($displays[3]['isReserved']);
+        $this->assertEquals('Marketing', $displays[3]['storedName']);
+    }
+
     public function testChangePermissionsWithAdminScopeCheck()
     {
         // Admin can manage resources [1, 2, 3]
@@ -245,6 +269,108 @@ class ManageGroupsPresenterTest extends TestBase
         $this->assertEquals(0, $this->page->_ImportResult->importCount);
         $this->assertEquals(['User is not an admin'], $this->page->_ImportResult->messages);
     }
+
+    public function testUpdateGroupRejectsRenamingARoleGrantingGroup()
+    {
+        $this->fakeUser->IsAdmin = true;
+
+        $group = new Group(0, 'Application Administrators');
+        $group->WithId(7);
+        $group->WithRole(RoleLevel::APPLICATION_ADMIN);
+
+        $this->page->_GroupId = 7;
+        $this->page->_GroupName = '亂改的名字';
+
+        $this->groupRepository->method('LoadById')->with(7)->willReturn($group);
+        $this->groupRepository->expects($this->never())->method('Update');
+
+        $this->presenter->UpdateGroup();
+    }
+
+    public function testUpdateGroupRejectsRenamingTheDefaultGroup()
+    {
+        $this->fakeUser->IsAdmin = true;
+
+        $group = new Group(0, '全體員工', 1);
+        $group->WithId(3);
+
+        $this->page->_GroupId = 3;
+        $this->page->_GroupName = 'renamed';
+
+        $this->groupRepository->method('LoadById')->with(3)->willReturn($group);
+        $this->groupRepository->expects($this->never())->method('Update');
+
+        $this->presenter->UpdateGroup();
+    }
+
+    public function testUpdateGroupRenamesACustomGroup()
+    {
+        $this->fakeUser->IsAdmin = true;
+
+        $group = new Group(0, 'Marketing');
+        $group->WithId(42);
+
+        $this->page->_GroupId = 42;
+        $this->page->_GroupName = '行銷部';
+        $this->page->_IsDefault = false;
+
+        $this->groupRepository->method('LoadById')->with(42)->willReturn($group);
+        $this->groupRepository->expects($this->once())->method('Update')->with($group);
+
+        $this->presenter->UpdateGroup();
+
+        $this->assertEquals('行銷部', $group->Name());
+    }
+
+    public function testDeleteGroupRejectsAReservedGroup()
+    {
+        $this->fakeUser->IsAdmin = true;
+
+        $group = new Group(0, 'Resource Administrators');
+        $group->WithId(9);
+        $group->WithRole(RoleLevel::RESOURCE_ADMIN);
+
+        $this->page->_GroupId = 9;
+
+        $this->groupRepository->method('LoadById')->with(9)->willReturn($group);
+        $this->groupRepository->expects($this->never())->method('Remove');
+
+        $this->presenter->DeleteGroup();
+    }
+
+    public function testDeleteGroupRemovesACustomGroup()
+    {
+        $this->fakeUser->IsAdmin = true;
+
+        $group = new Group(0, 'Marketing');
+        $group->WithId(42);
+
+        $this->page->_GroupId = 42;
+
+        $this->groupRepository->method('LoadById')->with(42)->willReturn($group);
+        $this->groupRepository->expects($this->once())->method('Remove')->with($group);
+
+        $this->presenter->DeleteGroup();
+    }
+
+    public function testAddGroupNeverCreatesADefaultGroup()
+    {
+        $this->fakeUser->IsAdmin = true;
+
+        $this->page->_GroupName = '新群組';
+        $this->page->_IsDefault = true; // even if the payload asks for it
+
+        $captured = null;
+        $this->groupRepository->method('Add')->willReturnCallback(function (Group $g) use (&$captured) {
+            $captured = $g;
+            return 5;
+        });
+
+        $this->presenter->AddGroup();
+
+        $this->assertNotNull($captured);
+        $this->assertEquals(0, $captured->IsDefault());
+    }
 }
 
 class FakeManageGroupsPage extends FakeActionPageBase implements IManageGroupsPage
@@ -312,9 +438,21 @@ class FakeManageGroupsPage extends FakeActionPageBase implements IManageGroupsPa
         return $this->_AllowedResourceIds;
     }
 
+    public string $_GroupName = '';
+
+    /**
+     * @var array<int,array>
+     */
+    public $_BoundGroupDisplays = [];
+
+    public function BindGroupDisplays($displays)
+    {
+        $this->_BoundGroupDisplays = $displays;
+    }
+
     public function GetGroupName()
     {
-        return '';
+        return $this->_GroupName;
     }
 
     public function GetRoleIds()
@@ -331,9 +469,11 @@ class FakeManageGroupsPage extends FakeActionPageBase implements IManageGroupsPa
         return 0;
     }
 
+    public bool $_IsDefault = false;
+
     public function AutomaticallyAddToGroup()
     {
-        return false;
+        return $this->_IsDefault;
     }
 
     public function GetUserIds()

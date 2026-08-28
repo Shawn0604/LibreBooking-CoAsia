@@ -6,6 +6,7 @@ require_once(ROOT_DIR . 'lib/Application/Authentication/namespace.php');
 require_once(ROOT_DIR . 'lib/Application/Admin/GroupImportCsv.php');
 require_once(ROOT_DIR . 'lib/Application/Admin/CsvImportResult.php');
 require_once(ROOT_DIR . 'lib/Application/Admin/ResourcePermissionService.php');
+require_once(ROOT_DIR . 'lib/Application/Admin/GroupDisplay.php');
 require_once(ROOT_DIR . 'Pages/Admin/ManageGroupsPage.php');
 
 class ManageGroupsActions
@@ -115,8 +116,18 @@ class ManageGroupsPresenter extends ActionPresenter
             );
         }
 
-        $this->page->BindGroups($groupList->Results());
+        $groups = $groupList->Results();
+        $this->page->BindGroups($groups);
         $this->page->BindPageInfo($groupList->PageInfo());
+
+        // Chinese display label + purpose + permission summary + isReserved, keyed by
+        // group id. Pure presentation overlay -- see GroupDisplay. The stored English
+        // name and group_id are never touched.
+        $displays = [];
+        foreach ($groups as $group) {
+            $displays[$group->Id()] = GroupDisplay::Describe($group);
+        }
+        $this->page->BindGroupDisplays($displays);
 
         $this->page->BindResources($this->resourceRepository->GetResourceList());
         $this->page->BindSchedules($this->scheduleRepository->GetAll());
@@ -265,11 +276,24 @@ class ManageGroupsPresenter extends ActionPresenter
     public function AddGroup()
     {
         $groupName = $this->page->GetGroupName();
-        $isDefault = $this->page->AutomaticallyAddToGroup();
-        Log::Debug('Adding new group with name: %s, isdefault: %s', $groupName, $isDefault);
+        // Custom groups are never the default group -- only the one seeded 全體員工 group
+        // (or whatever the install designated) carries isdefault, and that flag is managed
+        // from its own detail panel, not created here.
+        Log::Debug('Adding new custom group with name: %s', $groupName);
 
-        $group = new Group(0, $groupName, $isDefault);
+        $group = new Group(0, $groupName, 0);
         return $this->groupRepository->Add($group);
+    }
+
+    /**
+     * A group is "reserved" when it grants a role or is the default group. Its stored
+     * name and default flag drive role lookup / auto-join and must not be edited from
+     * this screen (mirrors GroupDisplay::IsReserved, but off the domain Group which is
+     * what UpdateGroup/DeleteGroup already load).
+     */
+    private function IsReservedGroup(Group $group): bool
+    {
+        return $group->IsDefault() || count($group->RoleIds()) > 0;
     }
 
     public function UpdateGroup()
@@ -277,9 +301,15 @@ class ManageGroupsPresenter extends ActionPresenter
         $groupId = $this->page->GetGroupId();
         $groupName = $this->page->GetGroupName();
         $isDefault = $this->page->AutomaticallyAddToGroup();
-        Log::Debug('Renaming group id: %s to: %s', $groupId, $groupName);
 
         $group = $this->groupRepository->LoadById($groupId);
+
+        if ($this->IsReservedGroup($group)) {
+            Log::Error('UpdateGroup denied: groupId=%s is a reserved (role-granting or default) group', $groupId);
+            return;
+        }
+
+        Log::Debug('Renaming group id: %s to: %s', $groupId, $groupName);
         $group->Rename($groupName);
         $group->ChangeDefault($isDefault);
 
@@ -290,9 +320,14 @@ class ManageGroupsPresenter extends ActionPresenter
     {
         $groupId = $this->page->GetGroupId();
 
-        Log::Debug('Deleting groupId: %s', $groupId);
-
         $group = $this->groupRepository->LoadById($groupId);
+
+        if ($this->IsReservedGroup($group)) {
+            Log::Error('DeleteGroup denied: groupId=%s is a reserved (role-granting or default) group', $groupId);
+            return;
+        }
+
+        Log::Debug('Deleting groupId: %s', $groupId);
         $this->groupRepository->Remove($group);
     }
 

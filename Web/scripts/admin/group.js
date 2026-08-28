@@ -67,9 +67,13 @@ function GroupManagement(opt) {
   };
 
   var bindEventListeners = function () {
-    const { groupList, browseUserDialog, addDialog } = elements;
+    const { browseUserDialog, addDialog } = elements;
+    // Delegation root is the whole page, not just #groupList: the per-section action
+    // buttons (成員 / 權限 / 角色 …) now live inside the #editDialog detail drawer, and
+    // the list row only carries the single 「管理群組」 button.
+    const page = $('#page-manage-groups');
 
-    groupList.on('click', 'a.update', (e) => {
+    page.on('click', 'a.update, button.update', (e) => {
       e.preventDefault();
       setActiveId($(e.currentTarget));
     });
@@ -91,15 +95,15 @@ function GroupManagement(opt) {
       addDialog.find(':text').first().focus();
     });
 
-    groupList.on('click', '.rename', () => editGroup());
-    groupList.on('click', '.permissions', () => changePermissions());
-    groupList.on('click', '.members', () => changeMembers());
-    groupList.on('click', '.groupAdmin', () => changeGroupAdmin());
-    groupList.on('click', '.changeAdminGroups', () => changeAdminGroups());
-    groupList.on('click', '.changeAdminResources', () => changeAdminResources());
-    groupList.on('click', '.changeAdminSchedules', () => changeAdminSchedules());
-    groupList.on('click', '.delete', () => deleteGroup());
-    groupList.on('click', '.roles', () => changeRoles());
+    page.on('click', '.manageGroup', () => editGroup());
+    page.on('click', '.permissions', () => changePermissions());
+    page.on('click', '.members', () => changeMembers());
+    page.on('click', '.groupAdmin', () => changeGroupAdmin());
+    page.on('click', '.changeAdminGroups', () => changeAdminGroups());
+    page.on('click', '.changeAdminResources', () => changeAdminResources());
+    page.on('click', '.changeAdminSchedules', () => changeAdminSchedules());
+    page.on('click', '.delete', () => deleteGroup());
+    page.on('click', '.roles', () => changeRoles());
 
     //user selection for group
     browseUserDialog.on('click', '.add', (e) => {
@@ -157,29 +161,9 @@ function GroupManagement(opt) {
   };
 
   var configureAutocomplete = function () {
-    const { autocompleteSearch, userSearch } = elements;
-    autocompleteSearch.autocomplete({
-      source: (request, response) => {
-        $.ajax({
-          url: options.groupAutocompleteUrl,
-          dataType: 'json',
-          data: { term: request.term },
-          success: (data) => {
-            response(data.map((item) => ({ label: item.Name, value: item.Id })));
-          },
-        });
-      },
-      focus: (event, ui) => {
-        autocompleteSearch.val(ui.item.label);
-        return false;
-      },
-      select: (event, ui) => {
-        autocompleteSearch.val(ui.item.label);
-        window.location.href = `${options.selectGroupUrl}${ui.item.value}`;
-        return false;
-      },
-    });
-
+    const { userSearch } = elements;
+    // #groupSearch is now a plain client-side list filter (see the inline script in
+    // manage_groups.tpl), not a jump-to-group autocomplete.
     userSearch.userAutoComplete(options.userAutocompleteUrl, (ui) => {
       addUserToGroup(ui.item.value);
       userSearch.val('');
@@ -290,16 +274,44 @@ function GroupManagement(opt) {
     return () => `${options.submitUrl}?gid=${activeId}&action=${action}`;
   };
 
-  var setActiveId = function (button) {
-    activeId = button.parents('tr').data('group-id');
+  var setActiveId = function (el) {
+    var fromData = el.data('group-id');
+    activeId =
+      fromData !== undefined && fromData !== null && fromData !== ''
+        ? fromData
+        : el.parents('tr').data('group-id');
   };
 
-  //change group details
+  // Populate + open the consolidated 群組詳情 drawer. Reserved groups (grant a role or
+  // are the default group) get name/auto-join locked and the danger zone hidden --
+  // mirrors GroupDisplay::IsReserved / the presenter guards; belt and braces.
   var editGroup = function () {
-    const activeRow = elements.groupList.find(`[data-group-id="${activeId}"]`);
-    elements.editGroupName.val(activeRow.find('.dataGroupName').text());
-    elements.editGroupIsDefault.prop('checked', activeRow.data('group-default') === '1');
-    bootstrap.Offcanvas.getOrCreateInstance(elements.editDialog[0]).show();
+    const row = elements.groupList.find(`tr[data-group-id="${activeId}"]`);
+    const dlg = elements.editDialog;
+    const reserved = String(row.data('group-reserved')) === '1';
+    const isDefault = String(row.data('group-default')) === '1';
+    const roleLabel = row.data('group-role') || '';
+    const systemName = row.data('group-system-name') || '';
+    const displayName = row.data('name') || row.find('.dataGroupName').text();
+
+    dlg.find('#editDialogLabel').text(displayName);
+    elements.editGroupName.val(displayName).prop('readonly', reserved);
+    elements.editGroupIsDefault.prop('checked', isDefault).prop('disabled', reserved);
+
+    dlg.find('.js-reserved-note').toggleClass('d-none', !reserved);
+    dlg.find('.js-system-name-row').toggleClass('d-none', !(reserved && !isDefault));
+    dlg.find('#editGroupSystemName').text(systemName);
+
+    // pure role groups don't use member-level booking permissions
+    dlg.find('.js-perm-section').toggleClass('d-none', !!roleLabel);
+    dlg.find('.js-perm-note').toggleClass('d-none', !roleLabel);
+
+    dlg.find('.js-danger-section').toggleClass('d-none', reserved);
+    dlg.find('#editGroupSaveBtn').toggleClass('d-none', reserved);
+
+    dlg.find('#editGroupRolesSummary').text(roleLabel || '—');
+
+    bootstrap.Offcanvas.getOrCreateInstance(dlg[0]).show();
   };
 
   var deleteGroup = function () {

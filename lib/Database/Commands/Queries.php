@@ -370,7 +370,9 @@ class Queries
 
     public const GET_ALL_GROUPS =
         'SELECT `g`.*, `admin_group`.`name` as `admin_group_name`,
-			(SELECT GROUP_CONCAT(`gr`.`role_id`) FROM `group_roles` `gr` WHERE `gr`.`group_id` = `g`.`group_id`) as `group_role_list`
+			(SELECT GROUP_CONCAT(`gr`.`role_id`) FROM `group_roles` `gr` WHERE `gr`.`group_id` = `g`.`group_id`) as `group_role_list`,
+			(SELECT COUNT(*) FROM `user_groups` `ugc` WHERE `ugc`.`group_id` = `g`.`group_id`) as `member_count`,
+			(SELECT COUNT(*) FROM `group_resource_permissions` `grpc` WHERE `grpc`.`group_id` = `g`.`group_id`) as `resource_permission_count`
 		FROM `groups` `g`
 		LEFT JOIN `groups` `admin_group` ON `g`.`admin_group_id` = `admin_group`.`group_id`
 		ORDER BY `g`.`name`';

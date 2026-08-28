@@ -297,7 +297,9 @@ class GroupItemView
         $adminName = isset($row[ColumnNames::GROUP_ADMIN_GROUP_NAME]) ? $row[ColumnNames::GROUP_ADMIN_GROUP_NAME] : null;
         $isDefault = intval($row[ColumnNames::GROUP_ISDEFAULT]);
         $roles = explode(',', $row[ColumnNames::GROUP_ROLE_LIST] ?? '');
-        return new GroupItemView($row[ColumnNames::GROUP_ID], $row[ColumnNames::GROUP_NAME], $adminName, $isDefault, $roles);
+        $memberCount = intval($row[ColumnNames::GROUP_MEMBER_COUNT] ?? 0);
+        $resourcePermissionCount = intval($row[ColumnNames::GROUP_RESOURCE_PERMISSION_COUNT] ?? 0);
+        return new GroupItemView($row[ColumnNames::GROUP_ID], $row[ColumnNames::GROUP_NAME], $adminName, $isDefault, $roles, $memberCount, $resourcePermissionCount);
     }
 
     /**
@@ -394,13 +396,41 @@ class GroupItemView
         return $this->IsGroupAdmin() || $this->IsScheduleAdmin() || $this->IsResourceAdmin();
     }
 
-    public function __construct($groupId, $groupName, $adminGroupName = null, $isDefault = 0, $roles = [])
+    /**
+     * @var int
+     */
+    public $MemberCount = 0;
+
+    /**
+     * @return int
+     */
+    public function MemberCount()
+    {
+        return $this->MemberCount;
+    }
+
+    /**
+     * @var int number of resources this group's members have a booking permission on
+     */
+    public $ResourcePermissionCount = 0;
+
+    /**
+     * @return int
+     */
+    public function ResourcePermissionCount()
+    {
+        return $this->ResourcePermissionCount;
+    }
+
+    public function __construct($groupId, $groupName, $adminGroupName = null, $isDefault = 0, $roles = [], $memberCount = 0, $resourcePermissionCount = 0)
     {
         $this->Id = $groupId;
         $this->Name = $groupName;
         $this->AdminGroupName = $adminGroupName;
         $this->IsDefault = $isDefault;
         $this->Roles = $roles;
+        $this->MemberCount = intval($memberCount);
+        $this->ResourcePermissionCount = intval($resourcePermissionCount);
     }
 }
 

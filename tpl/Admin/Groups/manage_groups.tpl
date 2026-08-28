@@ -5,47 +5,28 @@
         <div class="btn-group btn-group-sm">
             <a href="#" class="add-group btn btn-primary" id="add-group">
                 <i class="bi bi-plus-circle-fill me-1"></i>
-                {translate key="AddGroup"}
+                {translate key="AdminGroupAddCustom"}
             </a>
-            {if $CanImportGroups or $CanExportGroups}
-            <button class="btn btn-primary dropdown-toggle" type="button" id="moreResourceActions"
-                data-bs-toggle="dropdown" aria-expanded="false" aria-label="{translate key='More'}">
-                <i class="bi bi-three-dots"></i>
-            </button>
-            <ul class="dropdown-menu" aria-labelledby="moreResourceActions">
-                {if $CanImportGroups}
-                    <li>
-                        <a href="#" class="import-groups dropdown-item" id="import-groups" data-bs-toggle="modal"
-                            data-bs-target="#importGroupsDialog">
-                            <i class="bi bi-download me-1"></i>{translate key="Import"}
-                        </a>
-                    </li>
-                {/if}
-                {if $CanExportGroups}
-                    <li>
-                        <a href="{$smarty.server.SCRIPT_NAME}?dr=export" download class="export-groups dropdown-item"
-                            id="export-groups" target="_blank" rel="noopener noreferrer">
-                            <i class="bi bi-upload me-1"></i>{translate key="Export"}
-                        </a>
-                    </li>
-                {/if}
-            </ul>
+            {if $CanExportGroups}
+                <a href="{$smarty.server.SCRIPT_NAME}?dr=export" download class="btn btn-outline-secondary"
+                    id="export-groups" target="_blank" rel="noopener noreferrer">
+                    <i class="bi bi-upload me-1"></i>{translate key="Export"}
+                </a>
             {/if}
         </div>
     {/capture}
-    {include file='Admin/admin_page_shell.tpl' TitleKey='AdminSectionUsers' DescriptionKey='AdminUsersDescription' HeaderActions=$smarty.capture.headerActions}
+    {include file='Admin/admin_page_shell.tpl' TitleKey='AdminSectionUsers' DescriptionKey='AdminGroupsAdvancedDescription' HeaderActions=$smarty.capture.headerActions}
 
     <div class="admin-subnav">
         <a class="admin-subnav-link" href="{$Path}admin/manage_users.php">{translate key=ManageUsers}</a>
         <a class="admin-subnav-link active" href="{$Path}admin/manage_groups.php">{translate key=ManageGroups}</a>
     </div>
 
-    <div class="admin-page-toolbar card shadow mb-2" id="groupSearchPanel">
-        <div class="card-body">
-            <label for="groupSearch">{translate key='FindGroup'}</label>
-            | {html_link href=$smarty.server.SCRIPT_NAME key=AllGroups}
-            <input type="text" id="groupSearch" class="form-control form-control-sm" size="40" />
-        </div>
+    <div class="admin-page-toolbar">
+        <label class="admin-search" for="groupSearch">
+            <i class="bi bi-search"></i>
+            <input type="text" id="groupSearch" placeholder="{translate key=AdminGroupSearchPlaceholder}" />
+        </label>
     </div>
 
     <div class="card shadow admin-clean-table-card">
@@ -55,86 +36,69 @@
                 <thead>
                     <tr>
                         <th>{translate key='GroupName'}</th>
+                        <th>{translate key='AdminGroupPurpose'}</th>
                         <th>{translate key='GroupMembers'}</th>
-                        <th>{translate key='Permissions'}</th>
-                        {if $CanChangeRoles}
-                            <th>{translate key='GroupRoles'}</th>
-                        {/if}
+                        <th>{translate key='AdminGroupPermissionSummary'}</th>
                         <th>{translate key='GroupAdmin'}</th>
                         <th>{translate key='GroupAutomaticallyAdd'}</th>
-                        <th class="action">{translate key='Actions'}</th>
+                        <th class="text-end">{translate key='Actions'}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {foreach from=$groups item=group}
-                        <tr data-group-id="{$group->Id}" data-group-default="{$group->IsDefault}">
-                            <td class="dataGroupName">{$group->Name}</td>
-                            <td><a href="#" class="update members link-primary">{translate key='Manage'}</a></td>
-                            <td><a href="#" class="update permissions link-primary">{translate key='Change'}</a></td>
-                            {if $CanChangeRoles}
-                                <td>
-                                    {if $group->IsExtendedAdmin()}
-                                        <div class="btn-group btn-group-sm">
-                                            <a href="#" class="update roles btn btn-outline-primary">{translate key='Change'}</a>
-                                            <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle"
-                                                data-bs-toggle="dropdown" aria-label="{translate key='More'}">
-                                            </button>
-                                            <ul class="dropdown-menu dropdown-menu-right" role="menu">
-                                                <li>
-                                                    <h6 class="dropdown-header">{translate key=Administration}</h6>
-                                                </li>
-                                                <li>
-                                                    <hr class="dropdown-divider">
-                                                </li>
-                                                {if $group->IsGroupAdmin()}
-                                                    <li role="presentation">
-                                                        <a role="menuitem" href="#"
-                                                            class="update changeAdminGroups dropdown-item">{translate key="Groups"}</a>
-                                                    </li>
-                                                {/if}
-                                                {if $group->IsResourceAdmin()}
-                                                    <li role="presentation">
-                                                        <a role="menuitem" href="#"
-                                                            class="update changeAdminResources dropdown-item">{translate key="Resources"}</a>
-                                                    </li>
-                                                {/if}
-                                                {if $group->IsScheduleAdmin()}
-                                                    <li role="presentation">
-                                                        <a role="menuitem" href="#"
-                                                            class="update changeAdminSchedules dropdown-item">{translate key="Schedules"}</a>
-                                                    </li>
-                                                {/if}
-                                            </ul>
-                                        </div>
-                                    {else}
-                                        <a href="#" class="update roles link-primary">{translate key='Add'}</a>
-                                    {/if}
-                                </td>
-                            {/if}
-                            <td>{if $CanChangeRoles}
-                                    <a href="#"
-                                        class="update groupAdmin link-primary">{$group->AdminGroupName|default:$chooseText}</a>
-                                {else}
-                                    {$group->AdminGroupName|default:$chooseText}
+                        {assign var=gid value=$group->Id}
+                        {assign var=gd value=$GroupDisplays[$gid]|default:null}
+                        {if $gd && $gd.labelKey != ''}
+                            {capture assign=gLabel}{translate key=$gd.labelKey}{/capture}
+                        {else}
+                            {assign var=gLabel value=$group->Name}
+                        {/if}
+                        <tr data-group-id="{$gid}" data-group-default="{$group->IsDefault}"
+                            data-group-reserved="{if $gd && $gd.isReserved}1{else}0{/if}"
+                            data-group-role="{if $gd && $gd.primaryRoleLevel}{$gLabel|escape}{/if}"
+                            data-group-system-name="{$group->Name|escape}"
+                            data-name="{$gLabel|escape}"
+                            data-search="{$gLabel|escape|strtolower} {$group->Name|escape|strtolower}">
+                            <td>
+                                <div class="fw-bold dataGroupName">{$gLabel|escape}</div>
+                                {if $gd && ($gd.isReserved && !$gd.isDefault)}
+                                    <div class="admin-cell-secondary"><code>{$group->Name|escape}</code></div>
                                 {/if}
                             </td>
-                            <td>{if $group->IsDefault}
-                                    <i class="bi bi-check-circle text-success"></i>
+                            <td class="admin-cell-secondary">
+                                {if $gd && $gd.purposeKey != ''}{translate key=$gd.purposeKey}{else}&mdash;{/if}
+                            </td>
+                            <td>{$group->MemberCount()}</td>
+                            <td class="admin-cell-secondary">
+                                {if $gd && $gd.permissionSummaryKey != ''}
+                                    {translate key=$gd.permissionSummaryKey}
+                                {elseif $group->ResourcePermissionCount() > 0}
+                                    {translate key=AdminGroupPermSummaryBookable args=$group->ResourcePermissionCount()}
                                 {else}
-                                    <span class="bi bi-x-circle text-danger"></span>
+                                    &mdash;
                                 {/if}
                             </td>
-                            <td class="action">
-                                <a href="#" class="update rename link-primary" aria-label="{translate key=Edit}">
-                                    <span class="bi bi-pencil-square icon"></span></a> |
-                                <a href="#" class="update delete" aria-label="{translate key=Delete}">
-                                    <span class="bi bi-trash3-fill text-danger icon remove"></span></a>
+                            <td>{$group->AdminGroupName|default:"&mdash;"}</td>
+                            <td>
+                                {if $group->IsDefault}
+                                    <span class="admin-badge admin-badge-inprogress">{translate key='Yes'}</span>
+                                {else}
+                                    <span class="admin-cell-secondary">{translate key='No'}</span>
+                                {/if}
+                            </td>
+                            <td class="text-end">
+                                <button type="button" class="admin-row-edit-btn update manageGroup" data-group-id="{$gid}">
+                                    <i class="bi bi-sliders"></i>{translate key='AdminGroupManage'}
+                                </button>
                             </td>
                         </tr>
+                    {foreachelse}
+                        <tr><td colspan="7" class="admin-empty">{translate key=AdminGroupNoResults}</td></tr>
                     {/foreach}
                 </tbody>
             </table>
         </div>
+        <div class="admin-pager" id="groupPager"></div>
     </div>
 
     <input type="hidden" id="activeId" />
@@ -246,24 +210,17 @@
     <div class="offcanvas offcanvas-end admin-drawer" id="addGroupDialog" tabindex="-1" aria-labelledby="addDialogLabel">
         <form id="addGroupForm" method="post" class="h-100 d-flex flex-column">
             <div class="offcanvas-header">
-                <h5 class="offcanvas-title" id="addDialogLabel">{translate key=AddGroup}</h5>
+                <h5 class="offcanvas-title" id="addDialogLabel">{translate key=AdminGroupAddCustom}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
             </div>
             <div class="offcanvas-body flex-grow-1">
                 <div id="addGroupResults" class="error" style="display:none;"></div>
                 <div class="form-group">
-                    <label class="fw-bold" for="addGroupName">{translate key=Name}<i
+                    <label class="fw-bold" for="addGroupName">{translate key=AdminGroupDisplayName}<i
                             class="bi bi-asterisk text-danger align-top" style="font-size: 0.5rem;"></i></label>
                     <input {formname key=GROUP_NAME} type="text" id="addGroupName" required
                         class="form-control required has-feedback" />
-                </div>
-                <div class="form-group mt-2">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="addGroupIsDefault"
-                            {formname key=IS_DEFAULT} />
-                        <label class="form-check-label"
-                            for="addGroupIsDefault">{translate key=AutomaticallyAddToGroup}</label>
-                    </div>
+                    <div class="form-text">{translate key=AdminGroupAddCustomHint}</div>
                 </div>
             </div>
             <div class="admin-drawer-footer">
@@ -299,32 +256,109 @@
         </div>
     </div>
 
-    <div class="offcanvas offcanvas-end admin-drawer" id="editDialog" tabindex="-1" aria-labelledby="editDialogLabel">
+    {* Consolidated 群組詳情 drawer. Opened by the row's 「管理群組」 button. group.js
+       (editGroup) fills the fields from the row's data-* + dr= fetches, and toggles the
+       reserved-only / custom-only bits by data-group-reserved. Each section keeps its own
+       existing async form/modal + action -- this drawer only relocates and relabels the
+       entry points, no combined backend action. *}
+    <div class="offcanvas offcanvas-end admin-drawer admin-drawer-wide" id="editDialog" tabindex="-1"
+        aria-labelledby="editDialogLabel">
         <form id="editGroupForm" method="post" class="h-100 d-flex flex-column">
             <div class="offcanvas-header">
-                <h5 class="offcanvas-title" id="editDialogLabel">{translate key=Update}</h5>
+                <h5 class="offcanvas-title" id="editDialogLabel">{translate key=AdminGroupDetailTitle}</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
             </div>
             <div class="offcanvas-body flex-grow-1">
+
+                <div class="admin-drawer-section-title">{translate key=BasicInformation}</div>
+                <div class="js-reserved-note alert alert-secondary py-2 px-3 d-none">
+                    <i class="bi bi-shield-lock me-1"></i>{translate key=AdminGroupReservedNote}
+                </div>
                 <div class="form-group">
-                    <label class="fw-bold" for="editGroupName">{translate key=Name}<i
-                            class="bi bi-asterisk text-danger align-top form-control-feedback"
-                            style="font-size: 0.5rem;"></i></label>
-                    <input type="text" id="editGroupName" class="form-control required has-feedback" required
+                    <label class="fw-bold" for="editGroupName">{translate key=AdminGroupDisplayName}</label>
+                    <input type="text" id="editGroupName" class="form-control has-feedback"
                         {formname key=GROUP_NAME} />
                 </div>
-                <div class="form-group mt-2">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="editGroupIsDefault"
-                            {formname key=IS_DEFAULT} />
-                        <label class="form-check-label"
-                            for="editGroupIsDefault">{translate key=AutomaticallyAddToGroup}</label>
-                    </div>
+                <div class="form-group mt-2 js-system-name-row d-none">
+                    <label class="fw-bold">{translate key=AdminGroupSystemName}</label>
+                    <div><code id="editGroupSystemName"></code></div>
+                    <div class="form-text">{translate key=AdminGroupSystemNameHint}</div>
                 </div>
+
+                <div class="admin-drawer-section-title mt-4">{translate key=GroupMembers}</div>
+                <p class="admin-cell-secondary mb-2">{translate key=AdminGroupMembersHint}</p>
+                <button type="button" class="btn btn-outline-primary btn-sm members">
+                    <i class="bi bi-people me-1"></i>{translate key=AdminGroupManageMembers}
+                </button>
+
+                <div class="js-perm-section">
+                    <div class="admin-drawer-section-title mt-4">{translate key=AdminGroupPermissionSummary}</div>
+                    <p class="admin-cell-secondary mb-2">{translate key=AdminGroupPermissionsHint}</p>
+                    <button type="button" class="btn btn-outline-primary btn-sm permissions">
+                        <i class="bi bi-key me-1"></i>{translate key=AdminGroupSetPermissions}
+                    </button>
+                </div>
+                <div class="js-perm-note alert alert-secondary py-2 px-3 mt-4 d-none">
+                    {translate key=AdminGroupPermissionsNotApplicable}
+                </div>
+
+                {if $CanChangeRoles}
+                    <div class="admin-drawer-section-title mt-4">{translate key=GroupAdmin}</div>
+                    <p class="admin-cell-secondary mb-2">{translate key=AdminGroupAdminHint}</p>
+                    <button type="button" class="btn btn-outline-primary btn-sm groupAdmin">
+                        <i class="bi bi-person-badge me-1"></i>{translate key=AdminGroupAssignGroupAdmin}
+                    </button>
+                {/if}
+
+                <div class="admin-drawer-section-title mt-4">{translate key=GroupAutomaticallyAdd}</div>
+                <p class="admin-cell-secondary mb-2">{translate key=AdminGroupAutoJoinHint}</p>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="editGroupIsDefault"
+                        {formname key=IS_DEFAULT} />
+                    <label class="form-check-label" for="editGroupIsDefault">{translate key=AdminGroupAutoJoinToggle}</label>
+                </div>
+
+                {if $CanChangeRoles}
+                    <details class="admin-drawer-advanced mt-4">
+                        <summary class="admin-drawer-advanced-summary">{translate key=AdminGroupAdvancedRoles}</summary>
+                        <div class="mt-2">
+                            <div class="mb-2">
+                                <span class="fw-bold">{translate key=AdminGroupCurrentRoles}:</span>
+                                <span id="editGroupRolesSummary" class="admin-cell-secondary">&mdash;</span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm roles">
+                                    {translate key=AdminGroupEditRoles}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm changeAdminGroups">
+                                    {translate key=AdminGroupScopeGroups}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm changeAdminResources">
+                                    {translate key=AdminGroupScopeResources}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm changeAdminSchedules">
+                                    {translate key=AdminGroupScopeSchedules}
+                                </button>
+                            </div>
+                        </div>
+                    </details>
+                {/if}
+
+                <details class="admin-drawer-advanced mt-4 js-danger-section">
+                    <summary class="admin-drawer-advanced-summary text-danger">{translate key=AdminGroupDangerZone}</summary>
+                    <div class="mt-2">
+                        <p class="admin-cell-secondary">{translate key=AdminGroupDeleteHint}</p>
+                        <button type="button" class="btn btn-outline-danger btn-sm delete">
+                            <i class="bi bi-trash3 me-1"></i>{translate key=AdminGroupDelete}
+                        </button>
+                    </div>
+                </details>
             </div>
-            <div class="admin-drawer-footer">
+            <div class="admin-drawer-footer admin-drawer-footer-sticky">
                 {cancel_button}
-                {update_button}
+                <button type="button" class="btn btn-primary btn-sm save" id="editGroupSaveBtn">
+                    <i class="bi bi-check2-circle me-1"></i>{translate key=AdminGroupSaveBasic}
+                </button>
                 {indicator}
             </div>
         </form>
@@ -545,12 +579,32 @@
     {csrf_token}
 
     {include file="javascript-includes.tpl" DataTable=true}
-    {datatable tableId=$tableId}
+    {* The group list no longer uses DataTables' own chrome (pagination/info/export
+       buttons) -- it's the client-side admin-table-paginate.js pattern like 使用者管理.
+       {datatablefilter} stays: it still drives the permissions picker (#permissionsDialogtable). *}
     {datatablefilter tableId=$tableIdFilter}
     {jsfile src="ajax-helpers.js"}
     {jsfile src="autocomplete.js"}
+    {jsfile src="admin/admin-table-paginate.js"}
     {jsfile src="admin/group.js"}
     {vendor_js src="jquery-form/3.09/jquery.form-3.09.min.js"}
+
+    <script>
+        (function () {
+            var pager = AdminTablePaginate({ tableId: 'groupList', containerId: 'groupPager', pageSize: 20 });
+            var searchInput = document.getElementById('groupSearch');
+            if (searchInput) {
+                searchInput.addEventListener('input', function () {
+                    var query = searchInput.value.trim().toLowerCase();
+                    $('#groupList > tbody > tr[data-group-id]').each(function () {
+                        var haystack = $(this).attr('data-search') || '';
+                        $(this).toggleClass('admin-search-hidden', query !== '' && haystack.indexOf(query) === -1);
+                    });
+                    pager.refresh();
+                });
+            }
+        })();
+    </script>
 
 
     <script type="text/javascript">

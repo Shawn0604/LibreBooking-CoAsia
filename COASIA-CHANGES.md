@@ -3083,3 +3083,50 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 
 - Smarty `compileTemplateSource()` 兩個樣板皆過;`composer phpunit` 全綠(1741,唯一失敗為既有無關的 `ManageReservationsPresenterTest`)。
 - **待實測**:①使用者頁頂端出現「使用者管理 / 群組管理」分頁列、可互切 ②群組清單外觀跟使用者/會議室清單一致 ③群組頁每個 row 的管理/變更/角色/刪除連結行為不變。
+
+## 101. 使用者管理 > 群組:資訊架構全面重做(承 §100)
+
+需求:群組頁仍是舊 DataTables、顯示英文系統名、按鈕語意模糊(管理/更改/增加/選擇…)、每列直接有刪除圖示、塞了複製/匯出Excel/PDF/列印/欄位開關。要以「人」為中心、群組頁改成進階管理、系統群組顯示繁中名但不可動內部識別。
+
+### 先盤點(每個既有欄位/按鈕/後端 action 的真實行為)
+
+| 舊 UI | 後端 action | 真實作用 |
+| --- | --- | --- |
+| 群組名稱 | `groups.name` | 內部識別。AD 同步比對群組名、CSV 匯入都靠它。改名今天不會直接壞程式(角色查 `group_roles` 不查名),但危險。 |
+| 群組成員「管理」 | `AddUser`/`RemoveUser`/`ChangeUsers` → `user_groups` | 誰在群組裡。 |
+| 許可「變更」 | `ChangePermissions` → `group_resource_permissions`(full/view) | 群組成員可預約哪些會議室。純角色群組無意義。 |
+| 群組權限「增加」 | `ChangeRoles` → `group_roles`(role_id 1-4) | 授予 系統/群組/會議室/開放時間 管理員角色。最高風險。 |
+| 群組權限 ⋯ Groups/Resources/Schedules | `ChangeAdminGroups`/`ChangeResourceGroups`/`ChangeScheduleGroups` → 其他群組/資源/schedule 的 `admin_group_id` | 把某個管理員群組**限縮**到只能管哪些對象。 |
+| 群組管理員「選擇…」 | `ChangeGroupAdmin` → `groups.admin_group_id` | 哪個群組的成員可以管這個群組。 |
+| AUTO ADD | `UpdateGroup` → `groups.isdefault` | 新帳號建立時自動加入(只在建立時,不會在 update 補)。 |
+| rename ✎ / delete 🗑 | `UpdateGroup` / `DeleteGroup`(硬刪、cascade) | 刪角色群組 = 所有管理員瞬間失權。 |
+| 複製/匯出Excel/PDF/列印/欄位開關 | DataTables Buttons 擴充(`{datatable}`) | 純前端匯出,非需求。 |
+
+seed 確認:`roles` 是固定 4 列(role_id == role_level == 1-4);四個管理員**群組**不是 seed(只在 sample-data),prod 的 group_id 不固定 → **「保留群組」一律用衍生判斷**:`group_roles` 非空 或 `isdefault=1`。
+
+### 資料模型(無 schema 變更)
+
+- `Queries::GET_ALL_GROUPS` 加兩個唯讀相關子查詢:`member_count`、`resource_permission_count` → `GroupItemView->MemberCount()` / `->ResourcePermissionCount()`(額外欄位,既有呼叫者含 §99 忽略)。
+- **繁中名是純顯示 overlay**:`lib/Application/Admin/GroupDisplay.php`(新,純函式)`Describe(GroupItemView): {labelKey, storedName, purposeKey, permissionSummaryKey, isReserved, isDefault, primaryRoleLevel, roleLevels}` —— 依「群組授予的 role_level」對應繁中名(系統管理員/群組管理員/會議室管理員/開放時間管理員),**絕不碰 `group_id` / `groups.name`**;預設群組與自訂群組顯示原名。`IsReserved()` = 有 role 或 isdefault。
+
+### 保護規則(在 presenter 落地,不只藏 UI)
+
+- `UpdateGroup` / `DeleteGroup`:載入的 `Group` 若 `IsDefault() || RoleIds()` 非空 → 記 `Log::Error` 後直接 return,不寫入。
+- `AddGroup`:`isDefault` 硬寫 0(自訂群組永不為預設);移除 add 抽屜的 auto-add checkbox。
+- `ChangeRoles`/`ChangeGroupAdmin`/`ChangeAdminGroups/Resources/Schedules`:既有 `IsAdmin` gate 全部保留。
+
+### 頁面流程
+
+- **清單**(`manage_groups.tpl`):丟掉 `{datatable}`(連帶複製/匯出/列印/欄位開關全消失),改 `admin-clean-table` + `admin-table-paginate.js` + 純前端搜尋(比照使用者頁)。`{datatablefilter}` 保留 —— 權限挑選器 `#permissionsDialogtable` 還在用。欄位:**群組**(繁中名 + 灰色英文 `code`)· **用途** · **成員數** · **權限摘要**(系統全部權限 / 可管理指定會議室 / 可預約 N 間會議室 / —)· **群組管理員** · **自動加入**(徽章)· 單一按鈕 **`管理群組`**。列上不再有成員/權限/角色/刪除。header 只留「新增自訂群組」+「匯出」(依你選的「只保留匯出」)。
+- **詳情**(右側 offcanvas `#editDialog`,§98 sticky footer + `.admin-drawer-section-title` 分區):基本資料(保留群組:名稱 readonly + 系統識別名 `code` + 提示)· 成員(`管理成員`)· 群組權限(`設定群組權限`;純角色群組隱藏、顯示「不受會議室權限限制」)· 群組管理員(`指定群組管理員`)· 自動加入(toggle + 說明;保留群組 disabled)· 進階:角色指派(`<details>` 收合,唯讀顯示目前角色 + `編輯角色指派`/範圍按鈕,依你選的「唯讀顯示 + 保留 app-admin 入口」)· 危險操作(`<details>`,**只有非保留群組**才出現,`刪除群組` 走既有 `#deleteDialog` 二次確認)。每個分區沿用**各自既有的 async form + action**,沒有新的合併後端動作。
+- **`group.js`**:委派 root 從 `#groupList` 改成 `#page-manage-groups`(抽屜內按鈕才收得到);`setActiveId` 先讀 `data-group-id` 再 fallback 到 `tr`;`editGroup()` 依 row 的 `data-group-reserved` / `data-group-role` 切換 readonly/disabled/顯示;移除 `#groupSearch` 的 jump-to-group autocomplete(現在是純清單過濾)。
+
+### 中文名對照(繁中主、英文系統代號留次要文字)
+
+`Application Administrators`→`系統管理員`、`Group Administrators`→`群組管理員`、`Resource Administrators`→`會議室管理員`、`Schedule Administrators`→`開放時間管理員`、`全體員工` 不變。三語言檔(en/zh_tw/zh_cn)同步新增約 45 個 key。
+
+### 驗證
+
+- `composer phpunit` 1755 筆全綠(+14:8 `GroupDisplayTest`、6 群組保護 guard 測試、1 `PageLoad` 顯示 overlay 綁定;唯一失敗 `ManageReservationsPresenterTest` 為既有無關)。phpstan 0、php-cs-fixer 0、`node --check group.js`、Smarty `compileTemplateSource()` 皆過。
+- 測試覆蓋需求指定的三種群組:系統管理員(role group)、會議室管理員(role group)、全體員工(default)—— 查看(`GroupDisplay` 對應)、成員/權限調整走既有 action、rename/delete 被 guard 擋、`AddGroup` 不會生出 default。
+- **待 prod 瀏覽器實測**(dev 無本機管理員登入):①清單外觀 + 繁中名 + 用途/成員數/權限摘要欄 ②「管理群組」開抽屜、分區按鈕能開對應 modal(offcanvas 上疊 modal 的 backdrop 疊層)③保留群組:名稱鎖住、無刪除區、無更新鈕;自訂群組:可改名、可刪(二次確認)④搜尋過濾 + 分頁。

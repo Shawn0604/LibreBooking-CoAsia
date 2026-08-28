@@ -18,6 +18,11 @@ interface IManageGroupsPage extends IActionPage
     public function BindGroups($groups);
 
     /**
+     * @param array<int,array> $displays GroupDisplay::Describe() output keyed by group id
+     */
+    public function BindGroupDisplays($displays);
+
+    /**
      * @param PageInfo $pageInfo
      */
     public function BindPageInfo(PageInfo $pageInfo);
@@ -199,6 +204,11 @@ class ManageGroupsPage extends ActionPage implements IManageGroupsPage
     public function BindGroups($groups)
     {
         $this->Set('groups', $groups);
+    }
+
+    public function BindGroupDisplays($displays)
+    {
+        $this->Set('GroupDisplays', $displays);
     }
 
     public function ProcessAction()

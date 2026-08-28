@@ -352,6 +352,8 @@ class ColumnNames
     public const GUEST_LIST = 'guest_list';
     public const USER_GROUP_LIST = 'user_group_list';
     public const GROUP_ROLE_LIST = 'group_role_list';
+    public const GROUP_MEMBER_COUNT = 'member_count';
+    public const GROUP_RESOURCE_PERMISSION_COUNT = 'resource_permission_count';
     public const UTILIZATION_TYPE = 'utilization_type';
     public const DATE = 'date';
     public const UTILIZATION = 'utilization';
