@@ -260,6 +260,25 @@ function ResourceManagement(opts) {
       elements.bulkDeleteList.find('input:checkbox').prop('checked', false);
     });
 
+    // Physical-room drawers have a collapsed weekly-hours editor but no own save button --
+    // the one "更新" button saves both. Bound before the generic $('.save') handler below so
+    // stopImmediatePropagation() can pre-empt it: persist the hours first (reusing the
+    // proven changeLayout endpoint), and only submit the basic-info form once that succeeds.
+    $('form.resourceUpdateForm .save').on('click', function (e) {
+      var form = $(this).closest('form');
+      var editor = form.closest('.resourceDetails').find('.resourceHoursEditor');
+      if (editor.length === 0) {
+        return;
+      }
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      saveResourceHours(editor, function (ok) {
+        if (ok) {
+          form.trigger('submit');
+        }
+      });
+    });
+
     $('.save').click(function () {
       $(this).closest('form').submit();
     });
@@ -450,11 +469,6 @@ function ResourceManagement(opts) {
     elements.resourcesList.on('change', '.resourceDayOpen', function () {
       var row = $(this).closest('.admin-schedule-day-row');
       row.find('.resourceDayStart, .resourceDayEnd').prop('disabled', !$(this).is(':checked'));
-    });
-
-    elements.resourcesList.on('click', '.saveResourceHours', function (e) {
-      e.preventDefault();
-      saveResourceHours($(this).closest('.resourceHoursEditor'));
     });
 
     // 全天開放: fills the grid (Mon–Sun on, every day 00:00–00:00 = the full-day
@@ -796,13 +810,13 @@ function ResourceManagement(opts) {
   // to manage_schedules.php?action=changeLayout. Slot-string format + the full-day blocked
   // coverage rule are copied verbatim from schedule.js saveScheduleHours() so the server
   // sees an identical request to the (proven) schedules-page save.
-  var saveResourceHours = function (editor) {
+  // done(ok) fires after the changeLayout POST — the drawer's single save button chains the
+  // basic-info submit onto ok === true.
+  var saveResourceHours = function (editor, done) {
     var resourceId = editor.data('resource-id');
     var form = editor.find('.resourceHoursForm');
     var errorEl = editor.find('.resourceHoursError');
-    var savedEl = editor.find('.resourceHoursSaved');
     errorEl.addClass('d-none').empty();
-    savedEl.addClass('d-none');
 
     for (var day = 0; day <= 6; day++) {
       var isOpen = $('#resourceDayOpen' + resourceId + '_' + day).is(':checked');
@@ -836,15 +850,18 @@ function ResourceManagement(opts) {
         if (responseText && $.trim(responseText).length > 0) {
           // Non-empty body = validation errors (ActionPresenter renders them and returns 200).
           errorEl.removeClass('d-none').html(responseText);
-        } else {
-          savedEl.removeClass('d-none');
-          setTimeout(function () {
-            savedEl.addClass('d-none');
-          }, 3000);
+          if (done) {
+            done(false);
+          }
+        } else if (done) {
+          done(true);
         }
       },
       error: function (xhr) {
         errorEl.removeClass('d-none').text(xhr.responseText || 'Error');
+        if (done) {
+          done(false);
+        }
       },
     });
   };

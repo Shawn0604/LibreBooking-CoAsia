@@ -642,9 +642,9 @@
 									id="resourceDayEnd{$id}_{$day}" value="{$dEnd}" {if !$dOpen}disabled{/if} />
 							</div>
 						{/foreach}
-						<button type="button" class="btn btn-primary btn-sm saveResourceHours mt-1"
-							data-resource-id="{$id}">{translate key=AdminResourceSaveHours}</button>
-						<span class="resourceHoursSaved text-success ms-2 d-none">{translate key=Saved}</span>
+						{* No own save button -- the drawer's single "更新" button (basic info) also
+						   persists these hours first via resource.js; see the .resourceUpdateForm
+						   .save interceptor there. *}
 						<div class="resourceHoursError error text-danger d-none mt-2"></div>
 
 						<form class="resourceHoursForm d-none" method="post"

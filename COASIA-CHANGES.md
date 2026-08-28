@@ -2963,3 +2963,18 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 - `php -l` / `composer phpstan`(0 錯)過新增/修改的 PHP;`node --check` + `eslint` 過 `resource.js`(既有 `AdminConfirm` 那條無關);Smarty 標籤配對正確。
 - `composer phpunit --filter WeeklyHoursSummary` 8/8;全跑跟改動前一樣(只有那 1 個既有無關失敗)。
 - **待使用者登入實測**:①線上會議資源(Zoom/Meet)列表開放時間欄留白、抽屜沒有開放時間區塊 ②實體會議室抽屜開放時間預設收合,展開後可編輯 ③「全天開放」按一下 7 天全開、時間歸零,按「儲存開放時間」後列表摘要變「全天開放」、Overview 那間房整天可訂 ④設週一到五 09:00–18:00、週末關 → 列表顯示「週一至週五 09:00–18:00」 ⑤基本資料的「更新」跟開放時間的「儲存」互不影響。
+
+## 96. 會議室抽屜:基本資料與開放時間合併成一顆儲存按鈕(承 §95)
+
+使用者實測 §95 後:「兩個 button 應該要同一個吧,這樣很亂」。原本「更新」(基本資料)和「儲存開放時間」是兩顆。
+
+改成**一顆「更新」按鈕存兩件事**,不動後端:
+
+- `manage_resource_drawer_content.tpl`:拿掉 `<details>` 裡的「儲存開放時間」按鈕(和 `.resourceHoursSaved` 提示);只留 `.resourceHoursError` 顯示驗證錯誤。
+- `Web/scripts/admin/resource.js`:
+  - `saveResourceHours(editor, done)` 多一個 `done(ok)` callback。
+  - 新增 `$('form.resourceUpdateForm .save').on('click', …)`,**綁在既有 `$('.save').click()`(第 263 行)之前**,用 `stopImmediatePropagation()` 搶先:先 async POST 存開放時間(還是走 `manage_schedules.php?action=changeLayout` + `LayoutValidator`),成功才 `form.trigger('submit')` 送出基本資料表單(接著整頁 reload)。
+  - 開放時間驗證失敗 → 顯示錯誤、**不送出基本資料、不 reload**,使用者修正後再按一次;基本資料的編輯內容不會掉。
+  - 拿掉獨立的 `.saveResourceHours` click handler。
+
+兩件事仍是兩個獨立的 POST / endpoint,只是共用同一顆觸發按鈕。`node --check` + `eslint`(既有 `AdminConfirm` 無關)、Smarty 標籤配對過。待實測:改基本資料 + 改開放時間 → 按一次「更新」→ 兩者都存;開放時間填錯 → 只擋開放時間、基本資料表單不送。
