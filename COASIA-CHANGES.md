@@ -2791,3 +2791,41 @@ DB 值即時讀取，不用 recreate。`shawn.admin` 重新建一筆預約，LIN
 1. **正式環境 logging 無效** —— `config`/`app.env` 都指定 `logging.folder = /var/log/librebooking/log`，但這個目錄在容器裡不存在、也不是 volume，`Log` 寫不進去就默默不寫（連「建不出 log 檔」本身的例外也被吞）。結果是正式環境完全沒有可用的錯誤紀錄，任何問題都看不到。上線前必須修：建立該目錄並在 `docker-compose.prod.yml` 掛成具名 volume（或把路徑改到已存在且持久的位置），確認建立預約 / LINE 推播失敗時真的會寫檔。已列進 `COASIA-GOLIVE-CHECKLIST.md`。
 2. **`gary.admin`（user_id 122）的 `LineUserId` 是舊 `@883belmh` channel 的死值** —— 換 OA 後推給他會失敗。要他重新加 `@516khkux` 好友並重新綁定，或直接清掉那筆 `LineUserId`。上線前應該做一次「清空所有舊 channel 的 `LineUserId`、請大家重綁」。
 3. **切換過程中 `@516khkux` 的 channel secret / access token 曾出現在螢幕分享／截圖** —— 建議在 LINE Developers Console 對該 channel reissue secret 與 access token，再更新 `config.php`。舊 `@883belmh` 的憑證同樣曝光過，該 OA 棄用前也一併處理。
+
+## 89. 修正式環境 logging 無效（§88 待處理項 1）
+
+### 根因
+
+`lib/Common/Logging/Log.php` 用 Monolog 的 `StreamHandler` 寫 `<logging.folder>/app.log`（`logging.folder = /var/log/librebooking/log`，`config.php`／`app.env` 都是這個值）。Monolog 第一次寫入時才開檔，開檔前會嘗試 `mkdir` 目標目錄——但 `/var/log` 是 root 擁有、`www-data` 沒權限在底下建目錄，`mkdir` 失敗 → `StreamHandler` 丟例外 → 被 `Log::Error()` 的呼叫端吞掉。結果正式環境 `app.log` 從來沒被建出來，任何錯誤都不留紀錄（§88 的 LINE 問題就是因此完全沒有 log 可看）。
+
+開發環境沒踩到，是因為 dev 容器裡這個目錄剛好存在（`Aug 3` 建的，來源不明，可能手動 `mkdir` 過），不是 `Dockerfile.dev` 建的。
+
+### 修法
+
+- **`Dockerfile.prod`**：把 `/var/log/librebooking/log` 加進既有的 `mkdir -p` + `chown -R www-data:www-data` + `chmod -R 770` 那行，讓 image 本身就有這個目錄、且 `www-data` 可寫。
+- **`docker-compose.prod.yml`**：`app` 服務新增 `lb_prod_logs:/var/log/librebooking/log` 具名 volume（＋頂層 `volumes:` 宣告）。第一次掛載時從 image 裡那個已 chown 的目錄 seed 權限，之後 `up -d --force-recreate app` 不會弄丟 log。比照既有的 `lb_prod_uploads*` volume 寫法。
+- **`Dockerfile.dev`**：也補一行 `mkdir -p /var/log/librebooking/log && chown www-data`，讓全新 dev build 不會靜默無 log（dev 是 bind mount `.`，這個絕對路徑不受影響，不需要 volume）。
+
+`config.php` / `app.env` 的 `logging.folder` 值不動——路徑本身沒問題，問題是目錄不存在。
+
+### 部署
+
+```bash
+cd ~/coasia-booking && git pull
+docker compose -f docker-compose.prod.yml build app
+docker compose -f docker-compose.prod.yml up -d --force-recreate app
+```
+
+### 驗證
+
+```bash
+# 1. 目錄存在且 www-data 可寫
+docker compose -f docker-compose.prod.yml exec -T app sh -c \
+  'ls -ld /var/log/librebooking/log && su -s /bin/sh www-data -c "touch /var/log/librebooking/log/.w && rm /var/log/librebooking/log/.w && echo WRITABLE"'
+
+# 2. 暫時開 debug、載入登入頁、確認 app.log 有東西、再改回 error
+#    (app.env: LB_LOGGING_LEVEL=debug -> up -d --force-recreate app)
+docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/librebooking/log/app.log'
+```
+
+看到 `app.log` 有寫入 → logging 真的活了。`app.env` 記得改回 `LB_LOGGING_LEVEL=error`。

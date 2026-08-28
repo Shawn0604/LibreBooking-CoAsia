@@ -42,16 +42,20 @@
 新增首次登入 7 步驟導覽（自動跳出＋側邊欄「幫助」隨時重播）與完整使用手冊（一般使用者／管理員分區，繁中／簡中／英文三語言）。詳見 `COASIA-CHANGES.md` §71。
 
 ### 資料庫每日備份（已完成）
-**2026-08-28**：[`scripts/db-backup.sh`](scripts/db-backup.sh)（`mysqldump` 全庫 + uploads volume + 不在版控的機密設定，30 天 rolling）已設進 `shawn_admin` 的 crontab（每晚 02:30），備份寫到 Synology `CETP-SVR-NAS03`（`10.1.3.151`）的 `NetBackup/Booking_backup_from_10.1.8.32/`，走 NFS（fstab 開機自動掛）。首次手動執行成功，[`scripts/db-restore-drill.sh`](scripts/db-restore-drill.sh) 還原演練通過（`users`／`reservation_series`／`reservation_instances`／`resources`／`schedules`／`groups` 六張表筆數一致）。設定細節見 `COASIA-DEPLOYMENT.md` 十二。
+**2026-08-28**：[`scripts/db-backup.sh`](scripts/db-backup.sh)（`mysqldump` 全庫 + uploads volume + 不在版控的機密設定，30 天 rolling）已設進 `shawn_admin` 的 crontab（每晚 02:30），備份寫到 Synology `CETP-SVR-NAS03`（`10.1.3.151`）的 `NetBackup/Booking_backup_from_10.1.8.32/`，走 NFS（fstab 開機自動掛）。首次手動執行成功，[`scripts/db-restore-drill.sh`](scripts/db-restore-drill.sh) 還原演練通過（`users`／`reservation_series`／`reservation_instances`／`resources`／`schedules`／`groups` 六張表筆數一致）。備份與還原完整說明見 [`COASIA-BACKUP-RESTORE.md`](COASIA-BACKUP-RESTORE.md)。
 
 **仍待確認**：Synology Active Backup for Business 有沒有把 `BookingServer` 這台 VM 也納入 agentless VMware 備份（整機層級的第二道保險，非必要但有更好）。
+
+### 正式環境 logging 修好（fix 已 commit，待部署）
+**2026-08-28**：`Dockerfile.prod` 建好 `/var/log/librebooking/log`（chown www-data），`docker-compose.prod.yml` 加 `lb_prod_logs` 具名 volume。原本 Monolog 因為這個 root 擁有的目錄建不出來，`app.log` 從來沒被寫過（§88 的 LINE 問題就是因此完全沒 log 可看）。詳見 `COASIA-CHANGES.md` §89。
+
+**待部署**：VM 上 `git pull` → `docker compose -f docker-compose.prod.yml build app` → `up -d --force-recreate app`，然後照 §89 的驗證步驟確認 `app.log` 真的會寫。
 
 ---
 
 ## 🔴 必須解決（會直接卡住上線）
 
-### 正式環境完全沒有可用的錯誤紀錄
-排查 §88 的 LINE 通知問題時發現：`config.php`／`app.env` 都指定 `logging.folder = /var/log/librebooking/log`，但這個目錄在正式環境的 `app` 容器裡根本不存在、也不是 volume，`Log` 寫不進去就默默不寫（連「建不出 log 檔」本身的例外也被吞掉）。結果是**正式環境出任何問題都看不到**——這次 email 有、LINE 沒，靠的是逐步比對程式碼路徑＋直接查 DB 才定位，不是靠 log。全公司推廣後這樣沒有可觀測性風險太高。修法：在 `docker-compose.prod.yml` 把 log 目錄掛成具名 volume（或把路徑改到已存在且持久的位置），並實際驗證「建立預約 / LINE 推播失敗」時真的會寫檔。
+*目前無。* 資料庫備份、logging 兩個原本的硬阻擋都已處理（logging 的 fix 待部署）；AD 明文 LDAP 已評估為可接受風險（見下方 🟡）。
 
 ---
 

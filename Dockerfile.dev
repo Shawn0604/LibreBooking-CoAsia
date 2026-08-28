@@ -27,4 +27,9 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # `docker compose -f docker-compose.dev.yml restart app`.
 RUN echo 'opcache.validate_timestamps=0' > /usr/local/etc/php/conf.d/zz-opcache-dev.ini
 
+# Configured logging.folder — Monolog's StreamHandler can't mkdir under the
+# root-owned /var/log at runtime. It happens to already exist in the current
+# dev container, but bake it in so a fresh build isn't silently log-less.
+RUN mkdir -p /var/log/librebooking/log && chown -R www-data:www-data /var/log/librebooking
+
 WORKDIR /var/www/html

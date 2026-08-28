@@ -30,6 +30,11 @@ RUN composer install --no-dev --no-scripts --no-interaction --optimize-autoloade
 
 COPY . .
 
-RUN mkdir -p tpl_c uploads Web/uploads/images Web/uploads/tos var \
-    && chown -R www-data:www-data tpl_c uploads Web/uploads/images Web/uploads/tos var \
-    && chmod -R 770 tpl_c uploads Web/uploads/images Web/uploads/tos var
+# /var/log/librebooking/log is the configured logging.folder (see app.env /
+# ConfigKeys::LOGGING_FOLDER). Monolog's StreamHandler can't create it at
+# runtime because /var/log is root-owned and www-data can't mkdir there, so
+# make it here and let the lb_prod_logs volume in docker-compose.prod.yml
+# seed its permissions and keep the logs across container recreations.
+RUN mkdir -p tpl_c uploads Web/uploads/images Web/uploads/tos var /var/log/librebooking/log \
+    && chown -R www-data:www-data tpl_c uploads Web/uploads/images Web/uploads/tos var /var/log/librebooking/log \
+    && chmod -R 770 tpl_c uploads Web/uploads/images Web/uploads/tos var /var/log/librebooking/log

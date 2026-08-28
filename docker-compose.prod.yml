@@ -27,6 +27,10 @@ services:
       - lb_prod_uploads:/var/www/html/uploads
       - lb_prod_uploads_images:/var/www/html/Web/uploads/images
       - lb_prod_uploads_tos:/var/www/html/Web/uploads/tos
+      # Monolog writes app.log / sql.log here (logging.folder). Named volume so
+      # the logs survive `up -d --force-recreate app`; seeded from the
+      # www-data-owned dir baked into Dockerfile.prod.
+      - lb_prod_logs:/var/log/librebooking/log
     depends_on:
       db:
         condition: service_healthy
@@ -64,5 +68,6 @@ volumes:
   lb_prod_uploads:
   lb_prod_uploads_images:
   lb_prod_uploads_tos:
+  lb_prod_logs:
   caddy_data:
   caddy_config:
