@@ -407,7 +407,7 @@ docker stop temp-test-proxy
 
 ### 備份目的地：Synology `CETP-SVR-NAS03`（`10.1.3.151`），走 NFS
 
-**NAS 端（DSM）**：`NetBackup` 共享資料夾 → 編輯 → NFS 權限 → 新增規則：主機 `10.1.8.32`、可讀寫、Squash「將所有使用者調整為 admin」、安全性 `AUTH_SYS`、啟用非同步。控制台 → 檔案服務 → NFS 要開。掛載路徑 `/volume1/NetBackup`。備份寫進底下的 `booking-backup/` 子目錄。
+**NAS 端（DSM）**：`NetBackup` 共享資料夾 → 編輯 → NFS 權限 → 新增規則：主機 `10.1.8.32`、可讀寫、Squash「將所有使用者調整為 admin」、安全性 `AUTH_SYS`、啟用非同步。控制台 → 檔案服務 → NFS 要開。掛載路徑 `/volume1/NetBackup`。備份寫進底下的 `Booking_backup_from_10.1.8.32/` 子目錄（命名比照既有的 `Backup_from_10.1.3.69/`；腳本的 `DEST_ROOT` 預設值已對應）。
 
 **VM 端**：
 

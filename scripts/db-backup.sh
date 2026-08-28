@@ -16,7 +16,7 @@ set -euo pipefail
 PROJECT_DIR="${PROJECT_DIR:-/home/shawn_admin/coasia-booking}"
 COMPOSE="$PROJECT_DIR/docker-compose.prod.yml"
 NAS_MOUNT="${NAS_MOUNT:-/mnt/nas-booking}"
-DEST_ROOT="${DEST_ROOT:-$NAS_MOUNT/booking-backup}"
+DEST_ROOT="${DEST_ROOT:-$NAS_MOUNT/Booking_backup_from_10.1.8.32}"
 DB_NAME="${DB_NAME:-librebooking}"
 KEEP_DAYS="${KEEP_DAYS:-30}"
 

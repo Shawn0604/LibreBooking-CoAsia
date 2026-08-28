@@ -16,7 +16,7 @@ PROJECT_DIR="${PROJECT_DIR:-/home/shawn_admin/coasia-booking}"
 COMPOSE="$PROJECT_DIR/docker-compose.prod.yml"
 SRC_DB="${SRC_DB:-librebooking}"
 TEST_DB="${TEST_DB:-librebooking_restore_test}"
-DEST_ROOT="${DEST_ROOT:-/mnt/nas-booking/booking-backup}"
+DEST_ROOT="${DEST_ROOT:-/mnt/nas-booking/Booking_backup_from_10.1.8.32}"
 
 DUMP="${1:-$(ls -t "$DEST_ROOT"/*/"${SRC_DB}"-*.sql.gz 2>/dev/null | head -1 || true)}"
 [ -n "$DUMP" ] && [ -f "$DUMP" ] || { echo "找不到備份檔:$DUMP"; exit 1; }
