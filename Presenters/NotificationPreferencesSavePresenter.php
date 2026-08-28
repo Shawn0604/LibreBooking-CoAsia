@@ -16,6 +16,11 @@ interface INotificationPreferencesSavePage
     public function GetEnabled();
 
     /**
+     * @return int
+     */
+    public function GetReminderMinutes();
+
+    /**
      * @param array $state
      */
     public function SetSuccessResponse($state);
@@ -31,6 +36,7 @@ class NotificationPreferencesSavePresenter
     public const ACTION_EMAIL = 'email';
     public const ACTION_LINE_NOTIFICATIONS = 'lineNotifications';
     public const ACTION_LINE_UNLINK = 'lineUnlink';
+    public const ACTION_RESERVATION_START_REMINDER = 'reservationStartReminder';
 
     /**
      * @var INotificationPreferencesSavePage
@@ -70,6 +76,13 @@ class NotificationPreferencesSavePresenter
                 break;
             case self::ACTION_LINE_UNLINK:
                 $this->service->UnlinkLine($user);
+                break;
+            case self::ACTION_RESERVATION_START_REMINDER:
+                // enabled off -> 0; enabled on -> the submitted minute count
+                $this->service->SaveReservationStartReminder(
+                    $user,
+                    $this->page->GetEnabled() ? $this->page->GetReminderMinutes() : 0
+                );
                 break;
             default:
                 $this->page->SetErrorResponse('Invalid action');

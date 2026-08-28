@@ -1,6 +1,8 @@
 <?php
 
 require_once(ROOT_DIR . 'lib/Application/Reservation/namespace.php');
+require_once(ROOT_DIR . 'Domain/Access/namespace.php');
+require_once(ROOT_DIR . 'Domain/Values/UserPreferences.php');
 
 interface IReservationSavePresenter
 {
@@ -60,6 +62,11 @@ class ReservationSavePresenter implements IReservationSavePresenter
      */
     private $idempotencyService;
 
+    /**
+     * @var IUserRepository
+     */
+    private $userRepository;
+
     public function __construct(
         IReservationSavePage $page,
         IReservationPersistenceService $persistenceService,
@@ -68,7 +75,8 @@ class ReservationSavePresenter implements IReservationSavePresenter
         IScheduleRepository $scheduleRepository,
         UserSession $userSession,
         IAttributeRepository $attributeRepository,
-        IIdempotencyService $idempotencyService
+        IIdempotencyService $idempotencyService,
+        ?IUserRepository $userRepository = null
     ) {
         $this->page = $page;
         $this->persistenceService = $persistenceService;
@@ -78,6 +86,7 @@ class ReservationSavePresenter implements IReservationSavePresenter
         $this->userSession = $userSession;
         $this->attributeRepository = $attributeRepository;
         $this->idempotencyService = $idempotencyService;
+        $this->userRepository = $userRepository ?? new UserRepository();
     }
 
     public function BuildReservation()
@@ -138,15 +147,18 @@ class ReservationSavePresenter implements IReservationSavePresenter
         if ($this->page->HasStartReminder()) {
             $reservationSeries->AddStartReminder(new ReservationReminder($this->page->GetStartReminderValue(), $this->page->GetStartReminderInterval()));
         } else {
-            // CoAsia: fall back to the configured default start reminder when the request
-            // carried no reminder fields at all (e.g. the REST API, or an older client).
-            // The calendar quick-create dialog and the full form both send explicit
-            // reminder fields the user can see and change.
-            $default = ReservationReminder::FromConfigInterval(
-                Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_REMINDER_DEFAULT_START)
-            );
-            if ($default !== null) {
-                $reservationSeries->AddStartReminder($default);
+            // No reminder in the request (quick-create dialog has no reminder field; the
+            // full form's section may be left untouched). Apply the reservation owner's
+            // personal "開始前提醒" preference from 通知設定; if they haven't set one, fall
+            // back to the site-wide configured default.
+            $reminder = $this->OwnerStartReminderPreference($reservationSeries->UserId());
+            if ($reminder === null) {
+                $reminder = ReservationReminder::FromConfigInterval(
+                    Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_REMINDER_DEFAULT_START)
+                );
+            }
+            if ($reminder !== null) {
+                $reservationSeries->AddStartReminder($reminder);
             }
         }
 
@@ -162,6 +174,23 @@ class ReservationSavePresenter implements IReservationSavePresenter
         $reservationSeries->AcceptTerms($this->page->GetTermsOfServiceAcknowledgement());
 
         return $reservationSeries;
+    }
+
+    /**
+     * The reservation owner's "開始前提醒" preference (通知設定), or null when they haven't
+     * enabled one. Stored as a plain minute count; '0'/unset = off.
+     *
+     * @param int $ownerId
+     * @return ReservationReminder|null
+     */
+    private function OwnerStartReminderPreference($ownerId)
+    {
+        if (empty($ownerId)) {
+            return null;
+        }
+        $owner = $this->userRepository->LoadById($ownerId);
+        $minutes = (int)$owner->GetPreferences()->Get(UserPreferences::RESERVATION_START_REMINDER_MINUTES);
+        return $minutes > 0 ? ReservationReminder::FromMinutes($minutes) : null;
     }
 
     /**

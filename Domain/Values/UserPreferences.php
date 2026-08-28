@@ -24,6 +24,10 @@ class UserPreferences
     // Same "unset means enabled" semantics as LINE_NOTIFICATIONS_ENABLED — only an explicit
     // '0' turns WeCom pushes off for a user who otherwise has a WecomUserId set.
     public const WECOM_NOTIFICATIONS_ENABLED = 'WecomNotificationsEnabled';
+    // "開始前提醒" -- minutes before a reservation starts to fire a reminder, set by the user
+    // on 通知設定 and applied to every reservation they create (ReservationSavePresenter).
+    // '0'/unset = off. Stored as a plain minute count.
+    public const RESERVATION_START_REMINDER_MINUTES = 'ReservationStartReminderMinutes';
 
     private $preferences = [];
     private $changed = [];

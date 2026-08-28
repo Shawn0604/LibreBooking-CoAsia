@@ -765,32 +765,12 @@ $(function () {
         $('#qcStartDate').val(startDate);
         $('#qcError').addClass('d-none').empty();
         $('#qcTimeError').addClass('d-none').empty();
-        resetQuickCreateReminder();
         refreshTimeUI();
         refreshResourceUI();
         qcParticipantPicker.reset();
         quickCreateModal.show();
         setTimeout(function () { $('#qcTitle').trigger('focus'); }, 200);
     }
-
-    // Quick-create "開始前提醒" control: reset to the configured default on each open,
-    // grey the number/unit out when unchecked.
-    function syncQuickCreateReminderFields() {
-        var on = $('#qcReminderEnabled').is(':checked');
-        $('#qcReminderFields').find('input, select').prop('disabled', !on);
-        $('#qcReminderFields').toggleClass('opacity-50', !on);
-    }
-    function resetQuickCreateReminder() {
-        if (!opts.remindersEnabled) {
-            return;
-        }
-        var d = opts.defaultStartReminder || { value: 15, interval: 'minutes', checked: false };
-        $('#qcReminderEnabled').prop('checked', !!d.checked);
-        $('#qcReminderTime').val(d.value);
-        $('#qcReminderInterval').val(d.interval);
-        syncQuickCreateReminderFields();
-    }
-    $('#qcReminderEnabled').on('change', syncQuickCreateReminderFields);
 
     $('#qcStartDate').on('change', function () {
         pending.startDate = $(this).val();
@@ -1591,17 +1571,8 @@ $(function () {
         qcParticipantPicker.getParticipants().forEach(function (p) {
             body.append(p.type === 'external' ? 'guestParticipationList[]' : 'participantList[]', p.type === 'external' ? p.email : p.id);
         });
-
-        // 開始前提醒 -- same FormKeys the full reservation form posts; ReservationSavePage
-        // reads START_REMINDER_ENABLED / _TIME / _INTERVAL.
-        if (opts.remindersEnabled && $('#qcReminderEnabled').is(':checked')) {
-            var reminderMinutes = parseInt($('#qcReminderTime').val(), 10);
-            if (reminderMinutes > 0) {
-                body.set('START_REMINDER_ENABLED', '1');
-                body.set('START_REMINDER_TIME', String(reminderMinutes));
-                body.set('START_REMINDER_INTERVAL', $('#qcReminderInterval').val());
-            }
-        }
+        // "開始前提醒" is a per-user setting on 通知設定, applied server-side
+        // (ReservationSavePresenter) -- the quick-create dialog carries no reminder field.
 
         fetch(opts.saveUrl, {
             method: 'POST',

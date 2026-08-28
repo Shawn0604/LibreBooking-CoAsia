@@ -70,7 +70,7 @@ class ReservationPresenterFactory implements IReservationPresenterFactory
 
         $idempotencyService = new IdempotencyService(ServiceLocator::GetDatabase());
 
-        return new ReservationSavePresenter($savePage, $persistenceService, $handler, $resourceRepository, $scheduleRepository, $userSession, $attributeRepository, $idempotencyService);
+        return new ReservationSavePresenter($savePage, $persistenceService, $handler, $resourceRepository, $scheduleRepository, $userSession, $attributeRepository, $idempotencyService, new UserRepository());
     }
 
     public function Update(IReservationUpdatePage $updatePage, UserSession $userSession)

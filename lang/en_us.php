@@ -349,6 +349,9 @@ class en_us extends Language
         $strings['NotificationPreferencesIntro'] = 'Choose which reservation activity sends you an email.';
         $strings['EmailNotificationsToggleLabel'] = 'Receive email notifications';
         $strings['EmailNotificationsToggleDescription'] = 'Includes full reservation records and calendar attachments';
+        $strings['ReservationReminders'] = 'Reservation Reminders';
+        $strings['StartReminderToggleLabel'] = 'Remind me before a reservation starts';
+        $strings['StartReminderToggleDescription'] = 'Every reservation you create gets a reminder this far before its start time.';
         $strings['ReservationCreated'] = 'Your reservation was successfully created!';
         $strings['ReservationUpdated'] = 'Your reservation was successfully updated!';
         $strings['ReservationRemoved'] = 'Your reservation was removed';

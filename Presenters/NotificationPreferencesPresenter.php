@@ -91,6 +91,19 @@ class NotificationPreferencesService
     }
 
     /**
+     * "開始前提醒" — minutes before a reservation starts. 0 = off. Applied to every
+     * reservation this user creates (ReservationSavePresenter).
+     *
+     * @param User $user
+     * @param int $minutes
+     */
+    public function SaveReservationStartReminder(User $user, $minutes)
+    {
+        $user->ChangePreference(UserPreferences::RESERVATION_START_REMINDER_MINUTES, (string)max(0, (int)$minutes));
+        $this->userRepository->Update($user);
+    }
+
+    /**
      * @param User $user
      * @return array
      */
@@ -100,6 +113,7 @@ class NotificationPreferencesService
             [
                 'emailEnabled' => Configuration::Instance()->GetKey(ConfigKeys::EMAIL_ENABLED, new BooleanConverter()),
                 'emailNotificationsEnabled' => $this->AllEmailEventsEnabled($user),
+                'reservationStartReminderMinutes' => (int)$user->GetPreferences()->Get(UserPreferences::RESERVATION_START_REMINDER_MINUTES),
             ],
             $this->ComputeLineState($user)
         );
@@ -204,6 +218,9 @@ class NotificationPreferencesPresenter
 
         $this->page->SetEmailEnabled(Configuration::Instance()->GetKey(ConfigKeys::EMAIL_ENABLED, new BooleanConverter()));
         $this->page->SetEmailNotificationsEnabled($this->service->AllEmailEventsEnabled($user));
+
+        $this->page->SetRemindersEnabled(Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_REMINDERS_ENABLED, new BooleanConverter()));
+        $this->page->SetReservationStartReminderMinutes((int)$user->GetPreferences()->Get(UserPreferences::RESERVATION_START_REMINDER_MINUTES));
 
         $lineState = $this->service->ComputeLineState($user);
         $this->page->SetLineEnabled($lineState['lineEnabled']);

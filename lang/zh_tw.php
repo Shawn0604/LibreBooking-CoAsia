@@ -372,6 +372,9 @@ class zh_tw extends en_us
         $strings['NotificationPreferencesIntro'] = '選擇哪些預約異動要用電子郵件通知你。';
         $strings['EmailNotificationsToggleLabel'] = '接收 Email 通知';
         $strings['EmailNotificationsToggleDescription'] = '接收完整預約紀錄與行事曆附件';
+        $strings['ReservationReminders'] = '預約提醒';
+        $strings['StartReminderToggleLabel'] = '會議開始前提醒我';
+        $strings['StartReminderToggleDescription'] = '你之後建立的每筆預約,都會在開始前這個時間自動提醒。';
         $strings['ReservationCreated'] = '您的預約已成功建立！';
         $strings['ReservationUpdated'] = '您的預約已成功更新！';
         $strings['ReservationRemoved'] = '您的預約已刪除';

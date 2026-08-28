@@ -37,6 +37,39 @@
         </section>
     {/if}
 
+    {if $RemindersEnabled}
+        <section class="np-card">
+            <h2 class="np-card-title">{translate key=ReservationReminders}</h2>
+
+            <label class="np-row" for="reservationStartReminderEnabled">
+                <span class="np-row-icon"><i class="bi bi-alarm"></i></span>
+                <span class="np-row-text">
+                    <span class="np-row-label">{translate key=StartReminderToggleLabel}</span>
+                    <span class="np-row-desc">{translate key=StartReminderToggleDescription}</span>
+                </span>
+                <span class="form-check form-switch np-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="reservationStartReminderEnabled"
+                        {if $ReservationStartReminderMinutes > 0}checked="checked"{/if}>
+                    <span class="visually-hidden">{translate key=StartReminderToggleLabel}</span>
+                </span>
+            </label>
+
+            <div class="np-row np-row-sub" id="reservationStartReminderFields">
+                <span class="np-row-icon"></span>
+                <span class="np-row-text d-flex align-items-center gap-2">
+                    <input type="number" min="1" max="999" id="reservationStartReminderValue"
+                        class="form-control form-control-sm" style="width:5rem" value="{$ReservationReminderValue}">
+                    <select id="reservationStartReminderUnit" class="form-select form-select-sm" style="width:auto">
+                        <option value="minutes" {if $ReservationReminderUnit eq 'minutes'}selected{/if}>{translate key=minutes}</option>
+                        <option value="hours" {if $ReservationReminderUnit eq 'hours'}selected{/if}>{translate key=hours}</option>
+                        <option value="days" {if $ReservationReminderUnit eq 'days'}selected{/if}>{translate key=days}</option>
+                    </select>
+                    <span class="np-row-desc">{translate key=ReminderBeforeStart}</span>
+                </span>
+            </div>
+        </section>
+    {/if}
+
     {if $LineEnabled}
         <section class="np-card">
             <h2 class="np-card-title">{translate key=LineNotifications}</h2>

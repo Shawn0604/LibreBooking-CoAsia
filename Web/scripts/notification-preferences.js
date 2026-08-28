@@ -99,6 +99,48 @@ $(function () {
             });
     });
 
+    // "開始前提醒" — a personal setting applied to every reservation this user creates.
+    if ($('#reservationStartReminderEnabled').length) {
+        var reminderMinutes = function () {
+            var v = Math.max(1, parseInt($('#reservationStartReminderValue').val(), 10) || 1);
+            var unit = $('#reservationStartReminderUnit').val();
+            return unit === 'days' ? v * 1440 : unit === 'hours' ? v * 60 : v;
+        };
+        var syncReminderFields = function () {
+            var on = $('#reservationStartReminderEnabled').is(':checked');
+            $('#reservationStartReminderFields').find('input, select').prop('disabled', !on);
+            $('#reservationStartReminderFields').toggleClass('np-row-disabled', !on);
+        };
+        var saveReminder = function () {
+            var on = $('#reservationStartReminderEnabled').is(':checked');
+            var body = new URLSearchParams();
+            body.set('action', 'reservationStartReminder');
+            body.set('enabled', on ? '1' : '0');
+            body.set('minutes', String(reminderMinutes()));
+            post(opts.saveUrl, body)
+                .then(function (json) {
+                    if (json && json.success) {
+                        window.showToastById('notificationPreferencesSavedToast');
+                    } else {
+                        showError((json && json.errors && json.errors[0]) || null);
+                    }
+                })
+                .catch(function () {
+                    showError();
+                });
+        };
+        $('#reservationStartReminderEnabled').on('change', function () {
+            syncReminderFields();
+            saveReminder();
+        });
+        $('#reservationStartReminderValue, #reservationStartReminderUnit').on('change', function () {
+            if ($('#reservationStartReminderEnabled').is(':checked')) {
+                saveReminder();
+            }
+        });
+        syncReminderFields();
+    }
+
     $('#lineTestNotificationBtn').on('click', function () {
         var $btn = $(this).prop('disabled', true);
         var body = new URLSearchParams();

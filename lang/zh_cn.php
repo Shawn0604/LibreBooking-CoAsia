@@ -686,6 +686,11 @@ class zh_cn extends en_us
         $strings['AdminActivityLogEmpty'] = '尚无操作记录，此功能将于串接管理员操作稽核后启用。';
         $strings['ForgotPassword'] = '忘了密码';
         $strings['NotificationPreferences'] = '通知设定';
+        $strings['ReservationReminders'] = '预约提醒';
+        $strings['StartReminderToggleLabel'] = '会议开始前提醒我';
+        $strings['StartReminderToggleDescription'] = '你之后建立的每笔预约,都会在开始前这个时间自动提醒。';
+        $strings['ReminderBeforeStart'] = '开始时间之前';
+        $strings['SendReminder'] = '发出提醒';
         $strings['ManageAnnouncements'] = '通告';
         $strings['Responsibilities'] = '主要职责';
         $strings['GroupReservations'] = '群组预约';

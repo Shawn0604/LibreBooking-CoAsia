@@ -32,6 +32,11 @@ class NotificationPreferencesSavePage extends SecurePage implements INotificatio
         return $this->GetForm('enabled') === '1';
     }
 
+    public function GetReminderMinutes()
+    {
+        return max(0, (int)$this->GetForm('minutes'));
+    }
+
     public function SetSuccessResponse($state)
     {
         $this->SetJson(array_merge(['success' => true], $state));

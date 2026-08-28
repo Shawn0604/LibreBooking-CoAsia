@@ -44,6 +44,16 @@ interface INotificationPreferencesPage extends IPage
      * @param string $dataUri
      */
     public function SetLineQrDataUri($dataUri);
+
+    /**
+     * @param bool $enabled site-wide reservation.reminders.enabled
+     */
+    public function SetRemindersEnabled($enabled);
+
+    /**
+     * @param int $minutes 0 = off
+     */
+    public function SetReservationStartReminderMinutes($minutes);
 }
 
 class NotificationPreferencesPage extends SecurePage implements INotificationPreferencesPage
@@ -103,5 +113,29 @@ class NotificationPreferencesPage extends SecurePage implements INotificationPre
     public function SetLineQrDataUri($dataUri)
     {
         $this->Set('LineQrDataUri', $dataUri);
+    }
+
+    public function SetRemindersEnabled($enabled)
+    {
+        $this->Set('RemindersEnabled', $enabled);
+    }
+
+    public function SetReservationStartReminderMinutes($minutes)
+    {
+        $minutes = (int)$minutes;
+        $this->Set('ReservationStartReminderMinutes', $minutes);
+
+        // Split into number + unit for the two fields. Default 15 minutes when off, so
+        // toggling it on shows a sensible starting value.
+        if ($minutes > 0 && $minutes % 1440 === 0) {
+            $this->Set('ReservationReminderValue', $minutes / 1440);
+            $this->Set('ReservationReminderUnit', 'days');
+        } elseif ($minutes > 0 && $minutes % 60 === 0) {
+            $this->Set('ReservationReminderValue', $minutes / 60);
+            $this->Set('ReservationReminderUnit', 'hours');
+        } else {
+            $this->Set('ReservationReminderValue', $minutes > 0 ? $minutes : 15);
+            $this->Set('ReservationReminderUnit', 'minutes');
+        }
     }
 }

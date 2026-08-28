@@ -91,6 +91,17 @@
   color: var(--np-text-secondary);
 }
 
+/* sub-row under a toggle (e.g. 開始前提醒 的分鐘數) -- not itself clickable, indented
+   under the switch above it, dimmed while the toggle is off. */
+#page-notification-preferences .np-row-sub {
+  cursor: default;
+  padding-top: 0;
+}
+
+#page-notification-preferences .np-row-sub.np-row-disabled {
+  opacity: 0.45;
+}
+
 #page-notification-preferences .np-switch {
   flex-shrink: 0;
   margin: 0;

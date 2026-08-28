@@ -43,6 +43,11 @@ class ReservationSavePresenterTest extends TestBase
 
     private IIdempotencyService&\PHPUnit\Framework\MockObject\MockObject $idempotencyService;
 
+    /**
+     * @var FakeUserRepository
+     */
+    private $userRepo;
+
     public function setUp(): void
     {
         parent::setup();
@@ -60,6 +65,8 @@ class ReservationSavePresenterTest extends TestBase
         $this->scheduleRepository = new FakeScheduleRepository();
         $this->idempotencyService = $this->createMock('IIdempotencyService');
 
+        $this->userRepo = new FakeUserRepository();
+
         $this->presenter = new ReservationSavePresenter(
             $this->page,
             $this->persistenceService,
@@ -68,7 +75,8 @@ class ReservationSavePresenterTest extends TestBase
             $this->scheduleRepository,
             $this->fakeUser,
             $this->attributeRepository,
-            $this->idempotencyService
+            $this->idempotencyService,
+            $this->userRepo
         );
     }
 
@@ -215,6 +223,26 @@ class ReservationSavePresenterTest extends TestBase
         $reservation = $this->presenter->BuildReservation();
 
         $this->assertFalse($reservation->GetStartReminder()->Enabled());
+    }
+
+    public function testOwnerStartReminderPreferenceWinsOverConfigDefault()
+    {
+        $ownerId = 4242;
+        $this->page->userId = $ownerId;
+        $this->page->hasStartReminder = false;
+        $this->page->hasEndReminder = false;
+        $this->fakeConfig->SetKey(ConfigKeys::RESERVATION_REMINDER_DEFAULT_START, '15 minutes');
+
+        $owner = new FakeUser($ownerId);
+        $owner->GetPreferences()->Add(UserPreferences::RESERVATION_START_REMINDER_MINUTES, '60');
+        $this->userRepo->_UserById[$ownerId] = $owner;
+
+        $this->resourceRepository->method('LoadById')->willReturn(new FakeBookableResource(1, 'r1'));
+
+        $reservation = $this->presenter->BuildReservation();
+
+        $this->assertTrue($reservation->GetStartReminder()->Enabled());
+        $this->assertEquals(60, $reservation->GetStartReminder()->MinutesPrior());
     }
 
     public function testHandlingReservationCreationDelegatesToHandler()
