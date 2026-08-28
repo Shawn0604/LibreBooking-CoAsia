@@ -2978,3 +2978,28 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
   - 拿掉獨立的 `.saveResourceHours` click handler。
 
 兩件事仍是兩個獨立的 POST / endpoint,只是共用同一顆觸發按鈕。`node --check` + `eslint`(既有 `AdminConfirm` 無關)、Smarty 標籤配對過。待實測:改基本資料 + 改開放時間 → 按一次「更新」→ 兩者都存;開放時間填錯 → 只擋開放時間、基本資料表單不送。
+
+## 97. 開放時間儲存改成 manage_resources.php 自己的 action(修 §93 起就存不進去的問題)
+
+使用者實測回報「按更新沒有真的存」。§89 的 logging 修好後,`app.log` 直接指出兩個獨立的問題:
+
+### 問題 A:`resourceForm` 以 GET 送出 → 名稱存成 null
+
+`<form id="resourceForm{id}" class="resourceUpdateForm">`(§66/§83 建的實體會議室基本資料表單)**漏了 `method="post"`**,頁面上其他 form 都有。jquery-form 沒指定 method 就用 form 的 → 預設 GET。`Server::GetRawForm()` 只讀 `$_POST`,所以 `GetResourceName()` 拿到 null → `ResourceRepository::Update()` 炸 `Column 'name' cannot be null`。這個 bug 從表單建立就在,只是沒人按過「更新」;§96 把抽屜的單一按鈕接上這個表單後才浮現。修:補 `method="post"`(commit `2df06360e`)。
+
+### 問題 B:開放時間 POST 去 `manage_schedules.php?action=changeLayout` 這條 cross-page 不可靠
+
+§93 讓抽屜直接 POST 到時間表頁的 action,實測從來沒真的存進去(`app.log` 完全沒有 `changeLayout` 的紀錄)。cross-page 打另一頁的 action 有太多變數(CSRF scope、page 初始化、路由)。改成**在 `manage_resources.php` 自己開一個 action**:
+
+- `ManageResourcesActions::ActionChangeResourceHours`('changeResourceHours')+ `AddAction` 路由。
+- `ManageResourcesPresenter::ChangeResourceHours()`:讀 `scheduleId` / `timezone` / `reservableSlots_0..6` / `blockedSlots_0..6`,`ScheduleLayout::ParseDaily()` → `scheduleRepository->AddScheduleLayout()` —— 跟 `ManageSchedulesPresenter::ChangeLayout()` 一模一樣的後端動作,只是同頁服務。
+- `LoadValidators()`:對這個 action 註冊同一個 `LayoutValidator`(需求 §5「保留預約可用性驗證」)。
+- `ManageResourcesPage`:`GetLayoutTimezone()` / `GetDailyReservableSlots()` / `GetDailyBlockedSlots()` 三個 getter(比照 `ManageSchedulesPage`)。
+- `manage_resource_drawer_content.tpl`:`.resourceHoursForm` 的 `action` 改成 `manage_resources.php?action=changeResourceHours`。JS 不用動(還是 POST `form.attr('action')`)。
+
+順帶查清楚:`schedules` 表根本**沒有 `timezone` 欄位**,`Schedule::GetTimezone()` 空值時 fallback 到 `Configuration` 的預設時區,所以 timezone 一定非空,不是 bug 來源。
+
+### 驗證
+
+- `php -l` / `composer phpstan`(0 錯);`composer phpunit` 全跑跟改動前一樣(只有那 1 個既有無關失敗);Smarty 標籤配對正確。
+- **待實測**:①改基本資料按「更新」→ 名稱/狀態真的存進去(不再 GET/null)②改開放時間按「更新」→ `app.log` 有 `ChangeResourceHours: scheduleId=…`、列表摘要跟著變、Overview 那間房可預約時段跟著變 ③開放時間填不合法 → `LayoutValidator` 擋下、顯示錯誤、基本資料不送。

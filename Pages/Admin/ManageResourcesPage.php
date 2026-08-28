@@ -23,6 +23,21 @@ interface IUpdateResourcePage
     /**
      * @return string
      */
+    public function GetLayoutTimezone();
+
+    /**
+     * @return string[] reservable slot strings keyed 0(Sun)..6(Sat)
+     */
+    public function GetDailyReservableSlots();
+
+    /**
+     * @return string[] blocked slot strings keyed 0(Sun)..6(Sat)
+     */
+    public function GetDailyBlockedSlots();
+
+    /**
+     * @return string
+     */
     public function GetResourceName();
 
     /**
@@ -625,6 +640,29 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
     public function GetScheduleId()
     {
         return $this->GetForm(FormKeys::SCHEDULE_ID);
+    }
+
+    public function GetLayoutTimezone()
+    {
+        return $this->GetForm(FormKeys::TIMEZONE);
+    }
+
+    public function GetDailyReservableSlots()
+    {
+        $slots = [];
+        for ($day = 0; $day <= 6; $day++) {
+            $slots[$day] = $this->GetForm(FormKeys::SLOTS_RESERVABLE . "_$day");
+        }
+        return $slots;
+    }
+
+    public function GetDailyBlockedSlots()
+    {
+        $slots = [];
+        for ($day = 0; $day <= 6; $day++) {
+            $slots[$day] = $this->GetForm(FormKeys::SLOTS_BLOCKED . "_$day");
+        }
+        return $slots;
     }
 
     public function GetValue()

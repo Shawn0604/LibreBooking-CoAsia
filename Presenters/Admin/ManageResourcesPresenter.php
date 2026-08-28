@@ -47,6 +47,7 @@ class ManageResourcesActions
     public const ActionChangeGroupPermission = 'changeGroupPermission';
     public const ActionBulkDelete = 'bulkDelete';
     public const ActionUpdateResourceInfo = 'updateResourceInfo';
+    public const ActionChangeResourceHours = 'changeResourceHours';
 }
 
 class ManageResourcesPresenter extends ActionPresenter
@@ -151,6 +152,7 @@ class ManageResourcesPresenter extends ActionPresenter
         $this->AddAction(ManageResourcesActions::ActionChangeUserPermission, 'ChangeUserPermission');
         $this->AddAction(ManageResourcesActions::ActionBulkDelete, 'BulkDelete');
         $this->AddAction(ManageResourcesActions::ActionUpdateResourceInfo, 'UpdateResourceInfo');
+        $this->AddAction(ManageResourcesActions::ActionChangeResourceHours, 'ChangeResourceHours');
     }
 
     public function PageLoad()
@@ -614,6 +616,25 @@ class ManageResourcesPresenter extends ActionPresenter
                 $this->page->GetVideoHostPassword()
             );
         }
+    }
+
+    /**
+     * Persists the weekly open hours edited inline in the resource drawer (§93/§96). Same
+     * effect as ManageSchedulesPresenter::ChangeLayout() -- ScheduleLayout::ParseDaily +
+     * AddScheduleLayout -- but served from manage_resources.php so the drawer never has to
+     * POST cross-page. Validation is the shared LayoutValidator (see LoadValidators()).
+     */
+    public function ChangeResourceHours()
+    {
+        $scheduleId = $this->page->GetScheduleId();
+        $timezone = $this->page->GetLayoutTimezone();
+        $reservableSlots = $this->page->GetDailyReservableSlots();
+        $blockedSlots = $this->page->GetDailyBlockedSlots();
+
+        Log::Debug('ChangeResourceHours: scheduleId=%s, timezone=%s', $scheduleId, $timezone);
+
+        $layout = ScheduleLayout::ParseDaily($timezone, $reservableSlots, $blockedSlots);
+        $this->scheduleRepository->AddScheduleLayout($scheduleId, $layout);
     }
 
     public function ChangeSchedule()
@@ -1242,6 +1263,13 @@ class ManageResourcesPresenter extends ActionPresenter
 
         if ($action == ManageResourcesActions::ImportResources) {
             $this->page->RegisterValidator('fileExtensionValidator', new FileExtensionValidator('csv', $this->page->GetImportFile()));
+        }
+
+        if ($action == ManageResourcesActions::ActionChangeResourceHours) {
+            $this->page->RegisterValidator(
+                'layoutValidator',
+                new LayoutValidator($this->page->GetDailyReservableSlots(), $this->page->GetDailyBlockedSlots(), false)
+            );
         }
     }
 

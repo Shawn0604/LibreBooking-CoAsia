@@ -648,7 +648,7 @@
 						<div class="resourceHoursError error text-danger d-none mt-2"></div>
 
 						<form class="resourceHoursForm d-none" method="post"
-							action="manage_schedules.php?action=changeLayout">
+							action="manage_resources.php?action=changeResourceHours">
 							<input type="hidden" name="{FormKeys::SCHEDULE_ID}" value="{$schedId}" />
 							<input type="hidden" name="{FormKeys::USING_SINGLE_LAYOUT}" value="" />
 							<input type="hidden" name="{FormKeys::TIMEZONE}"
