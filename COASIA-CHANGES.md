@@ -2933,3 +2933,13 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 ### 之後
 
 清掉那 21 個同名/複製產生的時間表(每個資源自己編輯後,同名時間表只是雜訊)。`manage_schedules.php` 頁面本身還留著(不在導覽),之後確認完全沒人需要再評估要不要整支移除。
+
+## 94. 會議室列表直接顯示每週開放時間(承 §93)
+
+使用者:「我希望每週開放時間直接在這邊顯示出來,而不是做一個連結,這樣誰會知道」。§93 把編輯器放進抽屜,但列表上看不到,不夠「整合」。
+
+- `tpl/Admin/Resources/manage_resources.tpl`:列表新增「每週開放時間」欄(在「資源類型」與「狀態」之間),用跟時間表頁列表同一套 星期 chip(週日→週六,開放的那天亮色、hover 顯示時段),資料取自 §93 已經綁好的 `$ScheduleLayouts[$resource->GetScheduleId()]`。空的結果列 colspan 5→6。
+- `Pages/Admin/ManageResourcesPage.php`:`BindScheduleLayouts()` 多綁一個 `DayAbbr`(chip 用的星期縮寫)。
+- chip 的 CSS(`.admin-schedule-day-chip`)在 `Web/css/admin.css`,所有 admin 頁面共用,不需要另外載。
+
+一眼就能在列表看到每間房的開放時間;點「編輯」進抽屜就地改(§93)。`php -l` / Smarty 標籤配對過;沒有動 PHP 邏輯(只多綁一個 view 變數)。待使用者登入確認 chip 顯示正確、跟抽屜裡的值一致。

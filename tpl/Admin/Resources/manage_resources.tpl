@@ -111,6 +111,7 @@
 						<th>{translate key="Location"}</th>
 						<th>{translate key="Resource"}</th>
 						<th>{translate key="ResourceType"}</th>
+						<th>{translate key="AdminScheduleWeeklyHours"}</th>
 						<th>{translate key="Status"}</th>
 						<th class="text-end">{translate key=Actions}</th>
 					</tr>
@@ -132,6 +133,32 @@
 									{$ResourceTypes[$resource->GetResourceTypeId()]->Name()}
 								{else}
 									<span class="admin-cell-secondary">{translate key='NoResourceTypeLabel'}</span>
+								{/if}
+							</td>
+							<td>
+								{assign var=rowLayout value=$ScheduleLayouts[$resource->GetScheduleId()]|default:null}
+								{if $rowLayout}
+									<div class="d-flex flex-wrap gap-1">
+										{assign var=rowUsesDaily value=$rowLayout->UsesDailyLayouts()}
+										{if !$rowUsesDaily}{assign var=rowSingleSlots value=$rowLayout->GetSlots()}{/if}
+										{foreach from=DayOfWeek::Days() item=chipDay}
+											{assign var=chipOpen value=false}
+											{assign var=chipStart value=""}
+											{assign var=chipEnd value=""}
+											{if $rowUsesDaily}{assign var=chipSlots value=$rowLayout->GetSlots($chipDay)}{else}{assign var=chipSlots value=$rowSingleSlots}{/if}
+											{foreach from=$chipSlots item=chipPeriod}
+												{if $chipPeriod->IsReservable()}
+													{assign var=chipOpen value=true}
+													{if $chipStart == ""}{assign var=chipStart value=$chipPeriod->Start->Format("H:i")}{/if}
+													{assign var=chipEnd value=$chipPeriod->End->Format("H:i")}
+												{/if}
+											{/foreach}
+											<span class="admin-schedule-day-chip{if $chipOpen} admin-schedule-day-chip-open{/if}"
+												title="{$DayNames[$chipDay]}{if $chipOpen} {$chipStart}-{$chipEnd}{else} {translate key=AdminScheduleClosed}{/if}">{$DayAbbr[$chipDay]}</span>
+										{/foreach}
+									</div>
+								{else}
+									<span class="admin-cell-secondary">&mdash;</span>
 								{/if}
 							</td>
 							<td>
@@ -164,7 +191,7 @@
 						</tr>
 					{foreachelse}
 						<tr>
-							<td colspan="5" class="admin-empty">{translate key=AdminResourceNoResults}</td>
+							<td colspan="6" class="admin-empty">{translate key=AdminResourceNoResults}</td>
 						</tr>
 					{/foreach}
 				</tbody>

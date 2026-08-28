@@ -602,6 +602,7 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
         $this->Set('ScheduleLayouts', $layouts);
         $this->Set('ScheduleTimezones', $timezones);
         $this->Set('DayNames', Resources::GetInstance()->GetDays('full'));
+        $this->Set('DayAbbr', Resources::GetInstance()->GetDays('abbr'));
     }
 
     public function ProcessAction()
