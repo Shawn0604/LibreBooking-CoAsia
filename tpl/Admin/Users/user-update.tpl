@@ -118,26 +118,6 @@
 			</div>
 		</div>
 
-		<div class="col-sm-12 col-md-6">
-			<div class="form-group">
-				<div class="form-check">
-					<input type="checkbox" {formname key=IS_LOCAL_AUTH_ONLY} id="isLocalAuthOnly"
-						{if $User->IsLocalAuthOnly()}checked="checked" {/if} class="form-check-input" />
-					<label for="isLocalAuthOnly" class="form-check-label">{translate key="AdminUserLocalAuthOnly"}</label>
-				</div>
-				<div class="form-text">{translate key="AdminUserLocalAuthOnlyHint"}</div>
-			</div>
-		</div>
-
-		<div class="col-sm-12 col-md-6">
-			<div class="form-group">
-				<label class="fw-bold" for="localPassword">{translate key="AdminUserLocalPassword"}</label>
-				<input type="password" {formname key="PASSWORD"} class="form-control" id="localPassword"
-					autocomplete="new-password" value="" />
-				<div class="form-text">{translate key="AdminUserLocalPasswordHint"}</div>
-			</div>
-		</div>
-
 		{foreach from=$Attributes item=attribute}
 			<div class="col-sm-12 col-md-6">
 				{control type="AttributeControl" attribute=$attribute value={$User->GetAttributeValue($attribute->Id())} }

@@ -305,24 +305,14 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
             $this->GetAttributeValues()
         );
 
-        $this->ApplyLocalAuthOnly($this->page->GetUserId(), $this->page->GetIsLocalAuthOnly());
         $this->ApplyWeComUserId($this->page->GetUserId(), $this->page->GetWeComUserId());
-
-        // Optional local/emergency password, set from the same edit form as the
-        // "本機專屬登入" flag so a break-glass account can be flagged and given a
-        // known local password in one save. Blank means "leave unchanged".
-        // ManageUsersService::UpdatePassword() re-checks IsAdmin itself.
-        $newPassword = $this->page->GetPassword();
-        if (!empty($newPassword)) {
-            $this->manageUsersService->UpdatePassword($this->page->GetUserId(), $newPassword);
-        }
     }
 
     /**
      * WeCom (企業微信) recipient id -- an administrator-entered value, stored as a user
      * preference (like LineUserId) rather than a user attribute, so it takes its own
-     * load/mutate/update pass just like ApplyLocalAuthOnly() rather than riding in the
-     * $extraAttributes bag.
+     * load/mutate/update pass rather than riding in the $extraAttributes bag those other
+     * free-text fields (phone/organization/position/department) go through.
      *
      * @param int $userId
      * @param string $wecomUserId
@@ -331,25 +321,6 @@ class ManageUsersPresenter extends ActionPresenter implements IManageUsersPresen
     {
         $user = $this->userRepository->LoadById($userId);
         $user->ChangePreference(UserPreferences::WECOM_USER_ID, trim((string) $wecomUserId));
-        $this->userRepository->Update($user);
-    }
-
-    /**
-     * "本機專屬登入" -- exempts this one account from the ActiveDirectory plugin, so it can still
-     * authenticate with a local password even during an AD outage (see
-     * plugins/Authentication/ActiveDirectory/ActiveDirectory.php::Validate()). Meant for a small
-     * handful of emergency admin accounts. A separate load/mutate/update from
-     * ManageUsersService::UpdateUser() above -- this flag isn't part of the generic
-     * $extraAttributes bag those other free-text fields (phone/organization/position/
-     * department) go through.
-     *
-     * @param int $userId
-     * @param bool $isLocalAuthOnly
-     */
-    private function ApplyLocalAuthOnly($userId, $isLocalAuthOnly)
-    {
-        $user = $this->userRepository->LoadById($userId);
-        $user->ChangeIsLocalAuthOnly($isLocalAuthOnly);
         $this->userRepository->Update($user);
     }
 

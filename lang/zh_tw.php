@@ -794,10 +794,6 @@ class zh_tw extends en_us
         $strings['AdminUserCurrentGroups'] = '所屬群組';
         $strings['GoToGroupManagement'] = '前往群組管理';
         $strings['AdminUserRoleManagedInGroups'] = '系統管理員權限與群組成員資格改在群組管理設定。';
-        $strings['AdminUserLocalAuthOnly'] = '本機專屬登入（緊急管理員）';
-        $strings['AdminUserLocalAuthOnlyHint'] = '勾選後這個帳號永遠不會透過 AD 驗證，只能用本機密碼登入，即使 AD 故障也不受影響。僅限少數緊急備援帳號使用。';
-        $strings['AdminUserLocalPassword'] = '本機密碼';
-        $strings['AdminUserLocalPasswordHint'] = '設定這個帳號的本機密碼（勾選「本機專屬登入」時使用，或作為 AD 故障時的破窗登入）。留空表示不變更現有密碼。';
         $strings['AdminUserSortBy'] = '排序方式';
         $strings['AdminUserSortNameAsc'] = '姓名 A-Z';
         $strings['AdminUserSortNameDesc'] = '姓名 Z-A';

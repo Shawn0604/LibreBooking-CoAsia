@@ -451,42 +451,6 @@ class ManageUsersPresenterTest extends TestBase
         $this->presenter->UpdateUser();
     }
 
-    public function testUpdateUserSetsLocalPasswordWhenOneIsProvided()
-    {
-        $userId = 4242;
-        $this->page->_UserId = $userId;
-        $this->page->_UserName = 'un';
-        $this->page->_Email = 'e@mail.com';
-        $this->page->_FirstName = 'f';
-        $this->page->_LastName = 'l';
-        $this->page->_Timezone = 'America/Chicago';
-        $this->page->_Password = 'break-glass-pw';
-
-        $this->manageUsersService->expects($this->once())->method('UpdateUser')->willReturn(new FakeUser($userId));
-        $this->manageUsersService->expects($this->once())
-                                 ->method('UpdatePassword')
-                                 ->with($this->equalTo($userId), $this->equalTo('break-glass-pw'));
-
-        $this->presenter->UpdateUser();
-    }
-
-    public function testUpdateUserLeavesPasswordUnchangedWhenBlank()
-    {
-        $userId = 4243;
-        $this->page->_UserId = $userId;
-        $this->page->_UserName = 'un';
-        $this->page->_Email = 'e@mail.com';
-        $this->page->_FirstName = 'f';
-        $this->page->_LastName = 'l';
-        $this->page->_Timezone = 'America/Chicago';
-        $this->page->_Password = '';
-
-        $this->manageUsersService->expects($this->once())->method('UpdateUser')->willReturn(new FakeUser($userId));
-        $this->manageUsersService->expects($this->never())->method('UpdatePassword');
-
-        $this->presenter->UpdateUser();
-    }
-
     public function testDeletesUser()
     {
         $userId = 809;
@@ -779,10 +743,6 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
      */
     public $_WeComUserId;
     /**
-     * @var bool
-     */
-    public $_IsLocalAuthOnly = false;
-    /**
      * @var int[]
      */
     public $_DeletedUserIds;
@@ -899,11 +859,6 @@ class FakeManageUsersPage extends FakeActionPageBase implements IManageUsersPage
     public function GetDepartment()
     {
         return $this->_Department;
-    }
-
-    public function GetIsLocalAuthOnly()
-    {
-        return $this->_IsLocalAuthOnly;
     }
 
     public function GetWeComUserId()

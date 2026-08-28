@@ -2848,3 +2848,34 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 - 容器內 `php -l` 過；`composer phpcsfixer:lint`／`composer phpstan` 對修改的檔案全過（既有 4 個 phpcsfixer flag 無關）。
 - `composer phpunit --filter ManageUsersPresenter`：29 個測試全過，新增 `testUpdateUserSetsLocalPasswordWhenOneIsProvided`（有填 → 呼叫 `UpdatePassword`）、`testUpdateUserLeavesPasswordUnchangedWhenBlank`（留空 → 不呼叫）。
 - 開發環境沒有登入帳密，麻煩使用者登入後確認：編輯使用者頁面「本機專屬登入」下方看得到「本機密碼」欄位，填入 + 存檔後，該帳號能用那組密碼在 AD 故障情境下登入。
+
+## 91. 拿掉「本機專屬登入」的管理 UI —— 全部走 AD
+
+使用者決定不維護緊急管理員／本機登入這條路：「AD 不會掛掉，全部走 AD，本機都不要，不然真的很亂」。§90 才剛加的「本機密碼」欄位、§81.5 的「本機專屬登入（緊急管理員）」checkbox 一起移除。
+
+### 做法：只移除 UI，底層留著（不動 auth 邏輯、不加 migration）
+
+上線前夕不動 AD 認證流程、也不跑 schema 變更，風險最低。移除的只有「管理員能設定這個旗標的入口」：
+
+- `tpl/Admin/Users/user-update.tpl`：拿掉 checkbox 區塊 + §90 的「本機密碼」欄位。
+- `Presenters/Admin/ManageUsersPresenter.php`：拿掉 `ApplyLocalAuthOnly()` 呼叫與方法本身、§90 的密碼分支。
+- `Pages/Admin/ManageUsersPage.php`：拿掉 `GetIsLocalAuthOnly()` 介面宣告與實作。
+- `lib/Server/FormKeys.php`：拿掉 `IS_LOCAL_AUTH_ONLY`。
+- `lang/en_us`／`zh_tw`／`zh_cn`：拿掉 `AdminUserLocalAuthOnly`／`Hint`／`AdminUserLocalPassword`／`Hint` 四條。
+- 測試：`ManageUsersPresenterTest` 拿掉 §90 兩支測試、`FakeManageUsersPage` 的 `_IsLocalAuthOnly`／`GetIsLocalAuthOnly()`。
+
+### 沒有動、刻意保留的
+
+`ActiveDirectory::Validate()` 現在對**所有帳號**都是 fail-closed（AD 連不上或拒絕一律擋）—— 這本來就是「只認 AD」，是使用者要的結果。以下留著當「不影響行為的死碼＋DB 層最後手段」，不清是因為清了要動 auth plugin + 加 4.x migration + 改 `Jobs/ad-reconcile-account-status.php` 的篩選條件，效益/風險不划算，等上線穩定後再另開一輪：
+
+- `users.is_local_auth_only` 欄位（4.5 migration 加的）—— 現在永遠是 `0`，沒有 UI 會寫它。
+- `Domain/User::IsLocalAuthOnly()`／`ChangeIsLocalAuthOnly()`、`UserRepository` 的 `Add()`／`Update()` 串接、`ColumnNames`／`ParameterNames`／`Queries`／`Commands` 的對應常數。
+- `ActiveDirectory::Validate()` 裡 `if ($localUser->IsLocalAuthOnly())` 這個分支 —— UI 移除後永遠不會命中，但如果真的哪天 AD 全掛，還能直接 `UPDATE users SET is_local_auth_only=1 WHERE username='...'` + 手動設密碼當破窗，不用改程式碼重部署。
+- `Jobs/ad-reconcile-account-status.php` 的 `is_local_auth_only=0` 篩選條件（永遠成立，無害）。
+- `tests/Plugins/Authentication/ActiveDirectory/ActiveDirectoryTest.php::testLocalAuthOnlyAccountBypassesLdapEntirely`（測的分支還在，測試仍通過）。
+
+### 驗證
+
+- 容器內 `php -l` 過所有修改檔；`composer phpstan` 0 錯；`composer phpcsfixer:lint` 對這 4 個檔案全過。
+- `composer phpunit` 全跑：1730 測試，跟改動前一樣只有 1 個既有、無關的失敗（`ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided`）。
+- **行為影響**：這次移除**不改變任何人現在能不能登入** —— `Validate()` 的邏輯沒動，目前沒被 `is_local_auth_only=1` 標記的帳號（＝所有正常帳號）行為完全一樣。只是以後管理員無法再從 UI 設定這個旗標。

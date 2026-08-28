@@ -95,11 +95,6 @@ interface IManageUsersPage extends IPageable, IActionPage
     public function GetWeComUserId();
 
     /**
-     * @return bool
-     */
-    public function GetIsLocalAuthOnly();
-
-    /**
      * @return string
      */
     public function GetLanguage();
@@ -413,11 +408,6 @@ class ManageUsersPage extends ActionPage implements IManageUsersPage
     public function GetWeComUserId()
     {
         return $this->GetForm(FormKeys::WECOM_USER_ID);
-    }
-
-    public function GetIsLocalAuthOnly()
-    {
-        return $this->GetCheckbox(FormKeys::IS_LOCAL_AUTH_ONLY);
     }
 
     public function GetLanguage()

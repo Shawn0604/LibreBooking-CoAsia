@@ -1179,10 +1179,6 @@ class en_us extends Language
         $strings['AdminUserCurrentGroups'] = 'Groups';
         $strings['GoToGroupManagement'] = 'Go to Group Management';
         $strings['AdminUserRoleManagedInGroups'] = 'Application Admin role and group membership are managed from Group Management.';
-        $strings['AdminUserLocalAuthOnly'] = 'Local login only (emergency admin)';
-        $strings['AdminUserLocalAuthOnlyHint'] = 'When checked, this account never authenticates against AD -- it can only log in with a local password, unaffected even by an AD outage. Reserve this for a small number of emergency admin accounts.';
-        $strings['AdminUserLocalPassword'] = 'Local password';
-        $strings['AdminUserLocalPasswordHint'] = 'Sets this account\'s local password (used when "Local login only" is on, or as break-glass during an AD outage). Leave blank to keep the current password unchanged.';
         $strings['AdminUserSortBy'] = 'Sort by';
         $strings['AdminUserSortNameAsc'] = 'Name A-Z';
         $strings['AdminUserSortNameDesc'] = 'Name Z-A';
