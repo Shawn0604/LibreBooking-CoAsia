@@ -445,6 +445,18 @@ function ResourceManagement(opts) {
       elements.importDialog.modal('show');
     });
 
+    // 開放使用時間管理併進會議室抽屜:每間實體會議室的每週開放時段就地編輯,
+    // 儲存時走時間表頁那條已驗證的 changeLayout 端點(見 .resourceHoursForm)。
+    elements.resourcesList.on('change', '.resourceDayOpen', function () {
+      var row = $(this).closest('.admin-schedule-day-row');
+      row.find('.resourceDayStart, .resourceDayEnd').prop('disabled', !$(this).is(':checked'));
+    });
+
+    elements.resourcesList.on('click', '.saveResourceHours', function (e) {
+      e.preventDefault();
+      saveResourceHours($(this).closest('.resourceHoursEditor'));
+    });
+
   };
 
   ResourceManagement.prototype.BindXEditableListeners = function () {
@@ -762,6 +774,63 @@ function ResourceManagement(opts) {
     if (drawerEl) {
       bootstrap.Offcanvas.getOrCreateInstance(drawerEl).show();
     }
+  };
+
+  // Fills the hidden .resourceHoursForm from the 7 day toggle/start/end inputs and POSTs it
+  // to manage_schedules.php?action=changeLayout. Slot-string format + the full-day blocked
+  // coverage rule are copied verbatim from schedule.js saveScheduleHours() so the server
+  // sees an identical request to the (proven) schedules-page save.
+  var saveResourceHours = function (editor) {
+    var resourceId = editor.data('resource-id');
+    var form = editor.find('.resourceHoursForm');
+    var errorEl = editor.find('.resourceHoursError');
+    var savedEl = editor.find('.resourceHoursSaved');
+    errorEl.addClass('d-none').empty();
+    savedEl.addClass('d-none');
+
+    for (var day = 0; day <= 6; day++) {
+      var isOpen = $('#resourceDayOpen' + resourceId + '_' + day).is(':checked');
+      var start = $('#resourceDayStart' + resourceId + '_' + day).val();
+      var end = $('#resourceDayEnd' + resourceId + '_' + day).val();
+      var reservable = '';
+      var blocked = '00:00 - 00:00';
+
+      if (isOpen && start && end) {
+        reservable = start + ' - ' + end;
+        // LayoutValidator wants every day's periods to cover the full 24h with no gaps.
+        blocked = '';
+        if (start !== '00:00') {
+          blocked += '00:00 - ' + start + '\n';
+        }
+        if (end !== '00:00') {
+          blocked += end + ' - 00:00';
+        }
+      }
+      form.find('.rhReservable[data-day="' + day + '"]').val(reservable);
+      form.find('.rhBlocked[data-day="' + day + '"]').val(blocked);
+    }
+    form.find('.rhCsrf').val($('#csrf_token').val());
+
+    $.ajax({
+      url: form.attr('action'),
+      type: 'POST',
+      data: form.serialize(),
+      dataType: 'text',
+      success: function (responseText) {
+        if (responseText && $.trim(responseText).length > 0) {
+          // Non-empty body = validation errors (ActionPresenter renders them and returns 200).
+          errorEl.removeClass('d-none').html(responseText);
+        } else {
+          savedEl.removeClass('d-none');
+          setTimeout(function () {
+            savedEl.addClass('d-none');
+          }, 3000);
+        }
+      },
+      error: function (xhr) {
+        errorEl.removeClass('d-none').text(xhr.responseText || 'Error');
+      },
+    });
   };
 
   var showDurationPrompt = function (e) {

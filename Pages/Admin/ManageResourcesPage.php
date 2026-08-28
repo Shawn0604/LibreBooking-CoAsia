@@ -184,6 +184,15 @@ interface IManageResourcesPage extends IUpdateResourcePage, IActionPage, IPageab
     public function AllSchedules($schedules);
 
     /**
+     * Per-schedule weekly-hours layout + timezone, keyed by schedule id, so the resource
+     * drawer can render + pre-fill each physical room's open-hours editor (the
+     * "開放時間管理" merge).
+     * @param IScheduleLayout[] $layouts
+     * @param string[] $timezones
+     */
+    public function BindScheduleLayouts($layouts, $timezones);
+
+    /**
      * @param $adminGroups GroupItemView[]|array
      * @return void
      */
@@ -586,6 +595,13 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
     public function AllSchedules($schedules)
     {
         $this->Set('AllSchedules', $schedules);
+    }
+
+    public function BindScheduleLayouts($layouts, $timezones)
+    {
+        $this->Set('ScheduleLayouts', $layouts);
+        $this->Set('ScheduleTimezones', $timezones);
+        $this->Set('DayNames', Resources::GetInstance()->GetDays('full'));
     }
 
     public function ProcessAction()

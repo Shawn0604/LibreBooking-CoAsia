@@ -202,6 +202,20 @@ class ManageResourcesPresenter extends ActionPresenter
         $this->page->BindSchedules($scheduleList);
         $this->page->AllSchedules($schedules);
 
+        // Weekly-hours layout per schedule, so the resource drawer can show + edit each
+        // physical room's open hours inline (開放時間管理 merged in). Same call the
+        // schedules page makes -- one query per schedule, matched by resource 1:1 here.
+        $scheduleLayouts = [];
+        $scheduleTimezones = [];
+        foreach ($schedules as $schedule) {
+            $scheduleLayouts[$schedule->GetId()] = $this->scheduleRepository->GetLayout(
+                $schedule->GetId(),
+                new ScheduleLayoutFactory($schedule->GetTimezone())
+            );
+            $scheduleTimezones[$schedule->GetId()] = $schedule->GetTimezone();
+        }
+        $this->page->BindScheduleLayouts($scheduleLayouts, $scheduleTimezones);
+
         $resourceTypes = $this->resourceRepository->GetResourceTypes();
         $resourceTypeList = [];
 

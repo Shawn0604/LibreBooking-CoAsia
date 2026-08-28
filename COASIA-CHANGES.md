@@ -2908,3 +2908,28 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 ### 第二步(之後,能在 dev 點測時)
 
 把 7 天開放時間編輯器完全內嵌進會議室抽屜,連換頁都沒有;順便清掉那 21 個同名/複製產生的時間表。
+
+## 93. 開放時間編輯器完全內嵌進會議室抽屜(第二步,承 §92)
+
+使用者:「我希望全部整合在一起才對」。把 §92 的「編輯開放時間」按鈕換成**就地的 7 天開放時間編輯器**,不再換頁。
+
+### 重點:後端零新程式碼,重用時間表頁那條已驗證的 `changeLayout` 路徑
+
+沒有在會議室 controller 加任何存 layout 的邏輯。會議室抽屜裡放一個隱藏的 `<form class="resourceHoursForm" action="manage_schedules.php?action=changeLayout">`,欄位就是 `ManageSchedulesPage` 那個 action 讀的那幾個(`scheduleId`、空的 `USING_SINGLE_LAYOUT` → 走 daily、`TIMEZONE`、`reservableSlots_0..6`、`blockedSlots_0..6`、`CSRF_TOKEN`)。`resource.js` 的 `saveResourceHours()` 把 7 天的 toggle/起訖時間組成 slot 字串(**逐字複製 `schedule.js` 的 `saveScheduleHours()`**,含「開放時段以外用 blocked 補滿 24 小時」那條 `LayoutValidator` 規則),填進隱藏表單,async POST。伺服器端看到的請求跟時間表頁按「儲存」完全一樣。失敗時 `LayoutValidator` 會擋在寫入之前、把錯誤 HTML 回來顯示在抽屜裡,不會靜默存壞。
+
+### 改動
+
+- `Presenters/Admin/ManageResourcesPresenter.php`:列表載入時,對每個時間表多跑一次 `scheduleRepository->GetLayout(id, new ScheduleLayoutFactory(tz))`(跟時間表頁同一個呼叫;這個部署每個資源 1:1 對一個時間表),連同各時間表的 timezone 一起 `BindScheduleLayouts()`。
+- `Pages/Admin/ManageResourcesPage.php`:`BindScheduleLayouts($layouts, $timezones)` 介面 + 實作,順便 `Set('DayNames', ...)`。
+- `tpl/Admin/Resources/manage_resource_drawer_content.tpl`:實體會議室(非線上會議)抽屜的「每週開放時間」區塊,從單一按鈕換成 7 天 [開關 + `type=time` 起 + 訖] + 「更新」按鈕 + 隱藏的 `.resourceHoursForm`。每天的初始值從 `$ScheduleLayouts[$scheduleId]` 帶出來(算法照抄時間表抽屜)。萬一某資源沒有 layout(理論上不會),fallback 成 §92 的連結按鈕。
+- `Web/scripts/admin/resource.js`:`.resourceDayOpen` change → enable/disable該列時間輸入;`.saveResourceHours` click → `saveResourceHours()`。
+
+### 驗證
+
+- `php -l` / `composer phpstan`(0 錯)過 presenter + page;`node --check` + `eslint` 過 `resource.js`(既有的 `AdminConfirm is not defined` 那條在乾淨 HEAD 上就有,跟這次無關);Smarty 標籤配對正確。
+- `composer phpunit` 全跑:跟改動前一樣(沒有 `ManageResourcesPresenterTest`,介面新增方法也沒有 fake page 要補)。
+- **待使用者登入實測**(這是這次改動的關鍵風險點,我沒有 dev 帳密):①實體會議室抽屜的「每週開放時間」是 7 天就地編輯、初始值正確 ②改一天的時段、按「更新」→ 沒有錯誤、關掉重開值有留下 ③去 Overview/預約頁確認那間房的可預約時段真的跟著變 ④線上會議資源的抽屜不受影響。
+
+### 之後
+
+清掉那 21 個同名/複製產生的時間表(每個資源自己編輯後,同名時間表只是雜訊)。`manage_schedules.php` 頁面本身還留著(不在導覽),之後確認完全沒人需要再評估要不要整支移除。

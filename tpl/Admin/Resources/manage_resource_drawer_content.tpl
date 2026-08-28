@@ -596,13 +596,68 @@
 			</form>
 
 			{if !$isVideoConferenceResource}
-				{* 開放時間管理已併進這裡:每間實體會議室的每週開放時段,從這個按鈕進去編輯
-				   (manage_schedules.php 仍是實際編輯頁,只是不再從側邊欄進入)。 *}
+				{* 「開放使用時間管理」併進來:每間實體會議室的每週開放時段直接在這裡編輯。
+				   儲存時 resource.js 的 saveResourceHours() 把 7 天的值填進下面隱藏的
+				   .resourceHoursForm,async POST 到 manage_schedules.php?action=changeLayout
+				   ——完全重用時間表頁那條已驗證的儲存路徑,後端沒有新程式碼。 *}
+				{assign var=schedId value=$resource->GetScheduleId()}
+				{assign var=lyt value=$ScheduleLayouts[$schedId]|default:null}
 				<div class="fw-bold fs-6 mt-4 mb-2">{translate key=AdminScheduleWeeklyHours}</div>
-				<a href="manage_schedules.php?openSchedule={$resource->GetScheduleId()}"
-					class="btn btn-outline-primary btn-sm">
-					<i class="bi bi-clock me-1"></i>{translate key=AdminResourceEditWeeklyHours}
-				</a>
+				{if $lyt}
+					<div class="resourceHoursEditor" data-resource-id="{$id}" data-schedule-id="{$schedId}">
+						{assign var=usesDaily value=$lyt->UsesDailyLayouts()}
+						{if !$usesDaily}{assign var=singleSlots value=$lyt->GetSlots()}{/if}
+						{foreach from=DayOfWeek::Days() item=day}
+							{assign var=dOpen value=false}
+							{assign var=dStart value=""}
+							{assign var=dEnd value=""}
+							{if $usesDaily}{assign var=daySlots value=$lyt->GetSlots($day)}{else}{assign var=daySlots value=$singleSlots}{/if}
+							{foreach from=$daySlots item=period}
+								{if $period->IsReservable()}
+									{assign var=dOpen value=true}
+									{if $dStart == ""}{assign var=dStart value=$period->Start->Format("H:i")}{/if}
+									{assign var=dEnd value=$period->End->Format("H:i")}
+								{/if}
+							{/foreach}
+							{if $dStart == ""}{assign var=dStart value="09:00"}{/if}
+							{if $dEnd == ""}{assign var=dEnd value="18:00"}{/if}
+							<div class="admin-schedule-day-row d-flex align-items-center gap-2 mb-2" data-day="{$day}">
+								<div class="form-check form-switch admin-schedule-day-toggle">
+									<input class="form-check-input resourceDayOpen" type="checkbox"
+										id="resourceDayOpen{$id}_{$day}" {if $dOpen}checked{/if} />
+									<label class="form-check-label admin-schedule-day-label"
+										for="resourceDayOpen{$id}_{$day}">{$DayNames[$day]}</label>
+								</div>
+								<input type="time" class="form-control form-control-sm resourceDayStart"
+									id="resourceDayStart{$id}_{$day}" value="{$dStart}" {if !$dOpen}disabled{/if} />
+								<span>&ndash;</span>
+								<input type="time" class="form-control form-control-sm resourceDayEnd"
+									id="resourceDayEnd{$id}_{$day}" value="{$dEnd}" {if !$dOpen}disabled{/if} />
+							</div>
+						{/foreach}
+						<button type="button" class="btn btn-primary btn-sm saveResourceHours mt-1"
+							data-resource-id="{$id}">{translate key=Update}</button>
+						<span class="resourceHoursSaved text-success ms-2 d-none">{translate key=Saved}</span>
+						<div class="resourceHoursError error text-danger d-none mt-2"></div>
+
+						<form class="resourceHoursForm d-none" method="post"
+							action="manage_schedules.php?action=changeLayout">
+							<input type="hidden" name="{FormKeys::SCHEDULE_ID}" value="{$schedId}" />
+							<input type="hidden" name="{FormKeys::USING_SINGLE_LAYOUT}" value="" />
+							<input type="hidden" name="{FormKeys::TIMEZONE}"
+								value="{$ScheduleTimezones[$schedId]|default:''}" />
+							{foreach from=DayOfWeek::Days() item=day}
+								<input type="hidden" name="{FormKeys::SLOTS_RESERVABLE}_{$day}" data-day="{$day}" class="rhReservable" />
+								<input type="hidden" name="{FormKeys::SLOTS_BLOCKED}_{$day}" data-day="{$day}" class="rhBlocked" />
+							{/foreach}
+							<input type="hidden" name="CSRF_TOKEN" class="rhCsrf" value="" />
+						</form>
+					</div>
+				{else}
+					<a href="manage_schedules.php?openSchedule={$schedId}" class="btn btn-outline-primary btn-sm">
+						<i class="bi bi-clock me-1"></i>{translate key=AdminResourceEditWeeklyHours}
+					</a>
+				{/if}
 			{/if}
 		{/if}
 	</div>
