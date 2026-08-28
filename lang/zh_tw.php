@@ -186,6 +186,10 @@ class zh_tw extends en_us
         $strings['Location'] = '地區';
         $strings['NoLocationLabel'] = '(沒有指定地區)';
         $strings['AllLocations'] = '所有地區';
+        $strings['ResourceType'] = '資源類型';
+        $strings['ResourceStatus'] = '資源狀態';
+        $strings['AllResourceTypes'] = '所有資源類型';
+        $strings['AllResourceStatuses'] = '所有資源狀態';
         $strings['ResourceLocationTaipei'] = '台北實體會議室';
         $strings['ResourceLocationShenzhen'] = '深圳實體會議室';
         $strings['ResourceLocationShanghai'] = '上海實體會議室';

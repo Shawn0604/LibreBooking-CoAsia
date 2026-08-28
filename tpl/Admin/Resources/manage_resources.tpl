@@ -108,10 +108,9 @@
 			<table class="table admin-clean-table w-100" id="{$tableId}">
 				<thead>
 					<tr>
+						<th>{translate key="Location"}</th>
 						<th>{translate key="Resource"}</th>
 						<th>{translate key="ResourceType"}</th>
-						<th>{translate key="Location"}</th>
-						<th>{translate key="Capacity"}</th>
 						<th>{translate key="Status"}</th>
 						<th class="text-end">{translate key=Actions}</th>
 					</tr>
@@ -120,14 +119,6 @@
 					{foreach from=$Resources item=resource}
 						{assign var=id value=$resource->GetResourceId()}
 						<tr data-resourceId="{$id}">
-							<td class="fw-bold">{$resource->GetName()}</td>
-							<td>
-								{if $resource->HasResourceType()}
-									{$ResourceTypes[$resource->GetResourceTypeId()]->Name()}
-								{else}
-									<span class="admin-cell-secondary">{translate key='NoResourceTypeLabel'}</span>
-								{/if}
-							</td>
 							<td>
 								{if $resource->HasLocation()}
 									{$resource->GetLocation()}
@@ -135,11 +126,12 @@
 									<span class="admin-cell-secondary">{translate key='NoLocationLabel'}</span>
 								{/if}
 							</td>
+							<td class="fw-bold">{$resource->GetName()}</td>
 							<td>
-								{if $resource->HasMaxParticipants()}
-									{$resource->GetMaxParticipants()}
+								{if $resource->HasResourceType()}
+									{$ResourceTypes[$resource->GetResourceTypeId()]->Name()}
 								{else}
-									<span class="admin-cell-secondary">{translate key='Unlimited'}</span>
+									<span class="admin-cell-secondary">{translate key='NoResourceTypeLabel'}</span>
 								{/if}
 							</td>
 							<td>
@@ -172,7 +164,7 @@
 						</tr>
 					{foreachelse}
 						<tr>
-							<td colspan="6" class="admin-empty">{translate key=AdminResourceNoResults}</td>
+							<td colspan="5" class="admin-empty">{translate key=AdminResourceNoResults}</td>
 						</tr>
 					{/foreach}
 				</tbody>

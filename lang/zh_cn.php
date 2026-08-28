@@ -173,6 +173,10 @@ class zh_cn extends en_us
         $strings['AppearsOn'] = '根据 %s 显示';
         $strings['Location'] = '地区';
         $strings['NoLocationLabel'] = '(没有指定地区)';
+        $strings['ResourceType'] = '资源类型';
+        $strings['ResourceStatus'] = '资源状态';
+        $strings['AllResourceTypes'] = '所有资源类型';
+        $strings['AllResourceStatuses'] = '所有资源状态';
         $strings['Contact'] = '联系';
         $strings['NoContactLabel'] = '(没有联系方式)';
         $strings['Description'] = '说明';
