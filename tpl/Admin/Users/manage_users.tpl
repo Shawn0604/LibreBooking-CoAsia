@@ -47,6 +47,11 @@
     {/capture}
     {include file='Admin/admin_page_shell.tpl' TitleKey='AdminSectionUsers' DescriptionKey='AdminUsersDescription' HeaderActions=$smarty.capture.headerActions}
 
+    <div class="admin-subnav">
+        <a class="admin-subnav-link active" href="{$Path}admin/manage_users.php">{translate key=ManageUsers}</a>
+        <a class="admin-subnav-link" href="{$Path}admin/manage_groups.php">{translate key=ManageGroups}</a>
+    </div>
+
     <div class="admin-page-toolbar">
         <form id="filterForm" class="admin-toolbar-row" role="form">
             <label class="admin-search" for="userSearch">

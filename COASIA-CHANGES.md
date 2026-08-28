@@ -3067,3 +3067,19 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 ### 下一步(第二步)
 
 「群組」分頁 UI 併入設計系統(`admin-clean-table` + 單一 offcanvas 編輯抽屜,整合成員/角色/群組管理員/資源權限/成員批次管理),重新定位為「進階管理」。後端動作不變。
+
+## 100. 群組分頁 UI 併入設計系統(第二步 2a:安全範圍)
+
+承 §99「下一步」。群組分頁原本是舊版 `table-striped` + 一大堆分散的 Bootstrap modal(成員/權限/角色/群組管理員/adminGroups+Resources+Schedules/rename/delete),跟使用者/會議室頁的 `admin-clean-table` + offcanvas 抽屜不一致。
+
+這次(2a,零後端/零 JS 邏輯風險):
+
+- **`tpl/Admin/Users/manage_users.tpl`**:補上 `admin-subnav`(使用者管理 / 群組管理),跟群組頁對稱 —— 兩頁互切的分頁列現在兩邊都有。
+- **`tpl/Admin/Groups/manage_groups.tpl`**:群組清單 `<table class="table table-striped table-hover border-top">` → `admin-clean-table`,外層 `card shadow` → `card shadow admin-clean-table-card` + `.table-responsive`。`{datatable}` 仍在驅動排序/搜尋/分頁(`admin.css` 早有 `.admin-page .dataTables_*` 規則專門收這種還在用 `{datatable}` 的舊頁),每個 row action 的 class 與 `group.js` 的委派handler 全部不動。
+
+**尚未做(2b,待 prod 瀏覽器實測後再進行)**:把那 8 個 modal 收斂成單一「每群組編輯抽屜」(基本資料 / 角色 / 群組管理員 / 資源權限 / 成員批次管理 分區),以及成員 autocomplete 內嵌。這動到 auth 敏感的 `group.js` 委派與多個 `ConfigureAsyncForm`,dev 沒有本機管理員登入無法驗證,不宜在全員上線前盲改。
+
+### 驗證
+
+- Smarty `compileTemplateSource()` 兩個樣板皆過;`composer phpunit` 全綠(1741,唯一失敗為既有無關的 `ManageReservationsPresenterTest`)。
+- **待實測**:①使用者頁頂端出現「使用者管理 / 群組管理」分頁列、可互切 ②群組清單外觀跟使用者/會議室清單一致 ③群組頁每個 row 的管理/變更/角色/刪除連結行為不變。

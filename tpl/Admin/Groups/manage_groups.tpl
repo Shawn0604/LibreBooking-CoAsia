@@ -48,10 +48,10 @@
         </div>
     </div>
 
-    <div class="card shadow">
-        <div class="card-body">
+    <div class="card shadow admin-clean-table-card">
+        <div class="table-responsive">
             {assign var=tableId value=groupList}
-            <table class="table table-striped table-hover border-top" id="{$tableId}">
+            <table class="table admin-clean-table w-100" id="{$tableId}">
                 <thead>
                     <tr>
                         <th>{translate key='GroupName'}</th>
