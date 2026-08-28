@@ -460,7 +460,7 @@
 			</div>
 		</div>
 		{else}
-			<form id="resourceForm{$id}" class="resourceUpdateForm"
+			<form id="resourceForm{$id}" class="resourceUpdateForm" method="post"
 				ajaxAction="{ManageResourcesActions::ActionUpdateResourceInfo}">
 				<div class="fw-bold fs-6 mt-3 mb-2">{translate key=BasicInformation}</div>
 				<div class="row gy-2">
