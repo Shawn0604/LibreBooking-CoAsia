@@ -41,14 +41,14 @@
 ### 員工教學／使用說明（已完成）
 新增首次登入 7 步驟導覽（自動跳出＋側邊欄「幫助」隨時重播）與完整使用手冊（一般使用者／管理員分區，繁中／簡中／英文三語言）。詳見 `COASIA-CHANGES.md` §71。
 
+### 資料庫每日備份（已完成）
+**2026-08-28**：[`scripts/db-backup.sh`](scripts/db-backup.sh)（`mysqldump` 全庫 + uploads volume + 不在版控的機密設定，30 天 rolling）已設進 `shawn_admin` 的 crontab（每晚 02:30），備份寫到 Synology `CETP-SVR-NAS03`（`10.1.3.151`）的 `NetBackup/Booking_backup_from_10.1.8.32/`，走 NFS（fstab 開機自動掛）。首次手動執行成功，[`scripts/db-restore-drill.sh`](scripts/db-restore-drill.sh) 還原演練通過（`users`／`reservation_series`／`reservation_instances`／`resources`／`schedules`／`groups` 六張表筆數一致）。設定細節見 `COASIA-DEPLOYMENT.md` 十二。
+
+**仍待確認**：Synology Active Backup for Business 有沒有把 `BookingServer` 這台 VM 也納入 agentless VMware 備份（整機層級的第二道保險，非必要但有更好）。
+
 ---
 
 ## 🔴 必須解決（會直接卡住上線）
-
-### 資料庫備份：腳本已寫，VM 上還沒接起來
-**2026-08-27 進度**：備份腳本已寫進 repo（[`scripts/db-backup.sh`](scripts/db-backup.sh)：`mysqldump` 全庫 + uploads volume + 不在版控的機密設定，30 天 rolling；[`scripts/db-restore-drill.sh`](scripts/db-restore-drill.sh)：還原演練）。備份目的地確定為 Synology `CETP-SVR-NAS03`（`10.1.3.151`）的 `NetBackup` 共享資料夾，走 NFS，VM 上 `/mnt/nas-booking` 掛載已測通（`WRITE-OK`）。設定細節見 `COASIA-DEPLOYMENT.md` 十二。
-
-**還沒做（上線前必須）**：(1) VM 上把 `scripts/db-backup.sh` 設進 `shawn_admin` 的 crontab（`30 2 * * *`）；(2) 實際跑一次 `scripts/db-restore-drill.sh` 確認灌得回來、筆數一致；(3) 確認 Synology Active Backup for Business 有沒有把 `BookingServer` 這台 VM 也納入（整機層級的第二道保險）。
 
 ### 正式環境完全沒有可用的錯誤紀錄
 排查 §88 的 LINE 通知問題時發現：`config.php`／`app.env` 都指定 `logging.folder = /var/log/librebooking/log`，但這個目錄在正式環境的 `app` 容器裡根本不存在、也不是 volume，`Log` 寫不進去就默默不寫（連「建不出 log 檔」本身的例外也被吞掉）。結果是**正式環境出任何問題都看不到**——這次 email 有、LINE 沒，靠的是逐步比對程式碼路徑＋直接查 DB 才定位，不是靠 log。全公司推廣後這樣沒有可觀測性風險太高。修法：在 `docker-compose.prod.yml` 把 log 目錄掛成具名 volume（或把路徑改到已存在且持久的位置），並實際驗證「建立預約 / LINE 推播失敗」時真的會寫檔。

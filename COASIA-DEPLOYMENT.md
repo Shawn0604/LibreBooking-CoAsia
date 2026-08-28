@@ -442,11 +442,16 @@ NAS 上有 `ActiveBackupforBusiness` 資料夾，代表 Synology Active Backup f
 
 那包裡有 `config.php`（DB 密碼、LINE token、影片主持人加密金鑰）、`ActiveDirectory.config.php`（AD 服務帳號密碼）。腳本雖然 `chmod 600`，但在 all-squash 的 NFS 上等於 NAS 管理員可讀——跟「NAS 管理員能讀所有備份」是同一個信任邊界，內部 NAS 可接受。若要更嚴，把 secrets 那包改成 `gpg`／`openssl enc` 加密、passphrase 另外保管。
 
+### 已完成（2026-08-28）
+
+- `shawn_admin` 的 crontab 已加入每晚 02:30 的排程（`crontab -l` 可見）
+- 首次手動 `db-backup.sh` 成功，產物三檔都在 NAS（`librebooking-*.sql.gz` / `uploads-*.tgz` / `secrets-*.tgz`）
+- `db-restore-drill.sh` 跑過一次，六張主要表筆數一致
+
 ### 尚未做
 
-- VM 上實際設 crontab
-- 實際跑過一次 `db-restore-drill.sh`
 - rolling 天數 / 是否要再往別處異地複製，待定
+- 確認 Synology Active Backup for Business 是否也涵蓋 `BookingServer` VM（整機第二層）
 
 ---
 
