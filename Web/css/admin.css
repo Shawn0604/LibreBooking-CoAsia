@@ -75,10 +75,50 @@
 .admin-drawer .admin-drawer-footer {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 8px;
   padding: 16px 24px;
   border-top: 1px solid var(--border);
   background: var(--surface-muted);
+}
+
+/* Resource drawer: keep 更新/取消 pinned to the drawer's bottom-right while the body
+   scrolls, bleeding out to both drawer walls so it reads as a real action bar rather
+   than a control floating mid-form. The footer is the last child of #resourceForm, so
+   sticky bottom:0 resolves against the scrolling .offcanvas-body above it. */
+.admin-drawer .admin-drawer-footer-sticky {
+  position: sticky;
+  bottom: 0;
+  margin: 20px -24px -20px;
+  box-shadow: 0 -4px 12px rgba(20, 30, 55, 0.06);
+  z-index: 3;
+}
+
+/* Section headers inside the resource drawer (基本資料 / 線上會議資訊), replacing the
+   ad hoc `fw-bold fs-6` so every section reads with the same weight as the detail
+   drawers' <dt> labels. */
+.admin-drawer-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Weekly-hours editor: frame the 7-day grid as one unit when expanded. */
+.admin-drawer-hours[open] > div {
+  padding: 14px 16px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius);
+}
+
+.admin-drawer-hours .admin-schedule-day-row .resourceDayStart,
+.admin-drawer-hours .admin-schedule-day-row .resourceDayEnd {
+  max-width: 118px;
 }
 
 /* ---------- Read-only detail drawers (預約管理's reservation detail) ---------- */

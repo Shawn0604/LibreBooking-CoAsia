@@ -3003,3 +3003,25 @@ docker compose -f docker-compose.prod.yml exec -T app sh -c 'tail -20 /var/log/l
 
 - `php -l` / `composer phpstan`(0 錯);`composer phpunit` 全跑跟改動前一樣(只有那 1 個既有無關失敗);Smarty 標籤配對正確。
 - **待實測**:①改基本資料按「更新」→ 名稱/狀態真的存進去(不再 GET/null)②改開放時間按「更新」→ `app.log` 有 `ChangeResourceHours: scheduleId=…`、列表摘要跟著變、Overview 那間房可預約時段跟著變 ③開放時間填不合法 → `LayoutValidator` 擋下、顯示錯誤、基本資料不送。
+
+## 98. 會議室抽屜版面:更新/取消固定在右下角、區塊視覺整理(承 §97)
+
+使用者回報「更新跟退出應該要在右下角,整體版面都要好看一點」。§96 之後,那顆「更新」按鈕擠在基本資料表單和「每週開放時間」收合區塊之間、卡在抽屜中段,不像一條動作列。
+
+### 改動
+
+- **抽屜結構重排**(`manage_resource_drawer_content.tpl`,只動 typed-resource 分支):
+  - 「每週開放時間」`<details>` 從 `</form>` 之後**移進 `#resourceForm` 裡**,排在動作列上方 —— 內容順序變成:基本資料 → (線上會議資訊 或 每週開放時間) → 動作列。
+  - `<div class="admin-drawer-footer">` 變成 form 的最後一個子元素,加 `admin-drawer-footer-sticky`。
+  - 隱藏欄位載體 `.resourceHoursForm` 由 `<form>` 拆出來、移到 `#resourceForm` **之外**當兄弟節點 —— HTML 不允許 form 巢狀,而且基本資料表單送出時不該夾帶排程欄位。`schedId` / `lyt` 的 `{assign}` 提到 `{else}` 開頭。
+  - `{if $isVideoConferenceResource} … {/if}` + 另一個 `{if !$isVideoConferenceResource} … {/if}` 併成單一 `{if}/{else}`。
+- **`resource.js`**:`saveResourceHours()` 找 `.resourceHoursForm` 從 `editor.find(...)` 改成 `editor.closest('.resourceDetails').find(...)`(表單現在是兄弟節點,不在 editor 底下)。`.save` 攔截器邏輯不變。
+- **`admin.css`**:
+  - `.admin-drawer-footer-sticky` —— `position: sticky; bottom: 0`,負邊界溢出到抽屜兩側牆邊 + 吃掉 `.offcanvas-body` 底部 padding,加一道向上陰影,body 捲動時「更新/取消」永遠釘在右下角。sticky 相對於會捲動的 `.offcanvas-body` 定位。
+  - `.admin-drawer-section-title` —— 取代基本資料/線上會議資訊那兩個臨時的 `fw-bold fs-6`,改成跟明細抽屜 `<dt>` 同一套(小寫、字距、次要色、底線)。
+  - `.admin-drawer-hours[open] > div` —— 展開時把 7 天格線框成一塊(淺底 + 邊框 + 圓角);時間輸入框 `max-width: 118px`。
+
+### 驗證
+
+- Smarty 在容器內 `createTemplate()->compileTemplateSource()` 通過;`node --check resource.js` 通過。dev 無本機登入(AD 帳號),抽屜實際外觀待部署後在 prod 檢查。
+- **待實測**:①實體會議室抽屜:「更新/取消」釘在抽屜右下角、body 捲動時不跟著跑 ②「每週開放時間」展開/收合都在動作列上方,展開時有框、收合時只剩一行摘要 ③改開放時間 + 按「更新」仍會先存時間再送基本資料(§97 的行為沒破)④線上會議資源抽屜不顯示開放時間區塊。

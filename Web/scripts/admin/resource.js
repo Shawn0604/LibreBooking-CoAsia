@@ -262,8 +262,9 @@ function ResourceManagement(opts) {
 
     // Physical-room drawers have a collapsed weekly-hours editor but no own save button --
     // the one "更新" button saves both. Bound before the generic $('.save') handler below so
-    // stopImmediatePropagation() can pre-empt it: persist the hours first (reusing the
-    // proven changeLayout endpoint), and only submit the basic-info form once that succeeds.
+    // stopImmediatePropagation() can pre-empt it: persist the hours first (async POST to
+    // manage_resources.php?action=changeResourceHours), and only submit the basic-info form
+    // once that succeeds.
     $('form.resourceUpdateForm .save').on('click', function (e) {
       var form = $(this).closest('form');
       var editor = form.closest('.resourceDetails').find('.resourceHoursEditor');
@@ -814,7 +815,9 @@ function ResourceManagement(opts) {
   // basic-info submit onto ok === true.
   var saveResourceHours = function (editor, done) {
     var resourceId = editor.data('resource-id');
-    var form = editor.find('.resourceHoursForm');
+    // .resourceHoursForm lives as a sibling of #resourceForm (outside it -- no nested forms),
+    // so reach it through the shared .resourceDetails drawer body rather than editor.find().
+    var form = editor.closest('.resourceDetails').find('.resourceHoursForm');
     var errorEl = editor.find('.resourceHoursError');
     errorEl.addClass('d-none').empty();
 
