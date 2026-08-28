@@ -22,7 +22,6 @@ function GroupManagement(opt) {
     permissionsDialog: $('#permissionsDialog'),
     deleteDialog: $('#deleteDialog'),
     editDialog: $('#editDialog'),
-    rolesDialog: $('#rolesDialog'),
     groupAdminDialog: $('#groupAdminDialog'),
 
     permissionsForm: $('#permissionsForm'),
@@ -30,7 +29,6 @@ function GroupManagement(opt) {
     removeUserForm: $('#removeUserForm'),
     editGroupForm: $('#editGroupForm'),
     deleteGroupForm: $('#deleteGroupForm'),
-    rolesForm: $('#rolesForm'),
     groupAdminForm: $('#groupAdminForm'),
     groupCount: $('#groupCount'),
 
@@ -43,17 +41,6 @@ function GroupManagement(opt) {
 
     editGroupName: $('#editGroupName'),
     editGroupIsDefault: $('#editGroupIsDefault'),
-
-    changeAdminGroupsForm: $('#groupAdminGroupsForm'),
-    changeAdminResourcesForm: $('#resourceAdminForm'),
-    changeAdminSchedulesForm: $('#scheduleAdminForm'),
-    resourceAdminDialog: $('#resourceAdminDialog'),
-    groupAdminAllDialog: $('#groupAdminAllDialog'),
-    scheduleAdminDialog: $('#scheduleAdminDialog'),
-
-    importGroupsDialog: $('#importGroupsDialog'),
-    importGroupsForm: $('#importGroupsForm'),
-    importGroupsTrigger: $('#import-groups'),
   };
 
   GroupManagement.prototype.init = function () {
@@ -94,11 +81,7 @@ function GroupManagement(opt) {
     page.on('click', '.manageGroup', () => editGroup());
     page.on('click', '.permissions', () => changePermissions());
     page.on('click', '.groupAdmin', () => changeGroupAdmin());
-    page.on('click', '.changeAdminGroups', () => changeAdminGroups());
-    page.on('click', '.changeAdminResources', () => changeAdminResources());
-    page.on('click', '.changeAdminSchedules', () => changeAdminSchedules());
     page.on('click', '.delete', () => deleteGroup());
-    page.on('click', '.roles', () => changeRoles());
 
     // remove a member straight from the inline list in the detail drawer
     elements.groupUserList.on('click', '.delete', (e) => {
@@ -133,13 +116,6 @@ function GroupManagement(opt) {
         permissionState[rid] = rid + '_none';
       }
       syncSelectsFromState();
-    });
-
-    //group role
-    $('.adminDialog').on('click', '.checkbox', (e) => {
-      const $checkbox = $(e.currentTarget);
-      const modal = $checkbox.closest('.modal-body');
-      modal.find('.count').text(modal.find(':checked').length);
     });
   };
 
@@ -178,21 +154,6 @@ function GroupManagement(opt) {
       alert(errorText);
     };
 
-    var importHandler = function (response) {
-      if (!response) return;
-
-      $('#importCount').text(response.importCount);
-      $('#importSkipped').text(response.skippedRows.length || '0');
-      $('#importResult').removeClass('d-none');
-
-      const errors = $('#importErrors');
-      errors.empty();
-      if (response.messages && response.messages.length > 0) {
-        const messages = response.messages.join('</li><li>');
-        errors.html(`<div>${messages}</div>`).removeClass('d-none');
-      }
-    };
-
     ConfigureAsyncForm(elements.addUserForm, getSubmitCallback(options.actions.addUser), changeMembers, error);
     ConfigureAsyncForm(elements.removeUserForm, getSubmitCallback(options.actions.removeUser), changeMembers, error);
     // Inject hidden inputs for all resources before form serialization.
@@ -224,33 +185,7 @@ function GroupManagement(opt) {
     ConfigureAsyncForm(elements.editGroupForm, getSubmitCallback(options.actions.updateGroup), null, error);
     ConfigureAsyncForm(elements.deleteGroupForm, getSubmitCallback(options.actions.deleteGroup), null, error);
     ConfigureAsyncForm(elements.addForm, getSubmitCallback(options.actions.addGroup), null, error);
-    ConfigureAsyncForm(elements.rolesForm, getSubmitCallback(options.actions.roles), null, error);
     ConfigureAsyncForm(elements.groupAdminForm, getSubmitCallback(options.actions.groupAdmin), null, error);
-    ConfigureAsyncForm(
-      elements.changeAdminGroupsForm,
-      getSubmitCallback(options.actions.adminGroups),
-      function () {
-        elements.groupAdminAllDialog.modal('hide');
-      },
-      error
-    );
-    ConfigureAsyncForm(
-      elements.changeAdminResourcesForm,
-      getSubmitCallback(options.actions.resourceGroups),
-      function () {
-        elements.resourceAdminDialog.modal('hide');
-      },
-      error
-    );
-    ConfigureAsyncForm(
-      elements.changeAdminSchedulesForm,
-      getSubmitCallback(options.actions.scheduleGroups),
-      function () {
-        elements.scheduleAdminDialog.modal('hide');
-      },
-      error
-    );
-    ConfigureAsyncForm(elements.importGroupsForm, getSubmitCallback(options.actions.importGroups), importHandler);
   };
 
   var getSubmitCallback = function (action) {
@@ -288,8 +223,6 @@ function GroupManagement(opt) {
 
     dlg.find('.js-danger-section').toggleClass('d-none', reserved);
     dlg.find('#editGroupSaveBtn').toggleClass('d-none', reserved);
-
-    dlg.find('#editGroupRolesSummary').text(roleLabel || '—');
 
     changeMembers(); // fill the inline 群組成員 list
 
@@ -393,57 +326,5 @@ function GroupManagement(opt) {
 
     elements.groupAdminForm.find('select').val(currentGroupAdminVal || '');
     elements.groupAdminDialog.modal('show');
-  };
-
-  //change group role
-  var changeRoles = function () {
-    const groupId = activeId;
-
-    $.get(options.rolesUrl, { dr: options.dataRequests.roles, gid: groupId }, (roleIds) => {
-      elements.rolesForm.find(':checkbox').prop('checked', false);
-      roleIds.forEach((value) => {
-        elements.rolesForm.find(`:checkbox[value="${value}"]`).prop('checked', true);
-      });
-
-      elements.rolesDialog.modal('show');
-    });
-  };
-
-  var changeAdminGroups = function () {
-    populateAdminCheckboxes(
-      options.dataRequests.adminGroups,
-      elements.changeAdminGroupsForm,
-      elements.groupAdminAllDialog
-    );
-  };
-
-  var changeAdminResources = function () {
-    populateAdminCheckboxes(
-      options.dataRequests.resourceGroups,
-      elements.changeAdminResourcesForm,
-      elements.resourceAdminDialog
-    );
-  };
-
-  var changeAdminSchedules = function () {
-    populateAdminCheckboxes(
-      options.dataRequests.scheduleGroups,
-      elements.changeAdminSchedulesForm,
-      elements.scheduleAdminDialog
-    );
-  };
-
-  var populateAdminCheckboxes = function (dr, form, dialog) {
-    dialog.find('.count').text(dialog.find(':checked').length);
-
-    $.get(options.submitUrl, { dr, gid: activeId }, (groupIds) => {
-      form.find(':checkbox').prop('checked', false);
-      groupIds.forEach((value) => {
-        form.find(`:checkbox[value="${value}"]`).prop('checked', true);
-      });
-
-      dialog.find('.count').text(groupIds.length);
-      dialog.modal('show');
-    });
   };
 }
