@@ -45,8 +45,10 @@
 
 ## 🔴 必須解決（會直接卡住上線）
 
-### 資料庫完全沒有備份機制
-`COASIA-DEPLOYMENT.md` 自己都寫著「每日備份（規劃中，尚未實作）」——翻遍整個 repo 找不到任何自動備份腳本／cron，也從沒做過還原演練。這是存了全公司會議室預約資料的系統，正式全面推廣前至少要有每天一次的 `mysqldump` 排程＋異地存放（NAS，協定/保留天數都還沒定案），且要實際跑過一次還原演練確認真的救得回來，不能只是「理論上應該可以」。
+### 資料庫備份：腳本已寫，VM 上還沒接起來
+**2026-08-27 進度**：備份腳本已寫進 repo（[`scripts/db-backup.sh`](scripts/db-backup.sh)：`mysqldump` 全庫 + uploads volume + 不在版控的機密設定，30 天 rolling；[`scripts/db-restore-drill.sh`](scripts/db-restore-drill.sh)：還原演練）。備份目的地確定為 Synology `CETP-SVR-NAS03`（`10.1.3.151`）的 `NetBackup` 共享資料夾，走 NFS，VM 上 `/mnt/nas-booking` 掛載已測通（`WRITE-OK`）。設定細節見 `COASIA-DEPLOYMENT.md` 十二。
+
+**還沒做（上線前必須）**：(1) VM 上把 `scripts/db-backup.sh` 設進 `shawn_admin` 的 crontab（`30 2 * * *`）；(2) 實際跑一次 `scripts/db-restore-drill.sh` 確認灌得回來、筆數一致；(3) 確認 Synology Active Backup for Business 有沒有把 `BookingServer` 這台 VM 也納入（整機層級的第二道保險）。
 
 ### 正式環境完全沒有可用的錯誤紀錄
 排查 §88 的 LINE 通知問題時發現：`config.php`／`app.env` 都指定 `logging.folder = /var/log/librebooking/log`，但這個目錄在正式環境的 `app` 容器裡根本不存在、也不是 volume，`Log` 寫不進去就默默不寫（連「建不出 log 檔」本身的例外也被吞掉）。結果是**正式環境出任何問題都看不到**——這次 email 有、LINE 沒，靠的是逐步比對程式碼路徑＋直接查 DB 才定位，不是靠 log。全公司推廣後這樣沒有可觀測性風險太高。修法：在 `docker-compose.prod.yml` 把 log 目錄掛成具名 volume（或把路徑改到已存在且持久的位置），並實際驗證「建立預約 / LINE 推播失敗」時真的會寫檔。

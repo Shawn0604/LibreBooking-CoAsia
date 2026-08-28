@@ -401,9 +401,48 @@ docker stop temp-test-proxy
 
 ---
 
-## 十二、每日備份（規劃中，尚未實作）
+## 十二、每日備份
 
-`mysqldump` 全庫 + `uploads/` 打包，排程跑在 VM（cron 或獨立小 container），推到 NAS（協定待確認）。建議保留至少 14–30 天 rolling，上線前務必實際跑一次還原演練。
+腳本已寫好：[`scripts/db-backup.sh`](scripts/db-backup.sh)（備份）、[`scripts/db-restore-drill.sh`](scripts/db-restore-drill.sh)（還原演練）。內容：`mysqldump` 全庫（`--single-transaction`，含 routines/triggers/events）+ `uploads` 系列 volume + 不在版控的機密設定（`config.php`／`.env`／`app.env`／`ActiveDirectory.config.php`／`certs/`）打包，寫進 NAS，30 天 rolling。
+
+### 備份目的地：Synology `CETP-SVR-NAS03`（`10.1.3.151`），走 NFS
+
+**NAS 端（DSM）**：`NetBackup` 共享資料夾 → 編輯 → NFS 權限 → 新增規則：主機 `10.1.8.32`、可讀寫、Squash「將所有使用者調整為 admin」、安全性 `AUTH_SYS`、啟用非同步。控制台 → 檔案服務 → NFS 要開。掛載路徑 `/volume1/NetBackup`。備份寫進底下的 `booking-backup/` 子目錄。
+
+**VM 端**：
+
+```bash
+sudo apt install -y nfs-common          # Ubuntu Server 預設沒裝
+sudo mkdir -p /mnt/nas-booking
+echo '10.1.3.151:/volume1/NetBackup  /mnt/nas-booking  nfs4  _netdev,nofail,soft,timeo=30  0  0' | sudo tee -a /etc/fstab
+sudo systemctl daemon-reload && sudo mount /mnt/nas-booking
+```
+
+### 排程
+
+`shawn_admin`（已在 docker 群組）的 crontab：
+
+```
+30 2 * * * /home/shawn_admin/coasia-booking/scripts/db-backup.sh >> /home/shawn_admin/booking-backup.log 2>&1
+```
+
+腳本第一件事就是檢查 `/mnt/nas-booking` 有沒有掛好，沒掛好直接失敗退出（不會把備份默默寫進本機硬碟）。DB 密碼不落地：`mysqldump` 在 `db` 容器內用容器自己的 `$MYSQL_ROOT_PASSWORD`。
+
+### 還原演練（上線前務必跑一次）
+
+```bash
+scripts/db-restore-drill.sh        # 用 NAS 上最新一份，灌進 librebooking_restore_test，比對主要表筆數，完問你要不要 DROP
+```
+
+### 第二層（若已有）
+
+NAS 上有 `ActiveBackupforBusiness` 資料夾，代表 Synology Active Backup for Business 有在用。確認它有沒有把 `BookingServer` 這台 VM 也納入 agentless VMware 備份——有的話就是整機層級的第二道保險，但仍需要上面這層 `mysqldump`（乾淨的邏輯備份、可還原到任意主機、可只還原 DB）。
+
+### 尚未做
+
+- VM 上實際設 crontab
+- 實際跑過一次 `db-restore-drill.sh`
+- rolling 天數 / 是否要再往別處異地複製，待定
 
 ---
 
