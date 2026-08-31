@@ -11,7 +11,7 @@
  * (`lib/Config/Configuration.php` -> `ConfigKeysMeta::envKeyForConfig()`). A prod `app.env`
  * copied wholesale from `.env.example` therefore silently shadows almost every setting.
  *
- * Run it inside the `app` container:
+ * Runs inside the `app` container only (it boots the app to read the effective config):
  *   php scripts/audit-app-env.php                # every non-empty LB_* override
  *   php scripts/audit-app-env.php reservation    # filter by key/section substring
  *   php scripts/audit-app-env.php --shadowing    # only rows where app.env != config.php
@@ -21,7 +21,9 @@
  * Exit code is non-zero when at least one SHADOWING row is found, so it can gate a deploy.
  */
 
-define('ROOT_DIR', dirname(__DIR__) . '/');
+// This script always runs inside the app container, where the app lives at /var/www/html.
+// Not derived from __DIR__ because the wrapper copies this file to a temp path to run it.
+define('ROOT_DIR', getenv('LB_APP_ROOT') ?: '/var/www/html/');
 require_once(ROOT_DIR . 'Pages/Page.php');
 
 $filter = null;
