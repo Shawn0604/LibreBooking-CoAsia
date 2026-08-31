@@ -26,6 +26,11 @@
 define('ROOT_DIR', getenv('LB_APP_ROOT') ?: '/var/www/html/');
 require_once(ROOT_DIR . 'Pages/Page.php');
 
+// Force the config to load now: Configuration::Register() is what runs Dotenv over
+// /var/www/html/.env (the bind-mounted app.env) and populates $_ENV / $_SERVER. Without
+// this, env() below sees nothing on the first iteration and the audit reports "no overrides".
+Configuration::Instance();
+
 $filter = null;
 $onlyShadowing = false;
 foreach (array_slice($argv, 1) as $arg) {
@@ -95,8 +100,8 @@ foreach (ConfigKeys::all() as $ck) {
         continue;
     }
 
-    $envVal = getenv($envKey);
-    if ($envVal === false || $envVal === '') {
+    $envVal = env($envKey);
+    if ($envVal === null || $envVal === false || $envVal === '') {
         continue; // empty / unset -> config.php wins, nothing to audit
     }
 
