@@ -41,7 +41,7 @@
                 <div class="login-field">
                     <label for="email" class="login-label">{translate key=CompanyAccount}</label>
                     <input type="text" required="" class="login-input" id="email" {formname key=EMAIL}
-                        placeholder="{translate key=CompanyAccountOrEmailPlaceholder}" />
+                        placeholder="{translate key=LoginAccountPlaceholder}" />
                 </div>
             {/if}
 
@@ -50,7 +50,7 @@
                     <label for="password" class="login-label">{translate key=Password}</label>
                     <div class="login-password-wrap">
                         <input type="password" required="" id="password" {formname key=PASSWORD}
-                            class="login-input" value="" />
+                            class="login-input" value="" placeholder="{translate key=LoginPasswordPlaceholder}" />
                         <button type="button" class="login-password-toggle" id="loginPasswordToggle"
                             aria-label="{translate key=Password}" aria-pressed="false">
                             <i class="bi bi-eye" id="loginPasswordToggleIcon"></i>

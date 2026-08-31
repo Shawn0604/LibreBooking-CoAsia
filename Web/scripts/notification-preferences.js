@@ -99,16 +99,15 @@ $(function () {
             });
     });
 
-    // "開始前提醒" — a personal setting applied to every reservation this user creates.
+    // "會議開始前提醒" — a personal setting applied to every reservation this user creates.
+    // The user only chooses on/off + a fixed lead time; the reminder job decides recipients
+    // and channels. No free-text minute entry — the <select> values are the whitelist the
+    // server (NotificationPreferencesService) also enforces.
     if ($('#reservationStartReminderEnabled').length) {
-        var reminderMinutes = function () {
-            var v = Math.max(1, parseInt($('#reservationStartReminderValue').val(), 10) || 1);
-            var unit = $('#reservationStartReminderUnit').val();
-            return unit === 'days' ? v * 1440 : unit === 'hours' ? v * 60 : v;
-        };
+        var $reminderSelect = $('#reservationStartReminderMinutes');
         var syncReminderFields = function () {
             var on = $('#reservationStartReminderEnabled').is(':checked');
-            $('#reservationStartReminderFields').find('input, select').prop('disabled', !on);
+            $reminderSelect.prop('disabled', !on);
             $('#reservationStartReminderFields').toggleClass('np-row-disabled', !on);
         };
         var saveReminder = function () {
@@ -116,7 +115,7 @@ $(function () {
             var body = new URLSearchParams();
             body.set('action', 'reservationStartReminder');
             body.set('enabled', on ? '1' : '0');
-            body.set('minutes', String(reminderMinutes()));
+            body.set('minutes', String(parseInt($reminderSelect.val(), 10) || 15));
             post(opts.saveUrl, body)
                 .then(function (json) {
                     if (json && json.success) {
@@ -133,7 +132,7 @@ $(function () {
             syncReminderFields();
             saveReminder();
         });
-        $('#reservationStartReminderValue, #reservationStartReminderUnit').on('change', function () {
+        $reminderSelect.on('change', function () {
             if ($('#reservationStartReminderEnabled').is(':checked')) {
                 saveReminder();
             }

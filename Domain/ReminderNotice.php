@@ -188,7 +188,10 @@ class ReminderNotice
     {
         $seriesId = $row[ColumnNames::SERIES_ID];
         $reservationId = $row[ColumnNames::RESERVATION_INSTANCE_ID];
-        $userId = $row[ColumnNames::USER_ID];
+        // GET_REMINDER_NOTICES doesn't select a user_id column (the recipient fan-out is done
+        // per-reservation by ReservationReminderSender, not per-row here), so this is null in
+        // practice — kept only for the legacy constructor signature.
+        $userId = $row[ColumnNames::USER_ID] ?? null;
         $referenceNumber = $row[ColumnNames::REFERENCE_NUMBER];
         $startDate = Date::FromDatabase($row[ColumnNames::RESERVATION_START]);
         $endDate = Date::FromDatabase($row[ColumnNames::RESERVATION_END]);

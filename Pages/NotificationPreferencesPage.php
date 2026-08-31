@@ -122,20 +122,9 @@ class NotificationPreferencesPage extends SecurePage implements INotificationPre
 
     public function SetReservationStartReminderMinutes($minutes)
     {
-        $minutes = (int)$minutes;
-        $this->Set('ReservationStartReminderMinutes', $minutes);
-
-        // Split into number + unit for the two fields. Default 15 minutes when off, so
-        // toggling it on shows a sensible starting value.
-        if ($minutes > 0 && $minutes % 1440 === 0) {
-            $this->Set('ReservationReminderValue', $minutes / 1440);
-            $this->Set('ReservationReminderUnit', 'days');
-        } elseif ($minutes > 0 && $minutes % 60 === 0) {
-            $this->Set('ReservationReminderValue', $minutes / 60);
-            $this->Set('ReservationReminderUnit', 'hours');
-        } else {
-            $this->Set('ReservationReminderValue', $minutes > 0 ? $minutes : 15);
-            $this->Set('ReservationReminderUnit', 'minutes');
-        }
+        // Raw minute count; the template matches it against the fixed <option> values
+        // (5/10/15/30/60/120/1440). 0 = off, and the template pre-selects 15 in that case so
+        // enabling the toggle starts from a sensible value.
+        $this->Set('ReservationStartReminderMinutes', (int)$minutes);
     }
 }

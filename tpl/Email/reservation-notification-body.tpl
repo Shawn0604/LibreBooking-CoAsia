@@ -31,6 +31,11 @@
     {assign var='StatusLabel' value='審核通過'}
     {assign var='StatusBg' value='#e6f4ea'}
     {assign var='StatusColor' value='#1e7e34'}
+{elseif $Status == 'reminder'}
+    {* "會議即將開始" / "會議即將結束" — ReminderStatusLabel is set by ReservationReminderEmail. *}
+    {assign var='StatusLabel' value=$ReminderStatusLabel|default:'會議即將開始'}
+    {assign var='StatusBg' value='#e8eef7'}
+    {assign var='StatusColor' value=$CoasiaPrimary}
 {else}
     {assign var='StatusLabel' value='預約成功'}
     {assign var='StatusBg' value='#e6f4ea'}
@@ -103,8 +108,9 @@
 
 			{* 6-7. 加入視訊會議 / 主持人登入資訊 — never shown once the meeting itself is
 			   cancelled, matching the button that already had this same $Status check before
-			   the redesign. *}
-			{if $PrimaryVideo && $Status != 'cancelled'}
+			   the redesign. An "ending soon" reminder ($ReminderType == 'end') also skips it —
+			   the meeting is already under way, so a join button / host login box is noise. *}
+			{if $PrimaryVideo && $Status != 'cancelled' && ($Status != 'reminder' || ($ReminderType|default:'start') != 'end')}
 				<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
 					<tr>
 						<td style="border-radius:8px;background-color:{$CoasiaPrimary};">

@@ -138,4 +138,12 @@ interface IReminderRepository
      * @param $refnumber
      */
     public function DeleteReminderByRefNumber($refnumber);
+
+    /**
+     * @abstract
+     * @param Date $now
+     * @param ReservationReminderType|int $reminderType
+     * @return ReminderNotice[]|array
+     */
+    public function GetReminderNotices(Date $now, $reminderType);
 }

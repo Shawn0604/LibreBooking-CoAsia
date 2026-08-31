@@ -1088,10 +1088,29 @@ details.moreOptions[open] summary .bi-chevron-right {
   padding: 20px;
   box-sizing: border-box;
   overflow-y: auto;
-  background-color: #f4f6f9;
+  /* Pure-CSS CoAsia blue-grey wash — no image, texture, ripple, lines or decorative
+     animation. Reads as an almost-white light grey from a distance, with only a very faint
+     blue-grey gradient that never competes with the centered white login card:
+       - a barely-there CoAsia-blue (#003D7C) glow low-right,
+       - a soft white lift top-left,
+       - a 140deg light grey -> pale blue base gradient.
+     background-attachment:fixed keeps the wash pinned to the viewport while the card area
+     scrolls on short screens. */
+  background-color: #FAFBFD;
   background-image:
-    radial-gradient(circle at 24% 20%, rgba(31, 49, 89, 0.07), transparent 55%),
-    radial-gradient(circle at 82% 78%, rgba(156, 183, 226, 0.12), transparent 55%);
+    radial-gradient(
+      ellipse 70% 55% at 85% 88%,
+      rgba(0, 61, 124, 0.035) 0%,
+      rgba(0, 61, 124, 0) 70%
+    ),
+    radial-gradient(
+      ellipse 60% 50% at 15% 12%,
+      rgba(255, 255, 255, 0.85) 0%,
+      rgba(255, 255, 255, 0) 70%
+    ),
+    linear-gradient(140deg, #FAFBFD 0%, #F4F7FB 48%, #E7EEF7 100%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 
 .login-announcements {
@@ -1108,7 +1127,13 @@ details.moreOptions[open] summary .bi-chevron-right {
   background: var(--coasia-surface);
   border: 1px solid var(--coasia-border);
   border-radius: var(--coasia-radius-surface);
-  box-shadow: var(--coasia-shadow-surface);
+  /* Soft, very light lift off the pale wash — a hairline contact shadow plus one wide,
+     low-opacity CoAsia-blue-tinted diffusion. Deliberately gentler than
+     --coasia-shadow-elevated (used for modals over a dimmed backdrop); this card sits on a
+     bright page and should look calm, not floating. */
+  box-shadow:
+    0 1px 2px rgba(20, 30, 55, 0.04),
+    0 18px 40px -20px rgba(0, 61, 124, 0.16);
   padding: 36px 32px 24px;
   box-sizing: border-box;
 }
@@ -1236,7 +1261,8 @@ details.moreOptions[open] summary .bi-chevron-right {
   height: var(--coasia-control-height);
   border: none;
   border-radius: var(--coasia-radius-control);
-  background: var(--sidebar-create-btn-bg);
+  /* CoAsia primary blue — the login page's one solid call-to-action. */
+  background: #003d7c;
   color: #fff;
   font-size: 15px;
   font-weight: 500;

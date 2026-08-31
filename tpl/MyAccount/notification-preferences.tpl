@@ -4,6 +4,7 @@
 
     <div class="page-head">
         <h1>{translate key=NotificationPreferences}</h1>
+        <p class="np-page-subtitle">{translate key=NotificationPreferencesIntro}</p>
     </div>
 
     <div id="npError" class="alert alert-danger np-alert d-none">
@@ -14,30 +15,98 @@
         <div class="alert alert-danger np-alert">
             <i class="bi bi-exclamation-triangle-fill"></i> {translate key=EmailDisabled}
         </div>
-    {else}
-        {* No form/submit button anymore — every control here saves itself immediately via
-           Web/scripts/notification-preferences.js (fetch to ajax/notification_preferences_save.php),
-           showing the shared toast (tpl/globalfooter.tpl#notificationPreferencesSavedToast)
-           instead of a full-page reload + banner. *}
-        <section class="np-card">
-            <h2 class="np-card-title">{translate key=EmailNotifications}</h2>
+    {/if}
 
-            <label class="np-row" for="emailNotificationsEnabled">
-                <span class="np-row-icon"><i class="bi bi-envelope"></i></span>
+    {* No form/submit button — every control saves itself immediately via
+       Web/scripts/notification-preferences.js (fetch to ajax/notification_preferences_save.php),
+       showing the shared toast (tpl/globalfooter.tpl#notificationPreferencesSavedToast). *}
+
+    {if $EmailEnabled || $LineEnabled}
+        {* ---- 預約異動:建立/修改/取消/核准。Email 與 LINE 是這一種通知的兩個「通知方式」,
+           各自一個開關;使用者不需要在別處挑管道,提醒卡片也不再有 Email/LINE 子開關。 ---- *}
+        <section class="np-card">
+            <div class="np-row np-row-heading">
+                <span class="np-row-icon"><i class="bi bi-calendar-check"></i></span>
                 <span class="np-row-text">
-                    <span class="np-row-label">{translate key=EmailNotificationsToggleLabel}</span>
-                    <span class="np-row-desc">{translate key=EmailNotificationsToggleDescription}</span>
+                    <span class="np-row-label np-heading-label">{translate key=NotificationEventsCardTitle}</span>
+                    <span class="np-row-desc">{translate key=NotificationEventsCardDescription}</span>
                 </span>
-                <span class="form-check form-switch np-switch">
-                    <input class="form-check-input" type="checkbox" role="switch" id="emailNotificationsEnabled"
-                        {if $EmailNotificationsEnabled}checked="checked"{/if}>
-                    <span class="visually-hidden">{translate key=EmailNotificationsToggleLabel}</span>
-                </span>
-            </label>
+            </div>
+
+            <div class="np-methods">
+                <p class="np-methods-label">{translate key=NotificationMethods}</p>
+
+                {if $EmailEnabled}
+                    <label class="np-row np-method-row" for="emailNotificationsEnabled">
+                        <span class="np-row-icon"><i class="bi bi-envelope"></i></span>
+                        <span class="np-row-text">
+                            <span class="np-row-label">Email</span>
+                            <span class="np-row-desc">{translate key=EmailNotificationsToggleDescription}</span>
+                        </span>
+                        <span class="form-check form-switch np-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="emailNotificationsEnabled"
+                                {if $EmailNotificationsEnabled}checked="checked"{/if}>
+                            <span class="visually-hidden">Email</span>
+                        </span>
+                    </label>
+                {/if}
+
+                {if $LineEnabled}
+                    {if $LineLinked}
+                        <label class="np-row np-method-row" for="lineNotificationsEnabled">
+                            <span class="np-row-icon"><i class="bi bi-chat-dots"></i></span>
+                            <span class="np-row-text">
+                                <span class="np-row-label">LINE</span>
+                                <span class="np-row-desc">{translate key=LineNotificationsToggleDescription}（{translate key=LineLinked}）</span>
+                            </span>
+                            <span class="form-check form-switch np-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="lineNotificationsEnabled"
+                                    {if $LineNotificationsEnabled}checked="checked"{/if}>
+                                <span class="visually-hidden">LINE</span>
+                            </span>
+                        </label>
+
+                        <div class="np-line-actions np-method-actions">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="lineTestNotificationBtn">
+                                <i class="bi bi-send"></i> {translate key=LineTestNotification}
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="lineUnlinkBtn">
+                                {translate key=LineUnlink}
+                            </button>
+                        </div>
+                    {else}
+                        <div class="np-row np-method-row np-method-row-static">
+                            <span class="np-row-icon"><i class="bi bi-chat-dots"></i></span>
+                            <span class="np-row-text">
+                                <span class="np-row-label">LINE</span>
+                                <span class="np-row-desc">{translate key=LineNotificationsToggleDescription}（{translate key=LineNotLinked}）</span>
+                            </span>
+                        </div>
+
+                        <div class="np-line-unbound">
+                            <img class="np-line-qr" src="{$LineQrDataUri}" alt="{translate key=LineNotifications}" width="180" height="180">
+                            <div class="np-line-steps">
+                                <a class="btn btn-success btn-sm np-line-add-friend" href="{$LineFriendUrl}" target="_blank" rel="noopener">
+                                    {translate key=LineAddFriend}
+                                </a>
+                                <div class="np-line-start-binding">
+                                    <p class="np-line-start-binding-label">{translate key=LineStartBinding}</p>
+                                    <p class="np-card-subtitle">{translate key=LineLinkInstructions}</p>
+                                    <span class="np-line-code">{$LineLinkCode}</span>
+                                </div>
+                            </div>
+                        </div>
+                    {/if}
+                {/if}
+            </div>
         </section>
     {/if}
 
     {if $RemindersEnabled}
+        {* "會議開始前提醒" — the user never picks recipients or Email/LINE here; the
+           reminder job (Jobs/sendreminders.php -> ReservationReminderSender) fans out to the
+           owner + internal attendees over each person's own enabled channels, and to
+           external guests over Email only. This card is purely: on/off + how far ahead. *}
         <section class="np-card">
             <h2 class="np-card-title">{translate key=ReservationReminders}</h2>
 
@@ -54,66 +123,19 @@
                 </span>
             </label>
 
-            <div class="np-row np-row-sub" id="reservationStartReminderFields">
-                <span class="np-row-icon"></span>
-                <span class="np-row-text d-flex align-items-center gap-2">
-                    <input type="number" min="1" max="999" id="reservationStartReminderValue"
-                        class="form-control form-control-sm" style="width:5rem" value="{$ReservationReminderValue}">
-                    <select id="reservationStartReminderUnit" class="form-select form-select-sm" style="width:auto">
-                        <option value="minutes" {if $ReservationReminderUnit eq 'minutes'}selected{/if}>{translate key=minutes}</option>
-                        <option value="hours" {if $ReservationReminderUnit eq 'hours'}selected{/if}>{translate key=hours}</option>
-                        <option value="days" {if $ReservationReminderUnit eq 'days'}selected{/if}>{translate key=days}</option>
-                    </select>
-                    <span class="np-row-desc">{translate key=ReminderBeforeStart}</span>
-                </span>
+            <div class="np-reminder-detail" id="reservationStartReminderFields">
+                <label class="np-reminder-time-label" for="reservationStartReminderMinutes">{translate key=StartReminderTimeLabel}</label>
+                <select id="reservationStartReminderMinutes" class="form-select form-select-sm np-reminder-select">
+                    <option value="5" {if $ReservationStartReminderMinutes eq 5}selected{/if}>{translate key=ReminderLead5Minutes}</option>
+                    <option value="10" {if $ReservationStartReminderMinutes eq 10}selected{/if}>{translate key=ReminderLead10Minutes}</option>
+                    <option value="15" {if $ReservationStartReminderMinutes eq 15 or $ReservationStartReminderMinutes lte 0}selected{/if}>{translate key=ReminderLead15Minutes}</option>
+                    <option value="30" {if $ReservationStartReminderMinutes eq 30}selected{/if}>{translate key=ReminderLead30Minutes}</option>
+                    <option value="60" {if $ReservationStartReminderMinutes eq 60}selected{/if}>{translate key=ReminderLead1Hour}</option>
+                    <option value="120" {if $ReservationStartReminderMinutes eq 120}selected{/if}>{translate key=ReminderLead2Hours}</option>
+                    <option value="1440" {if $ReservationStartReminderMinutes eq 1440}selected{/if}>{translate key=ReminderLead1Day}</option>
+                </select>
+                <p class="np-reminder-hint">{translate key=StartReminderRecipientsHint}</p>
             </div>
-        </section>
-    {/if}
-
-    {if $LineEnabled}
-        <section class="np-card">
-            <h2 class="np-card-title">{translate key=LineNotifications}</h2>
-
-            {if $LineLinked}
-                <div class="np-line-status np-line-status-linked">
-                    <i class="bi bi-check-circle-fill"></i> {translate key=LineLinked}
-                </div>
-
-                <label class="np-row" for="lineNotificationsEnabled">
-                    <span class="np-row-icon"><i class="bi bi-bell"></i></span>
-                    <span class="np-row-text">
-                        <span class="np-row-label">{translate key=LineNotificationsToggleLabel}</span>
-                    </span>
-                    <span class="form-check form-switch np-switch">
-                        <input class="form-check-input" type="checkbox" role="switch" id="lineNotificationsEnabled"
-                            {if $LineNotificationsEnabled}checked="checked"{/if}>
-                        <span class="visually-hidden">{translate key=LineNotificationsToggleLabel}</span>
-                    </span>
-                </label>
-
-                <div class="np-line-actions">
-                    <button type="button" class="btn btn-outline-primary btn-sm" id="lineTestNotificationBtn">
-                        <i class="bi bi-send"></i> {translate key=LineTestNotification}
-                    </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" id="lineUnlinkBtn">
-                        {translate key=LineUnlink}
-                    </button>
-                </div>
-            {else}
-                <div class="np-line-unbound">
-                    <img class="np-line-qr" src="{$LineQrDataUri}" alt="{translate key=LineNotifications}" width="180" height="180">
-                    <div class="np-line-steps">
-                        <a class="btn btn-success btn-sm np-line-add-friend" href="{$LineFriendUrl}" target="_blank" rel="noopener">
-                            {translate key=LineAddFriend}
-                        </a>
-                        <div class="np-line-start-binding">
-                            <p class="np-line-start-binding-label">{translate key=LineStartBinding}</p>
-                            <p class="np-card-subtitle">{translate key=LineLinkInstructions}</p>
-                            <span class="np-line-code">{$LineLinkCode}</span>
-                        </div>
-                    </div>
-                </div>
-            {/if}
         </section>
     {/if}
 

@@ -27,10 +27,11 @@ class NotificationPreferencesService
     }
 
     /**
-     * The 6 individual reservation-lifecycle events the single "接收 Email 通知" toggle now
-     * controls together, instead of 6 separate switches. Kept as one list so every place that
-     * needs to read OR write "all of them at once" iterates the same source instead of
-     * repeating six near-identical lines twice.
+     * The reservation-lifecycle events the single "接收 Email 通知" toggle controls together
+     * (instead of separate switches). Trimmed by request to just create / update / cancel —
+     * the "something on my calendar changed" set, which is high-value and low-volume. The
+     * three retired events (approved / participation-changed / series-ending) were dropped as
+     * noise; see RetiredEmailEvents() for how existing opt-ins get cleaned up.
      * @return IDomainEvent[]
      */
     private function EmailEvents()
@@ -39,6 +40,19 @@ class NotificationPreferencesService
             new ReservationCreatedEvent(),
             new ReservationUpdatedEvent(),
             new ReservationDeletedEvent(),
+        ];
+    }
+
+    /**
+     * Events the toggle USED to control and no longer does. They are force-disabled whenever
+     * the toggle is saved, and NormalizeRetiredEmailEvents() clears any lingering opt-in on
+     * page load, so no manual DB migration is needed — a user who never revisits the page
+     * still gets cleaned up the next time they do.
+     * @return IDomainEvent[]
+     */
+    private function RetiredEmailEvents()
+    {
+        return [
             new ReservationApprovedEvent(),
             new ParticipationChangedEvent(),
             new ReservationSeriesEndingEvent(),
@@ -60,6 +74,28 @@ class NotificationPreferencesService
     }
 
     /**
+     * Turn off any retired event this user still has enabled. Only writes when something
+     * actually changed, so it's cheap to call on every page load. Returns true if it wrote.
+     *
+     * @param User $user
+     * @return bool
+     */
+    public function NormalizeRetiredEmailEvents(User $user)
+    {
+        $changed = false;
+        foreach ($this->RetiredEmailEvents() as $event) {
+            if ($user->WantsEventEmail($event)) {
+                $user->ChangeEmailPreference($event, false);
+                $changed = true;
+            }
+        }
+        if ($changed) {
+            $this->userRepository->Update($user);
+        }
+        return $changed;
+    }
+
+    /**
      * @param User $user
      * @param bool $enabled
      */
@@ -67,6 +103,10 @@ class NotificationPreferencesService
     {
         foreach ($this->EmailEvents() as $event) {
             $user->ChangeEmailPreference($event, $enabled);
+        }
+        // Retired events never come back on, regardless of $enabled.
+        foreach ($this->RetiredEmailEvents() as $event) {
+            $user->ChangeEmailPreference($event, false);
         }
         $this->userRepository->Update($user);
     }
@@ -91,15 +131,27 @@ class NotificationPreferencesService
     }
 
     /**
-     * "開始前提醒" — minutes before a reservation starts. 0 = off. Applied to every
-     * reservation this user creates (ReservationSavePresenter).
+     * The fixed "提醒時間" choices offered on 通知設定, in minutes before start. Any value
+     * outside this whitelist is snapped to 15 — the page only ever submits one of these, so a
+     * different value means a tampered/stale request, not a user choice to honour verbatim.
+     */
+    public const ALLOWED_START_REMINDER_MINUTES = [5, 10, 15, 30, 60, 120, 1440];
+
+    /**
+     * "會議開始前提醒" — minutes before a reservation starts. 0 = off. Applied to every
+     * reservation this user creates (ReservationSavePresenter), and fanned out to the owner +
+     * internal attendees + external guests by Jobs/sendreminders.php.
      *
      * @param User $user
      * @param int $minutes
      */
     public function SaveReservationStartReminder(User $user, $minutes)
     {
-        $user->ChangePreference(UserPreferences::RESERVATION_START_REMINDER_MINUTES, (string)max(0, (int)$minutes));
+        $minutes = (int)$minutes;
+        if ($minutes > 0 && !in_array($minutes, self::ALLOWED_START_REMINDER_MINUTES, true)) {
+            $minutes = 15;
+        }
+        $user->ChangePreference(UserPreferences::RESERVATION_START_REMINDER_MINUTES, (string)max(0, $minutes));
         $this->userRepository->Update($user);
     }
 
@@ -215,6 +267,10 @@ class NotificationPreferencesPresenter
     {
         $userSession = ServiceLocator::GetServer()->GetUserSession();
         $user = $this->userRepository->LoadById($userSession->UserId);
+
+        // Self-heal any lingering opt-in on the events the Email toggle no longer manages,
+        // so no manual DB migration is needed after trimming the event list.
+        $this->service->NormalizeRetiredEmailEvents($user);
 
         $this->page->SetEmailEnabled(Configuration::Instance()->GetKey(ConfigKeys::EMAIL_ENABLED, new BooleanConverter()));
         $this->page->SetEmailNotificationsEnabled($this->service->AllEmailEventsEnabled($user));

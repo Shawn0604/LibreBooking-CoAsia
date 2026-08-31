@@ -3181,3 +3181,74 @@ seed 確認:`roles` 是固定 4 列(role_id == role_level == 1-4);四個管理�
 
 - `composer phpunit` 1762 全綠(唯一失敗 `ManageReservationsPresenterTest` 為既有無關)。新增測試:`ReservationReminder::ConfigIntervalPieces` 解析、request 無提醒時套 owner 偏好、owner 偏好勝過站台預設。
 - **prod 待做**:①`config/config.php` 設 `reservation.reminders.enabled = true`(必要)+ 視需要 `default.start.reminder`;②`build app` + 重建容器;③crontab 加 `run-cron-jobs.sh` 每分鐘。
+
+## 106. 登入頁:純 CSS 藍灰漸層背景 + placeholder 文案
+
+需求:維持既有「置中白色登入卡片」的乾淨方向,但把外層背景換成非常淡的 CoAsia 藍灰純 CSS 漸層(不要圖片/材質/波紋/線條/裝飾動畫),並調整輸入框 placeholder。
+
+### 改動(皆在 `Web/css/coasia-theme.css` 的 `#page-login` 區塊 + `tpl/login.tpl`)
+
+- **`#page-login` 背景**:原本是兩個帶藍調的 `radial-gradient(circle …)` 疊在 `#f4f6f9` 上。改成指定的三層:低右角極淡的 CoAsia 藍(`rgba(0,61,124,0.035)`)橢圓輝光、左上角白色提亮橢圓、`140deg` 的 `#FAFBFD → #F4F7FB → #E7EEF7` 線性漸層,底色 `#FAFBFD`,加 `background-attachment: fixed` + `background-repeat: no-repeat`。遠看接近淺灰白,只有非常淡的藍灰層次,不干擾中央卡片。
+- **`.login-card` 陰影**:`var(--coasia-shadow-surface)` → 更精緻的兩層柔和淡影(`0 1px 2px rgba(20,30,55,.04)` 接觸影 + `0 18px 40px -20px rgba(0,61,124,.16)` 帶藍調的寬散影);比 `--coasia-shadow-elevated`(modal 用)更輕。圓角沿用 `--coasia-radius-surface`,不動。
+- **`.login-submit` 底色**:`var(--sidebar-create-btn-bg)`(`#1f3159`)→ CoAsia 主藍 `#003d7c`。hover 仍是 `filter: brightness(0.94)`。
+- **placeholder**:公司帳號欄 `CompanyAccountOrEmailPlaceholder` → 改名 `LoginAccountPlaceholder`(`請輸入帳號,例如:shawn_tsai`);密碼欄本來沒有 placeholder,新增 `LoginPasswordPlaceholder`(`請輸入電腦開機密碼`)。三語言(zh_tw / en_us / zh_cn)一起加;舊 key 只在 `login.tpl` 用到一處,直接改名無殘留。欄位標籤、間距、記住我、語言選擇器、登入邏輯全部不動。
+
+### 驗證
+
+- 本機 dev 容器(`localhost:8080`)登入頁桌機 + 手機(375px)實測:背景為預期的淡藍灰漸層、無任何圖片/裝飾;白卡片、深藍 `#003d7c` 登入鈕、柔和淡影;兩個 placeholder 中英文皆完整顯示不截斷(`scrollWidth <= clientWidth`);console 無錯誤。computed style 確認 `background-image` / `box-shadow` / 按鈕 `rgb(0,61,124)` 皆如預期。
+
+## 107. 「會議開始前提醒」:收件規則重做 + 通知設定頁 + Email／LINE 一致內容
+
+承 §105。§105 把提醒做成個人偏好、也把 `sendreminders.php` 排上去了,但**收件邏輯有幾個洞**:
+
+- `GET_REMINDER_NOTICES` 這條 SQL `INNER JOIN reservation_users` 會**每個與會者一列**,`ReminderStartEmail` 就照每列的 `u.email` 寄——所以 Email 其實有發給與會者,但**完全沒看對方的 Email 通知偏好**。
+- 同一條 SQL 沒 select `user_id`,`$notice->UserId()` 在正式環境是 `null`,LINE 分支 `LoadById(null)` → 空 user → `WantsLineNotifications()` false → **LINE 永遠不發**。這就是「Email 有、LINE 沒有」的不一致來源。
+- **外部來賓**(在 `reservation_series_guests`,不在 `reservation_users`)完全收不到。
+- 會議室管理員/群組管理員本來就不在 `reservation_users`,行為正確,但沒測試守著。
+
+### 收件規則(新)
+
+新增 **`ReservationReminderSender`**(`lib/Application/Reservation/Notification/Reminder/`)當唯一的「誰收到、走哪個管道」政策:
+
+- **預約人**:Email(自己 Email 通知開著)+ LINE(有綁 + 自己 LINE 通知開著)。視訊會議的**主持人帳號/密碼**只放進**這一份**。
+- **內部與會者**(participants + invitees,去重、排除預約人本身):各自依自己開著的 Email／LINE 發;永遠不含主持人帳密。
+- **外部來賓**(participating + invited guests):**不發**。原本設計是「只寄 Email」,但正式環境的寄信主機只能送內部網域、外部信根本寄不出去,所以直接不處理外部來賓(他們也沒有 LINE,沒有任何管道會通)。UI 提示與 `ReservationReminderSender` 的 guest email 迴圈一併移除。
+- **會議室/群組管理員**:不在收件集合裡,不發。
+- 未綁 LINE 或關掉 LINE → 不發 LINE;關掉 Email → 不寄 Email。同一套判斷同時管兩個管道,不會再出現一邊發一邊不發。
+- 已取消(`status_id = Deleted`)→ 誰都不發(SQL 已濾,`Send()` 再擋一次)。
+
+"Email 通知有沒有開" 的判斷 = `WantsEventEmail(new ReservationCreatedEvent())` —— 通知設定頁那顆單一開關本來就是六個 lifecycle event 一起寫,讀一個代表即可。
+
+### 內容一致(Email ↔ LINE)
+
+- **Email**:新增 `ReservationReminderEmail extends ReservationEmailMessage`,直接重用共用的 `reservation-notification-body.tpl`(跟建立/異動/取消信同一套視覺),`$Status = 'reminder'` 新分支。主持人資訊框沿用該模板既有的 `{if $IsRecipientOwner …}` gate。包裝檔 `lang/en_us/ReservationReminder.tpl`。
+- **LINE**:`ReservationReminderSender` 自建 Flex bubble(狀態、標題、日期時間、視訊資源或會議室、預約人、[開始提醒才有]加入視訊按鈕、[預約人+開始提醒才有]主持人資訊框、查看詳情),外加給預約人一則可長按複製的純文字主持人帳密。
+- 兩邊都含:提醒類型、標題、日期時間、會議室/線上會議名稱、視訊連結、預約詳情連結。
+- 「結束前提醒」(`ReminderType = 'end'`)不顯示加入視訊/主持人框。
+
+### 通知設定頁(依示意圖:2 張卡)
+
+先照原始文字做成三張獨立卡(電子郵件通知 / 會議開始前提醒 / LINE 通知),之後依使用者提供的示意圖修正成:
+
+- **預約異動 卡**:標題列 `預約異動` + `建立、修改或取消預約時通知你。`,一條分隔線後一個 `通知方式` 小標,底下兩列 —— `Email`(`完整預約內容與行事曆附件`)一個開關、`LINE`(`建立預約時推播（LINE 通知已綁定 / 尚未綁定）`)一個開關。已綁定時下方接 `測試通知` / `解除綁定`;未綁定時 LINE 那列不放開關,改顯示既有的 QR + 綁定碼 + 加好友。**沒有獨立的「LINE 通知」卡**;Email/LINE 開關 id (`emailNotificationsEnabled` / `lineNotificationsEnabled`) 與後端 action 都沒變,只是版面併卡。
+- **Email 通知範圍縮小**(依回饋「只有建立跟提醒會比較省」):單一 Email 開關原本綁 6 種 lifecycle event,現在只剩**建立 / 修改 / 取消**(`ReservationCreatedEvent` / `ReservationUpdatedEvent` / `ReservationDeletedEvent`)。退掉的 3 個 —— `ReservationApprovedEvent`(核准)、`ParticipationChangedEvent`(受邀者接受/拒絕時通知預約人)、`ReservationSeriesEndingEvent`(定期系列即將結束)—— 比較吵、價值低。`NotificationPreferencesService`:`EmailEvents()` 只回 3 個;新增 `RetiredEmailEvents()`;`SaveEmailPreference()` 不論開關開關都把退掉的 3 個強制關掉;新增 `NormalizeRetiredEmailEvents()`,`NotificationPreferencesPresenter::PageLoad()` 每次載入時清掉殘留的舊 opt-in(只有真的有東西要清才 `Update()`)—— **不需要手動 DB migration**,使用者下次開這頁就自動收斂。LINE 本來就只有建立 + 提醒,不受影響。`sendseriesend.php` 仍在,只是收斂後沒有使用者的 `series_ending` 偏好是開的,實質上不再寄。
+- **會議開始前提醒 卡**:標題 `會議開始前提醒`;**保留開/關切換**(`自動提醒所有與會者`,說明 `你之後建立的每筆預約,都會在指定時間前提醒。`)。開關開啟後只有一個**固定選項的「提醒時間」下拉**(5/10/15/30 分鐘前、1/2 小時前、1 天前 = 5/10/15/30/60/120/1440 分),**不能手動輸入數字**(舊的 number + 分/時/天 三欄拿掉)。下方固定說明 `系統會依每位與會者已開啟的 Email／LINE 通知方式自動提醒。`(原本還有「外部來賓僅收到 Email」,因寄信主機不能送外部而拿掉)。關閉開關時下拉 + 說明灰掉且 `disabled`。沒有「傳給誰」選擇器、沒有提醒區塊自己的 Email／LINE 子開關、沒有空白 icon。
+- 頁面副標改 `針對每一種通知,選擇要透過哪些方式收到。`;新增語言 key `NotificationEventsCardTitle` / `NotificationEventsCardDescription` / `NotificationMethods`(三語言)。
+- `NotificationPreferencesService::SaveReservationStartReminder` 加白名單:非 `ALLOWED_START_REMINDER_MINUTES` 的值一律 snap 成 15(頁面只會送這幾個值,其他代表被竄改/過期請求)。`NotificationPreferencesPage` 不再把分鐘拆成 value+unit,直接把原始分鐘丟給模板比對 `<option>`。
+- **踩坑**:改語言檔(`lang/*.php`)後,dev 容器 opcache `validate_timestamps=0`,舊 key 會顯示成 `?`、改過的 key 顯示舊值 —— 要 `docker compose -f docker-compose.dev.yml restart app` 才生效(§105 已提過 PHP 碼要重啟,語言檔同理)。
+
+### 排程
+
+`Jobs/sendreminders.php` 整支重寫:`ReservationReminderDispatcher`(找出這一分鐘到期的提醒、`LoadByReferenceNumber` 載入完整 series、依 reference number 去重、跳過取消)→ `ReservationReminderSender`。移除舊的 `ReminderStartEmail`/`ReminderEndEmail`(`lib/Email/Messages/ReminderEmail.php` 刪除)與 WeCom 提醒分支(CoAsia 用 LINE;WeCom 的**建立**通知不受影響)。`IReminderRepository` 補上 `GetReminderNotices()` 宣告(原本只在具體類別有)。舊的 `lang/*/StartReminderEmail.tpl` / `EndReminderEmail.tpl` 留著不動(50 個語言、已無引用、清掉只是雜訊)。
+
+### 驗證
+
+- `composer phpunit`:1776 全綠(唯一失敗 `ManageReservationsPresenterTest` 為既有無關,見 §105)。移除舊 `ReminderEmailTest`(3),新增:
+  - `ReservationReminderSenderTest`(12):預約人 + 內部與會者收件正確;**外部來賓完全不發**(Email、LINE 都沒有);Email off → 不寄 Email 但仍發 LINE;LINE off / 未綁 → 不發 LINE 但仍寄 Email;只開 Email / 只開 LINE 時各自不發另一個;兩者都開時預約人兩者都收;取消的 series 誰都不發;`null` series no-op;非預約人的信 `RecipientIsOwner()` 一律 false(主持人帳密的 gate)、純文字主持人帳密 push 只可能給預約人。
+  - `ReservationReminderEmailTest`(5):`$Status='reminder'` 分支渲染出狀態標籤/標題/加入視訊/查看詳情;結束提醒不出現加入視訊;實體會議室顯示會議室不顯示視訊區;`RecipientIsOwner()` 跟建構參數一致;主旨帶會議室名。
+  - `NotificationPreferencesServiceTest`(10):提醒白名單每個值都收 / 0 = 關 / 非白名單 snap 成 15 / 負數 clamp 成 0 / 經 `Update` 落庫;`SaveEmailPreference(true)` 只開建立/修改/取消、退掉的 3 個保持關;`SaveEmailPreference(false)` 全關;`AllEmailEventsEnabled` 忽略退掉的 event;`NormalizeRetiredEmailEvents` 清掉殘留 opt-in 且只寫一次、沒東西清時 no-op。
+- `php -f Jobs/sendreminders.php` 在 dev 容器實跑 exit 0(require 全解得開、類別都建得起來)。
+- **端對端(dev 真實 DB)**:拿一筆真的預約(ref `6a94f712…`,開始前 15 分提醒),把 `Date::_SetNow` 定在到期那一分鐘,`GetReminderNotices(Start)` 正確撈到 1 筆 → dispatcher 載入 → sender 產出 1 封 `ReservationReminderEmail` 給預約人、主旨「… 的預約即將開始」、`RecipientIsOwner=true`;該帳號未綁 LINE 所以 LINE 0 筆。**前提是每分鐘的 cron 有在跑**(`scripts/run-cron-jobs.sh`,prod crontab 待加)——SQL 是「到期那一分鐘精確相等」比對,無補寄。
+- 順修 `ReminderNotice::FromRow` 每次跑都噴的 `Undefined array key "user_id"` warning(`?? null`;`GET_REMINDER_NOTICES` 沒 select 該欄,新流程也不用)。
+- `php-cs-fixer` / `phpstan`(level 2)對本次新增/修改檔案皆 0 問題。
+- **prod 待做**:同 §105(`reservation.reminders.enabled = true`、`build app` + 重建容器、crontab)。通知設定頁的「會議開始前提醒」卡片仍 gate 在 `reservation.reminders.enabled`。

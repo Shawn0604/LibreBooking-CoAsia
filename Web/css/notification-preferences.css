@@ -22,6 +22,12 @@
   color: var(--np-text-primary);
 }
 
+#page-notification-preferences .np-page-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--np-text-secondary);
+}
+
 #page-notification-preferences .np-alert {
   border-radius: var(--bs-border-radius-lg, 0.85rem);
   margin-bottom: 20px;
@@ -91,6 +97,50 @@
   color: var(--np-text-secondary);
 }
 
+/* Card heading row — icon + card title + one-line description. Not a control, so no
+   pointer cursor. The Email/LINE method rows sit below it inside .np-methods. */
+#page-notification-preferences .np-row-heading {
+  cursor: default;
+  align-items: flex-start;
+  padding-bottom: 12px;
+}
+
+#page-notification-preferences .np-heading-label {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* "通知方式" group — the two per-channel toggles (Email / LINE) for 預約異動. Divider +
+   left indent so the group's rows line up under the heading's text, not its icon. */
+#page-notification-preferences .np-methods {
+  margin-left: 50px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gcal-border, #eceff1);
+}
+
+#page-notification-preferences .np-methods-label {
+  margin: 0 0 2px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--np-text-secondary);
+}
+
+#page-notification-preferences .np-method-row {
+  padding: 8px 0 6px;
+}
+
+/* Unbound-LINE row: shows status text only, no switch — the QR/code block below it is the
+   actual control. */
+#page-notification-preferences .np-method-row-static {
+  cursor: default;
+}
+
+@media (max-width: 480px) {
+  #page-notification-preferences .np-methods {
+    margin-left: 0;
+  }
+}
+
 /* sub-row under a toggle (e.g. 開始前提醒 的分鐘數) -- not itself clickable, indented
    under the switch above it, dimmed while the toggle is off. */
 #page-notification-preferences .np-row-sub {
@@ -100,6 +150,49 @@
 
 #page-notification-preferences .np-row-sub.np-row-disabled {
   opacity: 0.45;
+}
+
+/* 會議開始前提醒 detail — the fixed "提醒時間" dropdown + the recipients hint. Aligns
+   under the toggle row's text column (36px icon + 14px gap). When the toggle is off the
+   whole block greys out and the <select> is disabled (JS toggles .np-row-disabled and the
+   `disabled` attr together). */
+#page-notification-preferences .np-reminder-detail {
+  padding: 2px 0 8px 50px;
+}
+
+#page-notification-preferences .np-reminder-detail.np-row-disabled {
+  opacity: 0.45;
+}
+
+#page-notification-preferences .np-reminder-time-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--np-text-secondary);
+  margin: 0 0 4px;
+}
+
+#page-notification-preferences .np-reminder-select {
+  width: auto;
+  min-width: 9rem;
+  max-width: 100%;
+}
+
+#page-notification-preferences .np-reminder-select:disabled {
+  cursor: not-allowed;
+}
+
+#page-notification-preferences .np-reminder-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--np-text-secondary);
+}
+
+@media (max-width: 480px) {
+  #page-notification-preferences .np-reminder-detail {
+    padding-left: 0;
+  }
 }
 
 #page-notification-preferences .np-switch {
