@@ -256,7 +256,7 @@ openssl rand -base64 24   # 給 MYSQL_ROOT_PASSWORD
 
 編輯 `.env`，填入 `MYSQL_DATABASE=librebooking`、`MYSQL_USER=lb_user`、剛剛兩組密碼。編輯 `app.env`，把 `LB_SCRIPT_URL` 改成 `https://booking.coasia.com.tw`、確認 `LB_APP_DEBUG=false`。
 
-### ⚠️ 部署時踩到的坑：`app.env` 蓋掉 `config.php` 的資料庫設定
+### ⚠️ 反覆踩的坑：`app.env` 靜默蓋掉 `config.php`（任何非空 `LB_*` 都會蓋）
 
 **症狀**：`config/config.php` 設定完全正確、`composer preflight` 檢查資料庫連線也顯示 `[PASS] Database connection: connected`，但一從瀏覽器/curl 打真正的網頁，就會 500，錯誤是：
 
@@ -282,16 +282,36 @@ LB_PHPMAILER_SMTP_AUTH=true
 
 `LB_PHPMAILER_SMTP_AUTOTLS`／`LB_PHPMAILER_SMTP_AUTH` 這兩個當下還沒發作（因為還沒人觸發寄信），但原理一樣，會在第一次寄信時炸掉（公司內部 SMTP relay 是不需要帳密/TLS 的 open relay，被蓋成 `true` 之後會連線失敗）。
 
-**修法**：`app.env` 從 `.env.example` 複製過來後，一定要先跑這兩行，把會跟 `config.php` 打架的欄位刪掉：
+**當時的修法（不夠徹底）**：只刪了 DB／mailer 兩類：
 
 ```bash
 sed -i '/^LB_DATABASE_/d' app.env
 sed -i '/^LB_PHPMAILER_/d' app.env
 ```
 
-再確認一次沒有殘留：`grep -E "DATABASE|PHPMAILER" app.env` 應該要沒有任何輸出。
+**2026-08-31 同一顆地雷又炸一次**：`config.php` 開了 `reservation.reminders.enabled = true`，但「會議開始前提醒」的卡片跟排程都沒作用。查了很久才發現 `app.env`（整份從 `.env.example` 複製）裡有 `LB_RESERVATION_REMINDERS_ENABLED=false`——又是同樣的覆蓋。上次只清 DB／mailer，其餘**上百行** `.env.example` 預設值全留著，等於把幾乎每個設定都釘死。
 
-**通用排查心法**（這次學到的）：如果「手動用 CLI 測試都正常，但實際網頁請求就是不行」，先懷疑是不是有**兩條不同的程式碼路徑**在做同一件事——這次的情況是「直接 `include` 讀檔案」vs「透過 `Configuration::GetKey()` 讀取（會被環境變數覆蓋）」，兩條路徑表面上應該要讀到一樣的值，但其實不是。
+**正確的做法：`app.env` 只留真正需要跟 `config.php` 不一樣的那幾行（例如 `LB_SCRIPT_URL`），其他全部清空或刪掉，讓 `config.php` 成為唯一來源。** 空值（`LB_FOO=`）不會覆蓋，只有非空字串會。
+
+稽核工具：[`scripts/audit-app-env.sh`](scripts/audit-app-env.sh)（跑在 VM 上，會 `docker cp` 一支 PHP 進 `app` 容器）。它列出 `app.env` 每一行非空 `LB_*` 對應的：`config.php` 原始值 / `GetKey()` 實際值 / 有沒有在蓋不同的值（`SHADOWS`）。**每次改完 `config.php` 或部署後都跑一次**，有 `SHADOWS` 就 exit 非零（可拿來 gate 部署）。
+
+```bash
+./scripts/audit-app-env.sh                 # 全部非空 LB_* override
+./scripts/audit-app-env.sh reservation     # 只看某個 key/section
+./scripts/audit-app-env.sh --shadowing     # 只列出真的在蓋 config.php 的
+```
+
+一次性收斂 `app.env`（先備份，逐條確認 `SHADOWS` 是不是故意的，不是的話清成空值）：
+
+```bash
+cp app.env "app.env.bak-$(date +%F)"
+./scripts/audit-app-env.sh --shadowing     # 看清單,決定每一行要留還是清
+# 對不需要覆寫的 key:  sed -i 's/^LB_XXX=.*/LB_XXX=/' app.env   (清成空值,保留行方便日後對照)
+docker compose -f docker-compose.prod.yml restart app
+./scripts/audit-app-env.sh --shadowing     # 應該只剩下故意保留的(或全空)
+```
+
+**通用排查心法**：如果「手動用 CLI 測試都正常，但實際網頁請求就是不行」，先懷疑是不是有**兩條不同的程式碼路徑**在做同一件事——這次的情況是「直接 `include config.php` 讀檔案」vs「透過 `Configuration::GetKey()` 讀取（會被 `LB_*` 環境變數覆蓋）」，兩條路徑表面上應該讀到一樣的值，其實不是。任何 `Configuration::GetKey()` 的東西都要用 `scripts/audit-app-env.sh` 或真正走 Apache 的請求去驗，不能只信 `php -r include`。
 
 ---
 

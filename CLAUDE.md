@@ -29,7 +29,8 @@
 - 做完一輪有意義的改動，習慣性在 `COASIA-CHANGES.md` 新增一節記錄，格式比照既有章節（需求 → 根因分析 → 修法 → 驗證）——重點是記「為什麼這樣改」，不是只記「改了什麼」
 - 本機開發容器的 PHP opcache 設定 `validate_timestamps=0`——改完 PHP 程式碼、要在**瀏覽器**看到效果，得 `docker compose -f docker-compose.dev.yml restart app`；CLI 測試腳本是獨立行程、不受影響，容易誤判「CLI 測過了應該沒問題」
 - 正式環境改了 `.tpl` 樣板，如果 `cache.templates=true`，Smarty 不會自動偵測改動，要手動清 `tpl_c/` 才會生效
-- 正式環境的機密設定（`config/config.php`、`.env`、`app.env`、`ActiveDirectory.config.php`）是 bind mount 從 VM 實體檔案掛進容器，不在版控裡；`app.env` 裡任何非空的 `LB_DATABASE_*`／`LB_PHPMAILER_*` 環境變數會直接覆蓋 `config.php` 的對應設定（`lib/Config/Configuration.php` 的 `GetKey()` 優先序），改設定時要注意這個覆蓋順序
+- 正式環境的機密設定（`config/config.php`、`.env`、`app.env`、`ActiveDirectory.config.php`）是 bind mount 從 VM 實體檔案掛進容器，不在版控裡
+- ⚠️ **`app.env` 會蓋掉 `config.php`——不是只有 DB／mailer 那幾個 key，是「任何」非空的 `LB_*` 都會蓋**：`Configuration::GetKey()` 先查 `LB_<KEY>` 環境變數（`ConfigKeysMeta::envKeyForConfig()` 把 `reservation.reminders.enabled` 轉成 `LB_RESERVATION_REMINDERS_ENABLED`），只要有非空字串就用它、**完全忽略 `config.php`**。正式機的 `app.env` 是整份從 `.env.example` 複製來的，等於把幾乎每個設定都釘死成 `.env.example` 的預設值。**所以「改了 `config.php` 卻沒反應」時，第一個要查的就是 `app.env` 有沒有對應的 `LB_*` 行**（`grep` 那個 key，或直接跑 `scripts/audit-app-env.sh <key>`，它會列出 config.php 值 / app.env 有沒有蓋 / `GetKey()` 實際值）。修法是把 `app.env` 裡不是真的要覆寫的那行清成空值或刪掉，再 `restart app`。用 `php -r` 直接 `include config.php` 讀原始陣列手動測會繞過這層覆蓋、怎麼測都對，特別容易被誤導——這個坑 DB 連線踩過一次、提醒開關又踩一次（見 `COASIA-DEPLOYMENT.md` 的「app.env 蓋掉 config.php」章節）
 - **絕對不要把密碼／密鑰貼在指令或截圖裡**——資料庫密碼等機密要透過容器自己已有的環境變數（例如 `db` 容器的 `$MYSQL_ROOT_PASSWORD`）帶入指令，不要手動輸入或印出明文
 
 ## 開發規範（來自上游 LibreBooking 專案，程式碼風格／測試／commit 慣例仍然適用）
