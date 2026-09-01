@@ -3283,5 +3283,15 @@ iCalendarReservationView::__construct(): Argument #2 ($currentUser) must be of t
 ### 驗證
 
 - 新增 `ReservationReminderEmailTest::testReminderBuildsIcsEvenWhenSeriesHasNoBookedBy`:series `WithBookedBy(null)` 時 `Body()` 不再 fatal,且照樣掛上 `BEGIN:VCALENDAR` 附件。helper 加 `withBookedBy` 參數。
-- 端對端(prod):部署後把 `Date::$_Now` 定在 series 185(ref `6a954f7e31a9b171536678`,今日 UTC 09:55 到期)那一分鐘實跑 `sendreminders.php` → 應寄出 1 封提醒信給預約人。
+- 端對端(prod):部署後把 `Date::$_Now` 定在 series 185(ref `6a954f7e31a9b171536678`,今日 UTC 09:55 到期)那一分鐘實跑 `sendreminders.php` → 寄出 1 封提醒信給預約人,確認修好。
 - **prod 部署**:bake-into-image,需 `git pull` + rebuild `app` image + 重建容器(光 `git pull` 不生效)。
+
+### 追加:提醒時間選項從 7 個收斂成 3 個(隨同一次部署)
+
+§107 的「提醒時間」下拉給了 7 個值(5/10/15/30 分、1/2 小時、1 天)。這是「設定一次、自動套用到你每一筆預約」的預設值,2 小時 / 1 天對「自己訂的內部會議室」是雜訊(那比較像別人邀你的活動才需要的前置量),對照 Google Calendar(10 分)/ Outlook(15 分)的預設也偏長。收斂成 **15 / 30 分鐘前 + 1 小時前**:
+
+- `NotificationPreferencesService::ALLOWED_START_REMINDER_MINUTES` → `[15, 30, 60]`。既有的「非白名單值 snap 成 15」邏輯不動,舊資料庫裡存的 5/10/120/1440 會在使用者下次存檔時自動收斂成 15,不需要 DB migration。
+- `notification-preferences.tpl` 移除 5/10/120/1440 四個 `<option>`;15 的 `selected` 條件改成「不是 30 也不是 60 就選 15」,涵蓋 0(關閉)與尚未收斂的舊值。
+- 移除三語言(`en_us` / `zh_tw` / `zh_cn`)已無引用的 `ReminderLead5Minutes` / `ReminderLead10Minutes` / `ReminderLead2Hours` / `ReminderLead1Day`。
+- `notification-preferences.js` 讀 `select.val()`、預設 15,無硬編碼清單,不用改。
+- `NotificationPreferencesServiceTest::testAcceptsEachWhitelistedLeadTime` 迭代該常數,自動跟著縮;10 tests 全綠。

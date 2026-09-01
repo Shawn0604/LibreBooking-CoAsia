@@ -133,9 +133,10 @@ class NotificationPreferencesService
     /**
      * The fixed "提醒時間" choices offered on 通知設定, in minutes before start. Any value
      * outside this whitelist is snapped to 15 — the page only ever submits one of these, so a
-     * different value means a tampered/stale request, not a user choice to honour verbatim.
+     * different value means a tampered/stale request, or a value saved before the list was
+     * trimmed, not a user choice to honour verbatim.
      */
-    public const ALLOWED_START_REMINDER_MINUTES = [5, 10, 15, 30, 60, 120, 1440];
+    public const ALLOWED_START_REMINDER_MINUTES = [15, 30, 60];
 
     /**
      * "會議開始前提醒" — minutes before a reservation starts. 0 = off. Applied to every
