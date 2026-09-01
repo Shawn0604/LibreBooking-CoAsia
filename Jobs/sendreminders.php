@@ -43,7 +43,7 @@ try {
     );
 
     $dispatcher->DispatchDue(Date::Now());
-} catch (Exception $ex) {
+} catch (Throwable $ex) {
     Log::Error('Error running sendreminders.php: %s', $ex);
 }
 

@@ -264,7 +264,7 @@ abstract class ReservationEmailMessage extends EmailMessage
 
         $icsView = new iCalendarReservationView(
             $rv,
-            $this->reservationSeries->BookedBy(),
+            $this->IcsCurrentUser(),
             new NullPrivacyFilter(),
             null,
             $this->GetIcsMethod()
@@ -273,6 +273,35 @@ abstract class ReservationEmailMessage extends EmailMessage
         $display = new CalendarExportDisplay();
         $icsContents = $display->Render([$icsView]);
         $this->AddStringAttachment($icsContents, $this->BuildIcsFileName($currentInstance->ReferenceNumber()));
+    }
+
+    /**
+     * The "current user" iCalendarReservationView renders the ICS attachment's summary/labels
+     * and privacy checks against. Normally the {@see UserSession} that made the booking, but
+     * reminder e-mails are built by a cron job (Jobs/sendreminders.php) where the series is
+     * loaded fresh from the database and BookedBy() is therefore null — and
+     * iCalendarReservationView type-hints UserSession, so a null there is a fatal TypeError.
+     * Fall back to a session synthesised from the reservation owner, mirroring the same
+     * owner-fallback {@see From()} already uses.
+     *
+     * @return UserSession
+     */
+    protected function IcsCurrentUser(): UserSession
+    {
+        $bookedBy = $this->reservationSeries->BookedBy();
+        if ($bookedBy instanceof UserSession) {
+            return $bookedBy;
+        }
+
+        $session = new UserSession($this->reservationOwner->Id());
+        $session->FirstName = $this->reservationOwner->FirstName();
+        $session->LastName = $this->reservationOwner->LastName();
+        $session->Email = $this->reservationOwner->EmailAddress();
+        $ownerTimezone = $this->reservationOwner->Timezone();
+        $session->Timezone = !empty($ownerTimezone) ? $ownerTimezone : Configuration::Instance()->GetDefaultTimezone();
+        $session->LanguageCode = $this->reservationOwner->Language();
+
+        return $session;
     }
 
     /**

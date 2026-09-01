@@ -3252,3 +3252,36 @@ seed 確認:`roles` 是固定 4 列(role_id == role_level == 1-4);四個管理�
 - 順修 `ReminderNotice::FromRow` 每次跑都噴的 `Undefined array key "user_id"` warning(`?? null`;`GET_REMINDER_NOTICES` 沒 select 該欄,新流程也不用)。
 - `php-cs-fixer` / `phpstan`(level 2)對本次新增/修改檔案皆 0 問題。
 - **prod 待做**:同 §105(`reservation.reminders.enabled = true`、`build app` + 重建容器、crontab)。通知設定頁的「會議開始前提醒」卡片仍 gate 在 `reservation.reminders.enabled`。
+
+## 108. 「會議開始前提醒」正式環境完全不送:cron context 下 ICS 附件 TypeError
+
+承 §107。功能上線後回報「提醒依然沒收到」。正式環境逐項排查(全部正常):`reservation.reminders.enabled` / `reservation.default.start.reminder` 生效值 = `true` / `'15 minutes'`;`email.enabled` / `line.enabled` 皆 true;`app.env` 沒有把這幾個 `LB_*` 設成非空的假值;每分鐘的 `run-cron-jobs.sh` crontab 已裝、syslog 看得到每分鐘觸發;新預約確實寫進 `reservation_reminders`(`reminder_type=0`);個人設定 `ReservationStartReminderMinutes=15` 有落庫;DB 時區 UTC;`GET_REMINDER_NOTICES` 對已知的未來預約實測撈得到 1 列。SQL / dispatch 全對。
+
+### 根因
+
+`/var/log/librebooking/log/app.log` 裡每一筆到期提醒都是同一個 **uncaught `TypeError`**:
+
+```
+iCalendarReservationView::__construct(): Argument #2 ($currentUser) must be of type UserSession, null given
+  ReservationEmailMessage->PopulateIcsAttachment()  (行 265)
+  ReservationReminderEmail->PopulateTemplate()
+  ReservationReminderSender->SendEmail() / Send()
+  ReservationReminderDispatcher->DispatchType()
+  Jobs/sendreminders.php
+```
+
+`ReservationEmailMessage::PopulateIcsAttachment()` 建 `.ics` 行事曆附件時,第二個參數傳 `$this->reservationSeries->BookedBy()`。建立／異動／取消信是在**有登入 session 的 web request** 內寄的,那時 series 剛建好、`BookedBy()` 有值;但提醒信是 `sendreminders.php` 這支 **cron** 寄的,series 是 `LoadByReferenceNumber()` 現撈的,`_bookedBy` 從沒設過 → `null`。`iCalendarReservationView` 建構子 type-hint `UserSession`,`null` 直接 fatal。
+
+`sendreminders.php` 外層只 `catch (Exception)`,`TypeError` 屬 `Error` 不被接 → 整個 job 每分鐘一觸即死,連同那一分鐘其他到期提醒一起陪葬。單元測試沒抓到是因為 `TestReservationSeries` 建構子固定塞了一個 `FakeUserSession`,從沒走過 `BookedBy() === null`。
+
+### 修法
+
+- `ReservationEmailMessage`:新增 `protected IcsCurrentUser(): UserSession` —— `BookedBy()` 是 `UserSession` 就用它,否則用預約擁有者(`$this->reservationOwner`,建構子必帶)合成一個 `UserSession`(id / 姓名 / email / 時區 / 語系)。跟同檔 `From()` 早就在用的「`BookedBy() ?? 退回 owner」同一套。`PopulateIcsAttachment()` 改用 `$this->IcsCurrentUser()`。建立／異動／取消信 `BookedBy()` 有值,行為不變。
+- `ReservationReminderDispatcher`:內圈 per-reference 的 `catch (Exception)` 放寬成 `catch (Throwable)` —— 一封信建構失敗不該讓這一分鐘其他到期提醒一起沒送(無補寄)。
+- `Jobs/sendreminders.php`:外層 `catch (Exception)` → `catch (Throwable)`。
+
+### 驗證
+
+- 新增 `ReservationReminderEmailTest::testReminderBuildsIcsEvenWhenSeriesHasNoBookedBy`:series `WithBookedBy(null)` 時 `Body()` 不再 fatal,且照樣掛上 `BEGIN:VCALENDAR` 附件。helper 加 `withBookedBy` 參數。
+- 端對端(prod):部署後把 `Date::$_Now` 定在 series 185(ref `6a954f7e31a9b171536678`,今日 UTC 09:55 到期)那一分鐘實跑 `sendreminders.php` → 應寄出 1 封提醒信給預約人。
+- **prod 部署**:bake-into-image,需 `git pull` + rebuild `app` image + 重建容器(光 `git pull` 不生效)。

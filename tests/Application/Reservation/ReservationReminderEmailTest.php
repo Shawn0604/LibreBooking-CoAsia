@@ -70,9 +70,26 @@ class ReservationReminderEmailTest extends TestBase
         );
     }
 
+    /**
+     * Regression: reminder e-mails are built by the sendreminders cron, which loads the series
+     * fresh (BookedBy() === null). The ICS attachment path must not fatal on the null and must
+     * still attach the calendar file (fell over with a TypeError in prod before IcsCurrentUser
+     * fell back to the owner).
+     */
+    public function testReminderBuildsIcsEvenWhenSeriesHasNoBookedBy()
+    {
+        $email = $this->reminderEmail(ReservationReminderType::Start, true, withVideo: false, withBookedBy: false);
+
+        $body = $email->Body();
+
+        $this->assertStringContainsString('Room A', $body);
+        $this->assertTrue($email->HasStringAttachment());
+        $this->assertStringContainsString('BEGIN:VCALENDAR', $email->AttachmentContents());
+    }
+
     // ---- helper -----------------------------------------------------------
 
-    private function reminderEmail(int $type, bool $isOwner, bool $withVideo): ReservationReminderEmail
+    private function reminderEmail(int $type, bool $isOwner, bool $withVideo, bool $withBookedBy = true): ReservationReminderEmail
     {
         $owner = new FakeUser(10, 'owner@co.com');
         $owner->_WantsEmail = true;
@@ -98,6 +115,9 @@ class ReservationReminderEmailTest extends TestBase
         $series->WithTitle('Weekly sync');
         $series->WithDescription('Recurring team check-in');
         $series->WithCurrentInstance(new TestReservation());
+        if (!$withBookedBy) {
+            $series->WithBookedBy(null);
+        }
 
         $recipient = $isOwner
             ? new EmailAddress('owner@co.com', 'Owner')

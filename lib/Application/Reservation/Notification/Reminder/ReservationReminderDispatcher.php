@@ -60,7 +60,9 @@ class ReservationReminderDispatcher
                     continue;
                 }
                 $this->sender->Send($series, $reminderType, (int)$notice->ReminderMinutes());
-            } catch (Exception $ex) {
+            } catch (Throwable $ex) {
+                // Throwable, not Exception: a TypeError building one reminder's e-mail must not
+                // kill every other due reminder this minute (there is no catch-up run).
                 Log::Error('sendreminders: failed dispatching reference %s: %s', $referenceNumber, $ex);
             }
         }
