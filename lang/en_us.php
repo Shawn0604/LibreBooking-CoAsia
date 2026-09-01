@@ -358,9 +358,13 @@ class en_us extends Language
         $strings['StartReminderToggleDescription'] = 'Every reservation you create is reminded this far before it starts.';
         $strings['StartReminderTimeLabel'] = 'Reminder time';
         $strings['StartReminderRecipientsHint'] = 'The system reminds each attendee through whichever of Email / LINE they have enabled.';
+        $strings['ReminderLead5Minutes'] = '5 minutes before';
+        $strings['ReminderLead10Minutes'] = '10 minutes before';
         $strings['ReminderLead15Minutes'] = '15 minutes before';
         $strings['ReminderLead30Minutes'] = '30 minutes before';
         $strings['ReminderLead1Hour'] = '1 hour before';
+        $strings['ReminderLead2Hours'] = '2 hours before';
+        $strings['ReminderLead1Day'] = '1 day before';
         $strings['LineNotificationsToggleDescription'] = 'Pushed when a reservation is created';
         $strings['ReminderEmailStatusStarting'] = 'Meeting starting soon';
         $strings['ReminderEmailStatusEnding'] = 'Meeting ending soon';

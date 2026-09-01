@@ -3283,15 +3283,27 @@ iCalendarReservationView::__construct(): Argument #2 ($currentUser) must be of t
 ### 驗證
 
 - 新增 `ReservationReminderEmailTest::testReminderBuildsIcsEvenWhenSeriesHasNoBookedBy`:series `WithBookedBy(null)` 時 `Body()` 不再 fatal,且照樣掛上 `BEGIN:VCALENDAR` 附件。helper 加 `withBookedBy` 參數。
-- 端對端(prod):部署後把 `Date::$_Now` 定在 series 185(ref `6a954f7e31a9b171536678`,今日 UTC 09:55 到期)那一分鐘實跑 `sendreminders.php` → 寄出 1 封提醒信給預約人,確認修好。
-- **prod 部署**:bake-into-image,需 `git pull` + rebuild `app` image + 重建容器(光 `git pull` 不生效)。
+- 本機(dev 真實 DB):載入一筆現有預約(`BookedBy() === null`)→ `ReservationReminderEmail->Body()` 產出 3810 bytes + ICS 附件,不再丟例外。`phpunit`(reminder + reservation suite 共 269)、`php-cs-fixer`、`phpstan` 全綠。
+- **已部署 prod（2026-09-01)**:`git pull` + rebuild `app` image + `up -d --force-recreate app`。容器內唯讀驗證(不寄信):`method_exists(ReservationEmailMessage, IcsCurrentUser)` = true;載入 series 185(`BookedBy()=NULL`)→ `Body()` 3816 bytes + ICS 含 `VCALENDAR`,無 TypeError。
 
-### 追加:提醒時間選項從 7 個收斂成 3 個(隨同一次部署)
+### 追加 A:提醒收不到的第二層原因——Email 通知是 opt-in,且只有 admin 訂閱過
 
-§107 的「提醒時間」下拉給了 7 個值(5/10/15/30 分、1/2 小時、1 天)。這是「設定一次、自動套用到你每一筆預約」的預設值,2 小時 / 1 天對「自己訂的內部會議室」是雜訊(那比較像別人邀你的活動才需要的前置量),對照 Google Calendar(10 分)/ Outlook(15 分)的預設也偏長。收斂成 **15 / 30 分鐘前 + 1 小時前**:
+修好 TypeError 後,提醒仍只有預約人自己收到。查 `user_email_preferences`:116 位使用者裡只有 `shawn.admin` 有 `reservation` × `created/updated/deleted` 三列。`User::WantsEventEmail()` 是嚴格「有 row 才算開」,`registration.auto.subscribe.email` 預設 `false`,所以 AD 帳號建立時不會自動訂閱,使用者沒去通知設定手動開之前,`ReservationReminderSender` 的 Email 分支就跳過他。fan-out 程式碼本身沒問題(唯讀驗證:owner + participants + invitees 都進收件集合,attendee 只是因為 `WantsEventEmail=false` 被跳過)。
 
-- `NotificationPreferencesService::ALLOWED_START_REMINDER_MINUTES` → `[15, 30, 60]`。既有的「非白名單值 snap 成 15」邏輯不動,舊資料庫裡存的 5/10/120/1440 會在使用者下次存檔時自動收斂成 15,不需要 DB migration。
-- `notification-preferences.tpl` 移除 5/10/120/1440 四個 `<option>`;15 的 `selected` 條件改成「不是 30 也不是 60 就選 15」,涵蓋 0(關閉)與尚未收斂的舊值。
-- 移除三語言(`en_us` / `zh_tw` / `zh_cn`)已無引用的 `ReminderLead5Minutes` / `ReminderLead10Minutes` / `ReminderLead2Hours` / `ReminderLead1Day`。
-- `notification-preferences.js` 讀 `select.val()`、預設 15,無硬編碼清單,不用改。
-- `NotificationPreferencesServiceTest::testAcceptsEachWhitelistedLeadTime` 迭代該常數,自動跟著縮;10 tests 全綠。
+處理(prod,2026-09-01):
+
+- **一次性 backfill**:`INSERT IGNORE INTO user_email_preferences` 對全部 116 人補上 `reservation` × `created/updated/deleted`(339 列)。冪等。等於「預設全開,不想收的自己去通知設定關」。因為那顆「接收 Email 通知」單一開關(§107)本來就同時管這三個事件,backfill 也讓建立/修改/取消信對全員生效。
+- **`registration.auto.subscribe.email` → `true`**:改 `config/config.php`,並同步改 `app.env` 的 `LB_REGISTRATION_AUTO_SUBSCRIBE_EMAIL=false → true`(又是 app.env 蓋 config.php 的老雷,見 [[project_app_env_shadows_config]] 的等價說明)。`restart app` 後生效值 `bool(true)`,之後新 AD 帳號第一次登入自動訂閱。
+
+### 追加 B:提醒時間下拉選項——維持 7 個(已定案,勿再動)
+
+§107 的「提醒時間」下拉(5/10/15/30 分、1/2 小時、1 天)。曾一度收斂成 15/30/60(commit `4aefc2639`),又決定加回 5/10,最後**維持原本 7 個**(`4aefc2639` 已 revert)。
+
+定案理由(要再改需有新的使用情境,不是憑感覺):
+
+- 這是「設定一次、自動套用到每筆預約」的預設值,不是每次都挑。7 個放在一個下拉裡佔用成本趨近於零。
+- 5/10 分:很多人(Google Calendar 預設 10)習慣的「馬上要走」短提醒,拿掉反而要使用者將就。
+- 2 小時 / 1 天:少數「大型會議想早點準備」的情境有用;雖然對 30 分鐘小 sync 偏長,但使用者可自行改,不值得為此砍掉選項。
+- 白名單 `ALLOWED_START_REMINDER_MINUTES = [5,10,15,30,60,120,1440]` + 「非白名單 snap 成 15」已擋掉亂填,不需要再限制。
+
+`4aefc2639` 當時一併刪的三語言 `ReminderLead5Minutes` / `ReminderLead10Minutes` / `ReminderLead2Hours` / `ReminderLead1Day` 隨 revert 復原。

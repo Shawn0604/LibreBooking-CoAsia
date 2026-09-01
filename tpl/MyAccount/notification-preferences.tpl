@@ -126,11 +126,13 @@
             <div class="np-reminder-detail" id="reservationStartReminderFields">
                 <label class="np-reminder-time-label" for="reservationStartReminderMinutes">{translate key=StartReminderTimeLabel}</label>
                 <select id="reservationStartReminderMinutes" class="form-select form-select-sm np-reminder-select">
-                    {* 15 is the default: selected for a fresh/off preference (0) and for any
-                       legacy value (5/10/120/1440) that will snap to 15 on the next save. *}
-                    <option value="15" {if $ReservationStartReminderMinutes neq 30 and $ReservationStartReminderMinutes neq 60}selected{/if}>{translate key=ReminderLead15Minutes}</option>
+                    <option value="5" {if $ReservationStartReminderMinutes eq 5}selected{/if}>{translate key=ReminderLead5Minutes}</option>
+                    <option value="10" {if $ReservationStartReminderMinutes eq 10}selected{/if}>{translate key=ReminderLead10Minutes}</option>
+                    <option value="15" {if $ReservationStartReminderMinutes eq 15 or $ReservationStartReminderMinutes lte 0}selected{/if}>{translate key=ReminderLead15Minutes}</option>
                     <option value="30" {if $ReservationStartReminderMinutes eq 30}selected{/if}>{translate key=ReminderLead30Minutes}</option>
                     <option value="60" {if $ReservationStartReminderMinutes eq 60}selected{/if}>{translate key=ReminderLead1Hour}</option>
+                    <option value="120" {if $ReservationStartReminderMinutes eq 120}selected{/if}>{translate key=ReminderLead2Hours}</option>
+                    <option value="1440" {if $ReservationStartReminderMinutes eq 1440}selected{/if}>{translate key=ReminderLead1Day}</option>
                 </select>
                 <p class="np-reminder-hint">{translate key=StartReminderRecipientsHint}</p>
             </div>
