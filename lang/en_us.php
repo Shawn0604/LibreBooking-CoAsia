@@ -371,7 +371,7 @@ class en_us extends Language
         $strings['StartReminderToggleLabel'] = 'Automatically remind all attendees';
         $strings['StartReminderToggleDescription'] = 'Every reservation you create is reminded this far before it starts.';
         $strings['StartReminderTimeLabel'] = 'Reminder time';
-        $strings['StartReminderRecipientsHint'] = 'The system reminds each attendee through whichever of Email / LINE they have enabled.';
+        $strings['StartReminderRecipientsHint'] = 'The system reminds each attendee through whichever of Email / LINE / WeCom they have enabled.';
         $strings['ReminderLead5Minutes'] = '5 minutes before';
         $strings['ReminderLead10Minutes'] = '10 minutes before';
         $strings['ReminderLead15Minutes'] = '15 minutes before';

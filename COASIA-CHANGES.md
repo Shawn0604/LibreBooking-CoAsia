@@ -3383,3 +3383,28 @@ LINE 之所以有整套自助流程(掃 QR → 傳訊息 → webhook 綁定),是
 - `./vendor/bin/phpunit --filter NotificationPreferencesServiceTest`:17 支(新增 `SaveWeComUserId` trim、`UnlinkWeCom` 清空,加 `ComputeWeComState` 回傳 `wecomUserId` 的斷言)。
 - `./vendor/bin/phpunit --testsuite presenters`:405 支,只有既有無關的 `ManageReservationsPresenterTest` 那支失敗。
 - 樣板編譯過;用獨立 render harness(vendor Smarty + 真 CSS + Bootstrap)把兩個狀態(未綁定顯示輸入框、已綁定顯示 toggle＋測試＋解除綁定＋ID)在瀏覽器實際截圖確認:三張獨立小卡片、icon 各自代表色、桌面寬度輸入框與「儲存」同列、窄螢幕換行。
+
+---
+
+## 110. 「會議開始前提醒」也走企業微信
+
+§108 把提醒功能整支重寫時,`ReservationReminderSender` 只保留 Email／LINE 兩條管道(當時 CoAsia 只用 LINE,WeCom 的**建立**通知不受影響)。§109 把企業微信接進「通知設定」頁後,使用者反映「會議開始前提醒」也該發企業微信——現在補上。
+
+### 修法
+
+`ReservationReminderSender` 平行加一條 WeCom 分支,規則跟 LINE 完全一致(各管道獨立;沒填 WeCom ID 或把開關關掉就不發;有 LINE 也有 WeCom 的人兩邊都收):
+
+- `Jobs/sendreminders.php`:多讀 `WECOM_ENABLED`,加進「三者皆關就 return」的短路,傳進 `ReservationReminderSender` 建構子(新增第 5 參數 `bool $wecomEnabled = false`,預設 false 讓既有呼叫端/測試不受影響)。
+- `lib/Application/Reservation/Notification/Reminder/ReservationReminderSender.php`:
+  - `require_once lib/WeCom/namespace.php`;建構子 + property `$wecomEnabled`;`Send()` 的 guard 改成三管道皆關才 return。
+  - `SendToUser()` 在 LINE 分支後加 WeCom 分支:`WECOM_USER_ID` 非空 + `WantsWeComNotifications()` → `SendWeCom()`。
+  - 新 `SendWeCom()`:因為閘道只吃純文字,輸出一則多行訊息(狀態／會議名稱／時間／視訊資源或會議室／(start 且有視訊才附)加入連結／預約人／查看連結,owner+start 再附 🔒 主持人登入資訊),欄位集跟 LINE Flex bubble 一致,措辭沿用既有字串(`ReminderEmailStatusStarting`／`Ending`、`WeComField*`、`WeComJoinVideoConference`、`WeComViewReservationDetails`、`WeComHostLoginInfo`、`MeetingId`／`Passcode`／`VideoConferenceHost*`、`NoReservationTitle`)——**沒有新增語言字串**。主持人登入資訊只有「收件人是預約人本人 + start 提醒」才抓(比照 email/LINE 的「不讀不會顯示的機密」慣例,`ResolvePrimaryVideo($series,$owner, $isOwner && $isStart)`)。
+- `lang/{zh_tw,zh_cn,en_us}.php`:`StartReminderRecipientsHint`(通知設定頁「會議開始前提醒」卡片底下那行)從「Email／LINE」改成「Email／LINE／企業微信」。
+- §87 留下的 `WeComReminderStartMessage`／`WeComReminderEndMessage`(當年的薄版 2 欄位格式)仍未使用,留著不動。
+
+### 驗證
+
+- `php -l` 全過;`composer phpcsfixer:lint` 仍只有既有 4 flag;`composer phpstan` 對這次的檔 0 error。
+- `./vendor/bin/phpunit --filter ReservationReminderSenderTest`:新增 7 支——WeCom 提醒 owner+內部與會者、沒填 ID 不發、關掉開關不發(但 Email 照發)、只開 WeCom 時 Email/LINE 都不發、`wecom.enabled` 關掉即使有 ID 也不發、同時有 LINE+WeCom 兩邊都收、取消/null series 不發 WeCom。
+- `./vendor/bin/phpunit --testsuite application`:519 支全過(無 failure/error)。
+- 尚未在真的 cron 環境跑過整條(dev 沒有排程、`wecom.enabled` 預設 false)。正式機驗證:`wecom.enabled=true` + 每分鐘 cron 有在跑 + 使用者自己填了 WeCom ID + 該筆預約的建立者「會議開始前提醒」開著,則提醒時間到時會收到企業微信純文字訊息。

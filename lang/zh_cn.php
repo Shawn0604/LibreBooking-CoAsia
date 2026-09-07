@@ -696,7 +696,7 @@ class zh_cn extends en_us
         $strings['StartReminderToggleLabel'] = '自动提醒所有与会者';
         $strings['StartReminderToggleDescription'] = '你之后建立的每笔预约，都会在指定时间前提醒。';
         $strings['StartReminderTimeLabel'] = '提醒时间';
-        $strings['StartReminderRecipientsHint'] = '系统会依每位与会者已开启的 Email／LINE 通知方式自动提醒。';
+        $strings['StartReminderRecipientsHint'] = '系统会依每位与会者已开启的 Email／LINE／企业微信 通知方式自动提醒。';
         $strings['ReminderLead5Minutes'] = '5 分钟前';
         $strings['ReminderLead10Minutes'] = '10 分钟前';
         $strings['ReminderLead15Minutes'] = '15 分钟前';

@@ -7,7 +7,7 @@
 *
 *  "會議開始前提醒": for every reminder that comes due this minute, ReservationReminderSender
 *  fans out to the reservation owner + internal attendees (each over their own enabled
-*  Email / LINE) and to external guests (Email only). See that class for the full policy.
+*  Email / LINE / 企業微信) and to external guests (Email only). See that class for the full policy.
 */
 
 define('ROOT_DIR', __DIR__ . '/../');
@@ -23,9 +23,10 @@ JobCop::EnsureCommandLine();
 try {
     $emailEnabled = Configuration::Instance()->GetKey(ConfigKeys::EMAIL_ENABLED, new BooleanConverter());
     $lineEnabled = Configuration::Instance()->GetKey(ConfigKeys::LINE_ENABLED, new BooleanConverter());
+    $wecomEnabled = Configuration::Instance()->GetKey(ConfigKeys::WECOM_ENABLED, new BooleanConverter());
 
-    if (!$emailEnabled && !$lineEnabled) {
-        Log::Debug('sendreminders.php: neither email nor LINE is enabled, nothing to do');
+    if (!$emailEnabled && !$lineEnabled && !$wecomEnabled) {
+        Log::Debug('sendreminders.php: none of email / LINE / WeCom is enabled, nothing to do');
         return;
     }
 
@@ -33,7 +34,8 @@ try {
         new UserRepository(),
         new AttributeRepository(),
         $emailEnabled,
-        $lineEnabled
+        $lineEnabled,
+        $wecomEnabled
     );
 
     $dispatcher = new ReservationReminderDispatcher(

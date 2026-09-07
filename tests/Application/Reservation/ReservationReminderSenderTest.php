@@ -17,6 +17,8 @@ class ReservationReminderSenderTest extends TestBase
     private $userRepo;
     /** @var FakeLineService */
     private $lineService;
+    /** @var FakeWeComService */
+    private $wecomService;
 
     public function setUp(): void
     {
@@ -25,18 +27,28 @@ class ReservationReminderSenderTest extends TestBase
         $this->userRepo = new FakeUserRepository();
         $this->lineService = new FakeLineService();
         ServiceLocator::SetLineService($this->lineService);
+        $this->wecomService = new FakeWeComService();
+        ServiceLocator::SetWeComService($this->wecomService);
     }
 
     public function tearDown(): void
     {
         ServiceLocator::SetLineService(new NullLineService());
+        ServiceLocator::SetWeComService(null);
         parent::tearDown();
     }
 
     // ---- helpers -------------------------------------------------------------
 
-    private function user(int $id, string $email, bool $wantsEmail, ?string $lineUserId = null, bool $lineOff = false): FakeUser
-    {
+    private function user(
+        int $id,
+        string $email,
+        bool $wantsEmail,
+        ?string $lineUserId = null,
+        bool $lineOff = false,
+        ?string $wecomUserId = null,
+        bool $wecomOff = false
+    ): FakeUser {
         $user = new FakeUser($id, $email);
         $user->_WantsEmail = $wantsEmail;
         if ($lineUserId !== null) {
@@ -44,6 +56,12 @@ class ReservationReminderSenderTest extends TestBase
         }
         if ($lineOff) {
             $user->ChangePreference(UserPreferences::LINE_NOTIFICATIONS_ENABLED, '0');
+        }
+        if ($wecomUserId !== null) {
+            $user->ChangePreference(UserPreferences::WECOM_USER_ID, $wecomUserId);
+        }
+        if ($wecomOff) {
+            $user->ChangePreference(UserPreferences::WECOM_NOTIFICATIONS_ENABLED, '0');
         }
         $this->userRepo->_UserById[$id] = $user;
         return $user;
@@ -79,9 +97,9 @@ class ReservationReminderSenderTest extends TestBase
         return $series;
     }
 
-    private function sender(bool $emailEnabled = true, bool $lineEnabled = true): ReservationReminderSender
+    private function sender(bool $emailEnabled = true, bool $lineEnabled = true, bool $wecomEnabled = true): ReservationReminderSender
     {
-        return new ReservationReminderSender($this->userRepo, $this->attributeRepo, $emailEnabled, $lineEnabled);
+        return new ReservationReminderSender($this->userRepo, $this->attributeRepo, $emailEnabled, $lineEnabled, $wecomEnabled);
     }
 
     /** @return string[] */
@@ -99,6 +117,14 @@ class ReservationReminderSenderTest extends TestBase
     private function flexRecipients(): array
     {
         $ids = array_map(static fn ($p) => $p['lineUserId'], $this->lineService->_PushedFlex);
+        sort($ids);
+        return $ids;
+    }
+
+    /** @return string[] wecomUserIds that got a push */
+    private function wecomRecipients(): array
+    {
+        $ids = array_map(static fn ($p) => $p['wecomUserId'], $this->wecomService->_Pushed);
         sort($ids);
         return $ids;
     }
@@ -230,11 +256,90 @@ class ReservationReminderSenderTest extends TestBase
         $this->assertEquals(['Uowner'], $this->flexRecipients());
     }
 
+    // ---- 企業微信: same fan-out / opt-out rules as LINE, independent channel -----
+
+    public function testWeComRemindsOwnerAndInternalAttendees()
+    {
+        $this->user(10, 'owner@co.com', true, wecomUserId: 'wowner');
+        $this->user(20, 'part@co.com', true, wecomUserId: 'wpart');
+        $this->user(30, 'invitee@co.com', true, wecomUserId: 'winvitee');
+
+        $series = $this->series(10, [20], [30], ['guest@ext.com']);
+
+        $this->sender()->Send($series, ReservationReminderType::Start, 15);
+
+        $this->assertEquals(['winvitee', 'wowner', 'wpart'], $this->wecomRecipients());
+    }
+
+    public function testAttendeeWithoutWeComIdGetsNoWeCom()
+    {
+        $this->user(10, 'owner@co.com', true, wecomUserId: 'wowner');
+        $this->user(20, 'part@co.com', true); // no WeCom id
+
+        $series = $this->series(10, [20]);
+
+        $this->sender()->Send($series, ReservationReminderType::Start, 15);
+
+        $this->assertEquals(['wowner'], $this->wecomRecipients());
+    }
+
+    public function testAttendeeWithWeComOffGetsNoWeComButStillGetsEmail()
+    {
+        $this->user(10, 'owner@co.com', true, wecomUserId: 'wowner');
+        $this->user(20, 'part@co.com', true, wecomUserId: 'wpart', wecomOff: true);
+
+        $series = $this->series(10, [20]);
+
+        $this->sender()->Send($series, ReservationReminderType::Start, 15);
+
+        $this->assertEquals(['owner@co.com', 'part@co.com'], $this->emailRecipients());
+        $this->assertEquals(['wowner'], $this->wecomRecipients());
+    }
+
+    public function testWhenOnlyWeComEnabledNoEmailOrLineIsSent()
+    {
+        $this->user(10, 'owner@co.com', true, 'Uowner', wecomUserId: 'wowner');
+
+        $series = $this->series(10);
+
+        $this->sender(emailEnabled: false, lineEnabled: false, wecomEnabled: true)
+            ->Send($series, ReservationReminderType::Start, 15);
+
+        $this->assertCount(0, $this->fakeEmailService->_Messages);
+        $this->assertCount(0, $this->lineService->_PushedFlex);
+        $this->assertEquals(['wowner'], $this->wecomRecipients());
+    }
+
+    public function testWhenWeComDisabledNoWeComIsSentEvenWithAnId()
+    {
+        $this->user(10, 'owner@co.com', true, wecomUserId: 'wowner');
+
+        $series = $this->series(10);
+
+        $this->sender(emailEnabled: true, lineEnabled: true, wecomEnabled: false)
+            ->Send($series, ReservationReminderType::Start, 15);
+
+        $this->assertCount(0, $this->wecomService->_Pushed);
+    }
+
+    public function testWeComOwnerAndAttendeeCanBothBeRemindedAlongsideLine()
+    {
+        // A person with both a LineUserId and a WeCom id is reminded on both.
+        $this->user(10, 'owner@co.com', true, 'Uowner', wecomUserId: 'wowner');
+
+        $series = $this->series(10);
+
+        $this->sender()->Send($series, ReservationReminderType::Start, 15);
+
+        $this->assertEquals(['Uowner'], $this->flexRecipients());
+        $this->assertEquals(['wowner'], $this->wecomRecipients());
+    }
+
     // ---- cancelled --------------------------------------------------------
 
     public function testCancelledSeriesRemindsNobody()
     {
-        $this->user(10, 'owner@co.com', true, 'Uowner');
+        $this->user(10, 'owner@co.com', true, 'Uowner', wecomUserId: 'wowner');
         $this->user(20, 'part@co.com', true, 'Upart');
 
         $series = $this->series(10, [20], [], ['g@ext.com'], [], ReservationStatus::Deleted);
@@ -244,6 +349,7 @@ class ReservationReminderSenderTest extends TestBase
         $this->assertCount(0, $this->fakeEmailService->_Messages);
         $this->assertCount(0, $this->lineService->_PushedFlex);
         $this->assertCount(0, $this->lineService->_Pushed);
+        $this->assertCount(0, $this->wecomService->_Pushed);
     }
 
     public function testNullSeriesIsANoOp()
@@ -252,6 +358,7 @@ class ReservationReminderSenderTest extends TestBase
 
         $this->assertCount(0, $this->fakeEmailService->_Messages);
         $this->assertCount(0, $this->lineService->_PushedFlex);
+        $this->assertCount(0, $this->wecomService->_Pushed);
     }
 
     // ---- host credentials never reach a non-owner -----------------------

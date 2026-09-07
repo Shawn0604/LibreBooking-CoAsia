@@ -8,6 +8,7 @@ require_once(ROOT_DIR . 'lib/Application/Reservation/ReservationEvents.php');
 require_once(ROOT_DIR . 'lib/Email/Messages/ReservationReminderEmail.php');
 require_once(ROOT_DIR . 'lib/Email/Messages/ReservationEmailTemplateContext.php');
 require_once(ROOT_DIR . 'lib/Line/namespace.php');
+require_once(ROOT_DIR . 'lib/WeCom/namespace.php');
 require_once(ROOT_DIR . 'Pages/Pages.php');
 
 /**
@@ -16,22 +17,26 @@ require_once(ROOT_DIR . 'Pages/Pages.php');
  * class is the whole "誰會收到" policy:
  *
  *   - reservation owner        -> Email  (if their Email notifications are on)
- *                                 + LINE (if bound AND their LINE notifications are on).
+ *                                 + LINE (if bound AND their LINE notifications are on)
+ *                                 + 企業微信 (if a WeCom id is set AND their WeCom
+ *                                   notifications are on).
  *                                 The shared video-conference host account / password is
  *                                 included for THIS recipient only.
  *   - internal attendees       -> participants + invitees, each over their own enabled
- *                                 Email / LINE. Never the host credentials.
+ *                                 Email / LINE / 企業微信. Never the host credentials.
  *   - external guests          -> not notified. The mail server can only deliver to internal
  *                                 addresses, so there is no working channel for them.
  *   - resource / group admins  -> not notified (they are simply never in the recipient set).
  *
- * If a user has no LINE binding or has turned LINE notifications off, no LINE is sent; if
- * they have turned Email notifications off, no Email is sent. The same rule governs both
- * channels, so Email and LINE can never disagree about whether a given person is reminded.
+ * Each channel is independent and governed by the same rule: no binding / id or an explicit
+ * opt-out on that channel means nothing is sent there, so the channels can never disagree
+ * about whether a given person is reminded. Someone with more than one channel set up is
+ * reminded on each of them.
  *
- * Email and LINE also carry the same fields (reminder type, title, date/time, room or
+ * All three channels carry the same fields (reminder type, title, date/time, room or
  * online-meeting name, video link, reservation-detail link) — the Email via the shared
- * reservation-notification-body.tpl, the LINE via the Flex bubble built below.
+ * reservation-notification-body.tpl, the LINE via the Flex bubble built below, the WeCom
+ * gateway (plain-text only) as one readable multi-line message.
  */
 class ReservationReminderSender
 {
@@ -42,17 +47,20 @@ class ReservationReminderSender
     private IAttributeRepository $attributeRepository;
     private bool $emailEnabled;
     private bool $lineEnabled;
+    private bool $wecomEnabled;
 
     public function __construct(
         IUserRepository $userRepository,
         IAttributeRepository $attributeRepository,
         bool $emailEnabled,
-        bool $lineEnabled
+        bool $lineEnabled,
+        bool $wecomEnabled = false
     ) {
         $this->userRepository = $userRepository;
         $this->attributeRepository = $attributeRepository;
         $this->emailEnabled = $emailEnabled;
         $this->lineEnabled = $lineEnabled;
+        $this->wecomEnabled = $wecomEnabled;
     }
 
     /**
@@ -73,7 +81,7 @@ class ReservationReminderSender
             return;
         }
 
-        if (!$this->emailEnabled && !$this->lineEnabled) {
+        if (!$this->emailEnabled && !$this->lineEnabled && !$this->wecomEnabled) {
             return;
         }
 
@@ -148,6 +156,13 @@ class ReservationReminderSender
             $lineUserId = $user->GetPreferences()->Get(UserPreferences::LINE_USER_ID);
             if (!empty($lineUserId) && $user->WantsLineNotifications()) {
                 $this->SendLine($lineUserId, $isOwner, $series, $owner, $user, $reminderType, $minutesPrior);
+            }
+        }
+
+        if ($this->wecomEnabled) {
+            $wecomUserId = $user->GetPreferences()->Get(UserPreferences::WECOM_USER_ID);
+            if (!empty($wecomUserId) && $user->WantsWeComNotifications()) {
+                $this->SendWeCom($wecomUserId, $isOwner, $series, $owner, $user, $reminderType, $minutesPrior);
             }
         }
     }
@@ -235,6 +250,85 @@ class ReservationReminderSender
             && (!empty($primaryVideo->HostAccount) || !empty($primaryVideo->HostPassword))) {
             $lineService->Push($lineUserId, $this->BuildHostInfoText($primaryVideo));
         }
+    }
+
+    /**
+     * The CoAsia WeCom gateway only accepts plain text, so this is the LINE Flex bubble's
+     * field set rendered as one readable multi-line message — the same shape as
+     * OwnerWeComCreatedNotification. Owner + start reminders also get the video-conference
+     * host account / password appended; nobody else ever does.
+     */
+    private function SendWeCom(
+        $wecomUserId,
+        bool $isOwner,
+        ReservationSeries $series,
+        User $owner,
+        User $recipient,
+        $reminderType,
+        $minutesPrior
+    ): void {
+        $isStart = (int)$reminderType !== ReservationReminderType::End;
+        $resources = Resources::GetInstance();
+
+        $timezone = $recipient->Timezone();
+        if (empty($timezone)) {
+            $timezone = Configuration::Instance()->GetDefaultTimezone();
+        }
+
+        $instance = $series->CurrentInstance();
+        $start = $instance->StartDate()->ToTimezone($timezone);
+        $end = $instance->EndDate()->ToTimezone($timezone);
+        $title = !empty($series->Title())
+            ? $series->Title()
+            : $resources->GetString('NoReservationTitle');
+
+        $primaryVideo = $this->ResolvePrimaryVideo($series, $owner, $isOwner && $isStart);
+
+        $reservationUrl = Configuration::Instance()->GetScriptUrl() . '/' . sprintf(
+            '%s?%s=%s',
+            Pages::RESERVATION,
+            QueryStringKeys::REFERENCE_NUMBER,
+            $instance->ReferenceNumber()
+        );
+
+        $dateTimeText = $start->Format('Y-m-d H:i') . ' - ' . $end->Format('H:i');
+
+        $lines = [];
+        $lines[] = '【CoAsia Booking】' . $resources->GetString($isStart ? 'ReminderEmailStatusStarting' : 'ReminderEmailStatusEnding');
+        $lines[] = $resources->GetString('WeComFieldMeetingName') . '：' . $title;
+        $lines[] = $resources->GetString('WeComFieldDateTime') . '：' . $dateTimeText;
+
+        if ($primaryVideo !== null) {
+            $lines[] = $resources->GetString('WeComFieldVideoResource') . '：' . $primaryVideo->ResourceName;
+            if ($isStart && !empty($primaryVideo->Url)) {
+                $lines[] = $resources->GetString('WeComJoinVideoConference') . '：' . $primaryVideo->Url;
+            }
+        } else {
+            $lines[] = $resources->GetString('WeComFieldMeetingRoom') . '：' . $series->Resource()->GetName();
+        }
+
+        $lines[] = $resources->GetString('WeComFieldOwner') . '：' . $owner->FullName();
+        $lines[] = $resources->GetString('WeComViewReservationDetails') . '：' . $reservationUrl;
+
+        if ($isOwner && $isStart && $primaryVideo !== null
+            && (!empty($primaryVideo->HostAccount) || !empty($primaryVideo->HostPassword))) {
+            $lines[] = '';
+            $lines[] = '🔒 ' . $resources->GetString('WeComHostLoginInfo');
+            if (!empty($primaryVideo->MeetingId)) {
+                $lines[] = $resources->GetString('MeetingId') . '：' . $primaryVideo->MeetingId;
+            }
+            if (!empty($primaryVideo->Passcode)) {
+                $lines[] = $resources->GetString('Passcode') . '：' . $primaryVideo->Passcode;
+            }
+            if (!empty($primaryVideo->HostAccount)) {
+                $lines[] = $resources->GetString('VideoConferenceHostAccount') . '：' . $primaryVideo->HostAccount;
+            }
+            if (!empty($primaryVideo->HostPassword)) {
+                $lines[] = $resources->GetString('VideoConferenceHostPassword') . '：' . $primaryVideo->HostPassword;
+            }
+        }
+
+        ServiceLocator::GetWeComService()->Push($wecomUserId, implode("\n", $lines));
     }
 
     /**
