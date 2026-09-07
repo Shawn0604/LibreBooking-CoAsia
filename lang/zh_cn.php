@@ -930,6 +930,15 @@ class zh_cn extends en_us
         $strings['WeComRecurringSuffix'] = '（%s，共 %s 场，至 %s）';
         $strings['WeComReminderStartMessage'] = "提醒：“%s”即将开始\n地点：%s";
         $strings['WeComReminderEndMessage'] = "提醒：“%s”即将结束\n地点：%s";
+        $strings['WeComNotifications'] = '企业微信通知';
+        $strings['WeComNotificationsToggleDescription'] = '建立预约时推送';
+        $strings['WeComLinked'] = '企业微信通知已绑定';
+        $strings['WeComNotLinked'] = '尚未设置，请联系管理员';
+        $strings['WeComTestNotification'] = '发送测试通知';
+        $strings['WeComTestNotificationSent'] = '测试通知已发送，请至企业微信确认是否收到。';
+        $strings['WeComTestNotificationMessage'] = '这是一则来自预约系统的测试通知，收到即代表企业微信通知功能正常运作。';
+        $strings['WeComNotEnabled'] = '企业微信通知功能尚未启用。';
+        $strings['WeComNotLinkedError'] = '您的账号尚未设置企业微信 ID。';
         $strings['LineReminderStartMessage'] = "提醒：“%s”即将开始\n地点：%s";
         $strings['LineReminderEndMessage'] = "提醒：“%s”即将结束\n地点：%s";
 

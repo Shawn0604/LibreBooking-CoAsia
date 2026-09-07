@@ -46,6 +46,21 @@ interface INotificationPreferencesPage extends IPage
     public function SetLineQrDataUri($dataUri);
 
     /**
+     * @param bool $enabled wecom.enabled site-wide
+     */
+    public function SetWeComEnabled($enabled);
+
+    /**
+     * @param bool $isLinked whether an administrator has set this user's WeCom id
+     */
+    public function SetWeComLinked($isLinked);
+
+    /**
+     * @param bool $enabled
+     */
+    public function SetWeComNotificationsEnabled($enabled);
+
+    /**
      * @param bool $enabled site-wide reservation.reminders.enabled
      */
     public function SetRemindersEnabled($enabled);
@@ -113,6 +128,21 @@ class NotificationPreferencesPage extends SecurePage implements INotificationPre
     public function SetLineQrDataUri($dataUri)
     {
         $this->Set('LineQrDataUri', $dataUri);
+    }
+
+    public function SetWeComEnabled($enabled)
+    {
+        $this->Set('WeComEnabled', $enabled);
+    }
+
+    public function SetWeComLinked($isLinked)
+    {
+        $this->Set('WeComLinked', $isLinked);
+    }
+
+    public function SetWeComNotificationsEnabled($enabled)
+    {
+        $this->Set('WeComNotificationsEnabled', $enabled);
     }
 
     public function SetRemindersEnabled($enabled)

@@ -144,4 +144,63 @@ class NotificationPreferencesServiceTest extends TestBase
         $this->assertFalse($wrote);
         $this->assertCount(0, $this->userRepo->_UpdatedUsers);
     }
+
+    // ---- 企業微信:這頁只有開關,ID 由管理員在後台填 --------------------------
+
+    public function testComputeWeComStateIsDisabledWhenConfigOff()
+    {
+        $this->fakeConfig->SetKey(ConfigKeys::WECOM_ENABLED, false);
+
+        $state = $this->service->ComputeWeComState(new FakeUser(5));
+
+        $this->assertFalse($state['wecomEnabled']);
+        $this->assertArrayNotHasKey('wecomLinked', $state);
+    }
+
+    public function testComputeWeComStateUnlinkedWhenNoIdSet()
+    {
+        $this->fakeConfig->SetKey(ConfigKeys::WECOM_ENABLED, true);
+
+        $state = $this->service->ComputeWeComState(new FakeUser(5));
+
+        $this->assertTrue($state['wecomEnabled']);
+        $this->assertFalse($state['wecomLinked']);
+    }
+
+    public function testComputeWeComStateLinkedAndOnByDefaultOnceIdSet()
+    {
+        $this->fakeConfig->SetKey(ConfigKeys::WECOM_ENABLED, true);
+        $user = new FakeUser(5);
+        $user->ChangePreference(UserPreferences::WECOM_USER_ID, 'shawn_tsai');
+
+        $state = $this->service->ComputeWeComState($user);
+
+        $this->assertTrue($state['wecomLinked']);
+        $this->assertTrue($state['wecomNotificationsEnabled']);
+    }
+
+    public function testComputeWeComStateReflectsAnExplicitlyDisabledToggle()
+    {
+        $this->fakeConfig->SetKey(ConfigKeys::WECOM_ENABLED, true);
+        $user = new FakeUser(5);
+        $user->ChangePreference(UserPreferences::WECOM_USER_ID, 'shawn_tsai');
+        $user->ChangeWeComNotificationsPreference(false);
+
+        $state = $this->service->ComputeWeComState($user);
+
+        $this->assertTrue($state['wecomLinked']);
+        $this->assertFalse($state['wecomNotificationsEnabled']);
+    }
+
+    public function testSaveWeComNotificationsPreferencePersistsThroughTheRepository()
+    {
+        $user = new FakeUser(5);
+
+        $this->service->SaveWeComNotificationsPreference($user, false);
+        $this->assertSame($user, $this->userRepo->_UpdatedUser);
+        $this->assertFalse($user->WantsWeComNotifications());
+
+        $this->service->SaveWeComNotificationsPreference($user, true);
+        $this->assertTrue($user->WantsWeComNotifications());
+    }
 }

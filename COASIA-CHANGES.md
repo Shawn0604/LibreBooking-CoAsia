@@ -3307,3 +3307,56 @@ iCalendarReservationView::__construct(): Argument #2 ($currentUser) must be of t
 - 白名單 `ALLOWED_START_REMINDER_MINUTES = [5,10,15,30,60,120,1440]` + 「非白名單 snap 成 15」已擋掉亂填,不需要再限制。
 
 `4aefc2639` 當時一併刪的三語言 `ReminderLead5Minutes` / `ReminderLead10Minutes` / `ReminderLead2Hours` / `ReminderLead1Day` 隨 revert 復原。
+
+---
+
+## 109. 「通知設定」頁加企業微信開關,與 LINE 一致
+
+### 需求
+
+企業微信推播(§87)在正式環境開通、實測建立預約會收到推播後,使用者反映:**「通知設定」頁只有 Email／LINE 兩個開關,企業微信不在上面**——希望跟 LINE 一樣可以自己在這頁開關。
+
+§87 當初刻意把 WeCom 收件人 ID 做成「管理員在後台(帳號角色管理)填」,對應簡報 slide 6;使用者端沒有任何 WeCom UI。這節補上使用者端的開關。
+
+### 根因 / 為什麼 LINE 有、WeCom 沒有
+
+LINE 之所以有整套自助流程(掃 QR → 傳訊息 → webhook 綁定),是因為 **LINE userId 是查不到的**——不綁定就拿不到。WeCom userId 就是企業通訊錄帳號(例如 `shawn_tsai`),管理員早就知道,所以 §87 做成後台填,沒有綁定流程。
+
+因此這節走「路線 A」:**這頁只加一個 on/off 開關,ID 仍由管理員在後台填**;開關只有在管理員設好該使用者的 WeCom ID 之後才出現(完全比照 LINE 開關「綁定成功才顯示」的邏輯)。不做使用者自己輸入 ID(沒有「證明這 ID 是你的」那一步,風險是有人填別人的 ID 去收別人的通知)。
+
+### 修法
+
+平行複製既有的 LINE 開關那一塊。開關本身驅動的是 §87 就已存在的 `WecomNotificationsEnabled` preference(`User::WantsWeComNotifications()` / `ChangeWeComNotificationsPreference()`,語意同 LINE:沒設過＝視為開,只有明確 `'0'` 才關)——所以**沒有資料庫或 domain 層改動**,只是把它接到 UI。
+
+- `Presenters/NotificationPreferencesPresenter.php`
+  - `NotificationPreferencesService::ComputeWeComState(User)`:`wecom.enabled` 關 → `['wecomEnabled' => false]`;開 → 再帶 `wecomLinked`(有沒有 `WecomUserId`)、`wecomNotificationsEnabled`(`WantsWeComNotifications()`)。比照 `ComputeLineState()`。
+  - `SaveWeComNotificationsPreference(User, $enabled)`:`ChangeWeComNotificationsPreference()` + `Update()`。比照 `SaveLineNotificationsPreference()`。
+  - `BuildStateArray()` merge 進 `ComputeWeComState($user)`,讓 ajax 回應帶 `wecomNotificationsEnabled` 給前端同步 checkbox。
+  - `NotificationPreferencesPresenter::PageLoad()`:在 LINE 區塊那個 early `return`(LINE 關就 return)**之前**無條件 `SetWeComEnabled/SetWeComLinked/SetWeComNotificationsEnabled`,確保 LINE 關掉時樣板變數仍有定義。
+- `Pages/NotificationPreferencesPage.php`:`INotificationPreferencesPage` + class 加 `SetWeComEnabled/SetWeComLinked/SetWeComNotificationsEnabled`。沒有測試 fake 實作這個介面(既有 `NotificationPreferencesServiceTest` 只測 service 類別),不用補 stub。
+- `tpl/MyAccount/notification-preferences.tpl`
+  - 卡片外層條件 `{if $EmailEnabled || $LineEnabled}` → 加 `|| $WeComEnabled`。
+  - `np-methods` 內、LINE 區塊後面加一列:`$WeComLinked` 時是 toggle(`#wecomNotificationsEnabled`)+「測試通知」按鈕(`#wecomTestNotificationBtn`);未 linked 時是靜態列(`np-method-row-static`)寫「尚未設定,請洽管理員」。icon 用 `bi-wechat`。
+  - opts 加 `wecomTestUrl: '{$ScriptUrl}/ajax/wecom_test_notification.php'`。
+- `Web/scripts/notification-preferences.js`:`applyToggleState()` 同步 `#wecomNotificationsEnabled`;綁 `change` → `saveToggle('wecomNotifications', this)`;綁測試按鈕 → POST `wecomTestUrl` → 成功顯示 `wecomTestNotificationToast`。全部照 LINE 對應段落。
+- `Presenters/NotificationPreferencesSavePresenter.php`:`ACTION_WECOM_NOTIFICATIONS = 'wecomNotifications'`,case → `SaveWeComNotificationsPreference()`。
+- WeCom 測試推播端點(比照 `line_test_notification.php` 三件套):
+  - `Presenters/WeComTestNotificationPresenter.php`:`wecom.enabled` 關 → `WeComNotEnabled`;沒 `WecomUserId` → `WeComNotLinkedError`;否則 `ServiceLocator::GetWeComService()->Push($wecomUserId, {WeComTestNotificationMessage})`。fire-and-forget,只能確認「送出」不能確認「送達」。
+  - `Pages/Ajax/WeComTestNotificationPage.php` + `Web/ajax/wecom_test_notification.php`。
+- `tpl/globalfooter.tpl`:加 `#wecomTestNotificationToast`(照 `#lineTestNotificationToast` 複製,換字串 key)。
+- 三語言檔(`zh_tw`／`en_us`／`zh_cn` 都加):`WeComNotifications`、`WeComNotificationsToggleDescription`、`WeComLinked`、`WeComNotLinked`、`WeComTestNotification`、`WeComTestNotificationSent`、`WeComTestNotificationMessage`、`WeComNotEnabled`、`WeComNotLinkedError`。
+
+### 沒動的部分
+
+- WeCom 只在「建立預約」發(§87 的 `OwnerWeComCreatedNotification`);修改／取消／提醒仍不發 WeCom(§108 重寫提醒時 WeCom 分支已移除,提醒只有 Email／LINE)。這節只加開關,不改觸發範圍。
+- 後台「帳號角色管理」的 WeCom ID 欄位不動,仍是唯一設定 ID 的地方。
+
+### 驗證
+
+- `php -l`:全部新增／修改的 `.php` 過。
+- `composer phpcsfixer:lint`:只有既有的 4 個 flag(`import-coasia-employees.php`、concurrency 測試檔、`IdempotencyService.php`),無新增。
+- `composer phpstan`:對這次的 `Presenters`／`Pages` 檔 0 error。
+- `./vendor/bin/phpunit --filter NotificationPreferencesServiceTest`:15 支全過(既有 10 + 新增 5:`ComputeWeComState` 的 disabled／未 linked／linked 預設開／明確關 四種,加 `SaveWeComNotificationsPreference` persist)。
+- `./vendor/bin/phpunit --testsuite presenters`:403 支,只有既有無關的 `ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided`(`usort(null)`,乾淨 HEAD 上就是紅的)失敗。
+- 樣板編譯:`tpl/MyAccount/notification-preferences.tpl` 與 `tpl/globalfooter.tpl` 用 vendor Smarty `compileTemplateSource()` 直接編譯通過。
+- 本機 dev DB 是 AD 連線、沒有已知登入帳密([[project_dev_db_no_test_login]]),無法實際登入看畫面。麻煩使用者在 dev 或 prod 把 `wecom.enabled` 設 true、且自己帳號後台有填 WeCom ID 之後確認:通知設定頁出現「企業微信」那一列、開關能存、「測試通知」按下會收到推播;把 WeCom ID 清空後那一列變成「尚未設定,請洽管理員」靜態文字。

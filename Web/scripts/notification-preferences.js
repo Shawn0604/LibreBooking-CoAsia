@@ -41,6 +41,9 @@ $(function () {
         if (typeof state.lineNotificationsEnabled === 'boolean') {
             $('#lineNotificationsEnabled').prop('checked', state.lineNotificationsEnabled);
         }
+        if (typeof state.wecomNotificationsEnabled === 'boolean') {
+            $('#wecomNotificationsEnabled').prop('checked', state.wecomNotificationsEnabled);
+        }
     }
 
     function saveToggle(action, checkboxEl) {
@@ -74,6 +77,10 @@ $(function () {
 
     $('#lineNotificationsEnabled').on('change', function () {
         saveToggle('lineNotifications', this);
+    });
+
+    $('#wecomNotificationsEnabled').on('change', function () {
+        saveToggle('wecomNotifications', this);
     });
 
     $('#lineUnlinkBtn').on('click', function () {
@@ -148,6 +155,26 @@ $(function () {
             .then(function (json) {
                 if (json && json.success) {
                     window.showToastById('lineTestNotificationToast');
+                } else {
+                    showError((json && json.errors && json.errors[0]) || null);
+                }
+            })
+            .catch(function () {
+                showError();
+            })
+            .finally(function () {
+                $btn.prop('disabled', false);
+            });
+    });
+
+    $('#wecomTestNotificationBtn').on('click', function () {
+        var $btn = $(this).prop('disabled', true);
+        var body = new URLSearchParams();
+
+        post(opts.wecomTestUrl, body)
+            .then(function (json) {
+                if (json && json.success) {
+                    window.showToastById('wecomTestNotificationToast');
                 } else {
                     showError((json && json.errors && json.errors[0]) || null);
                 }

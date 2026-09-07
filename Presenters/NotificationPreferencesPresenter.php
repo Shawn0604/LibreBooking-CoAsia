@@ -131,6 +131,16 @@ class NotificationPreferencesService
     }
 
     /**
+     * @param User $user
+     * @param bool $enabled
+     */
+    public function SaveWeComNotificationsPreference(User $user, $enabled)
+    {
+        $user->ChangeWeComNotificationsPreference($enabled);
+        $this->userRepository->Update($user);
+    }
+
+    /**
      * The fixed "提醒時間" choices offered on 通知設定, in minutes before start. Any value
      * outside this whitelist is snapped to 15 — the page only ever submits one of these, so a
      * different value means a tampered/stale request, not a user choice to honour verbatim.
@@ -167,8 +177,32 @@ class NotificationPreferencesService
                 'emailNotificationsEnabled' => $this->AllEmailEventsEnabled($user),
                 'reservationStartReminderMinutes' => (int)$user->GetPreferences()->Get(UserPreferences::RESERVATION_START_REMINDER_MINUTES),
             ],
-            $this->ComputeLineState($user)
+            $this->ComputeLineState($user),
+            $this->ComputeWeComState($user)
         );
+    }
+
+    /**
+     * WeCom (企業微信) has no self-service binding like LINE — the recipient id is filled in by
+     * an administrator on the user-management page. So this page only exposes an on/off switch,
+     * and only once an id is actually set (mirroring how the LINE toggle appears only after the
+     * QR/webhook link succeeds).
+     *
+     * @param User $user
+     * @return array
+     */
+    public function ComputeWeComState(User $user)
+    {
+        $wecomEnabled = Configuration::Instance()->GetKey(ConfigKeys::WECOM_ENABLED, new BooleanConverter());
+        if (!$wecomEnabled) {
+            return ['wecomEnabled' => false];
+        }
+
+        return [
+            'wecomEnabled' => true,
+            'wecomLinked' => !empty($user->GetPreferences()->Get(UserPreferences::WECOM_USER_ID)),
+            'wecomNotificationsEnabled' => $user->WantsWeComNotifications(),
+        ];
     }
 
     /**
@@ -277,6 +311,13 @@ class NotificationPreferencesPresenter
 
         $this->page->SetRemindersEnabled(Configuration::Instance()->GetKey(ConfigKeys::RESERVATION_REMINDERS_ENABLED, new BooleanConverter()));
         $this->page->SetReservationStartReminderMinutes((int)$user->GetPreferences()->Get(UserPreferences::RESERVATION_START_REMINDER_MINUTES));
+
+        // Set unconditionally (before the LINE block's early return) so the template's vars are
+        // always defined even when LINE is disabled.
+        $wecomState = $this->service->ComputeWeComState($user);
+        $this->page->SetWeComEnabled($wecomState['wecomEnabled']);
+        $this->page->SetWeComLinked(!empty($wecomState['wecomLinked']));
+        $this->page->SetWeComNotificationsEnabled(!empty($wecomState['wecomNotificationsEnabled']));
 
         $lineState = $this->service->ComputeLineState($user);
         $this->page->SetLineEnabled($lineState['lineEnabled']);

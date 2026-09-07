@@ -347,6 +347,15 @@ class zh_tw extends en_us
         $strings['WeComRecurringSuffix'] = '（%s，共 %s 場，至 %s）';
         $strings['WeComReminderStartMessage'] = "提醒：「%s」即將開始\n地點：%s";
         $strings['WeComReminderEndMessage'] = "提醒：「%s」即將結束\n地點：%s";
+        $strings['WeComNotifications'] = '企業微信通知';
+        $strings['WeComNotificationsToggleDescription'] = '建立預約時推播';
+        $strings['WeComLinked'] = '企業微信通知已綁定';
+        $strings['WeComNotLinked'] = '尚未設定，請洽管理員';
+        $strings['WeComTestNotification'] = '測試通知';
+        $strings['WeComTestNotificationSent'] = '測試通知已送出，請至企業微信確認是否收到。';
+        $strings['WeComTestNotificationMessage'] = '這是一則來自預約系統的測試通知，收到即代表企業微信通知功能正常運作。';
+        $strings['WeComNotEnabled'] = '企業微信通知功能尚未啟用。';
+        $strings['WeComNotLinkedError'] = '您的帳號尚未設定企業微信 ID。';
         $strings['ForgotMyPassword'] = '忘記密碼';
         $strings['YouWillBeEmailedANewPassword'] = '您將會收到一份系統自動生成的密碼';
         $strings['Close'] = '關閉';

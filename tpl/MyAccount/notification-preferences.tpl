@@ -21,9 +21,10 @@
        Web/scripts/notification-preferences.js (fetch to ajax/notification_preferences_save.php),
        showing the shared toast (tpl/globalfooter.tpl#notificationPreferencesSavedToast). *}
 
-    {if $EmailEnabled || $LineEnabled}
-        {* ---- 預約異動:建立/修改/取消/核准。Email 與 LINE 是這一種通知的兩個「通知方式」,
-           各自一個開關;使用者不需要在別處挑管道,提醒卡片也不再有 Email/LINE 子開關。 ---- *}
+    {if $EmailEnabled || $LineEnabled || $WeComEnabled}
+        {* ---- 預約異動:建立/修改/取消/核准。Email / LINE / 企業微信 是這一種通知的「通知方式」,
+           各自一個開關;使用者不需要在別處挑管道,提醒卡片也不再有子開關。企業微信沒有 LINE 那種
+           自助綁定,ID 由管理員在後台填,所以只有在管理員設好 ID 後才出現開關。 ---- *}
         <section class="np-card">
             <div class="np-row np-row-heading">
                 <span class="np-row-icon"><i class="bi bi-calendar-check"></i></span>
@@ -98,6 +99,37 @@
                         </div>
                     {/if}
                 {/if}
+
+                {if $WeComEnabled}
+                    {if $WeComLinked}
+                        <label class="np-row np-method-row" for="wecomNotificationsEnabled">
+                            <span class="np-row-icon"><i class="bi bi-wechat"></i></span>
+                            <span class="np-row-text">
+                                <span class="np-row-label">{translate key=WeComNotifications}</span>
+                                <span class="np-row-desc">{translate key=WeComNotificationsToggleDescription}（{translate key=WeComLinked}）</span>
+                            </span>
+                            <span class="form-check form-switch np-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="wecomNotificationsEnabled"
+                                    {if $WeComNotificationsEnabled}checked="checked"{/if}>
+                                <span class="visually-hidden">{translate key=WeComNotifications}</span>
+                            </span>
+                        </label>
+
+                        <div class="np-line-actions np-method-actions">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="wecomTestNotificationBtn">
+                                <i class="bi bi-send"></i> {translate key=WeComTestNotification}
+                            </button>
+                        </div>
+                    {else}
+                        <div class="np-row np-method-row np-method-row-static">
+                            <span class="np-row-icon"><i class="bi bi-wechat"></i></span>
+                            <span class="np-row-text">
+                                <span class="np-row-label">{translate key=WeComNotifications}</span>
+                                <span class="np-row-desc">{translate key=WeComNotificationsToggleDescription}（{translate key=WeComNotLinked}）</span>
+                            </span>
+                        </div>
+                    {/if}
+                {/if}
             </div>
         </section>
     {/if}
@@ -145,6 +177,7 @@
     window.notificationPreferencesOpts = {
         saveUrl: '{$ScriptUrl}/ajax/notification_preferences_save.php',
         testUrl: '{$ScriptUrl}/ajax/line_test_notification.php',
+        wecomTestUrl: '{$ScriptUrl}/ajax/wecom_test_notification.php',
         csrfToken: '{$CSRFToken|escape:'javascript'}',
         translations: {
             networkError: '{translate key='NetworkErrorRetry'|escape:'javascript'}'

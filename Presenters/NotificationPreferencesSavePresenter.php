@@ -36,6 +36,7 @@ class NotificationPreferencesSavePresenter
     public const ACTION_EMAIL = 'email';
     public const ACTION_LINE_NOTIFICATIONS = 'lineNotifications';
     public const ACTION_LINE_UNLINK = 'lineUnlink';
+    public const ACTION_WECOM_NOTIFICATIONS = 'wecomNotifications';
     public const ACTION_RESERVATION_START_REMINDER = 'reservationStartReminder';
 
     /**
@@ -76,6 +77,9 @@ class NotificationPreferencesSavePresenter
                 break;
             case self::ACTION_LINE_UNLINK:
                 $this->service->UnlinkLine($user);
+                break;
+            case self::ACTION_WECOM_NOTIFICATIONS:
+                $this->service->SaveWeComNotificationsPreference($user, $this->page->GetEnabled());
                 break;
             case self::ACTION_RESERVATION_START_REMINDER:
                 // enabled off -> 0; enabled on -> the submitted minute count

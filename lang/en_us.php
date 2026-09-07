@@ -326,6 +326,15 @@ class en_us extends Language
         $strings['WeComRecurringSuffix'] = ' (%s, %s occurrences through %s)';
         $strings['WeComReminderStartMessage'] = "Reminder: \"%s\" is about to start\nLocation: %s";
         $strings['WeComReminderEndMessage'] = "Reminder: \"%s\" is about to end\nLocation: %s";
+        $strings['WeComNotifications'] = 'WeCom Notifications';
+        $strings['WeComNotificationsToggleDescription'] = 'Pushed when a reservation is created';
+        $strings['WeComLinked'] = 'WeCom notifications linked';
+        $strings['WeComNotLinked'] = 'Not set — ask an administrator';
+        $strings['WeComTestNotification'] = 'Send Test Notification';
+        $strings['WeComTestNotificationSent'] = 'Test notification sent — check WeCom for it.';
+        $strings['WeComTestNotificationMessage'] = 'This is a test notification from the booking system. If you received this, WeCom notifications are working.';
+        $strings['WeComNotEnabled'] = 'WeCom notifications are not enabled.';
+        $strings['WeComNotLinkedError'] = 'Your account does not have a WeCom ID set.';
         $strings['ForgotMyPassword'] = 'I Forgot My Password';
         $strings['YouWillBeEmailedANewPassword'] = 'You will be emailed a new randomly generated password';
         $strings['Close'] = 'Close';
