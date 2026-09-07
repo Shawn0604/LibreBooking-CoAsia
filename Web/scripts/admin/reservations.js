@@ -32,6 +32,7 @@ function ReservationManagement(opts, approval) {
     statusResourceId: $('#statusResourceId'),
     statusReferenceNumber: $('#statusUpdateReferenceNumber'),
 
+    filterForm: $('#filterForm'),
     filterButton: $('#filter'),
     clearFilterButton: $('#clearFilter'),
     filterTable: $('#filter-reservations-panel'),
@@ -143,7 +144,16 @@ function ReservationManagement(opts, approval) {
       $(this).closest('form').submit();
     });
 
-    elements.filterButton.click(filterReservations);
+    // #filter is a type="submit" button inside <form id="filterForm"> (admin redesign).
+    // Bind the form submit so the button click and Enter-in-a-field are both covered, and
+    // preventDefault() so the native GET submit -- which carries none of these name-less
+    // filter inputs -- can't race the window.location redirect filterReservations() builds.
+    // Without this the browser lands on manage_reservations.php with an empty querystring,
+    // FilterButtonPressed() is false, and the list snaps back to the saved date window.
+    elements.filterForm.on('submit', function (e) {
+      e.preventDefault();
+      filterReservations();
+    });
     elements.clearFilterButton.click(function (e) {
       e.preventDefault();
       elements.filterTable.find('input,select,textarea').val('');

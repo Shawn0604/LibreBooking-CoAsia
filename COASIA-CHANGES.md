@@ -3435,3 +3435,28 @@ LINE 之所以有整套自助流程(掃 QR → 傳訊息 → webhook 綁定),是
 - `./vendor/bin/phpunit --testsuite application`:519 支全過。
 - 樣板編譯過;render harness 截圖確認 Email 卡片多了「測試通知」那排、跟 LINE／企業微信 卡片視覺一致(Email 沒有「解除綁定」是刻意的)。
 - 沒加專門的 presenter 測試——比照既有的 `LineTestNotificationPresenter`／`WeComTestNotificationPresenter` 也都沒有。實際寄信要在有 SMTP relay 的環境(dev mailpit 或正式機)按按鈕確認收得到。
+
+---
+
+## 112. 「預約管理」按「篩選」後日期範圍瞬間跳回預設(型別=submit 的按鈕與 JS 導頁互相競爭)
+
+### 需求
+
+使用者回報:「預約管理」頁把日期區間改成較早的範圍、按「篩選」,清單跟日期欄位會立刻彈回預設的「今天 ±7 天」窗,等於篩選完全沒生效,看不到兩週前的舊預約。
+
+### 根因
+
+`{filter_button id="filter"}`(`lib/Common/SmartyPage.php` 的 `FilterButton()`)產生的是 `<button type="submit">`,而 §51.3 改版後這顆按鈕被包進 `<form id="filterForm">` 裡。`Web/scripts/admin/reservations.js` 的 `filterReservations()` 走的是這個專案既有的「JS 讀各欄位值組 query string 後 `window.location` 導頁」寫法(因為 date picker 顯示值 ≠ 底層送出值,見 §51.3),但它**沒有 `preventDefault()`**——`elements.filterButton.click(filterReservations)` 只是加了一個 click handler,原生的表單送出照樣發生。
+
+於是按一下按鈕觸發兩件事:(1) `filterReservations()` 把 `window.location` 設成 `manage_reservations.php?sd=…&ed=…&…`;(2) 表單原生 GET 送出。表單的篩選欄位全部只有 `id` 沒有 `name`,原生送出的網址是不帶任何參數的 `manage_reservations.php`。兩個導頁競爭,原生送出勝出時,`ManageReservationsPage::FilterButtonPressed()`(判斷式是 `count($_GET) > 0`)回傳 false → presenter 改讀 `ReservationFilterPreferences` 存的 delta → 回到 −7/+7 預設窗。「重置」按鈕(`#clearFilter`)的 handler 有 `e.preventDefault()`,所以只有「篩選」中鏢。
+
+`manage_resources.tpl` 同樣用 `{filter_button}` 但那頁的 `#filterForm` 是 `method="get"` + 具名欄位、靠原生送出運作(沒有日期區間,不需要 JS 組網址),不受影響。
+
+### 修法
+
+`Web/scripts/admin/reservations.js`:把 `elements.filterButton.click(filterReservations)` 換成綁 `#filterForm` 的 `submit` 事件 + `e.preventDefault()` 再呼叫 `filterReservations()`。綁 submit 一次同時涵蓋「按按鈕」和「在欄位裡按 Enter」兩條路徑,`preventDefault()` 擋掉會洗掉網址的原生 GET 送出。`elements` 加 `filterForm: $('#filterForm')`。
+
+### 驗證
+
+- `npx eslint` / `npx prettier --check` 對這個檔:無新增問題(既有的 `'AdminConfirm' is not defined` 是改版前就有的 lint 設定缺口,與這次無關)。
+- 瀏覽器實測需要管理員登入;dev 環境走 AD 認證不便直接登入驗證,改動本身只是補一個 `preventDefault()`、路徑單純。正式機部署後由使用者確認「篩選」後日期範圍會保留、能看到更早的預約。
