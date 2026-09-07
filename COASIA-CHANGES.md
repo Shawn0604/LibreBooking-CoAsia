@@ -3360,3 +3360,26 @@ LINE 之所以有整套自助流程(掃 QR → 傳訊息 → webhook 綁定),是
 - `./vendor/bin/phpunit --testsuite presenters`:403 支,只有既有無關的 `ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided`(`usort(null)`,乾淨 HEAD 上就是紅的)失敗。
 - 樣板編譯:`tpl/MyAccount/notification-preferences.tpl` 與 `tpl/globalfooter.tpl` 用 vendor Smarty `compileTemplateSource()` 直接編譯通過。
 - 本機 dev DB 是 AD 連線、沒有已知登入帳密([[project_dev_db_no_test_login]]),無法實際登入看畫面。麻煩使用者在 dev 或 prod 把 `wecom.enabled` 設 true、且自己帳號後台有填 WeCom ID 之後確認:通知設定頁出現「企業微信」那一列、開關能存、「測試通知」按下會收到推播;把 WeCom ID 清空後那一列變成「尚未設定,請洽管理員」靜態文字。
+
+### 追加：三管道各自獨立小卡片 + 企業微信 ID 改成使用者自助填
+
+§109 上線後使用者回饋兩點:(1) Email／LINE／企業微信擠在同一個扁平清單裡,企業微信那列的綁定區看起來像掛在 LINE 底下;(2) 企業微信 ID 應該能在這頁自己填,不是只能管理員後台填。跟使用者確認後兩點都做(版面走「各自獨立小卡片＋管道代表色」,ID 走「使用者自助輸入＋測試驗證＋可解除綁定」)。
+
+**版面**:`tpl/MyAccount/notification-preferences.tpl` 的 `.np-methods` 內每個管道包成一張 `.np-method-card`(1px 邊框、圓角、內距)。`Web/css/notification-preferences.css`:`.np-methods` 改 `display:flex;flex-direction:column;gap:12px`;新增 `.np-method-card`、per-channel icon 底色(`--email` 藍 `#4285f4`／`--line` 綠 `#06c755`／`--wecom` 微信綠 `#07c160`,都用 `rgba(...,0.12~0.14)` 底 + 純色字)、`.np-method-actions`(測試／解除綁定那排,上緣分隔線)、`.np-method-bind`(未綁定時的輸入區,上緣分隔線)、`.np-wecom-bind-*`。舊的 `.np-method-row` 改名 `.np-method-head`;LINE 未綁定的 QR 區塊 wrapper 從 `.np-line-unbound` 改成 `.np-method-bind np-line-unbound`(兩個 class 疊,前者給分隔線後者給既有 flex 排版)。`@media (max-width:480px)` 時 `.np-wecom-bind-row` 換行、input 放寬到 100%。
+
+**企業微信 ID 自助填**:
+- `NotificationPreferencesService`:`SaveWeComUserId(User, $id)`(`ChangePreference(WECOM_USER_ID, trim($id))` + `Update`)、`UnlinkWeCom(User)`(清空 `WECOM_USER_ID`)。`ComputeWeComState()` 回傳多帶 `wecomUserId`(原始字串,給 linked 狀態的說明文字顯示,也進 `BuildStateArray`)。
+- `NotificationPreferencesSavePresenter`:`ACTION_WECOM_LINK = 'wecomLink'`(讀 `page->GetWeComUserId()`,`trim` 後為空 → `SetErrorResponse(GetString('WeComIdRequired'))`;否則 `SaveWeComUserId`)、`ACTION_WECOM_UNLINK = 'wecomUnlink'`(`UnlinkWeCom`)。
+- `INotificationPreferencesSavePage` + `NotificationPreferencesSavePage`:`GetWeComUserId()` → `GetForm('wecomUserId')`。
+- `INotificationPreferencesPage` + `NotificationPreferencesPage`:`SetWeComUserId($id)` → `Set('WeComUserId', $id)`;presenter `PageLoad()` 補一行 `SetWeComUserId($wecomState['wecomUserId'] ?? '')`。
+- 樣板 WeCom 卡片:`$WeComLinked` 時 → toggle + 說明文字帶目前 ID(`{$WeComUserId|escape}`) + 「測試通知」+「解除綁定」(`#wecomUnlinkBtn`);未綁定時 → 「企業微信 ID」label + text input(`#wecomUserIdInput`,`maxlength=64`,`autocomplete=off`) + 「儲存」(`#wecomLinkBtn`) + hint(`WeComUserIdSelfHint`,叫使用者存完按「測試通知」確認填對)。
+- `Web/scripts/notification-preferences.js`:`postWeComIdChange(action, extra, $btn)` helper——成功 `location.reload()`(比照 LINE unlink,整個卡片 markup 由 `.tpl` 兩個狀態決定,不在 JS 複製);`#wecomLinkBtn`(空值時 `showError(opts.translations.wecomIdRequired)` 不送)、`#wecomUserIdInput` Enter 觸發、`#wecomUnlinkBtn`。opts.translations 加 `wecomIdRequired`。
+- 三語言檔加 `WeComUserIdPlaceholder`／`WeComUserIdSelfHint`／`WeComSaveId`／`WeComUnlink`／`WeComIdRequired`(label 沿用既有的 `WeComUserId`)。
+
+**為什麼不做 LINE 那種綁定驗證**:WeCom 沒有「傳訊息回來才拿得到 ID」的握手,ID 就是通訊錄帳號。使用者打錯字最壞情況是「自己的預約通知(含主持人登入資訊)送到別人的企業微信」——屬於使用者自己洩漏自己的資訊、且限內部 VPN 工具,可接受;「測試通知」按鈕就是「我填對了嗎」的即時檢查。使用者輸入的 ID 有 `|escape` 才放進說明文字。
+
+**驗證**(追加):
+- `php -l` / `composer phpcsfixer:lint`(仍只有既有 4 flag)/ `composer phpstan`(0 error,含新介面方法)全過。
+- `./vendor/bin/phpunit --filter NotificationPreferencesServiceTest`:17 支(新增 `SaveWeComUserId` trim、`UnlinkWeCom` 清空,加 `ComputeWeComState` 回傳 `wecomUserId` 的斷言)。
+- `./vendor/bin/phpunit --testsuite presenters`:405 支,只有既有無關的 `ManageReservationsPresenterTest` 那支失敗。
+- 樣板編譯過;用獨立 render harness(vendor Smarty + 真 CSS + Bootstrap)把兩個狀態(未綁定顯示輸入框、已綁定顯示 toggle＋測試＋解除綁定＋ID)在瀏覽器實際截圖確認:三張獨立小卡片、icon 各自代表色、桌面寬度輸入框與「儲存」同列、窄螢幕換行。

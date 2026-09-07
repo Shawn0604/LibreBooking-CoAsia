@@ -32,6 +32,11 @@ class NotificationPreferencesSavePage extends SecurePage implements INotificatio
         return $this->GetForm('enabled') === '1';
     }
 
+    public function GetWeComUserId()
+    {
+        return (string)$this->GetForm('wecomUserId');
+    }
+
     public function GetReminderMinutes()
     {
         return max(0, (int)$this->GetForm('minutes'));

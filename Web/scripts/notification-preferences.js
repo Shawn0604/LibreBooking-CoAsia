@@ -186,4 +186,48 @@ $(function () {
                 $btn.prop('disabled', false);
             });
     });
+
+    // WeCom has no binding handshake like LINE — the user just types their directory id and
+    // saves it. Reload after link/unlink to swap the whole WeCom card's markup (same approach
+    // as the LINE unlink button), rather than hand-duplicating the .tpl's two states in JS.
+    function postWeComIdChange(action, extra, $btn) {
+        var body = new URLSearchParams();
+        body.set('action', action);
+        if (extra) {
+            Object.keys(extra).forEach(function (k) { body.set(k, extra[k]); });
+        }
+        post(opts.saveUrl, body)
+            .then(function (json) {
+                if (json && json.success) {
+                    window.location.reload();
+                } else {
+                    showError((json && json.errors && json.errors[0]) || null);
+                    $btn.prop('disabled', false);
+                }
+            })
+            .catch(function () {
+                showError();
+                $btn.prop('disabled', false);
+            });
+    }
+
+    $('#wecomLinkBtn').on('click', function () {
+        var id = ($('#wecomUserIdInput').val() || '').trim();
+        if (!id) {
+            showError(opts.translations.wecomIdRequired);
+            return;
+        }
+        postWeComIdChange('wecomLink', { wecomUserId: id }, $(this).prop('disabled', true));
+    });
+
+    $('#wecomUserIdInput').on('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            $('#wecomLinkBtn').trigger('click');
+        }
+    });
+
+    $('#wecomUnlinkBtn').on('click', function () {
+        postWeComIdChange('wecomUnlink', null, $(this).prop('disabled', true));
+    });
 });

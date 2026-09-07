@@ -141,6 +141,30 @@ class NotificationPreferencesService
     }
 
     /**
+     * Self-service equivalent of the admin user-management field: the user types their own
+     * WeCom directory id here. There is no binding handshake like LINE's (a WeCom id can't be
+     * proven to belong to the person entering it), so the "Send Test Notification" button is
+     * the verification affordance — see the hint on the page.
+     *
+     * @param User $user
+     * @param string $wecomUserId already trimmed and non-empty (caller rejects empty)
+     */
+    public function SaveWeComUserId(User $user, $wecomUserId)
+    {
+        $user->ChangePreference(UserPreferences::WECOM_USER_ID, trim((string)$wecomUserId));
+        $this->userRepository->Update($user);
+    }
+
+    /**
+     * @param User $user
+     */
+    public function UnlinkWeCom(User $user)
+    {
+        $user->ChangePreference(UserPreferences::WECOM_USER_ID, '');
+        $this->userRepository->Update($user);
+    }
+
+    /**
      * The fixed "提醒時間" choices offered on 通知設定, in minutes before start. Any value
      * outside this whitelist is snapped to 15 — the page only ever submits one of these, so a
      * different value means a tampered/stale request, not a user choice to honour verbatim.
@@ -198,9 +222,12 @@ class NotificationPreferencesService
             return ['wecomEnabled' => false];
         }
 
+        $wecomUserId = (string)$user->GetPreferences()->Get(UserPreferences::WECOM_USER_ID);
+
         return [
             'wecomEnabled' => true,
-            'wecomLinked' => !empty($user->GetPreferences()->Get(UserPreferences::WECOM_USER_ID)),
+            'wecomLinked' => $wecomUserId !== '',
+            'wecomUserId' => $wecomUserId,
             'wecomNotificationsEnabled' => $user->WantsWeComNotifications(),
         ];
     }
@@ -317,6 +344,7 @@ class NotificationPreferencesPresenter
         $wecomState = $this->service->ComputeWeComState($user);
         $this->page->SetWeComEnabled($wecomState['wecomEnabled']);
         $this->page->SetWeComLinked(!empty($wecomState['wecomLinked']));
+        $this->page->SetWeComUserId($wecomState['wecomUserId'] ?? '');
         $this->page->SetWeComNotificationsEnabled(!empty($wecomState['wecomNotificationsEnabled']));
 
         $lineState = $this->service->ComputeLineState($user);

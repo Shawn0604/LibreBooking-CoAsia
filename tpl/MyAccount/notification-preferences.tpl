@@ -38,97 +38,118 @@
                 <p class="np-methods-label">{translate key=NotificationMethods}</p>
 
                 {if $EmailEnabled}
-                    <label class="np-row np-method-row" for="emailNotificationsEnabled">
-                        <span class="np-row-icon"><i class="bi bi-envelope"></i></span>
-                        <span class="np-row-text">
-                            <span class="np-row-label">Email</span>
-                            <span class="np-row-desc">{translate key=EmailNotificationsToggleDescription}</span>
-                        </span>
-                        <span class="form-check form-switch np-switch">
-                            <input class="form-check-input" type="checkbox" role="switch" id="emailNotificationsEnabled"
-                                {if $EmailNotificationsEnabled}checked="checked"{/if}>
-                            <span class="visually-hidden">Email</span>
-                        </span>
-                    </label>
+                    <div class="np-method-card np-method-card--email">
+                        <label class="np-row np-method-head" for="emailNotificationsEnabled">
+                            <span class="np-row-icon"><i class="bi bi-envelope"></i></span>
+                            <span class="np-row-text">
+                                <span class="np-row-label">Email</span>
+                                <span class="np-row-desc">{translate key=EmailNotificationsToggleDescription}</span>
+                            </span>
+                            <span class="form-check form-switch np-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="emailNotificationsEnabled"
+                                    {if $EmailNotificationsEnabled}checked="checked"{/if}>
+                                <span class="visually-hidden">Email</span>
+                            </span>
+                        </label>
+                    </div>
                 {/if}
 
                 {if $LineEnabled}
-                    {if $LineLinked}
-                        <label class="np-row np-method-row" for="lineNotificationsEnabled">
-                            <span class="np-row-icon"><i class="bi bi-chat-dots"></i></span>
-                            <span class="np-row-text">
-                                <span class="np-row-label">LINE</span>
-                                <span class="np-row-desc">{translate key=LineNotificationsToggleDescription}（{translate key=LineLinked}）</span>
-                            </span>
-                            <span class="form-check form-switch np-switch">
-                                <input class="form-check-input" type="checkbox" role="switch" id="lineNotificationsEnabled"
-                                    {if $LineNotificationsEnabled}checked="checked"{/if}>
-                                <span class="visually-hidden">LINE</span>
-                            </span>
-                        </label>
+                    <div class="np-method-card np-method-card--line">
+                        {if $LineLinked}
+                            <label class="np-row np-method-head" for="lineNotificationsEnabled">
+                                <span class="np-row-icon"><i class="bi bi-chat-dots"></i></span>
+                                <span class="np-row-text">
+                                    <span class="np-row-label">LINE</span>
+                                    <span class="np-row-desc">{translate key=LineNotificationsToggleDescription}（{translate key=LineLinked}）</span>
+                                </span>
+                                <span class="form-check form-switch np-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="lineNotificationsEnabled"
+                                        {if $LineNotificationsEnabled}checked="checked"{/if}>
+                                    <span class="visually-hidden">LINE</span>
+                                </span>
+                            </label>
 
-                        <div class="np-line-actions np-method-actions">
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="lineTestNotificationBtn">
-                                <i class="bi bi-send"></i> {translate key=LineTestNotification}
-                            </button>
-                            <button type="button" class="btn btn-outline-secondary btn-sm" id="lineUnlinkBtn">
-                                {translate key=LineUnlink}
-                            </button>
-                        </div>
-                    {else}
-                        <div class="np-row np-method-row np-method-row-static">
-                            <span class="np-row-icon"><i class="bi bi-chat-dots"></i></span>
-                            <span class="np-row-text">
-                                <span class="np-row-label">LINE</span>
-                                <span class="np-row-desc">{translate key=LineNotificationsToggleDescription}（{translate key=LineNotLinked}）</span>
-                            </span>
-                        </div>
+                            <div class="np-method-actions">
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="lineTestNotificationBtn">
+                                    <i class="bi bi-send"></i> {translate key=LineTestNotification}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="lineUnlinkBtn">
+                                    {translate key=LineUnlink}
+                                </button>
+                            </div>
+                        {else}
+                            <div class="np-row np-method-head np-method-row-static">
+                                <span class="np-row-icon"><i class="bi bi-chat-dots"></i></span>
+                                <span class="np-row-text">
+                                    <span class="np-row-label">LINE</span>
+                                    <span class="np-row-desc">{translate key=LineNotificationsToggleDescription}（{translate key=LineNotLinked}）</span>
+                                </span>
+                            </div>
 
-                        <div class="np-line-unbound">
-                            <img class="np-line-qr" src="{$LineQrDataUri}" alt="{translate key=LineNotifications}" width="180" height="180">
-                            <div class="np-line-steps">
-                                <a class="btn btn-success btn-sm np-line-add-friend" href="{$LineFriendUrl}" target="_blank" rel="noopener">
-                                    {translate key=LineAddFriend}
-                                </a>
-                                <div class="np-line-start-binding">
-                                    <p class="np-line-start-binding-label">{translate key=LineStartBinding}</p>
-                                    <p class="np-card-subtitle">{translate key=LineLinkInstructions}</p>
-                                    <span class="np-line-code">{$LineLinkCode}</span>
+                            <div class="np-method-bind np-line-unbound">
+                                <img class="np-line-qr" src="{$LineQrDataUri}" alt="{translate key=LineNotifications}" width="180" height="180">
+                                <div class="np-line-steps">
+                                    <a class="btn btn-success btn-sm np-line-add-friend" href="{$LineFriendUrl}" target="_blank" rel="noopener">
+                                        {translate key=LineAddFriend}
+                                    </a>
+                                    <div class="np-line-start-binding">
+                                        <p class="np-line-start-binding-label">{translate key=LineStartBinding}</p>
+                                        <p class="np-card-subtitle">{translate key=LineLinkInstructions}</p>
+                                        <span class="np-line-code">{$LineLinkCode}</span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    {/if}
+                        {/if}
+                    </div>
                 {/if}
 
                 {if $WeComEnabled}
-                    {if $WeComLinked}
-                        <label class="np-row np-method-row" for="wecomNotificationsEnabled">
-                            <span class="np-row-icon"><i class="bi bi-wechat"></i></span>
-                            <span class="np-row-text">
-                                <span class="np-row-label">{translate key=WeComNotifications}</span>
-                                <span class="np-row-desc">{translate key=WeComNotificationsToggleDescription}（{translate key=WeComLinked}）</span>
-                            </span>
-                            <span class="form-check form-switch np-switch">
-                                <input class="form-check-input" type="checkbox" role="switch" id="wecomNotificationsEnabled"
-                                    {if $WeComNotificationsEnabled}checked="checked"{/if}>
-                                <span class="visually-hidden">{translate key=WeComNotifications}</span>
-                            </span>
-                        </label>
+                    <div class="np-method-card np-method-card--wecom">
+                        {if $WeComLinked}
+                            <label class="np-row np-method-head" for="wecomNotificationsEnabled">
+                                <span class="np-row-icon"><i class="bi bi-wechat"></i></span>
+                                <span class="np-row-text">
+                                    <span class="np-row-label">{translate key=WeComNotifications}</span>
+                                    <span class="np-row-desc">{translate key=WeComNotificationsToggleDescription}（{$WeComUserId|escape}）</span>
+                                </span>
+                                <span class="form-check form-switch np-switch">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="wecomNotificationsEnabled"
+                                        {if $WeComNotificationsEnabled}checked="checked"{/if}>
+                                    <span class="visually-hidden">{translate key=WeComNotifications}</span>
+                                </span>
+                            </label>
 
-                        <div class="np-line-actions np-method-actions">
-                            <button type="button" class="btn btn-outline-primary btn-sm" id="wecomTestNotificationBtn">
-                                <i class="bi bi-send"></i> {translate key=WeComTestNotification}
-                            </button>
-                        </div>
-                    {else}
-                        <div class="np-row np-method-row np-method-row-static">
-                            <span class="np-row-icon"><i class="bi bi-wechat"></i></span>
-                            <span class="np-row-text">
-                                <span class="np-row-label">{translate key=WeComNotifications}</span>
-                                <span class="np-row-desc">{translate key=WeComNotificationsToggleDescription}（{translate key=WeComNotLinked}）</span>
-                            </span>
-                        </div>
-                    {/if}
+                            <div class="np-method-actions">
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="wecomTestNotificationBtn">
+                                    <i class="bi bi-send"></i> {translate key=WeComTestNotification}
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" id="wecomUnlinkBtn">
+                                    {translate key=WeComUnlink}
+                                </button>
+                            </div>
+                        {else}
+                            <div class="np-row np-method-head np-method-row-static">
+                                <span class="np-row-icon"><i class="bi bi-wechat"></i></span>
+                                <span class="np-row-text">
+                                    <span class="np-row-label">{translate key=WeComNotifications}</span>
+                                    <span class="np-row-desc">{translate key=WeComNotificationsToggleDescription}（{translate key=WeComNotLinked}）</span>
+                                </span>
+                            </div>
+
+                            <div class="np-method-bind np-wecom-bind">
+                                <label class="np-wecom-bind-label" for="wecomUserIdInput">{translate key=WeComUserId}</label>
+                                <div class="np-wecom-bind-row">
+                                    <input type="text" id="wecomUserIdInput" class="form-control form-control-sm np-wecom-input"
+                                        placeholder="{translate key=WeComUserIdPlaceholder}" autocomplete="off" maxlength="64" spellcheck="false">
+                                    <button type="button" class="btn btn-primary btn-sm" id="wecomLinkBtn">
+                                        {translate key=WeComSaveId}
+                                    </button>
+                                </div>
+                                <p class="np-wecom-bind-hint">{translate key=WeComUserIdSelfHint}</p>
+                            </div>
+                        {/if}
+                    </div>
                 {/if}
             </div>
         </section>
@@ -180,7 +201,8 @@
         wecomTestUrl: '{$ScriptUrl}/ajax/wecom_test_notification.php',
         csrfToken: '{$CSRFToken|escape:'javascript'}',
         translations: {
-            networkError: '{translate key='NetworkErrorRetry'|escape:'javascript'}'
+            networkError: '{translate key='NetworkErrorRetry'|escape:'javascript'}',
+            wecomIdRequired: '{translate key='WeComIdRequired'|escape:'javascript'}'
         }
     };
 </script>

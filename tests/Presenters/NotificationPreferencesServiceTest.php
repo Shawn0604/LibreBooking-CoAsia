@@ -176,7 +176,29 @@ class NotificationPreferencesServiceTest extends TestBase
         $state = $this->service->ComputeWeComState($user);
 
         $this->assertTrue($state['wecomLinked']);
+        $this->assertEquals('shawn_tsai', $state['wecomUserId']);
         $this->assertTrue($state['wecomNotificationsEnabled']);
+    }
+
+    public function testSaveWeComUserIdStoresATrimmedValue()
+    {
+        $user = new FakeUser(5);
+
+        $this->service->SaveWeComUserId($user, '  shawn_tsai  ');
+
+        $this->assertSame($user, $this->userRepo->_UpdatedUser);
+        $this->assertEquals('shawn_tsai', $user->GetPreferences()->Get(UserPreferences::WECOM_USER_ID));
+    }
+
+    public function testUnlinkWeComClearsTheId()
+    {
+        $user = new FakeUser(5);
+        $user->ChangePreference(UserPreferences::WECOM_USER_ID, 'shawn_tsai');
+
+        $this->service->UnlinkWeCom($user);
+
+        $this->assertSame($user, $this->userRepo->_UpdatedUser);
+        $this->assertEquals('', $user->GetPreferences()->Get(UserPreferences::WECOM_USER_ID));
     }
 
     public function testComputeWeComStateReflectsAnExplicitlyDisabledToggle()

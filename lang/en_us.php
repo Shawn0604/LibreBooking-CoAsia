@@ -335,6 +335,11 @@ class en_us extends Language
         $strings['WeComTestNotificationMessage'] = 'This is a test notification from the booking system. If you received this, WeCom notifications are working.';
         $strings['WeComNotEnabled'] = 'WeCom notifications are not enabled.';
         $strings['WeComNotLinkedError'] = 'Your account does not have a WeCom ID set.';
+        $strings['WeComUserIdPlaceholder'] = 'e.g. shawn_tsai';
+        $strings['WeComUserIdSelfHint'] = 'Your account name in the company WeCom directory. After saving, use Send Test Notification to confirm it is correct.';
+        $strings['WeComSaveId'] = 'Save';
+        $strings['WeComUnlink'] = 'Unlink';
+        $strings['WeComIdRequired'] = 'Please enter a WeCom ID.';
         $strings['ForgotMyPassword'] = 'I Forgot My Password';
         $strings['YouWillBeEmailedANewPassword'] = 'You will be emailed a new randomly generated password';
         $strings['Close'] = 'Close';

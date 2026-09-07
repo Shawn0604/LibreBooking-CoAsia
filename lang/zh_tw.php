@@ -356,6 +356,11 @@ class zh_tw extends en_us
         $strings['WeComTestNotificationMessage'] = '這是一則來自預約系統的測試通知，收到即代表企業微信通知功能正常運作。';
         $strings['WeComNotEnabled'] = '企業微信通知功能尚未啟用。';
         $strings['WeComNotLinkedError'] = '您的帳號尚未設定企業微信 ID。';
+        $strings['WeComUserIdPlaceholder'] = '例如 shawn_tsai';
+        $strings['WeComUserIdSelfHint'] = '輸入你在公司企業微信通訊錄裡的「賬户」。存檔後按「測試通知」確認填對。';
+        $strings['WeComSaveId'] = '儲存';
+        $strings['WeComUnlink'] = '解除綁定';
+        $strings['WeComIdRequired'] = '請輸入企業微信 ID。';
         $strings['ForgotMyPassword'] = '忘記密碼';
         $strings['YouWillBeEmailedANewPassword'] = '您將會收到一份系統自動生成的密碼';
         $strings['Close'] = '關閉';

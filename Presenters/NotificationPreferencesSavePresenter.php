@@ -16,6 +16,11 @@ interface INotificationPreferencesSavePage
     public function GetEnabled();
 
     /**
+     * @return string
+     */
+    public function GetWeComUserId();
+
+    /**
      * @return int
      */
     public function GetReminderMinutes();
@@ -37,6 +42,8 @@ class NotificationPreferencesSavePresenter
     public const ACTION_LINE_NOTIFICATIONS = 'lineNotifications';
     public const ACTION_LINE_UNLINK = 'lineUnlink';
     public const ACTION_WECOM_NOTIFICATIONS = 'wecomNotifications';
+    public const ACTION_WECOM_LINK = 'wecomLink';
+    public const ACTION_WECOM_UNLINK = 'wecomUnlink';
     public const ACTION_RESERVATION_START_REMINDER = 'reservationStartReminder';
 
     /**
@@ -80,6 +87,17 @@ class NotificationPreferencesSavePresenter
                 break;
             case self::ACTION_WECOM_NOTIFICATIONS:
                 $this->service->SaveWeComNotificationsPreference($user, $this->page->GetEnabled());
+                break;
+            case self::ACTION_WECOM_LINK:
+                $wecomUserId = trim((string)$this->page->GetWeComUserId());
+                if ($wecomUserId === '') {
+                    $this->page->SetErrorResponse(Resources::GetInstance()->GetString('WeComIdRequired'));
+                    return;
+                }
+                $this->service->SaveWeComUserId($user, $wecomUserId);
+                break;
+            case self::ACTION_WECOM_UNLINK:
+                $this->service->UnlinkWeCom($user);
                 break;
             case self::ACTION_RESERVATION_START_REMINDER:
                 // enabled off -> 0; enabled on -> the submitted minute count

@@ -110,12 +110,15 @@
   font-weight: 700;
 }
 
-/* "通知方式" group — the two per-channel toggles (Email / LINE) for 預約異動. Divider +
-   left indent so the group's rows line up under the heading's text, not its icon. */
+/* "通知方式" group — one bordered sub-card per channel (Email / LINE / 企業微信) for 預約異動.
+   Divider + left indent so the group lines up under the heading's text, not its icon. */
 #page-notification-preferences .np-methods {
   margin-left: 50px;
   padding-top: 12px;
   border-top: 1px solid var(--gcal-border, #eceff1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 #page-notification-preferences .np-methods-label {
@@ -125,19 +128,93 @@
   color: var(--np-text-secondary);
 }
 
-#page-notification-preferences .np-method-row {
-  padding: 8px 0 6px;
+/* Each channel is its own bordered tile so 企業微信's bind/actions area can't read as if it
+   belongs to the LINE row above it. */
+#page-notification-preferences .np-method-card {
+  border: 1px solid var(--gcal-border, #eceff1);
+  border-radius: var(--bs-border-radius, 0.6rem);
+  padding: 4px 14px 12px;
+  background: var(--bs-body-bg, #fff);
 }
 
-/* Unbound-LINE row: shows status text only, no switch — the QR/code block below it is the
-   actual control. */
+#page-notification-preferences .np-method-head {
+  padding: 10px 0 6px;
+}
+
+/* Per-channel accent on the icon circle — the "至少顏色要分開". */
+#page-notification-preferences .np-method-card--email .np-row-icon {
+  background: rgba(66, 133, 244, 0.12);
+  color: #4285f4;
+}
+
+#page-notification-preferences .np-method-card--line .np-row-icon {
+  background: rgba(6, 199, 85, 0.12);
+  color: #06c755;
+}
+
+#page-notification-preferences .np-method-card--wecom .np-row-icon {
+  background: rgba(7, 193, 96, 0.14);
+  color: #07c160;
+}
+
+/* Unbound-channel head row: status text only, no switch — the block below it is the control. */
 #page-notification-preferences .np-method-row-static {
   cursor: default;
+}
+
+/* Actions row (測試通知 / 解除綁定) under a linked channel's toggle. */
+#page-notification-preferences .np-method-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--gcal-border, #eceff1);
+  flex-wrap: wrap;
+}
+
+/* Binding area under an unlinked channel's head row (LINE QR block / 企業微信 ID input). */
+#page-notification-preferences .np-method-bind {
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gcal-border, #eceff1);
+}
+
+#page-notification-preferences .np-wecom-bind-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--np-text-secondary);
+  margin: 0 0 6px;
+}
+
+#page-notification-preferences .np-wecom-bind-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#page-notification-preferences .np-wecom-input {
+  max-width: 220px;
+}
+
+#page-notification-preferences .np-wecom-bind-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--np-text-secondary);
 }
 
 @media (max-width: 480px) {
   #page-notification-preferences .np-methods {
     margin-left: 0;
+  }
+
+  #page-notification-preferences .np-wecom-bind-row {
+    flex-wrap: wrap;
+  }
+
+  #page-notification-preferences .np-wecom-input {
+    max-width: 100%;
   }
 }
 

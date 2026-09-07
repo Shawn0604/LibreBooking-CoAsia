@@ -939,6 +939,11 @@ class zh_cn extends en_us
         $strings['WeComTestNotificationMessage'] = '这是一则来自预约系统的测试通知，收到即代表企业微信通知功能正常运作。';
         $strings['WeComNotEnabled'] = '企业微信通知功能尚未启用。';
         $strings['WeComNotLinkedError'] = '您的账号尚未设置企业微信 ID。';
+        $strings['WeComUserIdPlaceholder'] = '例如 shawn_tsai';
+        $strings['WeComUserIdSelfHint'] = '输入你在公司企业微信通讯录里的“账户”。保存后按“发送测试通知”确认填对。';
+        $strings['WeComSaveId'] = '保存';
+        $strings['WeComUnlink'] = '解除绑定';
+        $strings['WeComIdRequired'] = '请输入企业微信 ID。';
         $strings['LineReminderStartMessage'] = "提醒：“%s”即将开始\n地点：%s";
         $strings['LineReminderEndMessage'] = "提醒：“%s”即将结束\n地点：%s";
 

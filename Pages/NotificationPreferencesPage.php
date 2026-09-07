@@ -51,9 +51,14 @@ interface INotificationPreferencesPage extends IPage
     public function SetWeComEnabled($enabled);
 
     /**
-     * @param bool $isLinked whether an administrator has set this user's WeCom id
+     * @param bool $isLinked whether a WeCom id is set for this user
      */
     public function SetWeComLinked($isLinked);
+
+    /**
+     * @param string $wecomUserId the currently stored WeCom id ('' when none)
+     */
+    public function SetWeComUserId($wecomUserId);
 
     /**
      * @param bool $enabled
@@ -138,6 +143,11 @@ class NotificationPreferencesPage extends SecurePage implements INotificationPre
     public function SetWeComLinked($isLinked)
     {
         $this->Set('WeComLinked', $isLinked);
+    }
+
+    public function SetWeComUserId($wecomUserId)
+    {
+        $this->Set('WeComUserId', $wecomUserId);
     }
 
     public function SetWeComNotificationsEnabled($enabled)
