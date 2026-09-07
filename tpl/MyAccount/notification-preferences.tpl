@@ -51,6 +51,15 @@
                                 <span class="visually-hidden">Email</span>
                             </span>
                         </label>
+
+                        {* Email has no "binding" to release like LINE/WeCom — the address comes
+                           from the account and the toggle above is the on/off. Just a delivery
+                           check here. *}
+                        <div class="np-method-actions">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="emailTestNotificationBtn">
+                                <i class="bi bi-send"></i> {translate key=EmailTestNotification}
+                            </button>
+                        </div>
                     </div>
                 {/if}
 
@@ -199,6 +208,7 @@
         saveUrl: '{$ScriptUrl}/ajax/notification_preferences_save.php',
         testUrl: '{$ScriptUrl}/ajax/line_test_notification.php',
         wecomTestUrl: '{$ScriptUrl}/ajax/wecom_test_notification.php',
+        emailTestUrl: '{$ScriptUrl}/ajax/email_test_notification.php',
         csrfToken: '{$CSRFToken|escape:'javascript'}',
         translations: {
             networkError: '{translate key='NetworkErrorRetry'|escape:'javascript'}',

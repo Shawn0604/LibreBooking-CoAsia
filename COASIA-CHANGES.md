@@ -3408,3 +3408,30 @@ LINE 之所以有整套自助流程(掃 QR → 傳訊息 → webhook 綁定),是
 - `./vendor/bin/phpunit --filter ReservationReminderSenderTest`:新增 7 支——WeCom 提醒 owner+內部與會者、沒填 ID 不發、關掉開關不發(但 Email 照發)、只開 WeCom 時 Email/LINE 都不發、`wecom.enabled` 關掉即使有 ID 也不發、同時有 LINE+WeCom 兩邊都收、取消/null series 不發 WeCom。
 - `./vendor/bin/phpunit --testsuite application`:519 支全過(無 failure/error)。
 - 尚未在真的 cron 環境跑過整條(dev 沒有排程、`wecom.enabled` 預設 false)。正式機驗證:`wecom.enabled=true` + 每分鐘 cron 有在跑 + 使用者自己填了 WeCom ID + 該筆預約的建立者「會議開始前提醒」開著,則提醒時間到時會收到企業微信純文字訊息。
+
+---
+
+## 111. Email 也加「測試通知」按鈕（沒有「解除綁定」）
+
+§109／§110 讓 LINE／企業微信 卡片都有「測試通知」按鈕後,Email 卡片只剩一個開關、看起來比另外兩張單薄。使用者要求 Email 也比照加「測試通知」跟「解除綁定」。
+
+**「測試通知」有做**:寄一封純文字測試信到帳號的 Email 地址,確認信件真的送得到(可能進垃圾郵件)。跟 LINE／WeCom 的測試一樣**不看通知開關**——它回答的是「送得到嗎」,不是「我會不會收到通知」。
+
+**「解除綁定」沒做**,因為 Email 沒有「綁定」這回事:地址來自帳號本身(AD 同步 / 我的帳號),這頁的開關就是唯一的開／關。再放一顆「解除綁定」不是跟 LINE 對齊,而是做一顆跟開關重複、或什麼都不做的按鈕。樣板裡留了註解說明。
+
+### 修法(比照 `wecom_test_notification.php` 三件套)
+
+- `lib/Email/Messages/NotificationTestEmail.php`:`extends EmailMessage`,`To()` 給帳號 Email、`Subject()`／`Body()` 走語言字串,不套 `.tpl`(純文字到就好)。
+- `Presenters/EmailTestNotificationPresenter.php`:`email.enabled` 關 → `EmailDisabled`;帳號沒 Email 地址 → `EmailTestNotificationNoAddress`;否則 `ServiceLocator::GetEmailService()->Send(new NotificationTestEmail($user))`。
+- `Pages/Ajax/EmailTestNotificationPage.php` + `Web/ajax/email_test_notification.php`。
+- `tpl/MyAccount/notification-preferences.tpl`:Email 卡片 head 底下加 `.np-method-actions` + `#emailTestNotificationBtn`;opts 加 `emailTestUrl`。
+- `Web/scripts/notification-preferences.js`:三顆測試按鈕的 handler 收斂成一個 `wireTestButton(btnId, url, toastId)`,LINE／WeCom／Email 各呼叫一次(移除先前 WeCom 那段複製的 handler)。
+- `tpl/globalfooter.tpl`:`#emailTestNotificationToast`。
+- 三語言檔:`EmailTestNotification`／`EmailTestNotificationSent`／`EmailTestNotificationSubject`／`EmailTestNotificationMessage`／`EmailTestNotificationNoAddress`。
+
+### 驗證
+
+- `php -l` / `composer phpcsfixer:lint`(仍只有既有 4 flag)/ `composer phpstan`(新檔 0 error)全過。
+- `./vendor/bin/phpunit --testsuite application`:519 支全過。
+- 樣板編譯過;render harness 截圖確認 Email 卡片多了「測試通知」那排、跟 LINE／企業微信 卡片視覺一致(Email 沒有「解除綁定」是刻意的)。
+- 沒加專門的 presenter 測試——比照既有的 `LineTestNotificationPresenter`／`WeComTestNotificationPresenter` 也都沒有。實際寄信要在有 SMTP relay 的環境(dev mailpit 或正式機)按按鈕確認收得到。

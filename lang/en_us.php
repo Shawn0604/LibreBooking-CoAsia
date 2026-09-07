@@ -340,6 +340,11 @@ class en_us extends Language
         $strings['WeComSaveId'] = 'Save';
         $strings['WeComUnlink'] = 'Unlink';
         $strings['WeComIdRequired'] = 'Please enter a WeCom ID.';
+        $strings['EmailTestNotification'] = 'Send Test Notification';
+        $strings['EmailTestNotificationSent'] = 'Test notification sent — check your inbox (it may land in spam).';
+        $strings['EmailTestNotificationSubject'] = '[CoAsia Booking] Test notification';
+        $strings['EmailTestNotificationMessage'] = 'This is a test notification from the booking system. If you received this, email notifications are working.';
+        $strings['EmailTestNotificationNoAddress'] = 'Your account does not have an email address.';
         $strings['ForgotMyPassword'] = 'I Forgot My Password';
         $strings['YouWillBeEmailedANewPassword'] = 'You will be emailed a new randomly generated password';
         $strings['Close'] = 'Close';

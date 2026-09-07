@@ -361,6 +361,11 @@ class zh_tw extends en_us
         $strings['WeComSaveId'] = '儲存';
         $strings['WeComUnlink'] = '解除綁定';
         $strings['WeComIdRequired'] = '請輸入企業微信 ID。';
+        $strings['EmailTestNotification'] = '測試通知';
+        $strings['EmailTestNotificationSent'] = '測試通知已送出，請至信箱確認是否收到（可能會進垃圾郵件）。';
+        $strings['EmailTestNotificationSubject'] = '【CoAsia Booking】測試通知';
+        $strings['EmailTestNotificationMessage'] = '這是一封來自預約系統的測試通知，收到即代表 Email 通知功能正常運作。';
+        $strings['EmailTestNotificationNoAddress'] = '您的帳號沒有設定 Email 地址。';
         $strings['ForgotMyPassword'] = '忘記密碼';
         $strings['YouWillBeEmailedANewPassword'] = '您將會收到一份系統自動生成的密碼';
         $strings['Close'] = '關閉';

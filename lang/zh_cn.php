@@ -944,6 +944,11 @@ class zh_cn extends en_us
         $strings['WeComSaveId'] = '保存';
         $strings['WeComUnlink'] = '解除绑定';
         $strings['WeComIdRequired'] = '请输入企业微信 ID。';
+        $strings['EmailTestNotification'] = '发送测试通知';
+        $strings['EmailTestNotificationSent'] = '测试通知已发送，请至信箱确认是否收到（可能会进垃圾邮件）。';
+        $strings['EmailTestNotificationSubject'] = '【CoAsia Booking】测试通知';
+        $strings['EmailTestNotificationMessage'] = '这是一封来自预约系统的测试通知，收到即代表 Email 通知功能正常运作。';
+        $strings['EmailTestNotificationNoAddress'] = '您的账号没有设置 Email 地址。';
         $strings['LineReminderStartMessage'] = "提醒：“%s”即将开始\n地点：%s";
         $strings['LineReminderEndMessage'] = "提醒：“%s”即将结束\n地点：%s";
 

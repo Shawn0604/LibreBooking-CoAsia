@@ -147,45 +147,32 @@ $(function () {
         syncReminderFields();
     }
 
-    $('#lineTestNotificationBtn').on('click', function () {
-        var $btn = $(this).prop('disabled', true);
-        var body = new URLSearchParams();
+    // A "did this channel actually reach me" check. Same shape for all three channels:
+    // POST nothing, show a per-channel toast on success. The endpoint sends regardless of the
+    // notification toggle — it answers "does delivery work", not "will I be notified".
+    function wireTestButton(btnId, url, toastId) {
+        $(btnId).on('click', function () {
+            var $btn = $(this).prop('disabled', true);
+            post(url, new URLSearchParams())
+                .then(function (json) {
+                    if (json && json.success) {
+                        window.showToastById(toastId);
+                    } else {
+                        showError((json && json.errors && json.errors[0]) || null);
+                    }
+                })
+                .catch(function () {
+                    showError();
+                })
+                .finally(function () {
+                    $btn.prop('disabled', false);
+                });
+        });
+    }
 
-        post(opts.testUrl, body)
-            .then(function (json) {
-                if (json && json.success) {
-                    window.showToastById('lineTestNotificationToast');
-                } else {
-                    showError((json && json.errors && json.errors[0]) || null);
-                }
-            })
-            .catch(function () {
-                showError();
-            })
-            .finally(function () {
-                $btn.prop('disabled', false);
-            });
-    });
-
-    $('#wecomTestNotificationBtn').on('click', function () {
-        var $btn = $(this).prop('disabled', true);
-        var body = new URLSearchParams();
-
-        post(opts.wecomTestUrl, body)
-            .then(function (json) {
-                if (json && json.success) {
-                    window.showToastById('wecomTestNotificationToast');
-                } else {
-                    showError((json && json.errors && json.errors[0]) || null);
-                }
-            })
-            .catch(function () {
-                showError();
-            })
-            .finally(function () {
-                $btn.prop('disabled', false);
-            });
-    });
+    wireTestButton('#lineTestNotificationBtn', opts.testUrl, 'lineTestNotificationToast');
+    wireTestButton('#wecomTestNotificationBtn', opts.wecomTestUrl, 'wecomTestNotificationToast');
+    wireTestButton('#emailTestNotificationBtn', opts.emailTestUrl, 'emailTestNotificationToast');
 
     // WeCom has no binding handshake like LINE — the user just types their directory id and
     // saves it. Reload after link/unlink to swap the whole WeCom card's markup (same approach
