@@ -21,6 +21,7 @@
 | [COASIA-BACKUP-RESTORE.md](COASIA-BACKUP-RESTORE.md) | 要備份／還原正式環境資料庫、上傳檔、機密設定——保留策略、還原演練、破窗還原步驟 |
 | [COASIA-DEV-SETUP.md](COASIA-DEV-SETUP.md) | 要在全新電腦上搭本機開發環境 |
 | [COASIA-GOLIVE-CHECKLIST.md](COASIA-GOLIVE-CHECKLIST.md) | 想知道正式上線前還缺什麼 |
+| [COASIA-API.md](COASIA-API.md) | 要對接內建 REST API——啟用步驟、連線前提（內網限定）、端點清單、認證流程、curl 範例、安全設定 |
 
 ## 重要慣例
 
