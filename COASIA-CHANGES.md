@@ -3491,3 +3491,56 @@ LINE 之所以有整套自助流程(掃 QR → 傳訊息 → webhook 綁定),是
 - `docker compose -f docker-compose.dev.yml exec app php -l` 對兩個改動的 PHP 檔案:無語法錯誤。
 - 暫時寫一個 PHPUnit 測試直接呼叫 `ReservationCreatedEmail::Body()` / `ReservationDeletedEmail::Body()` 確認渲染結果:owner 收到的「建立」信有 `<a href="/reservation.php?rn=…&cancel=1">取消此預約</a>`;owner 收到的「已取消」信沒有這個連結(避免對已取消的預約再顯示一次取消連結)。既有 22 個 `tests/Application/Reservation/*NotificationTest.php`(owner/participant/guest/admin/reminder)全數通過,確認共用的 `reservation-notification-body.tpl` 沒有因為新增變數而壞掉。測試檔案驗證後即刪除,未留在版控裡。
 - 瀏覽器實測需要真實使用者登入;本機 dev DB 是正式環境資料快照、走 AD 認證,沒有可用的本機測試帳密(見專案記憶),故未做瀏覽器端到端點擊驗證。JS 邏輯(`URLSearchParams` 讀 `cancel=1`、觸發既有 click handler)與既有的 `.triggerDeletePrompt`/`.prompt` 綁定共用同一段程式碼,風險低。
+
+## 114. 「會議開始前提醒」與會者不受個人「接收 Email 通知」開關限制
+
+### 需求
+
+使用者回報:與會者是否真的會收到提醒信,讓人懷疑。
+
+### 根因
+
+`ReservationReminderSender::SendToUser()`(`lib/Application/Reservation/Notification/Reminder/ReservationReminderSender.php`)不管收件人是 owner 還是 participant/invitee,一律先檢查 `UserWantsEmail($user)`——也就是「通知設定」頁那顆「接收 Email 通知」總開關(`user->WantsEventEmail(new ReservationCreatedEvent())`,一次寫六個事件偏好)。
+
+問題是這顆開關對「被邀請參加某場會議的人」不對:與會者不是自己選了要不要被通知,他是被別人拉進這場會議的,理當一定要知道會議快開始了。§108 就記錄過完全一樣的線上症狀(「提醒仍只有預約人自己收到」),當時的解法是幫全部 116 個使用者補資料、把 `registration.auto.subscribe.email` 開起來——只是治標的資料層 workaround,程式邏輯從沒改過,新加入的帳號(AD 剛同步進來、還沒被這次補資料覆蓋到)一樣會漏收。
+
+信件本身分兩種:「你被加進這場會議」的邀請信本來就不受這顆開關限制(`InviteeAddedEmailNotification` 等,無條件寄出),但「會議快開始了」的提醒信卻受限——同一件事(你在這場會議的邀請名單上)在兩個時間點的行為不一致。
+
+### 修法
+
+`ReservationReminderSender::SendToUser()`:`UserWantsEmail()` 只保留給 owner 檢查(owner 對自己的預約要不要收提醒,是他自己的選擇);participant/invitee 一律寄出提醒信,不再看這顆開關。LINE/企業微信各自獨立的頻道開關(`WantsLineNotifications()`/`WantsWeComNotifications()`)不受影響——那是使用者自己主動綁定 id 才會啟用的頻道,跟「有沒有摸過『接收 Email 通知』這顆總開關」是不同性質的訊號。
+
+### 驗證
+
+- `docker compose -f docker-compose.dev.yml exec app php -l`:無語法錯誤。
+- `tests/Application/Reservation/ReservationReminderSenderTest.php`:把原本斷言「與會者關掉 Email 就收不到提醒信」的 `testAttendeeWithEmailOffGetsNoEmailButStillGetsLine` 拆成兩個測試——`testOwnerWithEmailOffGetsNoEmailButStillGetsLine`(owner 關掉還是照舊會被擋)與新的 `testAttendeeWithEmailOffStillGetsReminderEmail`(與會者關掉這顆開關,提醒信仍要送達,LINE 開關不受影響)。25 個測試全數通過。
+- `composer phpunit -- --testsuite domain,application`:824 個測試全數通過,沒有連帶壞掉其他通知路徑。
+
+## 115. 資源可設定「連動資源」——預約實體會議室時自動一併加入線上會議資源
+
+### 需求
+
+使用者回報:需要能同時預約線上＋實體會議室,因為通常訂了實體就會想同步開線上會議,每次都要手動再選一次線上會議資源很麻煩。
+
+### 根因
+
+LibreBooking 原生就支援一筆預約掛「主要資源＋多個附加資源」,使用者本來就能在預約表單手動勾兩個資源一起送出,但完全沒有「選了 A 資源就自動幫你加 B 資源」的機制。而且「新增資源」對話框裡的資源清單(`$AvailableResources`／`ReservationComponentBinder.php`)刻意只列出跟主要資源同一個 `schedule_id` 的資源(這個部署裡每個資源各自獨立一條 schedule),線上會議資源多半自己一條獨立 schedule,根本不會出現在那個勾選清單裡——就算之後想做「自動勾選」,也勾不到。
+
+### 修法
+
+新增一個admin可設定的「連動資源」欄位(`resources.linked_resource_id`,自我參照、nullable,同 `resource_groups.parent_id` 的先例,`ON DELETE SET NULL`):
+
+- **資料庫**:`database_schema/upgrades/4.7/`(schema.sql 加欄位+索引+FK,data.sql 灌 dbversion)。
+- **Domain**:`Domain/BookableResource.php` 加 `GetLinkedResourceId()`/`SetLinkedResourceId()`,`Domain/Access/ResourceRepository.php`(`Create()`/`Update()`/`ResourceDto`)、`lib/Application/Schedule/ResourceService.php::Filter()`、`lib/Database/Commands/`(`ColumnNames`/`ParameterNames`/`Queries::UPDATE_RESOURCE`/`UpdateResourceCommand`)全部照 `resourceTypeId` 現成的路徑複製一份接線,沒有新建 repository 或資料表。
+- **後台**:`Presenters/Admin/ManageResourcesPresenter.php` 新增 `ChangeLinkedResource()`(整個做法照抄 `ChangeResourceType()`),`tpl/Admin/Resources/manage_resource_drawer_content.tpl`/`manage_resources.tpl`/`Web/scripts/admin/resource.js` 比照 `resourceTypeName` 那顆 x-editable 下拉,分別加在「未分類資源」的舊版欄位區跟「已分類資源」表單外(避免巢狀 form)兩個地方,下拉選項是全部資源(不限資源類型,by design——跟資源類型下拉一樣不做限制,交給 admin 自己判斷)。
+- **訂會議室頁面**:`tpl/Reservation/create.tpl` 的 `#rpResourcePicker` 資源清單每一項多帶 `data-linked-resource-id`;選資源的 click handler 多呼叫 `applyLinkedResource()`——直接把連動資源以隱藏欄位＋顯示徽章的形式塞進 `#additionalResources`(繞過「新增資源」那個受 schedule 限制的勾選樹,因為連動資源大概率根本不在那棵樹裡),只動自己管理的那一格(`data-auto-linked="1"`),使用者手動用「新增資源」加的東西不會被動到;而且只在使用者真的點了資源選單時才觸發,**不會**在頁面載入時自動套用——編輯既有預約時不會把使用者之前手動移除的資源又偷偷加回來。`Web/scripts/reservation.js` 加一個 `Reservation.prototype.notifyResourcesChanged()` 公開方法,讓 create.tpl 這段獨立 IIFE 可以重用既有的點數／自訂屬性重新載入邏輯。
+- **語言檔**:`lang/zh_tw.php`/`lang/en_us.php` 加 `LinkedResource`/`LinkedResourceHint`。
+
+### 驗證
+
+- `docker compose -f docker-compose.dev.yml exec app php -l` 對全部改動的 PHP 檔案:無語法錯誤。
+- `vendor/bin/php-cs-fixer fix --dry-run --diff`:14 個改動的 PHP 檔案全部符合 PSR-12,0 個需要修正。
+- `npx eslint Web/scripts/reservation.js Web/scripts/admin/resource.js`:沒有新增的 lint 錯誤(既有的 `AdminConfirm` 未定義是改版前就有的既有缺口)。`create.tpl` 內嵌的 JS 段落用 `node --check` 對抽出、代換掉 Smarty 標籤後的片段驗證語法正確。
+- `composer phpunit -- --testsuite domain,application,presenters,webservices,plugins`:全數通過(`ManageReservationsPresenterTest::testUsesTwoWeekSpanWhenNoDateFilterProvided` 的既有失敗跟這次改動無關,單獨跑、沒改過的檔案上一樣會炸,是既有問題)。
+- `composer phpstan`:背景執行中,尚未回報結果,之後補記。
+- 後台「連動資源」下拉、訂會議室頁面的自動帶入行為都需要真實登入才能點擊驗證;本機 dev DB 是正式環境資料快照、走 AD 認證,沒有可用的本機測試帳密(見專案記憶),故未做瀏覽器端到端驗證。
