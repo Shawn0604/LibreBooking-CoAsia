@@ -177,7 +177,26 @@ class ReservationReminderSenderTest extends TestBase
 
     // ---- per-channel opt-out (must apply to BOTH channels) ---------------
 
-    public function testAttendeeWithEmailOffGetsNoEmailButStillGetsLine()
+    public function testOwnerWithEmailOffGetsNoEmailButStillGetsLine()
+    {
+        $this->user(10, 'owner@co.com', false, 'Uowner'); // email off, LINE on
+
+        $series = $this->series(10);
+
+        $this->sender()->Send($series, ReservationReminderType::Start, 15);
+
+        $this->assertEquals([], $this->emailRecipients());
+        $this->assertEquals(['Uowner'], $this->flexRecipients());
+    }
+
+    /**
+     * Unlike the owner, an attendee's generic "接收 Email 通知" toggle never suppresses their
+     * reminder email — they were put on this specific meeting by someone else, so a toggle they
+     * may never have touched (e.g. a freshly-synced AD account, see COASIA-CHANGES.md §108)
+     * shouldn't hide "this meeting starts soon" from them. Their LINE opt-in is unaffected and
+     * still gates the LINE push independently.
+     */
+    public function testAttendeeWithEmailOffStillGetsReminderEmail()
     {
         $this->user(10, 'owner@co.com', true, 'Uowner');
         $this->user(20, 'part@co.com', false, 'Upart'); // email off, LINE on
@@ -186,7 +205,7 @@ class ReservationReminderSenderTest extends TestBase
 
         $this->sender()->Send($series, ReservationReminderType::Start, 15);
 
-        $this->assertEquals(['owner@co.com'], $this->emailRecipients());
+        $this->assertEquals(['owner@co.com', 'part@co.com'], $this->emailRecipients());
         $this->assertEquals(['Uowner', 'Upart'], $this->flexRecipients());
     }
 

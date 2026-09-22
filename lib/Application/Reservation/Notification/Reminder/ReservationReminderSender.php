@@ -22,8 +22,13 @@ require_once(ROOT_DIR . 'Pages/Pages.php');
  *                                   notifications are on).
  *                                 The shared video-conference host account / password is
  *                                 included for THIS recipient only.
- *   - internal attendees       -> participants + invitees, each over their own enabled
- *                                 Email / LINE / 企業微信. Never the host credentials.
+ *   - internal attendees       -> participants + invitees. Email always goes out (see
+ *                                 UserWantsEmail()) -- they were put on this specific meeting,
+ *                                 so a generic "email notifications" toggle they may have never
+ *                                 touched shouldn't hide the fact it's starting. LINE / 企業微信
+ *                                 still require their own per-channel opt-in, since those need
+ *                                 the attendee to have actively bound an id in the first place.
+ *                                 Never the host credentials.
  *   - external guests          -> not notified. The mail server can only deliver to internal
  *                                 addresses, so there is no working channel for them.
  *   - resource / group admins  -> not notified (they are simply never in the recipient set).
@@ -136,7 +141,11 @@ class ReservationReminderSender
 
     private function SendToUser(User $user, bool $isOwner, ReservationSeries $series, User $owner, $reminderType, $minutesPrior): void
     {
-        if ($this->emailEnabled && $this->UserWantsEmail($user)) {
+        // Owners can opt out of reminders for their own reservations via the toggle; attendees
+        // can't be gated on it (see UserWantsEmail() and the class doc above) since they didn't
+        // set their own schedule and the toggle was never meant to hide "this meeting starts soon".
+        $emailAllowed = $isOwner ? $this->UserWantsEmail($user) : true;
+        if ($this->emailEnabled && $emailAllowed) {
             $address = $user->EmailAddress();
             if (!empty($address)) {
                 $this->SendEmail(
@@ -170,7 +179,8 @@ class ReservationReminderSender
     /**
      * The single "接收 Email 通知" toggle on 通知設定 writes all six reservation-lifecycle
      * event preferences together (NotificationPreferencesService::EmailEvents()), so reading
-     * one representative event answers "is the Email toggle on".
+     * one representative event answers "is the Email toggle on". Only consulted for the
+     * reservation owner -- see SendToUser().
      */
     private function UserWantsEmail(User $user): bool
     {
