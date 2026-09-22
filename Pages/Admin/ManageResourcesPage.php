@@ -240,6 +240,12 @@ interface IManageResourcesPage extends IUpdateResourcePage, IActionPage, IPageab
     public function BindResourceTypes($resourceTypes);
 
     /**
+     * @param $resourceNames string[] resource id => name, every resource (unfiltered) so the
+     *   linked-resource picker can offer any of them
+     */
+    public function BindResourceNames($resourceNames);
+
+    /**
      * @param $reasons ResourceStatusReason[]
      */
     public function BindResourceStatusReasons($reasons);
@@ -871,6 +877,11 @@ class ManageResourcesPage extends ActionPage implements IManageResourcesPage
     public function BindResourceTypes($resourceTypes)
     {
         $this->Set('ResourceTypes', $resourceTypes);
+    }
+
+    public function BindResourceNames($resourceNames)
+    {
+        $this->Set('ResourceNames', $resourceNames);
     }
 
     /**

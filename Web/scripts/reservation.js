@@ -202,6 +202,15 @@ function Reservation(opts) {
     });
   };
 
+  // Public hook so the #rpResourcePicker click handler in tpl/Reservation/create.tpl -- a
+  // separate inline <script>, outside this closure -- can reuse onResourcesChanged() and
+  // WireUpResourceDetailPopups() after it auto-adds/removes a linked resource, instead of
+  // duplicating what AddResources() itself does at the end of its own DOM rebuild.
+  Reservation.prototype.notifyResourcesChanged = function () {
+    WireUpResourceDetailPopups();
+    onResourcesChanged();
+  };
+
   function SetDeleteReason() {
     var reason = $('.deleteReason').val();
     if (_.isEmpty(reason)) {

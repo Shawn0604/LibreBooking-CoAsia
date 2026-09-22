@@ -1785,6 +1785,23 @@
 		]
 	});
 
+	{* No self-exclusion per row (every row gets the same static source list) -- harmless even
+	   if an admin picks the resource itself, since the reservation-form auto-add logic treats
+	   "linked resource == the resource you already picked as primary" as a no-op. *}
+	$('.linkedResourceName').editable({
+		url: updateUrl + '{ManageResourcesActions::ActionChangeLinkedResource}',
+		emptytext: "{translate key=None|escape:'javascript'}",
+		source: [{
+				value: '0', text: '' //'-- {translate key=None} --'
+			},
+			{foreach from=$ResourceNames item=resourceName key=id}
+				{
+					value:{$id}, text: "{$resourceName|escape:'javascript'}"
+				},
+			{/foreach}
+		]
+	});
+
 	$('.sortOrderValue').editable({
 		url: updateUrl + '{ManageResourcesActions::ActionChangeSort}', emptytext: '0', min: 0, max: 999
 	});

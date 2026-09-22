@@ -506,6 +506,11 @@ function ResourceManagement(opts) {
       $(this).closest('.resourceDetails').find('.resourceTypeName').editable('toggle');
     });
 
+    elements.resourcesList.on('click', '.changeLinkedResource', function (e) {
+      e.stopPropagation();
+      $(this).closest('.resourceDetails').find('.linkedResourceName').editable('toggle');
+    });
+
     elements.resourcesList.on('click', '.changeSortOrder', function (e) {
       e.stopPropagation();
       $(this).closest('.resourceDetails').find('.sortOrderValue').editable('toggle');

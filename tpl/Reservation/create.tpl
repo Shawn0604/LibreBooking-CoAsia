@@ -203,7 +203,8 @@
                                 <div class="resource-picker-list" id="rpResourcePickerList">
                                     {foreach from=$SwitchableResources item=resource}
                                     <button type="button" class="resource-picker-item{if $resource->GetId() == $ResourceId} selected{/if}"
-                                        data-resource-id="{$resource->GetId()}" data-color="{$SwitchableResourceColors[$resource->GetId()].bg}">
+                                        data-resource-id="{$resource->GetId()}" data-color="{$SwitchableResourceColors[$resource->GetId()].bg}"
+                                        data-linked-resource-id="{$resource->GetLinkedResourceId()}">
                                         <span class="resource-picker-check"><i class="bi bi-check-lg"></i></span>
                                         <span class="resource-picker-dot" style="--dot-color:{$SwitchableResourceColors[$resource->GetId()].bg}"></span>
                                         <span class="resource-picker-item-label">{$resource->Name|escape:'html'}</span>
@@ -697,6 +698,62 @@
                 }
             });
 
+            // Admin > Manage Resources lets a resource be paired with another one it should
+            // always be booked alongside (typically a physical room paired with its usual
+            // video-conference resource, BookableResource::GetLinkedResourceId()). Switching
+            // the primary resource here auto-adds/replaces that pairing in #additionalResources
+            // -- bypassing the schedule-scoped "add resources" checkbox tree entirely, since
+            // the linked resource usually lives on its own separate schedule and would never
+            // appear in that tree (see COASIA-CHANGES.md for why). Only ever touches the one
+            // slot it manages (data-auto-linked="1"), so a resource the user added manually via
+            // that dialog is left alone; and it only runs on an actual click here, never on
+            // page load, so opening an existing reservation for edit never silently re-adds
+            // something the user had deliberately removed.
+            function applyLinkedResource(linkedResourceId) {
+                var $additional = $('#additionalResources');
+                var $existingAutoLinked = $additional.find('.resourceName[data-auto-linked="1"]');
+                // Only reload credits/custom-attributes (notifyResourcesChanged) when this
+                // actually changes #additionalResources -- most resources have no link
+                // configured, and that case should behave exactly as it did before this
+                // feature existed.
+                var changed = $existingAutoLinked.length > 0;
+                $existingAutoLinked.remove();
+
+                linkedResourceId = linkedResourceId ? String(linkedResourceId) : '';
+                var alreadyPresent = !linkedResourceId ||
+                    $('#primaryResourceId').val() === linkedResourceId ||
+                    $additional.find('.resourceId').filter(function () {
+                        return $(this).val() === linkedResourceId;
+                    }).length > 0;
+
+                if (!alreadyPresent) {
+                    var $source = $list.find('.resource-picker-item[data-resource-id="' + linkedResourceId + '"]');
+                    if ($source.length) {
+                        var name = $source.find('.resource-picker-item-label').text();
+                        var color = $source.data('color');
+                        var className = 'resourceName rounded-1 my-1 p-1';
+                        var styleAttr = '';
+                        if (color) {
+                            styleAttr = ' style="background-color:' + color + ';"';
+                        } else {
+                            className += ' text-success bg-success bg-opacity-10';
+                        }
+                        $additional.append(
+                            '<div class="' + className + '" data-auto-linked="1"' + styleAttr + '>' +
+                            '<span class="resourceDetails" data-resourceId="' + linkedResourceId + '">' +
+                            $('<div>').text(name).html() +
+                            '</span><input class="resourceId" type="hidden" name="{FormKeys::ADDITIONAL_RESOURCES}[]" value="' +
+                            linkedResourceId + '" /></div>'
+                        );
+                        changed = true;
+                    }
+                }
+
+                if (changed) {
+                    reservation.notifyResourcesChanged();
+                }
+            }
+
             $panel.on('click', '.resource-picker-item', function () {
                 var resourceId = String($(this).data('resource-id'));
                 $list.find('.resource-picker-item').removeClass('selected');
@@ -705,6 +762,7 @@
                 updateTrigger();
                 close();
                 scheduleRpAvailabilityCheck();
+                applyLinkedResource($(this).data('linked-resource-id'));
             });
 
             $search.on('input', function () {

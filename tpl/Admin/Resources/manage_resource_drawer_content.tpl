@@ -197,6 +197,26 @@
 				</div>
 				<div>
 					<label
+						class="inline fw-bold">{translate key=LinkedResource}</label>
+					<span class="propertyValue linkedResourceName"
+						data-type="select" data-pk="{$id}"
+						data-value="{$resource->GetLinkedResourceId()}"
+						data-name="{FormKeys::RESOURCE_LINKED_RESOURCE_ID}">
+						{if $resource->GetLinkedResourceId() && isset($ResourceNames[$resource->GetLinkedResourceId()])}
+							{$ResourceNames[$resource->GetLinkedResourceId()]}
+						{else}
+							{translate key='None'}
+						{/if}
+					</span>
+					<a class="update changeLinkedResource link-primary"
+						title="{translate key='Edit'}" href="#">
+						<span
+							class="visually-hidden">{translate key=LinkedResource}</span>
+						<span class="bi bi-pencil-square"></span>
+					</a>
+				</div>
+				<div>
+					<label
 						class="inline fw-bold">{translate key=SortOrder}</label>
 					<span class="propertyValue sortOrderValue"
 						data-type="number" data-pk="{$id}"
@@ -652,6 +672,30 @@
 					{indicator}
 				</div>
 			</form>
+
+			{* Own small x-editable widget (ChangeLinkedResource) rather than a field inside
+			   the BasicInformation form above -- same reasoning as the .resourceHoursForm
+			   right below: HTML forbids nested forms, and this shouldn't get bundled into
+			   (or blocked by validation on) the basic-info save. *}
+			<div class="mt-3">
+				<label class="inline fw-bold">{translate key=LinkedResource}</label>
+				<span class="propertyValue linkedResourceName"
+					data-type="select" data-pk="{$id}"
+					data-value="{$resource->GetLinkedResourceId()}"
+					data-name="{FormKeys::RESOURCE_LINKED_RESOURCE_ID}">
+					{if $resource->GetLinkedResourceId() && isset($ResourceNames[$resource->GetLinkedResourceId()])}
+						{$ResourceNames[$resource->GetLinkedResourceId()]}
+					{else}
+						{translate key='None'}
+					{/if}
+				</span>
+				<a class="update changeLinkedResource link-primary"
+					title="{translate key='Edit'}" href="#">
+					<span class="visually-hidden">{translate key=LinkedResource}</span>
+					<span class="bi bi-pencil-square"></span>
+				</a>
+				<div class="form-text">{translate key=LinkedResourceHint}</div>
+			</div>
 
 			{if !$isVideoConferenceResource && $lyt}
 				{* 表單外的隱藏欄位載體,由 saveResourceHours() 填值後 async 送出。

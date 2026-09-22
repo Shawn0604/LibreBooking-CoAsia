@@ -203,6 +203,7 @@ class ParameterNames
     public const RESOURCE_NOTES = '@resource_notes';
     public const RESOURCE_REQUIRES_APPROVAL = '@requires_approval';
     public const RESOURCE_LEVEL_ID = '@resourceLevelId';
+    public const RESOURCE_LINKED_RESOURCE_ID = '@linked_resource_id';
     public const RESOURCE_IMAGE_NAME = '@imageName';
     public const RESOURCE_SORT_ORDER = '@sort_order';
     public const RESOURCE_STATUS = '@status_id';

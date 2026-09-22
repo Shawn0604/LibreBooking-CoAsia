@@ -32,6 +32,7 @@ class ManageResourcesActions
     public const ActionDisableSubscription = 'disableSubscription';
     public const ActionChangeSort = 'changeSort';
     public const ActionChangeResourceType = 'changeResourceType';
+    public const ActionChangeLinkedResource = 'changeLinkedResource';
     public const ActionBulkUpdate = 'bulkUpdate';
     public const ActionChangeDuration = 'changeDuration';
     public const ActionChangeCapacity = 'changeCapacity';
@@ -137,6 +138,7 @@ class ManageResourcesPresenter extends ActionPresenter
         $this->AddAction(ManageResourcesActions::ActionDisableSubscription, 'DisableSubscription');
         $this->AddAction(ManageResourcesActions::ActionChangeSort, 'ChangeSortOrder');
         $this->AddAction(ManageResourcesActions::ActionChangeResourceType, 'ChangeResourceType');
+        $this->AddAction(ManageResourcesActions::ActionChangeLinkedResource, 'ChangeLinkedResource');
         $this->AddAction(ManageResourcesActions::ActionBulkUpdate, 'BulkUpdate');
         $this->AddAction(ManageResourcesActions::ActionChangeDuration, 'ChangeDuration');
         $this->AddAction(ManageResourcesActions::ActionChangeCapacity, 'ChangeCapacity');
@@ -185,10 +187,16 @@ class ManageResourcesPresenter extends ActionPresenter
         // one dedicated schedule in this deployment, so this cross-references each schedule's own
         // resource for its region (an UNFILTERED lookup, deliberately not reusing the possibly
         // filtered $resources above -- this dropdown always needs to offer every schedule).
+        $allResources = $this->resourceRepository->GetResourceList();
         $scheduleLocationsById = [];
-        foreach ($this->resourceRepository->GetResourceList() as $r) {
+        $resourceNameList = [];
+        foreach ($allResources as $r) {
             $scheduleLocationsById[$r->GetScheduleId()] = $r->GetLocation();
+            $resourceNameList[$r->GetId()] = $r->GetName();
         }
+        // Every resource, so the "連動資源" picker (Admin > 會議室管理 drawer) can offer any
+        // resource as the pairing target -- not just the current page/filter of $resources.
+        $this->page->BindResourceNames($resourceNameList);
         usort($schedules, function ($a, $b) use ($scheduleLocationsById) {
             $locationA = $scheduleLocationsById[$a->GetId()] ?? null;
             $locationB = $scheduleLocationsById[$b->GetId()] ?? null;
@@ -728,6 +736,22 @@ class ManageResourcesPresenter extends ActionPresenter
         Log::Debug('Changing resource type for resource %s', $resourceId);
         $resource = $this->resourceRepository->LoadById($resourceId);
         $resource->SetResourceTypeId($resourceTypeId);
+        $this->resourceRepository->Update($resource);
+    }
+
+    /**
+     * The resource picked here is auto-added to the reservation whenever this resource is
+     * booked as the primary resource -- see #rpResourcePicker's click handler in
+     * tpl/Reservation/create.tpl, which reads BookableResource::GetLinkedResourceId() (exposed
+     * to that page as ResourceDto::LinkedResourceId).
+     */
+    public function ChangeLinkedResource()
+    {
+        $linkedResourceId = $this->page->GetValue();
+        $resourceId = $this->page->GetResourceId();
+        Log::Debug('Changing linked resource for resource %s', $resourceId);
+        $resource = $this->resourceRepository->LoadById($resourceId);
+        $resource->SetLinkedResourceId(empty($linkedResourceId) ? null : $linkedResourceId);
         $this->resourceRepository->Update($resource);
     }
 

@@ -188,6 +188,8 @@ class zh_tw extends en_us
         $strings['NoLocationLabel'] = '(沒有指定地區)';
         $strings['AllLocations'] = '所有地區';
         $strings['ResourceType'] = '資源類型';
+        $strings['LinkedResource'] = '連動資源';
+        $strings['LinkedResourceHint'] = '預約這個資源時，會自動一併加入這個連動資源（例如：訂實體會議室時自動加訂線上會議）。';
         $strings['ResourceStatus'] = '資源狀態';
         $strings['AllResourceTypes'] = '所有資源類型';
         $strings['AllResourceStatuses'] = '所有資源狀態';

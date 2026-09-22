@@ -191,7 +191,8 @@ class ResourceService implements IResourceService
                 $resource->IsAutoReleased(),
                 $resource->GetAutoReleaseMinutes(),
                 $resource->GetColor(),
-                $resource->GetMaxConcurrentReservations()
+                $resource->GetMaxConcurrentReservations(),
+                $resource->GetLinkedResourceId()
             );
         }
 

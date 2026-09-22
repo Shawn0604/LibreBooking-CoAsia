@@ -145,6 +145,7 @@ class ColumnNames
     public const RESOURCE_IMAGE_LIST = 'image_list';
     public const PERMISSION_TYPE = 'permission_type';
     public const RESOURCE_ADDITIONAL_PROPERTIES = 'additional_properties';
+    public const RESOURCE_LINKED_RESOURCE_ID = 'linked_resource_id';
 
     // RESERVATION RESOURCES
     public const RESOURCE_LEVEL_ID = 'resource_level_id';

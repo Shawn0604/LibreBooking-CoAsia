@@ -2803,7 +2803,8 @@ class UpdateResourceCommand extends SqlCommand
         $peakCredits,
         TimeInterval $minNoticeTimeUpdate,
         TimeInterval $minNoticeTimeDelete,
-        $serializedProperties
+        $serializedProperties,
+        $linkedResourceId = null
     ) {
         parent::__construct(Queries::UPDATE_RESOURCE);
 
@@ -2841,6 +2842,7 @@ class UpdateResourceCommand extends SqlCommand
         $this->AddParameter(new Parameter(ParameterNames::RESOURCE_MINNOTICE_DELETE, $minNoticeTimeDelete->ToDatabase()));
         $this->AddParameter(new Parameter(ParameterNames::DATE_MODIFIED, Date::Now()->ToDatabase()));
         $this->AddParameter(new Parameter(ParameterNames::ADDITIONAL_PROPERTIES, $serializedProperties));
+        $this->AddParameter(new Parameter(ParameterNames::RESOURCE_LINKED_RESOURCE_ID, empty($linkedResourceId) ? null : $linkedResourceId));
     }
 }
 

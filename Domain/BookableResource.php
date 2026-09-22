@@ -550,6 +550,7 @@ class BookableResource implements IBookableResource
     protected $_scheduleAdminGroupId;
     protected $_sortOrder;
     protected $_resourceTypeId;
+    protected $_linkedResourceId;
     protected $_resourceGroupIds = [];
     protected $_enableCheckIn = false;
     protected $_autoReleaseMinutes = null;
@@ -671,6 +672,9 @@ class BookableResource implements IBookableResource
         $resource->WithSubscription($row[ColumnNames::ALLOW_CALENDAR_SUBSCRIPTION]);
         $resource->WithScheduleAdminGroupId($row[ColumnNames::SCHEDULE_ADMIN_GROUP_ID_ALIAS]);
         $resource->SetResourceTypeId($row[ColumnNames::RESOURCE_TYPE_ID]);
+        if (isset($row[ColumnNames::RESOURCE_LINKED_RESOURCE_ID])) {
+            $resource->SetLinkedResourceId($row[ColumnNames::RESOURCE_LINKED_RESOURCE_ID]);
+        }
         $resource->SetBufferTime($row[ColumnNames::RESOURCE_BUFFER_TIME]);
         $resource->SetColor($row[ColumnNames::RESERVATION_COLOR]);
 
@@ -1530,6 +1534,26 @@ class BookableResource implements IBookableResource
     public function HasResourceType()
     {
         return !empty($this->_resourceTypeId);
+    }
+
+    /**
+     * The resource that booking this one as the primary resource should also auto-add to the
+     * same reservation (e.g. a room paired with its usual video-conference resource) --
+     * admin-configured on the Manage Resources page. Null means no pairing is set.
+     *
+     * @param int|null $linkedResourceId
+     */
+    public function SetLinkedResourceId($linkedResourceId)
+    {
+        $this->_linkedResourceId = $linkedResourceId;
+    }
+
+    /**
+     * @return int|null
+     */
+    public function GetLinkedResourceId()
+    {
+        return $this->_linkedResourceId;
     }
 
     /**

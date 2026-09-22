@@ -649,6 +649,8 @@ class en_us extends Language
         $strings['ResourceGroupHelp3'] = 'Drag and drop resources to add them to groups.';
         $strings['ResourceGroupWarning'] = 'If using resource groups, each resource must be assigned to at least one group. Unassigned resources will not be able to be reserved.';
         $strings['ResourceType'] = 'Resource Type';
+        $strings['LinkedResource'] = 'Linked Resource';
+        $strings['LinkedResourceHint'] = 'Booking this resource automatically also adds this linked resource (e.g. booking a physical room automatically adds its online meeting).';
         $strings['AppliesTo'] = 'Applies To';
         $strings['UniquePerInstance'] = 'Unique Per Instance';
         $strings['AddResourceType'] = 'Add Resource Type';

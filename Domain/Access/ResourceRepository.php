@@ -307,7 +307,8 @@ class ResourceRepository implements IResourceRepository
             $resource->GetPeakCreditsPerSlot(),
             $resource->GetMinNoticeUpdate(),
             $resource->GetMinNoticeDelete(),
-            $resource->GetSerializedProperties()
+            $resource->GetSerializedProperties(),
+            $resource->GetLinkedResourceId()
         );
 
         $db->Execute($updateResourceCommand);
@@ -883,6 +884,7 @@ class ResourceDto implements IBookableResource
      * @param int|null $autoReleaseMinutes
      * @param string|null $color
      * @param int|null $maxConcurrentReservations
+     * @param int|null $linkedResourceId
      */
     public function __construct(
         $id,
@@ -900,7 +902,8 @@ class ResourceDto implements IBookableResource
         $isAutoReleased,
         $autoReleaseMinutes,
         $color,
-        $maxConcurrentReservations
+        $maxConcurrentReservations,
+        $linkedResourceId = null
     ) {
         $this->Id = $id;
         $this->Name = $name;
@@ -923,6 +926,7 @@ class ResourceDto implements IBookableResource
             $this->TextColor = $textColor->__toString();
         }
         $this->MaxConcurrentReservations = empty($maxConcurrentReservations) ? 1 : $maxConcurrentReservations;
+        $this->LinkedResourceId = $linkedResourceId;
     }
 
     /**
@@ -1008,6 +1012,11 @@ class ResourceDto implements IBookableResource
     public $MaxConcurrentReservations;
 
     /**
+     * @var int|null
+     */
+    public $LinkedResourceId;
+
+    /**
      * alias of GetId()
      * @return int
      */
@@ -1062,6 +1071,14 @@ class ResourceDto implements IBookableResource
     public function GetResourceTypeId()
     {
         return $this->GetResourceType();
+    }
+
+    /**
+     * @return int|null
+     */
+    public function GetLinkedResourceId()
+    {
+        return $this->LinkedResourceId;
     }
 
     /**
