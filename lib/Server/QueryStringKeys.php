@@ -19,6 +19,7 @@ class QueryStringKeys
     public const AUTOCOMPLETE_TYPE = 'type';
     public const BLACKOUT_ID = 'bid';
     public const CALENDAR_TYPE = 'ct';
+    public const CANCEL = 'cancel';
     public const CONFIG_FILE = 'cf';
     public const DATA_REQUEST = 'dr';
     public const DAY = 'd';

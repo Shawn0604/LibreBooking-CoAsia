@@ -3460,3 +3460,34 @@ LINE 之所以有整套自助流程(掃 QR → 傳訊息 → webhook 綁定),是
 
 - `npx eslint` / `npx prettier --check` 對這個檔:無新增問題(既有的 `'AdminConfirm' is not defined` 是改版前就有的 lint 設定缺口,與這次無關)。
 - 瀏覽器實測需要管理員登入;dev 環境走 AD 認證不便直接登入驗證,改動本身只是補一個 `preventDefault()`、路徑單純。正式機部署後由使用者確認「篩選」後日期範圍會保留、能看到更早的預約。
+
+## 113. 預約通知信加「取消此預約」連結——原本的「查看預約詳情」點進去是完整編輯表單,找不到取消
+
+### 需求
+
+使用者回報:在預約通知信裡,如果真的想取消預約,點進去卻無法取消,只會跳到「訂會議室」的畫面。
+
+### 根因
+
+所有預約通知信(建立/更新/核准/提醒)裡唯一的連結是「查看預約詳情」,指向 `reservation.php?rn=<參考編號>`(`lib/Email/Messages/ReservationEmailMessage.php` 的 `ReservationUrl`)。這個連結原本設計就不是取消按鈕:
+
+- 預約人(owner)打開會進到 `Pages/Reservation/ExistingReservationPage.php::GetTemplateName()` 選出的 `Reservation/edit.tpl`——這其實是跟「建立新預約」共用的完整表單(`{extends file="Reservation/create.tpl"}`),取消按鈕(垃圾桶圖示)藏在表單最下面,不容易注意到「這裡可以取消」。
+- 待審核中的預約會先進 `Reservation/approve.tpl`,取消對應的是「Reject」按鈕,一樣不明顯。
+- 與會者/受邀者打開則是唯讀的 `Reservation/view.tpl`,裡面根本沒有取消的入口(這是對的,只有預約人能取消)。
+
+信件本身從來沒有一鍵取消的連結,使用者感覺到的「無法取消、跳到訂會議室畫面」其實就是被丟進了這個大表單裡。
+
+### 修法
+
+不新增一個獨立的「一鍵取消(免確認)」端點——避免信件連結被信箱掃描器/防毒軟體預先開啟時誤觸發真的取消。做法是讓信件連結能直接開啟「原本就存在」的取消確認彈窗:
+
+- `lib/Server/QueryStringKeys.php` 新增 `CANCEL = 'cancel'`。
+- `lib/Email/Messages/ReservationEmailMessage.php::PopulateTemplate()` 多組一個 `CancelUrl`,等同 `ReservationUrl` 加上 `&cancel=1`。
+- `tpl/Email/reservation-notification-body.tpl` 在「查看預約詳情」旁加「取消此預約」連結,只在 `$IsRecipientOwner && $Status != 'cancelled'` 時顯示(沿用既有的主持人專屬資訊判斷邏輯,取消連結本來就只該給預約人;已經是取消通知信就不用再顯示一次取消連結)。
+- `Web/scripts/reservation.js` 的 `Reservation.prototype.init()` 偵測到網址帶 `cancel=1`,自動觸發 `.triggerDeletePrompt, .delete.prompt`(垃圾桶／Reject 按鈕既有的 class,同時涵蓋 `edit.tpl` 單筆/重複預約、`approve.tpl` 待審核三種情境)的 click,直接彈出既有的取消確認視窗——使用者仍需在彈窗裡按一次「刪除/Reject」才會真的送出取消,單純開信件連結或連結預覽不會造成誤取消。非預約人打開 `view.tpl` 時頁面上沒有這些按鈕,自動觸發是安全的 no-op。
+
+### 驗證
+
+- `docker compose -f docker-compose.dev.yml exec app php -l` 對兩個改動的 PHP 檔案:無語法錯誤。
+- 暫時寫一個 PHPUnit 測試直接呼叫 `ReservationCreatedEmail::Body()` / `ReservationDeletedEmail::Body()` 確認渲染結果:owner 收到的「建立」信有 `<a href="/reservation.php?rn=…&cancel=1">取消此預約</a>`;owner 收到的「已取消」信沒有這個連結(避免對已取消的預約再顯示一次取消連結)。既有 22 個 `tests/Application/Reservation/*NotificationTest.php`(owner/participant/guest/admin/reminder)全數通過,確認共用的 `reservation-notification-body.tpl` 沒有因為新增變數而壞掉。測試檔案驗證後即刪除,未留在版控裡。
+- 瀏覽器實測需要真實使用者登入;本機 dev DB 是正式環境資料快照、走 AD 認證,沒有可用的本機測試帳密(見專案記憶),故未做瀏覽器端到端點擊驗證。JS 邏輯(`URLSearchParams` 讀 `cancel=1`、觸發既有 click handler)與既有的 `.triggerDeletePrompt`/`.prompt` 綁定共用同一段程式碼,風險低。

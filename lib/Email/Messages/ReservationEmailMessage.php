@@ -132,6 +132,14 @@ abstract class ReservationEmailMessage extends EmailMessage
 
         $this->Set('ReservationUrl', sprintf('%s?%s=%s', Pages::RESERVATION, QueryStringKeys::REFERENCE_NUMBER, $currentInstance->ReferenceNumber()));
 
+        // Opens the same reservation page but auto-triggers the delete confirmation prompt
+        // (see cancel=1 handling in Web/scripts/reservation.js) so an owner clicking "cancel"
+        // from a notification email lands directly on the cancel dialog instead of having to
+        // find the delete icon inside the full edit form. Recipients who aren't the owner get
+        // the read-only view.tpl for this same URL (no delete icon present), which is a safe
+        // no-op -- so this is only surfaced to owners in the template (see $IsRecipientOwner).
+        $this->Set('CancelUrl', sprintf('%s?%s=%s&%s=1', Pages::RESERVATION, QueryStringKeys::REFERENCE_NUMBER, $currentInstance->ReferenceNumber(), QueryStringKeys::CANCEL));
+
         $icalUrl = sprintf('export/%s?%s=%s', Pages::CALENDAR_EXPORT, QueryStringKeys::REFERENCE_NUMBER, $currentInstance->ReferenceNumber());
         $this->Set('ICalUrl', $icalUrl);
 

@@ -235,6 +235,9 @@
 			   主持人登入資訊) already cover the actions that need pill-button emphasis. *}
 			<p style="margin:16px 0 0 0;">
 				<a href="{$ScriptUrl}/{$ReservationUrl}" style="color:{$CoasiaPrimary};font-size:13.5px;font-weight:600;text-decoration:underline;">查看預約詳情</a>
+				{if $IsRecipientOwner && $Status != 'cancelled'}
+					&nbsp;&nbsp;<a href="{$ScriptUrl}/{$CancelUrl}" style="color:#c5221f;font-size:13.5px;font-weight:600;text-decoration:underline;">取消此預約</a>
+				{/if}
 			</p>
 		</td>
 	</tr>

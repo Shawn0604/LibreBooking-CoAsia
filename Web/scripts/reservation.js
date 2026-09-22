@@ -163,6 +163,16 @@ function Reservation(opts) {
       elements.deleteButtonPrompt.modal('hide');
     });
 
+    // Reservation emails link to this page with ?cancel=1 so an owner clicking "cancel" from
+    // their inbox lands straight on the delete/reject confirmation prompt instead of the full
+    // edit form. Simulating a click on the same trash/reject button the user would press reuses
+    // the existing triggerDeletePrompt/.prompt wiring above (single vs. recurring, and both
+    // edit.tpl and approve.tpl use the same class pairing) without duplicating it. No-ops if
+    // neither button is on the page (e.g. a non-owner reached the read-only view.tpl instead).
+    if (new URLSearchParams(window.location.search).get('cancel') === '1') {
+      $('.triggerDeletePrompt, .delete.prompt').first().trigger('click');
+    }
+
     $('#btnWaitList')
       .unbind()
       .click(function () {
