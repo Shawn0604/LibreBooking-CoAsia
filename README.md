@@ -107,7 +107,7 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 | 容器化 | Docker、Docker Compose（開發與正式環境分別用 `Dockerfile.dev`/`Dockerfile.prod`） |
 | 反向代理／TLS | Caddy 2 |
 | 身份驗證 | Active Directory（LDAP） |
-| 通知 | LINE Messaging API、SMTP |
+| 通知 | SMTP、LINE Messaging API、企業微信（WeCom 閘道） |
 | 版本控制 | Git，公司 GitLab |
 | CI（現行） | GitHub Actions（`.github/workflows`）：lint、phpstan、phpunit |
 
@@ -117,18 +117,46 @@ CoAsia 內部的會議室／資源預約系統，服務全體員工。基於開�
 
 ```mermaid
 flowchart LR
-    Dev["Windows 開發機"] -->|git push| GL["公司 GitLab"]
-    GL -.->|"手動 git pull"| VM
-    LINE(["LINE 平台"]) -->|"僅 webhook 路徑<br/>Cloudflare Tunnel"| Caddy
+    User(["員工瀏覽器<br/>公司內網／VPN"])
 
-    subgraph VM["BookingServer（10.1.8.32）"]
-        Caddy["caddy<br/>HTTPS，AD CS 憑證"] --> App["app<br/>PHP 8.2 + Apache"] --> DB[("db<br/>MySQL 8.0")]
+    subgraph VM["BookingServer（10.1.8.32）· Docker Compose"]
+        CF["cloudflared<br/>只放行 LINE webhook"]
+        Caddy["caddy<br/>HTTPS 入口<br/>AD CS 憑證"]
+        App["app<br/>PHP 8.2 + Apache<br/>＋每分鐘 cron（會前提醒）"]
+        DB[("db<br/>MySQL 8.0")]
+        CF --> Caddy
+        Caddy --> App
+        App --> DB
     end
 
-    User(["員工瀏覽器<br/>公司內網／VPN"]) -->|"https://booking.coasia.com.tw"| Caddy
-    App --> DC["公司 AD DC<br/>LDAP"]
-    App --> SMTP["內部 SMTP Relay"]
+    subgraph Internal["公司內部服務"]
+        DC["AD DC<br/>LDAP 登入"]
+        SMTP["SMTP Relay<br/>Email 通知"]
+        NAS["NAS<br/>每日備份"]
+    end
+
+    subgraph Notify["推播通知管道"]
+        LINE["LINE Messaging API"]
+        WECOM["企業微信 WeCom 閘道<br/>wecoms.coasia.app"]
+    end
+
+    subgraph Code["程式碼"]
+        Dev["Windows 開發機"] -->|git push| GL["公司 GitLab"]
+    end
+
+    User -->|"https://booking.coasia.com.tw"| Caddy
+    App -->|驗證帳密| DC
+    App -->|寄信| SMTP
+    App -->|推播| LINE
+    App -->|"推播（深圳／上海員工）"| WECOM
+    LINE -.->|"webhook 回呼<br/>Cloudflare Tunnel"| CF
+    DB -.->|mysqldump| NAS
+    GL -.->|"手動 git pull + rebuild"| App
 ```
+
+- 實線是主要流程，虛線是回呼／備份／部署這類非即時請求的流程
+- 員工只能從內網／VPN 連進來；唯一對外開放的入口是 LINE webhook 這一條路徑
+- 通知有三條管道：Email（SMTP）、LINE、企業微信，都是 app **主動往外送**；只有 LINE 會回呼進來（綁定帳號、回覆訊息用）
 
 主體服務內網限定，唯一對外公開的是 LINE Webhook 這一條路徑（範圍限定的 Cloudflare Tunnel，其他路徑一律 404），細節見 `COASIA-DEPLOYMENT.md` 十四。
 

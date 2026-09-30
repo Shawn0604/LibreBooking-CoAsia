@@ -2,7 +2,7 @@
 
 這份文件是給要維護這個系統的人看的技術參考——前端、後端、資料庫三層各自怎麼組織、request 怎麼流過整個系統、資料庫實際有哪些表。跟其他 `COASIA-*.md` 文件的分工：`COASIA-CHANGES.md` 記錄「改了什麼、為什麼」，`COASIA-DEPLOYMENT.md` 記錄「部署架構、怎麼操作」，這份記錄的是「系統本身長什麼樣子」——寫這份文件的直接動機，是有一次除錯花了很多來回才搞懂 `dbversion`／`resource_groups`／`resources.location` 這幾張表的用途跟關聯，早一點有這份文件就能省下不少查證時間。
 
-最後更新：2026-08-19
+最後更新：2026-09-30
 
 ---
 
@@ -226,9 +226,9 @@ return strtoupper('LB_' . preg_replace('/[.\-]+/', '_', $canonicalKey));
 
 ### ⚠️ 最重要的認知：`create-schema.sql` 不是完整 schema
 
-`database_schema/create-schema.sql`（464 行）**只是 2.0 年代的基礎 schema，只有 25 張表**。實際上線的 schema 是這份檔案**再疊上 15 個依序套用的 upgrade 資料夾**（`database_schema/upgrades/2.1 … 4.4`），這些資料夾又加了 **34 張表**，還有幾十個欄位。
+`database_schema/create-schema.sql`（464 行）**只是 2.0 年代的基礎 schema，只有 25 張表**。實際上線的 schema 是這份檔案**再疊上 18 個依序套用的 upgrade 資料夾**（`database_schema/upgrades/2.1 … 4.7`），這些資料夾又加了 **34 張表**，還有幾十個欄位。
 
-**沒有任何單一檔案能看到「目前完整的 schema」。** 要知道 `resources` 表到底有哪些欄位，得先讀 `create-schema.sql:184-210`，**再**去 15 個 upgrade 資料夾裡 grep `ALTER TABLE \`resources\``。這正是為什麼 `resources.location` 跟 `resource_groups` 一開始讓人摸不著頭緒——`location` 在最原始的檔案裡就有（`create-schema.sql:187`，`upgrades/2.6/schema.sql:56-57` 把它從短字串加寬成 `VARCHAR(255)`），但 `resource_groups` 是 `upgrades/2.5/schema.sql:8` 才新增的。
+**沒有任何單一檔案能看到「目前完整的 schema」。** 要知道 `resources` 表到底有哪些欄位，得先讀 `create-schema.sql:184-210`，**再**去 18 個 upgrade 資料夾裡 grep `ALTER TABLE \`resources\``。這正是為什麼 `resources.location` 跟 `resource_groups` 一開始讓人摸不著頭緒——`location` 在最原始的檔案裡就有（`create-schema.sql:187`，`upgrades/2.6/schema.sql:56-57` 把它從短字串加寬成 `VARCHAR(255)`），但 `resource_groups` 是 `upgrades/2.5/schema.sql:8` 才新增的。
 
 `Presenters/Install/Installer.php:62,68` 依序套用這些檔案（`InstallFresh` 先跑 `create-schema.sql`，再跑 `Upgrade()`）。
 
@@ -291,7 +291,7 @@ erDiagram
 
 | 表 | 用途 | 關鍵欄位 | 定義位置 |
 |---|---|---|---|
-| `users` | 使用者帳號 | PK `user_id`；FK `status_id`→`user_statuses`；`salt`（每個使用者各自的密碼 salt）；`homepageid`（登入後預設導向哪一頁）；`legacyid`／`legacypassword`（2.0 版以前遷移的殘留欄位）；`public_id`（對外用的不透明 ID，唯一）；`ad_object_guid`（**CoAsia 新增**，保留欄位，目前未使用）；`credit_count` | `create-schema.sql:132`；+`upgrades/2.1/schema.sql:10`、`2.6/schema.sql:141`、`4.2/schema.sql:18` |
+| `users` | 使用者帳號 | PK `user_id`；FK `status_id`→`user_statuses`；`salt`（每個使用者各自的密碼 salt）；`homepageid`（登入後預設導向哪一頁）；`legacyid`／`legacypassword`（2.0 版以前遷移的殘留欄位）；`public_id`（對外用的不透明 ID，唯一）；`ad_object_guid`（**CoAsia 新增**，保留欄位，目前未使用）；`is_local_auth_only`／`is_ad_managed`／`department`／`credentials_invalidated_at`（**CoAsia 新增**，4.5）；`credit_count` | `create-schema.sql:132`；+`upgrades/2.1/schema.sql:10`、`2.6/schema.sql:141`、`4.2/schema.sql:18`、`4.5/schema.sql` |
 | `user_statuses` | 查找表：啟用/停用/待審核 | PK `status_id` | `create-schema.sql:121` |
 | `groups` | 使用者群組 | PK `group_id`；self-FK `admin_group_id`→`groups`（哪個群組管理這個群組） | `create-schema.sql:74` |
 | `user_groups` | 使用者↔群組 M:N | 複合 PK（`group_id`,`user_id`） | `create-schema.sql:164` |
@@ -299,7 +299,7 @@ erDiagram
 | `group_roles` | 群組↔角色 M:N（角色一律透過群組授予，不會直接給使用者） | PK（`group_id`,`role_id`） | `create-schema.sql:102` |
 | `user_session` | 伺服器端 session 儲存 | `session_token`；`user_session_value`（序列化的 `UserSession`） | `upgrades/2.4/schema.sql:2` |
 | `account_activation` | Email 啟用驗證碼 | `activation_code`（唯一） | `upgrades/2.2/schema.sql:30` |
-| `user_preferences` | 通用的每人 key/value 偏好設定 | (`user_id`,`name`,`value`) | `upgrades/2.5/schema.sql:69` |
+| `user_preferences` | 通用的每人 key/value 偏好設定。**CoAsia 的 LINE／WeCom ID、各管道通知開關、會前提醒分鐘數都存在這裡**，不在 `users` 表（key 名稱見 `Domain/Values/UserPreferences.php`） | (`user_id`,`name`,`value`) | `upgrades/2.5/schema.sql:69` |
 | `user_email_preferences` | 使用者訂閱哪些通知事件類型 | PK（`user_id`,`event_category`,`event_type`） | `create-schema.sql:396` |
 | `announcements`／`announcement_groups`／`announcement_resources` | 儀表板公告＋受眾範圍 | `priority`、`start_date`／`end_date`；join 表限定公告對象的群組/資源 | `create-schema.sql:8`；`upgrades/2.6/schema.sql:173,188` |
 
@@ -307,7 +307,7 @@ erDiagram
 
 | 表 | 用途 | 關鍵欄位 | 定義位置 |
 |---|---|---|---|
-| `resources` | 可預約的會議室/設備 | PK `resource_id`；FK `schedule_id`；`location`（見下方「兩種地區機制」）；`sort_order`；`status_id`（2.5 版取代舊的 `isactive`）；`resource_type_id`；`admin_group_id`；`autoassign`、`requires_approval`、`buffer_time`、`min/max_duration`、`min/max_notice_time`、`min_notice_time_update/_delete`、`auto_release_minutes`、`enable_check_in`、`color`、`allow_display`、`additional_properties`（序列化 blob）、`public_id` | `create-schema.sql:184` + `2.1`、`2.3:17`、`2.5:3,93-98`、`2.6:105-112`、`2.7:120-123,158`、`2.8:13` |
+| `resources` | 可預約的會議室/設備 | PK `resource_id`；FK `schedule_id`；`location`（見下方「兩種地區機制」）；`sort_order`；`status_id`（2.5 版取代舊的 `isactive`）；`resource_type_id`；`admin_group_id`；`autoassign`、`requires_approval`、`buffer_time`、`min/max_duration`、`min/max_notice_time`、`min_notice_time_update/_delete`、`auto_release_minutes`、`enable_check_in`、`color`、`allow_display`、`additional_properties`（序列化 blob）、`public_id`；`linked_resource_id`（**CoAsia 新增**，4.7，self-FK，綁定自動一起預約的資源） | `create-schema.sql:184` + `2.1`、`2.3:17`、`2.5:3,93-98`、`2.6:105-112`、`2.7:120-123,158`、`2.8:13`、`4.7` |
 | `resource_groups` | 階層式會議室分組（見下方對照表） | PK `resource_group_id`；`resource_group_name`；**self-FK `parent_id`→`resource_groups`**，`ON DELETE CASCADE`；`public_id` | `upgrades/2.5/schema.sql:8`；`public_id` 於 `2.6/schema.sql:51` |
 | `resource_group_assignment` | 會議室↔分組 M:N | PK（`resource_group_id`,`resource_id`），兩個 FK 都是 CASCADE | `upgrades/2.5/schema.sql:30` |
 | `resource_types` | 會議室分類（CoAsia：實體會議室／線上會議） | PK `resource_type_id`；`resource_type_name` | `upgrades/2.5/schema.sql:20` |
@@ -396,9 +396,9 @@ erDiagram
 
 **兩個現存的實際缺口，值得記住：**
 
-- **`4.3` 跟 `4.4` 都沒有 `data.sql`**，所以這兩版永遠不會寫入 `dbversion` 紀錄——這個 repo 能產生的最大版本號就是 `4.2`。兩套執行機制都是直接 `fopen("$dir/data.sql")`（`Installer.php:136`、`UpgradeDbTask.php:81` → `MySqlScript::GetFullSql()`），檔案不存在只會是警告、不是硬錯誤，所以 4.3/4.4 的 schema 改動**每次跑升級精靈都會重複套用**。
+- **`4.3` 跟 `4.4` 都沒有 `data.sql`**，所以這兩版永遠不會寫入 `dbversion` 紀錄。兩套執行機制都是直接 `fopen("$dir/data.sql")`（`Installer.php:136`、`UpgradeDbTask.php:81` → `MySqlScript::GetFullSql()`），檔案不存在只會是警告、不是硬錯誤。`4.5` 之後的資料夾都有補上 `data.sql`（`4.5` 是事後修補才加的），所以目前 repo 能產生的最大版本號是 `4.7`；一旦 `dbversion` 寫到 4.5 以上，升級精靈就不會再重跑 4.3/4.4。**新增 upgrade 資料夾時一定要附 `data.sql`**，照 `upgrades/4.7/data.sql` 的寫法。
 - **`upgrades/4.4/fix-encoding.sql` 兩套機制都不會自動執行**——都只認 `schema.sql`／`data.sql` 這兩個檔名，這個檔案要手動執行。
-- 另外，`Configuration::VERSION = '5.2.0'`（`lib/Config/Configuration.php:94`），但 `dbversion` 最大只會是 4.2，所以 `InstallPresenter::CheckForUpgrade()`（`Presenters/Install/InstallPresenter.php:130`）永遠會回報「有可用的升級」。
+- 另外，`Configuration::VERSION = '5.2.0'`（`lib/Config/Configuration.php:94`），但 `dbversion` 最大只會是 4.7，所以 `InstallPresenter::CheckForUpgrade()`（`Presenters/Install/InstallPresenter.php:130`）永遠會回報「有可用的升級」。
 
 ### `resource_groups` vs `resources.location`：兩種平行存在的地區機制
 
@@ -417,7 +417,7 @@ erDiagram
 
 ### CoAsia 專屬的資料庫異動
 
-**CoAsia 新增的 upgrade 資料夾**（用 `git log --diff-filter=A -- database_schema/` 確認）：`4.0`（commit `0b6c8448`）、`4.1`（`c425e9bd` + `d59bf14a`）、`4.2`（`56764a52`）、`4.3`（`961abd9c`）、`4.4`（`30eadf9d` + `a97f5559`）。`2.1`–`3.0` 是上游原生的。
+**CoAsia 新增的 upgrade 資料夾**（用 `git log --diff-filter=A -- database_schema/` 確認）：`4.0`（commit `0b6c8448`）、`4.1`（`c425e9bd` + `d59bf14a`）、`4.2`（`56764a52`）、`4.3`（`961abd9c`）、`4.4`（`30eadf9d` + `a97f5559`）、`4.5`（`cbe8b87c` + `635d7d00`）、`4.6`（`76250930`）、`4.7`（`abc2ab81`）。`2.1`–`3.0` 是上游原生的。
 
 | 異動 | 內容 | 位置 |
 |---|---|---|
@@ -428,6 +428,9 @@ erDiagram
 | `resource_video_conference_host`（新表） | 加密儲存的視訊會議主持人憑證，跟明文的 `video_url`／`video_meeting_id`／`video_passcode` 自訂屬性是分開的 | `upgrades/4.3/schema.sql:16` |
 | 2 筆 `resource_types` 資料＋回填 | `實體會議室`（資源 1-7）／`線上會議`（8-12）；讓 admin 抽屜可以依類型只顯示相關欄位 | `upgrades/4.4/schema.sql:17-31` |
 | 亂碼修正 | 修正上面那兩個 `resource_type_name` 值在正式環境上的亂碼（套用時沒加 `--default-character-set=utf8mb4`） | `upgrades/4.4/fix-encoding.sql:8-9` |
+| `users` 新增 4 個欄位 | AD 登入流程改版用：`is_local_auth_only`（緊急管理員，AD 掛掉時唯一還能用本機密碼登入的帳號）、`is_ad_managed`（每次 AD 登入成功就標記，讓 `Jobs/ad-reconcile-account-status.php` 只處理真正的 AD 帳號）、`department`（AD 的部門屬性）、`credentials_invalidated_at`（停用帳號時寫入，讓該使用者已開著的 session 下一次請求就失效） | `upgrades/4.5/schema.sql` |
+| `resources.resource_type_id` 回填 | 4.4 只處理了寫死 ID 1-12 的會議室；後來用後台「複製」建立的深圳／上海會議室沒有類型，抽屜會退回舊的完整欄位畫面。依有沒有 `video_url` 自訂屬性判斷是線上會議還是實體會議室，只動 `resource_type_id IS NULL` 的列 | `upgrades/4.6/schema.sql:17-43` |
+| `resources.linked_resource_id` | 自我參照、可為 NULL 的 FK，`ON DELETE SET NULL`。讓實體會議室綁定一個線上會議資源，訂前者時預約表單自動把後者也加進來 | `upgrades/4.7/schema.sql` |
 
 **另外三支獨立、手動套用的種子腳本**（不是 upgrade 資料夾的一部分）。全部**不是** idempotent，套用時都要加 `mysql --default-character-set=utf8mb4`：
 
